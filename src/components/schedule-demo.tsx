@@ -132,13 +132,15 @@ export default function ScheduleDemo() {
                 </div>
 
                 {/* Submit Button */}
-                <button
-                  type="submit"
-                  className="group relative mt-2 w-full bg-brand-green text-black px-6 py-4 rounded-2xl text-sm md:text-base font-black uppercase tracking-widest hover:shadow-[0_0_50px_rgba(0,255,153,0.5)] transition-all transform hover:-translate-y-1 active:scale-95"
+                <a
+                  href="https://warpme.neetocal.com/meeting-with-david-patten-19"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group relative mt-2 w-full bg-brand-green text-black px-6 py-4 rounded-2xl text-sm md:text-base font-black uppercase tracking-widest hover:shadow-[0_0_50px_rgba(0,255,153,0.5)] transition-all transform hover:-translate-y-1 active:scale-95 flex items-center justify-center"
                 >
                   Schedule a Demo
                   <div className="absolute inset-0 rounded-2xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
+                </a>
 
                 <p className="text-zinc-600 text-xs text-center mt-1">
                   No commitment required. Response within 24 hours.
