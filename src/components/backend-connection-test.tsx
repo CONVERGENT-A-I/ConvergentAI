@@ -6,7 +6,7 @@ export default function BackendConnectionTest() {
   useEffect(() => {
     const checkConnection = async () => {
       try {
-        const response = await fetch("http://localhost:3001/api/test");
+        const response = await fetch("/api/test");
         const data = await response.json();
         if (data.status === "success") {
           console.log("✅ [ConvergentAI] Backend Connection: SUCCESS");
@@ -16,7 +16,7 @@ export default function BackendConnectionTest() {
         }
       } catch (error) {
         console.error("❌ [ConvergentAI] Backend Connection: FAILED");
-        console.log("Make sure your backend is running on http://localhost:3001");
+        console.log("Make sure your Next.js server is running properly.");
       }
     };
 
