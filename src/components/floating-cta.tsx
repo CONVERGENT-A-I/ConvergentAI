@@ -8,7 +8,7 @@ import AppIcon from "../app/icon.png";
 
 function SideButton({ icon, label, mobileLabel }: { icon: React.ReactNode; label: string; mobileLabel?: string }) {
   return (
-    <button className="flex flex-col md:flex-row items-center justify-start gap-1.5 md:gap-4 w-full p-1.5 md:p-3.5 lg:p-4 rounded-xl md:rounded-2xl hover:bg-white/5 border border-transparent hover:border-[#00b4d8]/30 transition-all group text-center md:text-left hover:shadow-[0_0_20px_rgba(0,180,216,0.15)]">
+    <button className="flex flex-col md:flex-row items-center justify-start gap-1.5 md:gap-4 w-full p-1.5 md:p-3.5 lg:p-4 rounded-xl md:rounded-2xl hover:bg-white/5 border border-transparent hover:border-[#00b4d8]/30 transition-all group text-center md:text-left hover:shadow-[0_0_20px_rgba(0,180,216,0.15)] cursor-pointer">
       <div className="flex-shrink-0 h-8 w-8 md:h-12 md:w-12 rounded-full bg-[#0B0F19] border border-white/10 text-[#00b4d8] flex items-center justify-center group-hover:scale-110 group-hover:bg-gradient-to-br from-[#00b4d8] via-[#023e8a] to-[#560bad] group-hover:border-transparent group-hover:text-white transition-all duration-300 shadow-sm mx-auto md:mx-0">
         {icon}
       </div>
@@ -42,7 +42,7 @@ export default function FloatingCTA() {
             >
               <button
                 onClick={() => setIsOpen(false)}
-                className="absolute top-4 right-4 md:top-6 md:right-6 z-50 p-2.5 rounded-full bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white transition-colors shadow-sm border border-white/5"
+                className="absolute top-4 right-4 md:top-6 md:right-6 z-50 p-2.5 rounded-full bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white transition-colors shadow-sm border border-white/5 cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -81,7 +81,7 @@ export default function FloatingCTA() {
 
                   <div className="relative z-10 bg-[#0B0F19]/80 backdrop-blur-sm px-6 md:px-8 py-3 md:py-4 rounded-2xl shadow-lg border border-white/10 transform -translate-y-4 max-w-[280px] md:max-w-sm text-center">
                     <p className="text-gray-200 font-medium text-sm md:text-lg">
-                      Ask me anything about your mortgage options...
+                      Get instant answers to your mortgage questions...
                     </p>
                   </div>
 
@@ -117,7 +117,7 @@ export default function FloatingCTA() {
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
           onClick={() => setIsOpen(true)}
-          className="group relative flex items-center gap-2.5 md:gap-4 rounded-full bg-gradient-to-br from-[#00b4d8] via-[#023e8a] to-[#560bad] p-1.5 pr-5 md:p-2.5 md:pr-8 text-white shadow-[0_0_40px_rgba(0,180,216,0.5),0_0_20px_rgba(86,11,173,0.5)] transition-all duration-300 hover:shadow-[0_0_60px_rgba(0,180,216,0.7),0_0_30px_rgba(86,11,173,0.7)] hover:-translate-y-2 hover:scale-[1.02] active:scale-95"
+          className="group relative flex items-center gap-2.5 md:gap-4 rounded-full bg-gradient-to-br from-[#00b4d8] via-[#023e8a] to-[#560bad] p-1.5 pr-5 md:p-2.5 md:pr-8 text-white shadow-[0_0_40px_rgba(0,180,216,0.5),0_0_20px_rgba(86,11,173,0.5)] transition-all duration-300 hover:shadow-[0_0_60px_rgba(0,180,216,0.7),0_0_30px_rgba(86,11,173,0.7)] hover:-translate-y-2 hover:scale-[1.02] active:scale-95 cursor-pointer"
         >
           {/* Pulsing Aura Behind Button */}
           <motion.div
