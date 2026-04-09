@@ -23,17 +23,22 @@ export default function FloatingCTA() {
   const [isHovered, setIsHovered] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [isNavExpanded, setIsNavExpanded] = useState(true);
+  const [hasAutoHidden, setHasAutoHidden] = useState(false);
 
-  // Auto-peek options drawer after 5 seconds of inactivity
+  // Auto-peek options drawer after 7 seconds exactly once per session
   useEffect(() => {
     let timeout: NodeJS.Timeout;
-    if (isOpen && isNavExpanded) {
+    if (isOpen && !hasAutoHidden) {
+      setIsNavExpanded(true);
       timeout = setTimeout(() => {
         setIsNavExpanded(false);
-      }, 5000);
+        setHasAutoHidden(true);
+      }, 7000);
+    } else if (!isOpen) {
+      setHasAutoHidden(false); // Reset when modal closes so the 7 seconds repeats next time
     }
     return () => clearTimeout(timeout);
-  }, [isOpen, isNavExpanded]);
+  }, [isOpen, hasAutoHidden]);
 
   return (
     <>
@@ -60,7 +65,13 @@ export default function FloatingCTA() {
               </button>
 
               {/* Main Laptop Stage Area (Always Full Width/Height) */}
-              <div className="absolute inset-0 flex flex-col p-6 md:p-12 overflow-hidden bg-gradient-to-br from-[#050505] to-[#111111] z-0">
+              <div 
+                onClick={() => {
+                  // Allows mobile users to tap the background to dismiss the drawer natively
+                  if (hasAutoHidden && isNavExpanded) setIsNavExpanded(false);
+                }}
+                className="absolute inset-0 flex flex-col p-6 md:p-12 overflow-hidden bg-gradient-to-br from-[#050505] to-[#111111] z-0"
+              >
                 {/* Brand Header */}
                 <div className="flex items-center gap-3 mb-8 relative z-10 pt-2 md:pt-0">
                   <div className="relative h-10 w-10 flex shrink-0 items-center justify-center overflow-hidden rounded-full shadow-[0_0_15px_rgba(0,180,216,0.3)] bg-transparent">
@@ -105,9 +116,17 @@ export default function FloatingCTA() {
 
               {/* Sidebar Drawer Actions (Overlays on Right/Desktop or Bottom/Mobile) */}
               <div
-                onMouseEnter={() => setIsNavExpanded(true)}
-                onTouchStart={() => setIsNavExpanded(true)}
-                onClick={() => setIsNavExpanded(true)}
+                onMouseEnter={() => {
+                  setIsNavExpanded(true);
+                  setHasAutoHidden(true); // Cancels initial timer if they manually hover early
+                }}
+                onMouseLeave={() => {
+                  if (hasAutoHidden) setIsNavExpanded(false); // Retracts instantly once they leave
+                }}
+                onTouchStart={() => {
+                  setIsNavExpanded(true);
+                  setHasAutoHidden(true); // Mobile tap expansion
+                }}
                 className={`absolute z-20 flex md:flex-col items-center justify-center p-2 sm:p-4 md:p-8 shadow-[0_-20px_40px_rgba(0,0,0,0.5)] md:shadow-[-20px_0_40px_rgba(0,0,0,0.5)] border-t md:border-t-0 md:border-l border-white/5 bg-[#0a0a0a]/90 backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] bottom-0 left-0 right-0 w-full md:w-[320px] md:top-0 md:bottom-0 md:left-auto md:right-0 ${
                   isNavExpanded 
                     ? "translate-y-0 md:translate-x-0 opacity-100" 
