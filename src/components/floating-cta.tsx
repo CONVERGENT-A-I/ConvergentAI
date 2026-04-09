@@ -3,18 +3,17 @@
 import { useState } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, Sparkles, X, Headset, Phone, Smartphone, Calendar } from "lucide-react";
+import { MessageCircle, Sparkles, X, Headset, Phone, Smartphone, Calendar, Video, Mic } from "lucide-react";
 import AppIcon from "../app/icon.png";
 
-function SideButton({ icon, label, mobileLabel }: { icon: React.ReactNode; label: string; mobileLabel?: string }) {
+function SideButton({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
-    <button className="flex flex-col md:flex-row items-center justify-start gap-1.5 md:gap-4 w-full p-1.5 md:p-3.5 lg:p-4 rounded-xl md:rounded-2xl hover:bg-white/5 border border-transparent hover:border-[#00b4d8]/30 transition-all group text-center md:text-left hover:shadow-[0_0_20px_rgba(0,180,216,0.15)] cursor-pointer">
+    <button className="flex flex-col md:flex-row items-center justify-start gap-1 md:gap-4 w-full p-1 md:p-3.5 lg:p-4 rounded-xl md:rounded-2xl hover:bg-white/5 border border-transparent hover:border-[#00b4d8]/30 transition-all group text-center md:text-left hover:shadow-[0_0_20px_rgba(0,180,216,0.15)] cursor-pointer">
       <div className="flex-shrink-0 h-8 w-8 md:h-12 md:w-12 rounded-full bg-[#0B0F19] border border-white/10 text-[#00b4d8] flex items-center justify-center group-hover:scale-110 group-hover:bg-gradient-to-br from-[#00b4d8] via-[#023e8a] to-[#560bad] group-hover:border-transparent group-hover:text-white transition-all duration-300 shadow-sm mx-auto md:mx-0">
         {icon}
       </div>
-      <span className="font-semibold text-gray-300 group-hover:text-white transition-colors text-[9px] sm:text-[11px] md:text-sm lg:text-base leading-tight w-full mt-0.5 md:mt-0">
-        <span className="md:hidden truncate block">{mobileLabel || label}</span>
-        <span className="hidden md:block">{label}</span>
+      <span className="font-medium md:font-semibold text-gray-300 group-hover:text-white transition-colors text-[8px] sm:text-[10px] md:text-sm lg:text-base leading-none md:leading-tight w-full mt-1 md:mt-0 break-words whitespace-normal">
+        {label}
       </span>
     </button>
   );
@@ -92,13 +91,13 @@ export default function FloatingCTA() {
               </div>
 
               {/* Sidebar Actions (Bottom on mobile, Right on desktop) */}
-              <div className="w-full md:w-[320px] bg-[#0a0a0a]/90 flex md:flex-col items-center justify-center p-2 sm:p-4 md:p-8 z-10 shadow-[0_-20px_40px_rgba(0,0,0,0.5)] md:shadow-[-20px_0_40px_rgba(0,0,0,0.5)] border-t md:border-t-0 md:border-l border-white/5 shrink-0">
+              <div className="w-full md:w-[320px] bg-[#0a0a0a]/90 flex md:flex-col items-start md:items-center justify-center p-1 sm:p-4 md:p-8 z-10 shadow-[0_-20px_40px_rgba(0,0,0,0.5)] md:shadow-[-20px_0_40px_rgba(0,0,0,0.5)] border-t md:border-t-0 md:border-l border-white/5 shrink-0">
                 <div className="grid grid-cols-5 md:flex md:flex-col gap-1 sm:gap-2 md:gap-3.5 w-full mx-auto md:mx-0">
-                  <SideButton icon={<MessageCircle className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="Live Chat" mobileLabel="Chat" />
-                  <SideButton icon={<Headset className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="Voice Call" mobileLabel="Voice" />
-                  <SideButton icon={<Phone className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="Phone" />
-                  <SideButton icon={<Smartphone className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="SMS Text" mobileLabel="Text" />
-                  <SideButton icon={<Calendar className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="Meeting" mobileLabel="Meet" />
+                  <SideButton icon={<Video className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="Video Meet" />
+                  <SideButton icon={<Headset className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="Voice Call via Browser" />
+                  <SideButton icon={<Mic className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="AI Voice - Speak to AI" />
+                  <SideButton icon={<Smartphone className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="Text Message" />
+                  <SideButton icon={<Calendar className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="Book Appointment" />
                 </div>
               </div>
             </motion.div>
