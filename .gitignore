@@ -43,3 +43,5 @@ next-env.d.ts
 .vercel
 
 /src/generated/prisma
+
+backend/node_modules
