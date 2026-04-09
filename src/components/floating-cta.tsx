@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, Sparkles, X, Headset, Phone, Smartphone, Calendar, Video, Mic } from "lucide-react";
+import { MessageCircle, Sparkles, X, Headset, Phone, Smartphone, Calendar, Video, Mic, Menu } from "lucide-react";
 import AppIcon from "../app/icon.png";
 
 function SideButton({ icon, label }: { icon: React.ReactNode; label: string }) {
@@ -22,6 +22,18 @@ function SideButton({ icon, label }: { icon: React.ReactNode; label: string }) {
 export default function FloatingCTA() {
   const [isHovered, setIsHovered] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [isNavExpanded, setIsNavExpanded] = useState(true);
+
+  // Auto-peek options drawer after 5 seconds of inactivity
+  useEffect(() => {
+    let timeout: NodeJS.Timeout;
+    if (isOpen && isNavExpanded) {
+      timeout = setTimeout(() => {
+        setIsNavExpanded(false);
+      }, 5000);
+    }
+    return () => clearTimeout(timeout);
+  }, [isOpen, isNavExpanded]);
 
   return (
     <>
@@ -34,10 +46,11 @@ export default function FloatingCTA() {
             className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-xl font-sans"
           >
             <motion.div
+              layout
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="relative w-full max-w-5xl h-[85vh] min-h-[500px] max-h-[800px] bg-[#050505] rounded-3xl shadow-[0_0_80px_rgba(0,180,216,0.15)] flex flex-col md:flex-row overflow-hidden border border-[#00b4d8]/20"
+              className="relative w-full max-w-5xl h-[85vh] min-h-[500px] max-h-[800px] bg-[#050505] rounded-3xl shadow-[0_0_80px_rgba(0,180,216,0.15)] flex flex-col overflow-hidden border border-[#00b4d8]/20"
             >
               <button
                 onClick={() => setIsOpen(false)}
@@ -46,8 +59,8 @@ export default function FloatingCTA() {
                 <X className="h-5 w-5" />
               </button>
 
-              {/* Main Laptop Stage Area (Left) */}
-              <div className="flex-1 relative flex flex-col p-6 md:p-12 overflow-hidden bg-gradient-to-br from-[#050505] to-[#111111]">
+              {/* Main Laptop Stage Area (Always Full Width/Height) */}
+              <div className="absolute inset-0 flex flex-col p-6 md:p-12 overflow-hidden bg-gradient-to-br from-[#050505] to-[#111111] z-0">
                 {/* Brand Header */}
                 <div className="flex items-center gap-3 mb-8 relative z-10 pt-2 md:pt-0">
                   <div className="relative h-10 w-10 flex shrink-0 items-center justify-center overflow-hidden rounded-full shadow-[0_0_15px_rgba(0,180,216,0.3)] bg-transparent">
@@ -90,9 +103,29 @@ export default function FloatingCTA() {
                 </div>
               </div>
 
-              {/* Sidebar Actions (Bottom on mobile, Right on desktop) */}
-              <div className="w-full md:w-[320px] bg-[#0a0a0a]/90 flex md:flex-col items-start md:items-center justify-center p-1 sm:p-4 md:p-8 z-10 shadow-[0_-20px_40px_rgba(0,0,0,0.5)] md:shadow-[-20px_0_40px_rgba(0,0,0,0.5)] border-t md:border-t-0 md:border-l border-white/5 shrink-0">
-                <div className="grid grid-cols-5 md:flex md:flex-col gap-1 sm:gap-2 md:gap-3.5 w-full mx-auto md:mx-0">
+              {/* Sidebar Drawer Actions (Overlays on Right/Desktop or Bottom/Mobile) */}
+              <div
+                onMouseEnter={() => setIsNavExpanded(true)}
+                onTouchStart={() => setIsNavExpanded(true)}
+                onClick={() => setIsNavExpanded(true)}
+                className={`absolute z-20 flex md:flex-col items-center justify-center p-2 sm:p-4 md:p-8 shadow-[0_-20px_40px_rgba(0,0,0,0.5)] md:shadow-[-20px_0_40px_rgba(0,0,0,0.5)] border-t md:border-t-0 md:border-l border-white/5 bg-[#0a0a0a]/90 backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] bottom-0 left-0 right-0 w-full md:w-[320px] md:top-0 md:bottom-0 md:left-auto md:right-0 ${
+                  isNavExpanded 
+                    ? "translate-y-0 md:translate-x-0 opacity-100" 
+                    : "translate-y-[calc(100%-24px)] md:translate-y-0 md:translate-x-[calc(100%-24px)] opacity-60 hover:opacity-100 cursor-pointer"
+                }`}
+              >
+                {/* Desktop Grab Handle Indicator */}
+                <div className="hidden md:flex absolute top-1/2 -translate-y-1/2 left-0 w-6 h-full items-center justify-center pointer-events-none">
+                  <div className={`w-1 h-12 rounded-full transition-colors ${isNavExpanded ? 'bg-white/10' : 'bg-[#00b4d8]/60 shadow-[0_0_10px_rgba(0,180,216,0.5)]'}`} />
+                </div>
+
+                {/* Mobile Grab Handle Indicator */}
+                <div className="md:hidden absolute top-0 left-1/2 -translate-x-1/2 h-6 w-full flex items-center justify-center pointer-events-none">
+                  <div className={`h-1 w-12 rounded-full transition-colors ${isNavExpanded ? 'bg-white/10' : 'bg-[#00b4d8]/60 shadow-[0_0_10px_rgba(0,180,216,0.5)]'}`} />
+                </div>
+
+                {/* Navigation Grid */}
+                <div className={`grid grid-cols-5 md:flex md:flex-col gap-1 sm:gap-2 md:gap-3.5 w-full mx-auto md:mx-0 transition-opacity duration-300 mt-2 md:mt-0 ${isNavExpanded ? 'opacity-100' : 'opacity-0'}`}>
                   <SideButton icon={<Video className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="Video Meet" />
                   <SideButton icon={<Headset className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="Voice Call via Browser" />
                   <SideButton icon={<Mic className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="AI Voice - Speak to AI" />
