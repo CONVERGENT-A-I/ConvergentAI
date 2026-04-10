@@ -271,6 +271,7 @@ export default function FloatingCTA() {
   const [error, setError] = useState<string | null>(null);
   const [isLkConnected, setIsLkConnected] = useState(false);
   const [pendingMode, setPendingMode] = useState<PendingMode>('video');
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
 
   const fetchToken = async () => {
     try {
@@ -350,6 +351,26 @@ export default function FloatingCTA() {
     // Always restore on unmount
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
+
+  // Timer for REC badge
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isLkConnected && sessionState === 'live') {
+      interval = setInterval(() => {
+        setRecordingSeconds(prev => prev + 1);
+      }, 1000);
+    } else {
+      setRecordingSeconds(0);
+    }
+    return () => clearInterval(interval);
+  }, [isLkConnected, sessionState]);
+
+  const formatTime = (totalSeconds: number) => {
+    const hh = Math.floor(totalSeconds / 3600);
+    const mm = Math.floor((totalSeconds % 3600) / 60);
+    const ss = totalSeconds % 60;
+    return `${hh.toString().padStart(2, '0')}:${mm.toString().padStart(2, '0')}:${ss.toString().padStart(2, '0')}`;
+  };
 
   return (
     <>
@@ -497,7 +518,7 @@ export default function FloatingCTA() {
                               data-lk-theme="default"
                               className="w-full h-full"
                               onConnected={() => setIsLkConnected(true)}
-                              onDisconnected={() => { setSessionState('idle'); setToken(null); setLkUrl(null); setIsLkConnected(false); }}
+                              onDisconnected={() => { setSessionState('idle'); setToken(null); setLkUrl(null); setIsLkConnected(false); setRecordingSeconds(0); }}
                             >
                               {/* ── Connecting overlay — visible until WebRTC is fully up ── */}
                               <AnimatePresence>
@@ -552,7 +573,7 @@ export default function FloatingCTA() {
                                     <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}><Circle className="h-3 w-3 fill-red-500 text-red-500" /></motion.div>
                                     <span className="text-[10px] md:text-xs font-black text-white uppercase tracking-widest">Rec</span>
                                     <div className="h-1 w-1 rounded-full bg-white/20 mx-1" />
-                                    <span className="text-[10px] md:text-xs font-mono text-white/80">00:00:42</span>
+                                    <span className="text-[10px] md:text-xs font-mono text-white/80">{formatTime(recordingSeconds)}</span>
                                   </div>
                                   <div className="absolute top-4 right-16 flex flex-col items-end">
                                     <span className="text-[10px] text-[#00b4d8] font-bold uppercase tracking-widest mb-0.5 opacity-80">Ailana AI</span>
