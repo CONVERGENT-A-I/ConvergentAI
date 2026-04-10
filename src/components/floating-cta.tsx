@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, Sparkles, X, Phone, Calendar, Video, Mic, Menu, Circle, Loader2 } from "lucide-react";
+import { MessageCircle, Sparkles, X, Phone, Calendar, Video, Mic, Menu, Circle, Loader2, Send } from "lucide-react";
 import {
   LiveKitRoom,
   VideoConference,
@@ -17,15 +17,199 @@ import "@livekit/components-styles";
 import { Track } from "livekit-client";
 import AppIcon from "../app/icon.png";
 
-type SessionState = 'idle' | 'connecting' | 'live';
+type SessionState = 'idle' | 'connecting' | 'live' | 'chat';
+type PendingMode = 'video' | 'voice' | 'chat';
 
-function SideButton({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick?: () => void }) {
+interface ChatMessage {
+  id: string;
+  role: 'ai' | 'user';
+  text: string;
+  time: string;
+  isStreaming?: boolean;
+}
+
+function formatMsgTime() {
+  return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function TypewriterText({ text, onUpdate, onComplete }: { text: string; onUpdate?: () => void; onComplete?: () => void }) {
+  const [displayText, setDisplayText] = useState("");
+  const [isFinished, setIsFinished] = useState(false);
+  const words = useRef(text.split(" "));
+  const currentIndex = useRef(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (currentIndex.current < words.current.length) {
+        setDisplayText(prev => {
+          const next = prev + (currentIndex.current === 0 ? "" : " ") + words.current[currentIndex.current];
+          currentIndex.current++;
+          return next;
+        });
+        onUpdate?.();
+      } else {
+        clearInterval(interval);
+        setIsFinished(true);
+        onComplete?.();
+      }
+    }, 45);
+
+    return () => clearInterval(interval);
+  }, [text, onUpdate, onComplete]);
+
   return (
-    <button onClick={onClick} className="flex flex-col md:flex-row items-center justify-start gap-1 md:gap-4 w-full p-1 md:p-3.5 lg:p-4 rounded-xl md:rounded-2xl hover:bg-white/5 border border-transparent hover:border-[#00b4d8]/30 transition-all group text-center md:text-left hover:shadow-[0_0_20px_rgba(0,180,216,0.15)] cursor-pointer">
-      <div className="flex-shrink-0 h-8 w-8 md:h-12 md:w-12 rounded-full bg-[#0B0F19] border border-white/10 text-[#00b4d8] flex items-center justify-center group-hover:scale-110 group-hover:bg-gradient-to-br from-[#00b4d8] via-[#023e8a] to-[#560bad] group-hover:border-transparent group-hover:text-white transition-all duration-300 shadow-sm mx-auto md:mx-0">
+    <>
+      {displayText}
+      {!isFinished && (
+        <span className="inline-block w-2 h-4 ml-1 bg-[#00b4d8] animate-pulse rounded-sm align-middle" style={{ animationDuration: '0.6s' }} />
+      )}
+    </>
+  );
+}
+
+function LiveChatPanel() {
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    { id: '0', role: 'ai', text: "Hi! I'm Ailana, your AI mortgage assistant. How can I help you today?", time: formatMsgTime(), isStreaming: false },
+  ]);
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, isTyping]);
+
+  const send = () => {
+    const text = input.trim();
+    if (!text) return;
+    setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', text, time: formatMsgTime() }]);
+    setInput('');
+    setIsTyping(true);
+    setTimeout(() => {
+      setIsTyping(false);
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        role: 'ai',
+        text: "Thank you for reaching out! Our AI agent is being connected and will respond to your mortgage queries shortly.",
+        time: formatMsgTime(),
+        isStreaming: true
+      }]);
+    }, 1600);
+  };
+
+  const handleStreamComplete = (msgId: string) => {
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, isStreaming: false } : m));
+  };
+
+  const handleUpdateScroll = () => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-[#050505]">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-5 py-3.5 border-b border-white/5 bg-[#0a0a0a] shrink-0">
+        <div className="relative h-9 w-9 rounded-full overflow-hidden border-2 border-[#00b4d8]/30 shrink-0">
+          <Image src="/friendly_ai_avatar_v2.png" alt="Ailana AI" fill className="object-cover" />
+        </div>
+        <div>
+          <p className="text-white font-bold text-sm leading-none mb-1">Ailana AI Agent</p>
+          <div className="flex items-center gap-1.5">
+            <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]" />
+            <span className="text-emerald-400 text-[11px] font-semibold">Online</span>
+          </div>
+        </div>
+        <span className="ml-auto text-[10px] text-white/25 font-medium tracking-wide uppercase">Secure Chat</span>
+      </div>
+
+      {/* Messages */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.08) transparent' }}>
+        {messages.map(msg => (
+          <div key={msg.id} className={`flex gap-2.5 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+            {msg.role === 'ai' && (
+              <div className="relative h-7 w-7 rounded-full overflow-hidden border border-[#00b4d8]/30 shrink-0 mt-1">
+                <Image src="/friendly_ai_avatar_v2.png" alt="AI" fill className="object-cover" />
+              </div>
+            )}
+            <div className={`flex flex-col gap-1 max-w-[78%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+              <div className={`px-4 py-2.5 text-sm leading-relaxed ${msg.role === 'user'
+                  ? 'bg-gradient-to-br from-[#00b4d8] to-[#023e8a] text-white rounded-2xl rounded-tr-sm'
+                  : 'bg-white/5 border border-white/8 text-gray-200 rounded-2xl rounded-tl-sm'
+                }`}>
+                {msg.role === 'ai' && msg.isStreaming ? (
+                  <TypewriterText
+                    text={msg.text}
+                    onUpdate={handleUpdateScroll}
+                    onComplete={() => handleStreamComplete(msg.id)}
+                  />
+                ) : (
+                  msg.text
+                )}
+              </div>
+              <span className="text-[10px] text-white/20 px-1">{msg.time}</span>
+            </div>
+          </div>
+        ))}
+
+        {/* Typing indicator */}
+        {isTyping && (
+          <div className="flex gap-2.5 items-end">
+            <div className="relative h-7 w-7 rounded-full overflow-hidden border border-[#00b4d8]/30 shrink-0">
+              <Image src="/friendly_ai_avatar_v2.png" alt="AI" fill className="object-cover" />
+            </div>
+            <div className="px-4 py-3 rounded-2xl rounded-tl-sm bg-white/5 border border-white/8 flex gap-1.5 items-center">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#00b4d8] animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="h-1.5 w-1.5 rounded-full bg-[#00b4d8] animate-bounce" style={{ animationDelay: '160ms' }} />
+              <span className="h-1.5 w-1.5 rounded-full bg-[#00b4d8] animate-bounce" style={{ animationDelay: '320ms' }} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Input bar */}
+      <div className="px-4 py-3 border-t border-white/5 bg-[#0a0a0a] flex gap-2 items-end shrink-0">
+        <textarea
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+          placeholder="Type your message..."
+          rows={1}
+          className="flex-1 bg-white/5 border border-white/10 focus:border-[#00b4d8]/50 text-white placeholder-white/20 text-sm rounded-xl px-4 py-2.5 outline-none resize-none transition-colors leading-relaxed"
+          style={{ maxHeight: '96px' }}
+        />
+        <button
+          onClick={send}
+          disabled={!input.trim()}
+          className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#00b4d8] to-[#023e8a] text-white flex items-center justify-center shrink-0 disabled:opacity-25 disabled:cursor-not-allowed hover:shadow-[0_0_20px_rgba(0,180,216,0.4)] transition-all active:scale-95"
+        >
+          <Send className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SideButton({ icon, label, onClick, isActive }: { icon: React.ReactNode; label: string; onClick?: () => void; isActive?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex flex-col md:flex-row items-center justify-start gap-1 md:gap-4 w-full p-1 md:p-3.5 lg:p-4 rounded-xl md:rounded-2xl border transition-all group text-center md:text-left cursor-pointer ${isActive
+          ? 'bg-white/5 border-[#00b4d8]/50 shadow-[0_0_20px_rgba(0,180,216,0.18)]'
+          : 'border-transparent hover:bg-white/5 hover:border-[#00b4d8]/30 hover:shadow-[0_0_20px_rgba(0,180,216,0.15)]'
+        }`}
+    >
+      <div className={`flex-shrink-0 h-8 w-8 md:h-12 md:w-12 rounded-full border flex items-center justify-center transition-all duration-300 shadow-sm mx-auto md:mx-0 ${isActive
+          ? 'bg-gradient-to-br from-[#00b4d8] via-[#023e8a] to-[#560bad] border-transparent text-white scale-110 shadow-[0_0_16px_rgba(0,180,216,0.4)]'
+          : 'bg-[#0B0F19] border-white/10 text-[#00b4d8] group-hover:scale-110 group-hover:bg-gradient-to-br group-hover:from-[#00b4d8] group-hover:via-[#023e8a] group-hover:to-[#560bad] group-hover:border-transparent group-hover:text-white'
+        }`}>
         {icon}
       </div>
-      <span className="font-medium md:font-semibold text-gray-300 group-hover:text-white transition-colors text-[8px] sm:text-[10px] md:text-sm lg:text-base leading-none md:leading-tight w-full mt-1 md:mt-0 break-words whitespace-normal">
+      <span className={`font-medium md:font-semibold transition-colors text-[8px] sm:text-[10px] md:text-sm lg:text-base leading-none md:leading-tight w-full mt-1 md:mt-0 break-words whitespace-normal ${isActive ? 'text-white' : 'text-gray-300 group-hover:text-white'
+        }`}>
         {label}
       </span>
     </button>
@@ -86,6 +270,7 @@ export default function FloatingCTA() {
   const [lkUrl, setLkUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLkConnected, setIsLkConnected] = useState(false);
+  const [pendingMode, setPendingMode] = useState<PendingMode>('video');
 
   const fetchToken = async () => {
     try {
@@ -118,11 +303,21 @@ export default function FloatingCTA() {
     }
   };
 
-  const handleAIAction = () => {
+  const handleAIAction = (mode: 'video' | 'voice') => {
+    setPendingMode(mode);
     if (!hasAgreed) {
       setShowDisclosure(true);
     } else {
       fetchToken();
+    }
+  };
+
+  const handleChatAction = () => {
+    setPendingMode('chat');
+    if (!hasAgreed) {
+      setShowDisclosure(true);
+    } else {
+      setSessionState('chat');
     }
   };
 
@@ -223,7 +418,11 @@ export default function FloatingCTA() {
                     <button
                       onClick={async () => {
                         setHasAgreed(true);
-                        await fetchToken();
+                        if (pendingMode === 'chat') {
+                          setSessionState('chat');
+                        } else {
+                          await fetchToken();
+                        }
                       }}
                       className="w-full sm:w-auto px-10 py-4 rounded-xl bg-gradient-to-r from-[#00b4d8] via-[#023e8a] to-[#560bad] text-white font-black tracking-wider transition-all shadow-[0_0_30px_rgba(0,180,216,0.4)] hover:shadow-[0_0_50px_rgba(0,180,216,0.6)] transform hover:scale-[1.03] active:scale-95 cursor-pointer uppercase text-sm"
                     >
@@ -366,9 +565,22 @@ export default function FloatingCTA() {
                             </LiveKitRoom>
                           </motion.div>
                         )}
+
+                        {/* ── Live Chat view ── */}
+                        {sessionState === 'chat' && (
+                          <motion.div
+                            key="chat-view"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0"
+                          >
+                            <LiveChatPanel />
+                          </motion.div>
+                        )}
                       </AnimatePresence>
 
-                      {sessionState !== 'live' && (
+                      {sessionState !== 'live' && sessionState !== 'chat' && (
                         <div className="absolute bottom-6 text-xs md:text-sm text-[#00b4d8]/60 font-medium tracking-wide">
                           {sessionState === 'connecting' ? 'Verifying Compliance Token...' : 'LiveKit Video Room Space'}
                         </div>
@@ -390,9 +602,24 @@ export default function FloatingCTA() {
                       <div className={`h-1 w-12 rounded-full transition-colors ${isNavExpanded ? 'bg-white/10' : 'bg-[#00b4d8]/60 shadow-[0_0_10px_rgba(0,180,216,0.5)]'}`} />
                     </div>
                     <div className={`grid grid-cols-5 md:flex md:flex-col gap-1 sm:gap-2 md:gap-3.5 w-full mx-auto md:mx-0 transition-opacity duration-300 mt-2 md:mt-0 ${isNavExpanded ? 'opacity-100' : 'opacity-0'}`}>
-                      <SideButton onClick={handleAIAction} icon={<Video className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="Video Meet" />
-                      <SideButton onClick={handleAIAction} icon={<Mic className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="AI Voice - Speak to AI" />
-                      <SideButton onClick={handleAIAction} icon={<MessageCircle className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="Live Chat" />
+                      <SideButton
+                        onClick={() => handleAIAction('video')}
+                        icon={<Video className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
+                        label="Video Meet"
+                        isActive={(sessionState === 'live' || sessionState === 'connecting') && pendingMode === 'video'}
+                      />
+                      <SideButton
+                        onClick={() => handleAIAction('voice')}
+                        icon={<Mic className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
+                        label="AI Voice - Speak to AI"
+                        isActive={(sessionState === 'live' || sessionState === 'connecting') && pendingMode === 'voice'}
+                      />
+                      <SideButton
+                        onClick={handleChatAction}
+                        icon={<MessageCircle className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
+                        label="Live Chat"
+                        isActive={sessionState === 'chat'}
+                      />
                       <SideButton icon={<Phone className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="Phone Call" />
                       <SideButton onClick={() => window.open("https://warpme.neetocal.com/meeting-with-david-patten-19", "_blank", "noopener,noreferrer")} icon={<Calendar className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="Book Appointment" />
                     </div>
