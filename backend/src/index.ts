@@ -1,6 +1,7 @@
 import express, { type Request, type Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { AccessToken } from 'livekit-server-sdk';
 
 // Load environment variables
 dotenv.config();
@@ -23,6 +24,48 @@ app.get('/api/test', (req: Request, res: Response) => {
     timestamp: new Date().toISOString(),
     env_verified: !!process.env.NODE_ENV
   });
+});
+
+// LiveKit Token Generation Endpoint
+app.post('/api/get-token', async (req: Request, res: Response) => {
+  try {
+    const { roomName, participantName } = req.body;
+
+    if (!roomName || !participantName) {
+      res.status(400).json({ error: 'roomName and participantName are required' });
+      return;
+    }
+
+    const apiKey = process.env.LIVEKIT_API_KEY;
+    const apiSecret = process.env.LIVEKIT_API_SECRET;
+    const wsUrl = process.env.LIVEKIT_URL;
+
+    if (!apiKey || !apiSecret || !wsUrl) {
+      res.status(500).json({ error: 'LiveKit server side configuration missing' });
+      return;
+    }
+
+    const at = new AccessToken(apiKey, apiSecret, {
+      identity: participantName,
+    });
+
+    at.addGrant({
+      roomJoin: true,
+      room: roomName,
+      canPublish: true,
+      canSubscribe: true,
+    });
+
+    const token = await at.toJwt();
+
+    res.json({
+      token,
+      serverUrl: wsUrl,
+    });
+  } catch (error) {
+    console.error('Error generating LiveKit token:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Health check endpoint
