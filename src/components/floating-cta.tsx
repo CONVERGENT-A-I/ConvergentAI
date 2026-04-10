@@ -39,10 +39,10 @@ function SideButton({ icon, label, onClick }: { icon: React.ReactNode; label: st
 function VideoStage() {
   const tracks = useTracks(
     [
-      { source: Track.Source.Camera, name: 'camera' },
-      { source: Track.Source.ScreenShare, name: 'screen_share' },
+      Track.Source.Camera,
+      Track.Source.ScreenShare,
     ],
-    { onlyConnected: true },
+    { onlySubscribed: true },
   );
 
   return (
@@ -92,7 +92,7 @@ export default function FloatingCTA() {
       setSessionState('connecting');
       setError(null);
 
-      const response = await fetch('http://localhost:3001/api/get-token', {
+      const response = await fetch('/api/get-token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
