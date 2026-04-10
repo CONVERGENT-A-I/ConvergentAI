@@ -61,16 +61,16 @@ This task list breaks down the implementation plan into actionable steps to buil
 - [x] Set up Prisma or Drizzle ORM (if setting up PostgreSQL now) to track usage.
 
 ## Phase 2: LiveKit & LemonSlice Route Hooks
-- [ ] Create a new API route directory `src/app/api/initialize-avatar/route.ts`.
+- [x] Create a new API route directory `src/app/api/get-token/route.ts` (adapted from initialize-avatar).
 - [ ] Write the logic to make a `POST` request to the LemonSlice API to spin up an avatar instance.
-- [ ] Inside the same route, use the `AccessToken` class from `livekit-server-sdk` to generate a secure room token.
-- [ ] Return a JSON payload containing the resulting LemonSlice `session_id` and the `livekit_token`.
+- [x] Inside the same route, use the `AccessToken` class from `livekit-server-sdk` to generate a secure room token.
+- [x] Return a JSON payload containing the resulting LemonSlice `session_id` and the `livekit_token`.
 
 ## Phase 3: Frontend Connection
-- [ ] Import `@livekit/components-react` components into your application.
-- [ ] Update `FloatingCTA`'s "Live Chat" button to dispatch a `fetch` request to `/api/initialize-avatar`.
-- [ ] Show a loading spinner over the placeholder image while waiting for the token.
-- [ ] Once the token is returned, conditionally render the `<LiveKitRoom />` component, passing your generated token to establish the stream.
+- [x] Import `@livekit/components-react` components into your application.
+- [x] Update `FloatingCTA`'s "Live Chat" button to dispatch a `fetch` request to `/api/get-token`.
+- [x] Show a loading spinner over the placeholder image while waiting for the token.
+- [x] Once the token is returned, conditionally render the `<LiveKitRoom />` component, passing your generated token to establish the stream.
 
 ## Phase 4: Expansion & Intelligence 
 - [ ] Implement conversational history logging to your Database.
