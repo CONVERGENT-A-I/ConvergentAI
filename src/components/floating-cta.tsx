@@ -145,6 +145,17 @@ export default function FloatingCTA() {
     return () => clearTimeout(timeout);
   }, [isOpen, hasAutoHidden]);
 
+  // Lock background scroll while modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    // Always restore on unmount
+    return () => { document.body.style.overflow = ''; };
+  }, [isOpen]);
+
   return (
     <>
       <AnimatePresence>
