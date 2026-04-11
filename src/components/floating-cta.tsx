@@ -369,6 +369,7 @@ export default function FloatingCTA() {
       setToken(null);
       setLkUrl(null);
       setIsLkConnected(false);
+      setRoomName(''); // Clear room name state so a fresh room is created next time (unless URL dictates otherwise)
     }
     return () => clearTimeout(timeout);
   }, [isOpen, hasAutoHidden]);
@@ -500,25 +501,25 @@ export default function FloatingCTA() {
                         <div className="relative h-8 w-8 md:h-10 md:w-10 flex shrink-0 items-center justify-center overflow-hidden rounded-full shadow-[0_0_15px_rgba(0,180,216,0.3)] bg-transparent">
                           <Image src={AppIcon} alt="ConvergentAI Logo" fill className="object-contain" />
                         </div>
-                        <span className="font-extrabold text-white text-lg md:text-2xl tracking-tight hidden sm:block">ConvergentAI</span>
+                        <span className="font-extrabold text-white text-base md:text-2xl tracking-tight">ConvergentAI</span>
                       </div>
 
                       {/* Right: Actions */}
                       <div className="flex items-center gap-2 md:gap-3">
-                        {/* Share Button */}
-                        {roomName && (
+                        {/* Share Button (Only visible when active in a room) */}
+                        {roomName && (sessionState === 'live' || sessionState === 'chat') && (
                           <button
                             onClick={handleShare}
-                            className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-[#00b4d8] to-[#023e8a] border border-transparent hover:border-white/20 transition-all shadow-[0_0_20px_rgba(0,180,216,0.4)] hover:shadow-[0_0_30px_rgba(0,180,216,0.6)] text-[10px] md:text-xs font-black text-white uppercase tracking-widest group cursor-pointer hover:-translate-y-0.5 active:scale-95"
+                            className="flex items-center gap-1.5 md:gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all backdrop-blur-md text-gray-300 hover:text-white text-[10px] md:text-xs font-bold uppercase tracking-widest group cursor-pointer active:scale-95 shrink-0"
                           >
                             {isCopied ? (
                               <>
-                                <Check className="h-3.5 w-3.5 text-white" />
-                                <span>Copied!</span>
+                                <Check className="h-3 w-3 md:h-3.5 md:w-3.5 text-emerald-400" />
+                                <span className="text-emerald-400">Copied</span>
                               </>
                             ) : (
                               <>
-                                <Share2 className="h-3.5 w-3.5 group-hover:scale-110 transition-transform" />
+                                <Share2 className="h-3 w-3 md:h-3.5 md:w-3.5 group-hover:scale-110 transition-transform text-[#00b4d8]" />
                                 <span>Share</span>
                               </>
                             )}
@@ -578,7 +579,7 @@ export default function FloatingCTA() {
                               data-lk-theme="default"
                               className="w-full h-full"
                               onConnected={() => setIsLkConnected(true)}
-                              onDisconnected={() => { setSessionState('idle'); setToken(null); setLkUrl(null); setIsLkConnected(false); setRecordingSeconds(0); }}
+                              onDisconnected={() => { setSessionState('idle'); setToken(null); setLkUrl(null); setIsLkConnected(false); setRecordingSeconds(0); setRoomName(''); }}
                             >
                               {/* ── Connecting overlay — visible until WebRTC is fully up ── */}
                               <AnimatePresence>
