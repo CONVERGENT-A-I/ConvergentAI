@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, Sparkles, X, Phone, Calendar, Video, Mic, Menu, Circle, Loader2, Send } from "lucide-react";
+import { MessageCircle, Sparkles, X, Phone, Calendar, Video, Mic, Menu, Circle, Loader2, Send, Share2, Check } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import {
   LiveKitRoom,
   VideoConference,
@@ -272,11 +273,21 @@ export default function FloatingCTA() {
   const [isLkConnected, setIsLkConnected] = useState(false);
   const [pendingMode, setPendingMode] = useState<PendingMode>('video');
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [roomName, setRoomName] = useState<string>('');
+  const [isCopied, setIsCopied] = useState(false);
+  const searchParams = useSearchParams();
 
   const fetchToken = async () => {
     try {
       setSessionState('connecting');
       setError(null);
+
+      const urlRoom = searchParams.get('room');
+      const generatedRoomName = urlRoom || roomName || `room-${Math.random().toString(36).substring(2, 11)}`;
+      
+      if (!roomName || roomName !== generatedRoomName) {
+        setRoomName(generatedRoomName);
+      }
 
       const response = await fetch('/api/get-token', {
         method: 'POST',
@@ -284,7 +295,7 @@ export default function FloatingCTA() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          roomName: 'mortgage-ai-room',
+          roomName: generatedRoomName,
           participantName: `guest_${Math.floor(Math.random() * 10000)}`,
         }),
       });
@@ -321,6 +332,27 @@ export default function FloatingCTA() {
       setSessionState('chat');
     }
   };
+
+  const handleShare = async () => {
+    if (!roomName) return;
+    const shareUrl = `${window.location.origin}${window.location.pathname}?room=${roomName}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy link:', err);
+    }
+  };
+
+  // Detect shared room from URL
+  useEffect(() => {
+    const sharedRoom = searchParams.get('room');
+    if (sharedRoom) {
+      setRoomName(sharedRoom);
+      setIsOpen(true);
+    }
+  }, [searchParams]);
 
   // Auto-peek options drawer after 7 seconds exactly once per session
   useEffect(() => {
@@ -460,19 +492,47 @@ export default function FloatingCTA() {
                   exit={{ scale: 0.95, opacity: 0 }}
                   className="relative w-full max-w-5xl h-[85vh] min-h-[500px] max-h-[800px] bg-[#050505] rounded-3xl shadow-[0_0_80px_rgba(0,180,216,0.15)] flex flex-col overflow-hidden border border-[#00b4d8]/20"
                 >
-                  <button
-                    onClick={() => setIsOpen(false)}
-                    className="absolute top-4 right-4 md:top-6 md:right-6 z-50 p-2.5 rounded-full bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white transition-colors shadow-sm border border-white/5 cursor-pointer"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
 
-                  <div className="absolute inset-0 flex flex-col p-6 md:p-12 overflow-hidden bg-gradient-to-br from-[#050505] to-[#111111] z-0">
-                    <div className="flex items-center gap-3 mb-8 relative z-10 pt-2 md:pt-0">
-                      <div className="relative h-10 w-10 flex shrink-0 items-center justify-center overflow-hidden rounded-full shadow-[0_0_15px_rgba(0,180,216,0.3)] bg-transparent">
-                        <Image src={AppIcon} alt="ConvergentAI Logo" fill className="object-contain" />
+                  <div className="absolute inset-0 flex flex-col p-4 sm:p-6 md:p-12 overflow-hidden bg-gradient-to-br from-[#050505] to-[#111111] z-0">
+                    <div className="flex items-center justify-between gap-3 mb-6 md:mb-8 relative z-10 pt-2 md:pt-0 w-full">
+                      {/* Left: Branding */}
+                      <div className="flex items-center gap-3">
+                        <div className="relative h-8 w-8 md:h-10 md:w-10 flex shrink-0 items-center justify-center overflow-hidden rounded-full shadow-[0_0_15px_rgba(0,180,216,0.3)] bg-transparent">
+                          <Image src={AppIcon} alt="ConvergentAI Logo" fill className="object-contain" />
+                        </div>
+                        <span className="font-extrabold text-white text-lg md:text-2xl tracking-tight hidden sm:block">ConvergentAI</span>
                       </div>
-                      <span className="font-extrabold text-white text-2xl tracking-tight">ConvergentAI</span>
+
+                      {/* Right: Actions */}
+                      <div className="flex items-center gap-2 md:gap-3">
+                        {/* Share Button */}
+                        {roomName && (
+                          <button
+                            onClick={handleShare}
+                            className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-[#00b4d8] to-[#023e8a] border border-transparent hover:border-white/20 transition-all shadow-[0_0_20px_rgba(0,180,216,0.4)] hover:shadow-[0_0_30px_rgba(0,180,216,0.6)] text-[10px] md:text-xs font-black text-white uppercase tracking-widest group cursor-pointer hover:-translate-y-0.5 active:scale-95"
+                          >
+                            {isCopied ? (
+                              <>
+                                <Check className="h-3.5 w-3.5 text-white" />
+                                <span>Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Share2 className="h-3.5 w-3.5 group-hover:scale-110 transition-transform" />
+                                <span>Share</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                        
+                        {/* Close Button */}
+                        <button
+                          onClick={() => setIsOpen(false)}
+                          className="p-2 md:p-2.5 rounded-full bg-white/10 text-gray-200 hover:bg-[#ff3333] hover:text-white transition-colors shadow-sm cursor-pointer shrink-0"
+                        >
+                          <X className="h-4 w-4 md:h-5 md:w-5" />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="flex-1 relative w-full h-full flex flex-col items-center justify-center rounded-2xl bg-black/60 shadow-xl border border-white/5 overflow-hidden">
