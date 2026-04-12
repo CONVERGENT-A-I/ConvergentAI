@@ -401,6 +401,37 @@ export default function FloatingCTA() {
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
 
+  // Audible recording announcement
+  useEffect(() => {
+    if (sessionState === 'live' && typeof window !== 'undefined') {
+      const announce = () => {
+        const announcement = new SpeechSynthesisUtterance("This session is being recorded for regulatory and compliance purposes.");
+        const voices = window.speechSynthesis.getVoices();
+        
+        // Target high-quality female voices specifically
+        const femaleVoice = voices.find(v => 
+          v.name.includes('Samantha') || 
+          v.name.includes('Female') || 
+          v.name.includes('Zira') || 
+          v.name.includes('Google UK English Female') ||
+          v.name.includes('Google US English') // Often defaults to a clear female voice
+        );
+        
+        if (femaleVoice) announcement.voice = femaleVoice;
+        announcement.rate = 1.0;
+        announcement.pitch = 1.15; // Friendlier, more feminine pitch
+        announcement.volume = 0.9;
+        window.speechSynthesis.speak(announcement);
+      };
+
+      if (window.speechSynthesis.getVoices().length > 0) {
+        announce();
+      } else {
+        window.speechSynthesis.onvoiceschanged = announce;
+      }
+    }
+  }, [sessionState]);
+
   // Timer for REC badge
   useEffect(() => {
     let interval: NodeJS.Timeout;
