@@ -491,7 +491,7 @@ export default function FloatingCTA() {
                   initial={{ scale: 1.05, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.95, opacity: 0 }}
-                  className="relative w-full max-w-5xl h-[85vh] min-h-[500px] max-h-[800px] bg-[#050505] rounded-3xl shadow-[0_0_80px_rgba(0,180,216,0.15)] flex flex-col overflow-hidden border border-[#00b4d8]/20"
+                  className="relative w-[95vw] sm:w-[90vw] max-w-6xl h-[85vh] min-h-[500px] max-h-[850px] bg-[#050505] rounded-3xl shadow-[0_0_80px_rgba(0,180,216,0.15)] flex flex-col overflow-hidden border border-[#00b4d8]/20"
                 >
 
                   <div className="absolute inset-0 flex flex-col p-4 sm:p-6 md:p-12 overflow-hidden bg-gradient-to-br from-[#050505] to-[#111111] z-0">
