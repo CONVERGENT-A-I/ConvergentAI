@@ -138,8 +138,8 @@ function LiveChatPanel() {
             )}
             <div className={`flex flex-col gap-1 max-w-[78%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
               <div className={`px-4 py-2.5 text-sm leading-relaxed ${msg.role === 'user'
-                  ? 'bg-gradient-to-br from-[#00b4d8] to-[#023e8a] text-white rounded-2xl rounded-tr-sm'
-                  : 'bg-white/5 border border-white/8 text-gray-200 rounded-2xl rounded-tl-sm'
+                ? 'bg-gradient-to-br from-[#00b4d8] to-[#023e8a] text-white rounded-2xl rounded-tr-sm'
+                : 'bg-white/5 border border-white/8 text-gray-200 rounded-2xl rounded-tl-sm'
                 }`}>
                 {msg.role === 'ai' && msg.isStreaming ? (
                   <TypewriterText
@@ -199,13 +199,13 @@ function SideButton({ icon, label, onClick, isActive }: { icon: React.ReactNode;
     <button
       onClick={onClick}
       className={`flex flex-col md:flex-row items-center justify-start gap-1 md:gap-4 w-full p-1 md:p-3.5 lg:p-4 rounded-xl md:rounded-2xl border transition-all group text-center md:text-left cursor-pointer ${isActive
-          ? 'bg-white/5 border-[#00b4d8]/50 shadow-[0_0_20px_rgba(0,180,216,0.18)]'
-          : 'border-transparent hover:bg-white/5 hover:border-[#00b4d8]/30 hover:shadow-[0_0_20px_rgba(0,180,216,0.15)]'
+        ? 'bg-white/5 border-[#00b4d8]/50 shadow-[0_0_20px_rgba(0,180,216,0.18)]'
+        : 'border-transparent hover:bg-white/5 hover:border-[#00b4d8]/30 hover:shadow-[0_0_20px_rgba(0,180,216,0.15)]'
         }`}
     >
       <div className={`flex-shrink-0 h-8 w-8 md:h-12 md:w-12 rounded-full border flex items-center justify-center transition-all duration-300 shadow-sm mx-auto md:mx-0 ${isActive
-          ? 'bg-gradient-to-br from-[#00b4d8] via-[#023e8a] to-[#560bad] border-transparent text-white scale-110 shadow-[0_0_16px_rgba(0,180,216,0.4)]'
-          : 'bg-[#0B0F19] border-white/10 text-[#00b4d8] group-hover:scale-110 group-hover:bg-gradient-to-br group-hover:from-[#00b4d8] group-hover:via-[#023e8a] group-hover:to-[#560bad] group-hover:border-transparent group-hover:text-white'
+        ? 'bg-gradient-to-br from-[#00b4d8] via-[#023e8a] to-[#560bad] border-transparent text-white scale-110 shadow-[0_0_16px_rgba(0,180,216,0.4)]'
+        : 'bg-[#0B0F19] border-white/10 text-[#00b4d8] group-hover:scale-110 group-hover:bg-gradient-to-br group-hover:from-[#00b4d8] group-hover:via-[#023e8a] group-hover:to-[#560bad] group-hover:border-transparent group-hover:text-white'
         }`}>
         {icon}
       </div>
@@ -284,7 +284,7 @@ export default function FloatingCTA() {
 
       const urlRoom = searchParams.get('room');
       const generatedRoomName = urlRoom || roomName || `room-${Math.random().toString(36).substring(2, 11)}`;
-      
+
       if (!roomName || roomName !== generatedRoomName) {
         setRoomName(generatedRoomName);
       }
@@ -413,7 +413,7 @@ export default function FloatingCTA() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 bg-black/95 backdrop-blur-2xl font-sans"
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-md font-sans"
           >
             <AnimatePresence mode="wait">
               {!hasAgreed ? (
@@ -525,7 +525,7 @@ export default function FloatingCTA() {
                             )}
                           </button>
                         )}
-                        
+
                         {/* Close Button */}
                         <button
                           onClick={() => setIsOpen(false)}
