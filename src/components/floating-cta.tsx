@@ -568,6 +568,14 @@ export default function FloatingCTA() {
                             <div className="relative z-10 bg-[#0B0F19]/80 backdrop-blur-sm px-6 md:px-8 py-3 md:py-4 rounded-2xl shadow-lg border border-white/10 transform -translate-y-4 max-w-[280px] md:max-w-sm text-center">
                               <p className="text-gray-200 font-medium text-sm md:text-lg">Get instant answers to your mortgage questions...</p>
                             </div>
+
+                            <button
+                              onClick={() => { setIsNavExpanded(true); setHasAutoHidden(true); }}
+                              className="absolute top-6 right-6 flex items-center gap-2 text-white/30 hover:text-[#00b4d8] text-[10px] font-bold uppercase tracking-[0.2em] transition-all cursor-pointer group bg-black/20 hover:bg-black/40 px-3 py-2 rounded-lg border border-white/5 hover:border-[#00b4d8]/30 backdrop-blur-sm"
+                            >
+                              Options
+                              <Menu className="h-3.5 w-3.5 opacity-50 group-hover:opacity-100 transition-opacity" />
+                            </button>
                           </motion.div>
                         )}
 
