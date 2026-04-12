@@ -440,13 +440,13 @@ export default function FloatingCTA() {
                   animate={{ scale: 1, opacity: 1, y: 0 }}
                   exit={{ scale: 0.95, opacity: 0, y: -20 }}
                   transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                  className="relative w-full max-w-2xl bg-[#0a0a0a] border border-[#00b4d8]/30 rounded-3xl p-6 md:p-10 shadow-[0_0_100px_rgba(0,180,216,0.15)] flex flex-col overflow-hidden"
+                  className="relative w-full max-w-2xl bg-[#0a0a0a] border border-[#00b4d8]/30 rounded-3xl p-6 md:p-10 shadow-[0_0_100px_rgba(0,180,216,0.15)] flex flex-col overflow-hidden h-[90vh] max-h-[850px] min-h-[500px]"
                 >
                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#00b4d8] to-transparent opacity-50" />
 
                   <h2 className="text-xl md:text-3xl font-bold text-white mb-6 shrink-0 flex items-center gap-4">
-                    <div className="h-10 w-10 md:h-12 md:w-12 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center border border-[#00b4d8]/30 shadow-inner">
-                      <Sparkles className="h-6 w-6 md:h-7 md:w-7 text-[#00b4d8]" />
+                    <div className="h-10 w-10 md:h-12 md:w-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 shadow-inner overflow-hidden relative">
+                      <Image src={AppIcon} alt="Logo" fill className="object-cover scale-75" />
                     </div>
                     Regulatory Notice
                   </h2>
@@ -470,6 +470,10 @@ export default function FloatingCTA() {
                       <li className="flex items-start gap-4">
                         <div className="mt-1.5 h-2 w-2 rounded-full bg-[#00b4d8] shrink-0 shadow-[0_0_10px_rgba(0,180,216,0.8)]" />
                         <span><strong className="text-white block mb-1">Audit Trail:</strong> This conversation is recorded and timestamped for regulatory compliance and quality assurance.</span>
+                      </li>
+                      <li className="flex items-start gap-4">
+                        <div className="mt-1.5 h-2 w-2 rounded-full bg-[#ef4444] shrink-0 shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
+                        <span><strong className="text-[#ef4444] block mb-1">Recording Clause:</strong> You consent to the recording of audio, video, and chat for compliance.</span>
                       </li>
                       <li className="flex items-start gap-4">
                         <div className="mt-1.5 h-2 w-2 rounded-full bg-[#a855f7] shrink-0 shadow-[0_0_10px_rgba(168,85,247,0.8)]" />
