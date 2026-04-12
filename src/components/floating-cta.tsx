@@ -401,10 +401,17 @@ export default function FloatingCTA() {
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
 
+  const hasAnnouncedRef = useRef(false);
+
   // Audible recording announcement
   useEffect(() => {
-    if (sessionState === 'live' && typeof window !== 'undefined') {
+    if (sessionState === 'live' && isLkConnected && typeof window !== 'undefined') {
+      if (hasAnnouncedRef.current) return;
+
       const announce = () => {
+        if (hasAnnouncedRef.current) return;
+        hasAnnouncedRef.current = true;
+        
         const announcement = new SpeechSynthesisUtterance("This session is being recorded for regulatory and compliance purposes.");
         const voices = window.speechSynthesis.getVoices();
         
@@ -421,16 +428,30 @@ export default function FloatingCTA() {
         announcement.rate = 1.0;
         announcement.pitch = 1.15; // Friendlier, more feminine pitch
         announcement.volume = 0.9;
+        
+        window.speechSynthesis.cancel(); // Cancel any queued speech before speaking
         window.speechSynthesis.speak(announcement);
       };
 
       if (window.speechSynthesis.getVoices().length > 0) {
         announce();
       } else {
-        window.speechSynthesis.onvoiceschanged = announce;
+        window.speechSynthesis.onvoiceschanged = () => {
+          announce();
+          window.speechSynthesis.onvoiceschanged = null; // Clean up
+        };
       }
+    } else {
+      hasAnnouncedRef.current = false;
     }
-  }, [sessionState]);
+    
+    return () => {
+       // Cleanup not to cancel speech on unmount necessarily, but to clear the event
+       if (window.speechSynthesis) {
+         window.speechSynthesis.onvoiceschanged = null;
+       }
+    };
+  }, [sessionState, isLkConnected]);
 
   // Timer for REC badge
   useEffect(() => {
@@ -596,16 +617,11 @@ export default function FloatingCTA() {
                             <motion.div animate={{ y: [0, -8, 0], rotate: [0, 0, -15, 15, -10, 10, 0, 0] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }} className="origin-bottom relative z-10 w-32 h-32 md:w-44 md:h-44 mb-8 rounded-full overflow-hidden border-[6px] md:border-8 border-[#0B0F19] shadow-[0_0_40px_rgba(0,180,216,0.3)]">
                               <Image src="/friendly_ai_avatar_v2.png" alt="AI Assistant" fill className="object-cover" />
                             </motion.div>
-                            <div className="relative z-10 bg-[#0B0F19]/80 backdrop-blur-sm px-6 md:px-8 py-3 md:py-4 rounded-2xl shadow-lg border border-white/10 transform -translate-y-4 max-w-[280px] md:max-w-sm text-center">
-                              <p className="text-gray-200 font-medium text-sm md:text-lg">Get instant answers to your mortgage questions...</p>
-                            </div>
-
-                            <button
+                            <button 
                               onClick={() => { setIsNavExpanded(true); setHasAutoHidden(true); }}
-                              className="absolute top-6 right-6 flex items-center gap-2 text-white/30 hover:text-[#00b4d8] text-[10px] font-bold uppercase tracking-[0.2em] transition-all cursor-pointer group bg-black/20 hover:bg-black/40 px-3 py-2 rounded-lg border border-white/5 hover:border-[#00b4d8]/30 backdrop-blur-sm"
+                              className="relative z-10 bg-[#0B0F19]/80 backdrop-blur-sm px-6 md:px-8 py-3 md:py-4 rounded-2xl shadow-lg border border-white/10 transform -translate-y-4 max-w-[280px] md:max-w-sm text-center cursor-pointer hover:bg-white/5 transition-colors"
                             >
-                              Options
-                              <Menu className="h-3.5 w-3.5 opacity-50 group-hover:opacity-100 transition-opacity" />
+                              <p className="text-gray-200 font-medium text-sm md:text-lg">Get instant answers to your mortgage questions...</p>
                             </button>
                           </motion.div>
                         )}
