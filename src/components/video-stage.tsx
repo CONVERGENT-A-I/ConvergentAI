@@ -28,26 +28,6 @@ export default function VideoStage() {
   return (
     <div className="w-full h-full flex flex-col bg-black overflow-hidden">
       <div className="flex-1 relative min-h-0">
-        {/* Participants Overlay HUD - Moved to top-left below REC badge to avoid overlap */}
-        <div className="absolute top-16 left-4 z-20 flex flex-col gap-2 items-start pointer-events-none">
-          <div className="bg-black/60 backdrop-blur-md border border-white/10 rounded-2xl p-3 shadow-2xl min-w-[160px] pointer-events-auto">
-            <div className="flex items-center gap-2 mb-2 border-b border-white/5 pb-2">
-              <Users className="h-3.5 w-3.5 text-[#00b4d8]" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-white/90">Participants ({participants.length})</span>
-            </div>
-            <div className="space-y-1.5 max-h-[120px] overflow-y-auto custom-scrollbar pr-1">
-              {participants.map((p) => (
-                <div key={p.identity} className="flex items-center gap-2 group">
-                  <div className={`h-1.5 w-1.5 rounded-full ${p.isCameraEnabled ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-gray-500'}`} />
-                  <span className="text-[11px] font-medium text-gray-300 truncate max-w-[120px]">
-                    {p.identity === 'lemonslice-avatar-agent' ? 'Ailana (AI)' : (p.identity.startsWith('guest_') ? 'Guest' : p.identity)} {p.isLocal ? '(You)' : ''}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
         <GridLayout
           tracks={tracks}
           className="w-full h-full p-4"
@@ -57,17 +37,43 @@ export default function VideoStage() {
       </div>
 
       {/* Premium Minimal Control Bar */}
-      <div className="h-20 flex items-center justify-center bg-[#0a0a0a] border-t border-white/5 px-6">
-        <ControlBar
-          variation="minimal"
-          controls={{
-            microphone: true,
-            camera: true,
-            chat: false,
-            screenShare: true,
-            leave: true
-          }}
-        />
+      <div className="h-20 flex items-center justify-between bg-[#0a0a0a] border-t border-white/5 px-6 relative shrink-0">
+        <div className="flex items-center -space-x-2 group">
+          {participants.slice(0, 3).map((p, i) => (
+            <div
+              key={p.identity}
+              className="relative flex items-center justify-center h-8 w-8 rounded-full border-2 border-[#0a0a0a] bg-gradient-to-br from-[#1a1a1a] to-[#0a0a0a] shadow-lg transition-all duration-300 hover:z-10 hover:-translate-y-1 group-hover:first:ml-0"
+            >
+              <div className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#0a0a0a] ${p.isCameraEnabled ? 'bg-emerald-500' : 'bg-gray-500'}`} />
+              <span className="text-[10px] font-bold text-gray-300 uppercase">
+                {p.identity === 'lemonslice-avatar-agent' ? 'AI' : (p.identity.startsWith('guest_') ? 'G' : p.identity.charAt(0))}
+              </span>
+              <div className="absolute bottom-full mb-3 left-0 px-2 py-1 rounded bg-black/80 backdrop-blur-md border border-white/10 text-[10px] text-white opacity-0 group-hover:hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                {p.identity === 'lemonslice-avatar-agent' ? 'Ailana (AI)' : (p.identity.startsWith('guest_') ? 'Guest' : p.identity)} {p.isLocal ? '(You)' : ''}
+              </div>
+            </div>
+          ))}
+          {participants.length > 3 && (
+            <div className="flex items-center justify-center h-8 w-8 rounded-full border-2 border-[#0a0a0a] bg-[#1a1a1a] shadow-lg">
+              <span className="text-[10px] font-bold text-[#00b4d8]">+{participants.length - 3}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="absolute left-1/2 -translate-x-1/2">
+          <ControlBar
+            variation="minimal"
+            controls={{
+              microphone: true,
+              camera: true,
+              chat: false,
+              screenShare: true,
+              leave: true
+            }}
+          />
+        </div>
+
+        <div className="w-[120px] hidden md:block" /> {/* Spacer for symmetry */}
       </div>
     </div>
   );
