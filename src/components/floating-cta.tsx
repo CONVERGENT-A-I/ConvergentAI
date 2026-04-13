@@ -558,7 +558,7 @@ export default function FloatingCTA() {
                         label="Live Chat"
                         isActive={sessionState === 'chat'}
                       />
-                      <SideButton icon={<Phone className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="Phone Call" />
+                      <SideButton icon={<Phone className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="Talk to Loan Officer" />
                       <SideButton onClick={() => window.open("https://warpme.neetocal.com/meeting-with-david-patten-19", "_blank", "noopener,noreferrer")} icon={<Calendar className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="Book Appointment" />
                     </div>
                   </div>
