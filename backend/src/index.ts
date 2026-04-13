@@ -73,12 +73,36 @@ app.get('/health', (req: Request, res: Response) => {
   res.status(200).send('OK');
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`[server]: Server is running at http://localhost:${PORT}`);
   console.log(`[server]: Environment: ${process.env.NODE_ENV}`);
   if (!!process.env.LIVEKIT_API_KEY) {
     console.log('[server]: LiveKit API Key is configured.');
   } else {
     console.warn('[server]: Warning: LIVEKIT_API_KEY is not defined in .env');
+  }
+
+  // Start the Agent worker
+  try {
+    const { fork } = await import('child_process');
+    const { fileURLToPath } = await import('url');
+    const path = await import('path');
+
+    // Resolve path cleanly using import.meta.url
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const agentFilePath = path.join(__dirname, 'agent.ts');
+
+    const agentProcess = fork(agentFilePath, ['dev'], {
+      execArgv: ['--import', 'tsx'],
+      env: process.env,
+      stdio: 'inherit'
+    });
+
+    agentProcess.on('error', (err) => {
+      console.error(`[server]: Failed to start Agent Worker:`, err);
+    });
+  } catch (error) {
+    console.error(`[server]: Agent Worker initialization error:`, error);
   }
 });

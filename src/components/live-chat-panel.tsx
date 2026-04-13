@@ -91,15 +91,19 @@ export default function LiveChatPanel() {
 
   const handleUpdateScroll = () => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+      // Only auto-scroll if the user is already within 100px of the bottom
+      if (scrollHeight - scrollTop - clientHeight < 100) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
     }
   };
 
   return (
     <div className="flex flex-col h-full bg-[#050505] relative overflow-hidden rounded-[inherit]">
       {/* Dynamic Background Ambience */}
-      <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[120%] h-60 bg-[#00b4d8] opacity-[0.06] blur-[120px] rounded-full pointer-events-none z-0" />
-      <div className="absolute bottom-10 right-[-10%] w-3/4 h-3/4 bg-[#560bad] opacity-[0.04] blur-[140px] rounded-full pointer-events-none z-0" />
+      <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[120%] h-60 bg-[#00b4d8] opacity-[0.06] blur-[120px] rounded-full pointer-events-none z-0" style={{ transform: 'translateZ(0)', willChange: 'transform' }} />
+      <div className="absolute bottom-10 right-[-10%] w-3/4 h-3/4 bg-[#560bad] opacity-[0.04] blur-[140px] rounded-full pointer-events-none z-0" style={{ transform: 'translateZ(0)', willChange: 'transform' }} />
       
       {/*! Watermarked Logo */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
@@ -107,15 +111,16 @@ export default function LiveChatPanel() {
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 0.20, scale: 1 }}
           transition={{ duration: 2, ease: "easeOut" }}
-          className="relative flex items-center justify-center w-[250px] h-[250px] md:w-[350px] md:h-[350px] mix-blend-screen"
+          className="relative flex items-center justify-center w-[250px] h-[250px] md:w-[350px] md:h-[350px]"
         >
           {/* Spinning Logo Core */}
           <motion.div
              animate={{ rotate: 360 }}
              transition={{ duration: 35, repeat: Infinity, ease: "linear" }}
              className="relative w-full h-full z-10"
+             style={{ willChange: "transform" }}
           >
-            <Image src={AppIcon} alt="ConvergentAI Background" fill className="object-contain filter blur-[1px] z-10" />
+            <Image src={AppIcon} alt="ConvergentAI Background" fill className="object-contain z-10" />
             
             {/* Glow Bullets Shooting Out */}
             {[...Array(6)].map((_, i) => (
@@ -126,7 +131,7 @@ export default function LiveChatPanel() {
               >
                 <motion.div
                   animate={{ 
-                    top: ['25%', '-25%'], 
+                    y: [0, -150], 
                     opacity: [0, 1, 0],
                     scale: [0.5, 1.2, 0.2]
                   }}
@@ -136,7 +141,8 @@ export default function LiveChatPanel() {
                     ease: "easeOut",
                     delay: 0 // Synchronized uniform burst
                   }}
-                  className="absolute left-1/2 -translate-x-1/2 w-[3px] h-[30px] md:w-[4px] md:h-[40px] rounded-full bg-white shadow-[0_0_12px_2px_#00b4d8,0_0_20px_4px_#a855f7]"
+                  className="absolute top-[25%] left-1/2 -translate-x-1/2 w-[3px] h-[30px] md:w-[4px] md:h-[40px] rounded-full bg-white shadow-[0_0_12px_2px_#00b4d8,0_0_20px_4px_#a855f7]"
+                  style={{ willChange: "transform, opacity" }}
                 />
               </div>
             ))}
@@ -170,7 +176,11 @@ export default function LiveChatPanel() {
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-6 space-y-6 relative z-10" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.08) transparent' }}>
+      <div 
+        ref={scrollRef} 
+        className="flex-1 overflow-y-auto px-5 py-6 space-y-6 relative z-10" 
+        style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.08) transparent', transform: 'translateZ(0)', willChange: 'transform' }}
+      >
         {messages.map(msg => (
           <div key={msg.id} className={`flex gap-3 max-w-[85%] ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}>
             {msg.role === 'ai' && (
@@ -181,7 +191,7 @@ export default function LiveChatPanel() {
             <div className={`flex flex-col gap-1 w-full ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
               <div className={`px-5 py-3.5 text-sm md:text-[15px] leading-relaxed relative ${msg.role === 'user'
                 ? 'bg-gradient-to-br from-[#00b4d8] via-[#023e8a] to-[#560bad] text-white rounded-[24px] rounded-tr-[4px] shadow-[0_8px_20px_rgba(0,180,216,0.25)] border border-white/10'
-                : 'bg-[#111424]/80 backdrop-blur-md border border-[#00b4d8]/20 text-gray-100 rounded-[24px] rounded-tl-[4px] shadow-[0_8px_20px_rgba(0,0,0,0.4)]'
+                : 'bg-[#161a2b] border border-[#00b4d8]/20 text-gray-100 rounded-[24px] rounded-tl-[4px] shadow-[0_8px_20px_rgba(0,0,0,0.4)]'
                 }`}>
                 {msg.role === 'ai' && (
                   <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-[#00b4d8]/40 to-transparent opacity-50" />
@@ -207,7 +217,7 @@ export default function LiveChatPanel() {
             <div className="relative h-8 w-8 rounded-full overflow-hidden border border-[#00b4d8]/40 shrink-0 shadow-[0_0_10px_rgba(0,180,216,0.2)]">
               <Image src="/friendly_ai_avatar_v2.png" alt="AI" fill className="object-cover" />
             </div>
-            <div className="px-5 py-3.5 rounded-[24px] rounded-tl-[4px] bg-[#111424]/80 backdrop-blur-md border border-[#00b4d8]/20 flex gap-2 items-center shadow-[0_8px_20px_rgba(0,0,0,0.4)]">
+            <div className="px-5 py-3.5 rounded-[24px] rounded-tl-[4px] bg-[#161a2b] border border-[#00b4d8]/20 flex gap-2 items-center shadow-[0_8px_20px_rgba(0,0,0,0.4)]">
               <span className="h-2 w-2 rounded-full bg-[#00b4d8] animate-bounce shadow-[0_0_8px_rgba(0,180,216,0.6)]" style={{ animationDelay: '0ms' }} />
               <span className="h-2 w-2 rounded-full bg-[#a855f7] animate-bounce shadow-[0_0_8px_rgba(168,85,247,0.6)]" style={{ animationDelay: '160ms' }} />
               <span className="h-2 w-2 rounded-full bg-[#00b4d8] animate-bounce shadow-[0_0_8px_rgba(0,180,216,0.6)]" style={{ animationDelay: '320ms' }} />

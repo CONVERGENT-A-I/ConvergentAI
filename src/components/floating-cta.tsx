@@ -8,6 +8,7 @@ import { useSearchParams } from "next/navigation";
 import {
   LiveKitRoom,
   RoomAudioRenderer,
+  useRemoteParticipants,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
 import AppIcon from "../app/icon.png";
@@ -16,6 +17,14 @@ import VideoStage from "./video-stage";
 
 type SessionState = 'idle' | 'connecting' | 'live' | 'chat';
 type PendingMode = 'video' | 'voice' | 'chat';
+
+function AgentReadinessCheck({ onAgentReady }: { onAgentReady: (r: boolean) => void }) {
+  const participants = useRemoteParticipants();
+  useEffect(() => {
+    onAgentReady(participants.length > 0);
+  }, [participants, onAgentReady]);
+  return null;
+}
 
 
 
@@ -57,6 +66,7 @@ export default function FloatingCTA() {
   const [lkUrl, setLkUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLkConnected, setIsLkConnected] = useState(false);
+  const [isAgentReady, setIsAgentReady] = useState(false);
   const [pendingMode, setPendingMode] = useState<PendingMode>('video');
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [roomName, setRoomName] = useState<string>('');
@@ -424,11 +434,12 @@ export default function FloatingCTA() {
                               data-lk-theme="default"
                               className="w-full h-full"
                               onConnected={() => setIsLkConnected(true)}
-                              onDisconnected={() => { setSessionState('idle'); setToken(null); setLkUrl(null); setIsLkConnected(false); setRecordingSeconds(0); setRoomName(''); }}
+                              onDisconnected={() => { setSessionState('idle'); setToken(null); setLkUrl(null); setIsLkConnected(false); setIsAgentReady(false); setRecordingSeconds(0); setRoomName(''); }}
                             >
-                              {/* ── Connecting overlay — visible until WebRTC is fully up ── */}
+                              <AgentReadinessCheck onAgentReady={setIsAgentReady} />
+                              {/* ── Connecting overlay — visible until WebRTC is fully up AND agent arrives ── */}
                               <AnimatePresence>
-                                {!isLkConnected && (
+                                {(!isLkConnected || !isAgentReady) && (
                                   <motion.div
                                     key="lk-connecting"
                                     initial={{ opacity: 0 }}
@@ -472,8 +483,8 @@ export default function FloatingCTA() {
                                 )}
                               </AnimatePresence>
 
-                              {/* REC badge + labels (only show once connected) */}
-                              {isLkConnected && (
+                              {/* REC badge + labels (only show once fully connected) */}
+                              {isLkConnected && isAgentReady && (
                                 <div className="absolute inset-0 z-10 pointer-events-none">
                                   <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-red-500/30">
                                     <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}><Circle className="h-3 w-3 fill-red-500 text-red-500" /></motion.div>
