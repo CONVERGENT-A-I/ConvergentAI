@@ -1,4 +1,4 @@
-import { WorkerOptions, JobContext, cli } from '@livekit/agents';
+import { type JobContext, ServerOptions, cli } from '@livekit/agents';
 import { AvatarSession } from '@livekit/agents-plugin-lemonslice';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -6,29 +6,48 @@ import { fileURLToPath } from 'url';
 
 dotenv.config();
 
-const workerOptions: WorkerOptions = {
-  agent: fileURLToPath(import.meta.url),
-  workerType: 'room',
-  initializeProcessTimeout: 60000,
+import { voice } from '@livekit/agents';
+import * as openai from '@livekit/agents-plugin-openai';
+
+export default {
   async entry(ctx: JobContext) {
     console.log(`[agent]: Receiving job for room: ${ctx.room.name}`);
     await ctx.connect();
     console.log(`[agent]: Connected to room: ${ctx.room.name}`);
 
-    const dummyAgentSession = {
-      output: {}
-    } as any;
+    // Create the OpenAI Realtime AI Brain
+    const agent = new voice.Agent({
+      instructions: `You are Ailana AI, a friendly financial advisor and mortgage assistant.
+Keep your responses incredibly concise, conversational, and completely free of complex formatting.
+Act naturally and politely. Do not sound robotic.`,
+      llm: new openai.realtime.RealtimeModel({
+        voice: "alloy",
+      }),
+    });
+
+    console.log(`[agent]: Starting OpenAI Realtime Agent...`);
+
+    // Connect the AI voice strictly to the room
+    const session = new voice.AgentSession({
+      llm: agent.llm!,
+    });
+    await session.start({
+      agent,
+      room: ctx.room,
+    });
+
+    console.log(`[agent]: OpenAI Agent session started successfully!`);
 
     const avatar = new AvatarSession({
-      agentId: process.env.LEMONSLICE_AGENT_ID,
-      apiKey: process.env.LEMONSLICE_API_KEY,
+      agentId: process.env.LEMONSLICE_AGENT_ID!,
+      apiKey: process.env.LEMONSLICE_API_KEY!,
       idleTimeout: 3600, // Important: prevents avatar from leaving due to no audio
     });
 
     try {
-      console.log(`[agent]: Starting LemonSlice avatar...`);
-      await avatar.start(dummyAgentSession, ctx.room);
-      console.log('[agent]: LemonSlice avatar started successfully!');
+      console.log(`[agent]: Starting LemonSlice avatar and linking to AI...`);
+      await avatar.start(session, ctx.room);
+      console.log('[agent]: LemonSlice avatar started and synced successfully!');
     } catch (error) {
       console.error('[agent]: Error starting LemonSlice avatar:', error);
     }
@@ -37,8 +56,9 @@ const workerOptions: WorkerOptions = {
   },
 };
 
-export default workerOptions;
-
 if (process.argv[1] && process.argv[1].endsWith('agent.ts')) {
-   cli.runApp(workerOptions);
+  cli.runApp(new ServerOptions({
+    agent: fileURLToPath(import.meta.url),
+    initializeProcessTimeout: 60000,
+  }));
 }
