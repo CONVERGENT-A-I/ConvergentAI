@@ -22,6 +22,10 @@ Keep your responses incredibly concise, conversational, and completely free of c
 Act naturally and politely. Do not sound robotic.`,
       llm: new openai.realtime.RealtimeModel({
         voice: "alloy",
+        turnDetection: {
+          type: "server_vad",
+          silence_duration_ms: 400,
+        },
       }),
     });
 
@@ -31,6 +35,17 @@ Act naturally and politely. Do not sound robotic.`,
     const session = new voice.AgentSession({
       llm: agent.llm!,
     });
+
+    // Handle unexpected errors (like the OpenAI audio_end_ms null bug)
+    // to prevent the process from crashing on participant disconnect.
+    session.on(voice.AgentSessionEventTypes.Error, (err: any) => {
+      if (err?.error?.message?.includes('audio_end_ms')) {
+        console.log('[agent]: Handled known OpenAI truncation edge-case during disconnect.');
+        return;
+      }
+      console.error('[agent]: Agent session error:', err);
+    });
+
     await session.start({
       agent,
       room: ctx.room,
