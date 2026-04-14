@@ -16,7 +16,7 @@ import LiveChatPanel from "./live-chat-panel";
 import VideoStage from "./video-stage";
 
 type SessionState = 'idle' | 'connecting' | 'live' | 'chat';
-type PendingMode = 'video' | 'voice' | 'chat';
+type PendingMode = 'video' | 'voice' | 'avatar-chat' | 'chat';
 
 function AgentReadinessCheck({ onAgentReady }: { onAgentReady: (r: boolean) => void }) {
   const participants = useRemoteParticipants();
@@ -111,7 +111,7 @@ export default function FloatingCTA() {
     }
   };
 
-  const handleAIAction = (mode: 'video' | 'voice') => {
+  const handleAIAction = (mode: 'video' | 'voice' | 'avatar-chat') => {
     setPendingMode(mode);
     if (!hasAgreed) {
       setShowDisclosure(true);
@@ -426,7 +426,7 @@ export default function FloatingCTA() {
                           <motion.div key="live-view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 flex flex-col items-center justify-center p-0">
                             <LiveKitRoom
                               key={token}
-                              video={true}
+                              video={pendingMode === 'video'}
                               audio={true}
                               token={token}
                               serverUrl={lkUrl}
@@ -498,7 +498,7 @@ export default function FloatingCTA() {
                                   </div>
                                 </div>
                               )}
-                              <VideoStage />
+                              <VideoStage mode={pendingMode} />
                               <RoomAudioRenderer />
                             </LiveKitRoom>
                           </motion.div>
@@ -545,6 +545,12 @@ export default function FloatingCTA() {
                         icon={<Video className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
                         label="Video Meet"
                         isActive={(sessionState === 'live' || sessionState === 'connecting') && pendingMode === 'video'}
+                      />
+                      <SideButton
+                        onClick={() => handleAIAction('avatar-chat')}
+                        icon={<Send className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
+                        label="Type to AI"
+                        isActive={(sessionState === 'live' || sessionState === 'connecting') && pendingMode === 'avatar-chat'}
                       />
                       <SideButton
                         onClick={() => handleAIAction('voice')}

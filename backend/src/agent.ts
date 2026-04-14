@@ -1,4 +1,5 @@
 import { type JobContext, ServerOptions, cli } from '@livekit/agents';
+import { RoomEvent } from '@livekit/rtc-node';
 import { AvatarSession } from '@livekit/agents-plugin-lemonslice';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -31,13 +32,14 @@ IMPORTANT: You must only speak and understand English. If the user speaks anothe
 Keep your responses incredibly concise, conversational, and completely free of complex formatting.
 Act naturally and politely. Do not sound robotic.`,
       vad: sileroVad,
-      llm: new openai.realtime.RealtimeModel({
-        voice: "shimmer", // Premium Female Voice
-        turnDetection: {
-          type: "semantic_vad",
-          eagerness: "high",
-        },
-      }),
+        llm: new openai.realtime.RealtimeModel({
+          voice: "shimmer", // Premium Female Voice
+          modalities: ["audio", "text"],
+          turnDetection: {
+            type: "semantic_vad",
+            eagerness: "high",
+          },
+        }),
       turnHandling: {
         turnDetection: 'realtime_llm',
         endpointing: {},
@@ -64,6 +66,24 @@ Act naturally and politely. Do not sound robotic.`,
     });
 
     console.log(`[agent]: OpenAI Agent session started with Hybrid VAD!`);
+
+    // --- TEXT INPUT HANDLING ---
+    // Listen for text messages from the "Type to AI" mode
+    ctx.room.on(RoomEvent.ChatMessage, (msg, participant) => {
+      const identity = participant?.identity || (msg as any).participantIdentity;
+      if (!msg.message || identity === ctx.room.localParticipant?.identity) return;
+      
+      console.log(`[agent]: Received text input: "${msg.message}" from ${identity}. Triggering response...`);
+      
+      // Explicitly append to context and trigger reply for Realtime Model
+      session.chatCtx.addMessage({
+        role: 'user',
+        content: msg.message,
+      });
+      
+      session.generateReply();
+    });
+    // ---------------------------
 
     // --- ACOUSTIC FALLBACK LOGIC ---
     // The Semantic VAD (Cloud) is handled automatically by 'realtime_llm' mode.
