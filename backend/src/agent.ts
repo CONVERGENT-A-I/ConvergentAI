@@ -12,16 +12,23 @@ import * as openai from '@livekit/agents-plugin-openai';
 export default {
   async entry(ctx: JobContext) {
     console.log(`[agent]: Receiving job for room: ${ctx.room.name}`);
+    
+    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_openai_api_key_here') {
+      console.error('[agent]: ❌ CRITICAL: OPENAI_API_KEY is missing in backend/.env');
+      return;
+    }
+
     await ctx.connect();
     console.log(`[agent]: Connected to room: ${ctx.room.name}`);
 
     // Create the OpenAI Realtime AI Brain
     const agent = new voice.Agent({
-      instructions: `You are Ailana AI, a friendly financial advisor and mortgage assistant.
+      instructions: `You are Ailana AI, a friendly female financial advisor and mortgage assistant.
+IMPORTANT: You must only speak and understand English. If the user speaks another language, politely insist on continuing in English.
 Keep your responses incredibly concise, conversational, and completely free of complex formatting.
 Act naturally and politely. Do not sound robotic.`,
       llm: new openai.realtime.RealtimeModel({
-        voice: "alloy",
+        voice: "shimmer", // Premium Female Voice
         turnDetection: {
           type: "server_vad",
           silence_duration_ms: 400,
@@ -29,26 +36,27 @@ Act naturally and politely. Do not sound robotic.`,
       }),
     });
 
-    console.log(`[agent]: Starting OpenAI Realtime Agent...`);
+    console.log(`[agent]: Starting OpenAI Realtime Agent (English / Female)...`);
 
     // Connect the AI voice strictly to the room
     const session = new voice.AgentSession({
       llm: agent.llm!,
     });
 
-    // Handle unexpected errors (like the OpenAI audio_end_ms null bug)
-    // to prevent the process from crashing on participant disconnect.
+    // Handle unexpected errors
     session.on(voice.AgentSessionEventTypes.Error, (err: any) => {
-      if (err?.error?.message?.includes('audio_end_ms')) {
-        console.log('[agent]: Handled known OpenAI truncation edge-case during disconnect.');
-        return;
-      }
+      if (err?.error?.message?.includes('audio_end_ms')) return;
       console.error('[agent]: Agent session error:', err);
     });
 
     await session.start({
       agent,
       room: ctx.room,
+    });
+
+    // Transcription logs for debugging
+    session.on(voice.AgentSessionEventTypes.UserInputTranscribed, (ev) => {
+      console.log(`[agent]: User said: "${ev.transcript}"`);
     });
 
     console.log(`[agent]: OpenAI Agent session started successfully!`);
