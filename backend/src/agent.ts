@@ -10,6 +10,16 @@ import * as silero from '@livekit/agents-plugin-silero';
 
 dotenv.config();
 
+// Global safety net for the known OpenAI 'audio_end_ms' null-type bug
+process.on('uncaughtException', (err) => {
+  if (err?.message?.includes('audio_end_ms') || (err as any)?.context?.error?.message?.includes('audio_end_ms')) {
+    console.warn('[agent]: 🛡️ Suppressed known OpenAI audio_end_ms crash.');
+    return;
+  }
+  console.error('[agent]: ❌ Uncaught Exception:', err);
+  process.exit(1);
+});
+
 export default {
   async entry(ctx: JobContext) {
     console.log(`[agent]: Receiving job for room: ${ctx.room.name}`);
@@ -54,9 +64,13 @@ Act naturally and politely. Do not sound robotic.`,
       llm: agent.llm!,
     });
 
-    // Handle unexpected errors
+     // Handle unexpected errors (Double-layer protection)
     session.on(voice.AgentSessionEventTypes.Error, (err: any) => {
-      if (err?.error?.message?.includes('audio_end_ms')) return;
+      const msg = err?.error?.message || err?.message || '';
+      if (msg.includes('audio_end_ms')) {
+        console.warn('[agent]: 🛡️ Suppressed session error: audio_end_ms is null');
+        return;
+      }
       console.error('[agent]: Agent session error:', err);
     });
 

@@ -8,7 +8,7 @@ import AppIcon from "../app/icon.png";
 
 interface ChatMessage {
   id: string;
-  role: 'ai' | 'user';
+  role: 'assistant' | 'user';
   text: string;
   time: string;
   isStreaming?: boolean;
@@ -55,7 +55,7 @@ function TypewriterText({ text, onUpdate, onComplete }: { text: string; onUpdate
 
 export default function LiveChatPanel() {
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: '0', role: 'ai', text: "Hi! I'm Ailana, your AI mortgage assistant. How can I help you today?", time: formatMsgTime(), isStreaming: false },
+    { id: '0', role: 'assistant', text: "Hi! I'm Ailana, your AI mortgage assistant. How can I help you today?", time: formatMsgTime(), isStreaming: false },
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -67,22 +67,50 @@ export default function LiveChatPanel() {
     }
   }, [messages, isTyping]);
 
-  const send = () => {
+  const send = async () => {
     const text = input.trim();
-    if (!text) return;
-    setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', text, time: formatMsgTime() }]);
+    if (!text || isTyping) return;
+
+    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text, time: formatMsgTime() };
+    setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsTyping(true);
-    setTimeout(() => {
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          // Send history for context, mapped to the format OpenAI expects
+          messages: [...messages, userMsg].map(m => ({ role: m.role, text: m.text }))
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get AI response');
+      }
+
+      const data = await response.json();
+      
       setIsTyping(false);
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
-        role: 'ai',
-        text: "Thank you for reaching out! Our AI agent is being connected and will respond to your mortgage queries shortly.",
+        role: 'assistant',
+        text: data.text,
         time: formatMsgTime(),
         isStreaming: true
       }]);
-    }, 1600);
+    } catch (error) {
+      console.error('Chat error:', error);
+      setIsTyping(false);
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        text: "I apologize, but I'm experiencing a temporary connection issue. Please try again in a moment.",
+        time: formatMsgTime(),
+        isStreaming: true
+      }]);
+    }
   };
 
   const handleStreamComplete = (msgId: string) => {
@@ -120,7 +148,7 @@ export default function LiveChatPanel() {
              className="relative w-full h-full z-10"
              style={{ willChange: "transform" }}
           >
-            <Image src={AppIcon} alt="ConvergentAI Background" fill className="object-contain z-10" />
+            <Image src={AppIcon} alt="ConvergentAI Background" fill sizes="(max-width: 768px) 250px, 350px" className="object-contain z-10" />
             
             {/* Glow Bullets Shooting Out */}
             {[...Array(6)].map((_, i) => (
@@ -153,7 +181,7 @@ export default function LiveChatPanel() {
       {/* Header */}
       <div className="flex items-center gap-4 px-6 py-4 border-b border-white/5 bg-gradient-to-r from-[#0a0a0a] to-[#0f111a] shrink-0 relative z-10 shadow-md">
         <div className="relative h-11 w-11 rounded-full overflow-hidden border-2 border-[#00b4d8]/40 shrink-0 shadow-[0_0_15px_rgba(0,180,216,0.3)]">
-          <Image src="/friendly_ai_avatar_v2.png" alt="Ailana AI" fill className="object-cover" />
+          <Image src="/friendly_ai_avatar_v2.png" alt="Ailana AI" fill sizes="44px" className="object-cover" />
           <div className="absolute inset-0 rounded-full border border-white/20 pointer-events-none" />
         </div>
         <div className="flex flex-col">
@@ -183,9 +211,9 @@ export default function LiveChatPanel() {
       >
         {messages.map(msg => (
           <div key={msg.id} className={`flex gap-3 max-w-[85%] ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}>
-            {msg.role === 'ai' && (
+            {msg.role === 'assistant' && (
               <div className="relative h-8 w-8 rounded-full overflow-hidden border border-[#00b4d8]/40 shrink-0 mt-1 shadow-[0_0_10px_rgba(0,180,216,0.2)]">
-                <Image src="/friendly_ai_avatar_v2.png" alt="AI" fill className="object-cover" />
+                <Image src="/friendly_ai_avatar_v2.png" alt="AI" fill sizes="32px" className="object-cover" />
               </div>
             )}
             <div className={`flex flex-col gap-1 w-full ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
@@ -193,10 +221,10 @@ export default function LiveChatPanel() {
                 ? 'bg-gradient-to-br from-[#00b4d8] via-[#023e8a] to-[#560bad] text-white rounded-[24px] rounded-tr-[4px] shadow-[0_8px_20px_rgba(0,180,216,0.25)] border border-white/10'
                 : 'bg-[#161a2b] border border-[#00b4d8]/20 text-gray-100 rounded-[24px] rounded-tl-[4px] shadow-[0_8px_20px_rgba(0,0,0,0.4)]'
                 }`}>
-                {msg.role === 'ai' && (
+                {msg.role === 'assistant' && (
                   <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-[#00b4d8]/40 to-transparent opacity-50" />
                 )}
-                {msg.role === 'ai' && msg.isStreaming ? (
+                {msg.role === 'assistant' && msg.isStreaming ? (
                   <TypewriterText
                     text={msg.text}
                     onUpdate={handleUpdateScroll}
@@ -215,7 +243,7 @@ export default function LiveChatPanel() {
         {isTyping && (
           <div className="flex gap-3 max-w-[85%] mr-auto items-end">
             <div className="relative h-8 w-8 rounded-full overflow-hidden border border-[#00b4d8]/40 shrink-0 shadow-[0_0_10px_rgba(0,180,216,0.2)]">
-              <Image src="/friendly_ai_avatar_v2.png" alt="AI" fill className="object-cover" />
+              <Image src="/friendly_ai_avatar_v2.png" alt="AI" fill sizes="32px" className="object-cover" />
             </div>
             <div className="px-5 py-3.5 rounded-[24px] rounded-tl-[4px] bg-[#161a2b] border border-[#00b4d8]/20 flex gap-2 items-center shadow-[0_8px_20px_rgba(0,0,0,0.4)]">
               <span className="h-2 w-2 rounded-full bg-[#00b4d8] animate-bounce shadow-[0_0_8px_rgba(0,180,216,0.6)]" style={{ animationDelay: '0ms' }} />

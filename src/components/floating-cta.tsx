@@ -278,7 +278,7 @@ export default function FloatingCTA() {
 
                   <h2 className="text-xl md:text-3xl font-bold text-white mb-6 shrink-0 flex items-center gap-4">
                     <div className="h-10 w-10 md:h-12 md:w-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 shadow-inner overflow-hidden relative">
-                      <Image src={AppIcon} alt="Logo" fill className="object-cover scale-75" />
+                      <Image src={AppIcon} alt="Logo" fill sizes="48px" className="object-cover scale-75" />
                     </div>
                     Regulatory Notice
                   </h2>
@@ -351,7 +351,7 @@ export default function FloatingCTA() {
                       {/* Left: Branding */}
                       <div className="flex items-center gap-3">
                         <div className="relative h-8 w-8 md:h-10 md:w-10 flex shrink-0 items-center justify-center overflow-hidden rounded-full shadow-[0_0_15px_rgba(0,180,216,0.3)] bg-transparent">
-                          <Image src={AppIcon} alt="ConvergentAI Logo" fill className="object-contain" />
+                          <Image src={AppIcon} alt="ConvergentAI Logo" fill sizes="40px" className="object-contain" />
                         </div>
                         <span className="font-extrabold text-white text-base md:text-2xl tracking-tight">ConvergentAI</span>
                       </div>
@@ -395,7 +395,7 @@ export default function FloatingCTA() {
                         {sessionState === 'idle' && (
                           <motion.div key="idle-view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center">
                             <motion.div animate={{ y: [0, -8, 0], rotate: [0, 0, -15, 15, -10, 10, 0, 0] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }} className="origin-bottom relative z-10 w-32 h-32 md:w-44 md:h-44 mb-8 rounded-full overflow-hidden border-[6px] md:border-8 border-[#0B0F19] shadow-[0_0_40px_rgba(0,180,216,0.3)]">
-                              <Image src="/friendly_ai_avatar_v2.png" alt="AI Assistant" fill className="object-cover" />
+                              <Image src="/friendly_ai_avatar_v2.png" alt="AI Assistant" fill sizes="(max-width: 768px) 128px, 176px" className="object-cover" />
                             </motion.div>
                             <button 
                               onClick={() => { setIsNavExpanded(true); setHasAutoHidden(true); }}
@@ -427,7 +427,7 @@ export default function FloatingCTA() {
                             <LiveKitRoom
                               key={token}
                               video={pendingMode === 'video'}
-                              audio={true}
+                              audio={pendingMode !== 'avatar-chat'}
                               token={token}
                               serverUrl={lkUrl}
                               connect={true}
@@ -698,10 +698,11 @@ export default function FloatingCTA() {
 
             {/* AI Headshot Image */}
             <div className="relative h-full w-full overflow-hidden rounded-full border-[1.5px] border-[#a855f7]/60 bg-[#560bad] shadow-[0_0_15px_rgba(86,11,173,0.5)]">
-              <Image
+                <Image
                 src="/friendly_ai_avatar_v2.png"
                 alt="Friendly AI Assistant"
                 fill
+                sizes="(max-width: 768px) 40px, 56px"
                 className="object-cover"
               />
             </div>
