@@ -95,7 +95,7 @@ export default function VideoStage({ mode = 'video' }: { mode?: string }) {
                     setInputText("");
                   }
                 }}
-                whileHover={{ scale: 1.05, shadow: "0 0 15px rgba(0, 180, 216, 0.4)" }}
+                whileHover={{ scale: 1.05, boxShadow: "0 0 15px rgba(0, 180, 216, 0.4)" }}
                 whileTap={{ scale: 0.95 }}
                 disabled={!inputText.trim()}
                 className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-gradient-to-br from-[#00b4d8] to-[#023e8a] text-white flex items-center justify-center shrink-0 disabled:opacity-20 disabled:grayscale transition-all duration-300 shadow-lg relative overflow-hidden"
