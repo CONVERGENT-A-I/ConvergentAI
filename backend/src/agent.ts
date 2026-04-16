@@ -23,7 +23,7 @@ process.on('uncaughtException', (err) => {
 export default {
   async entry(ctx: JobContext) {
     console.log(`[agent]: Receiving job for room: ${ctx.room.name}`);
-    
+
     if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_openai_api_key_here') {
       console.error('[agent]: ❌ CRITICAL: OPENAI_API_KEY is missing in backend/.env');
       return;
@@ -34,26 +34,35 @@ export default {
 
     // Create the OpenAI Realtime AI Brain
     console.log(`[agent]: Initializing Hybrid VAD (Acoustic + Semantic)...`);
-    const sileroVad = await silero.VAD.load();
+    const sileroVad = await silero.VAD.load({
+      minSilenceDuration: 300,
+      prefixPaddingDuration: 200,
+    });
 
     const agent = new voice.Agent({
-      instructions: `You are Ailana AI, a friendly female financial advisor and mortgage assistant.
+      instructions: `### CRITICAL PROTOCOL: LOW-LATENCY INTERACTION
+1. EVERY response MUST start with a natural, very short filler sound or brief acknowledgement (e.g., "Got it", "Right", "Sure", "Okay"). 
+2. This filler MUST be the very first thing you say, with zero delay.
+3. After the filler, continue with your concise and helpful response.
+
+You are Ailana AI, a friendly female financial advisor and mortgage assistant.
 IMPORTANT: You must only speak and understand English. If the user speaks another language, politely insist on continuing in English.
 Keep your responses incredibly concise, conversational, and completely free of complex formatting.
 Act naturally and politely. Do not sound robotic.`,
       vad: sileroVad,
-        llm: new openai.realtime.RealtimeModel({
-          voice: "shimmer", // Premium Female Voice
-          modalities: ["audio", "text"],
-          turnDetection: {
-            type: "semantic_vad",
-            eagerness: "high",
-          },
-        }),
+      llm: new openai.realtime.RealtimeModel({
+        voice: "shimmer", // Premium Female Voice
+        modalities: ["audio", "text"],
+        turnDetection: null, // Disable server-side VAD
+      }),
       turnHandling: {
-        turnDetection: 'realtime_llm',
-        endpointing: {},
-        interruption: {},
+        turnDetection: 'vad',
+        endpointing: {
+          minDelay: 250, // Ultra-fast trigger (250ms)
+        },
+        interruption: {
+          minDuration: 200, // Snapier interruptions (200ms)
+        },
       },
     });
 
@@ -64,7 +73,7 @@ Act naturally and politely. Do not sound robotic.`,
       llm: agent.llm!,
     });
 
-     // Handle unexpected errors (Double-layer protection)
+    // Handle unexpected errors (Double-layer protection)
     session.on(voice.AgentSessionEventTypes.Error, (err: any) => {
       const msg = err?.error?.message || err?.message || '';
       if (msg.includes('audio_end_ms')) {
@@ -86,41 +95,20 @@ Act naturally and politely. Do not sound robotic.`,
     ctx.room.on(RoomEvent.ChatMessage, (msg, participant) => {
       const identity = participant?.identity || (msg as any).participantIdentity;
       if (!msg.message || identity === ctx.room.localParticipant?.identity) return;
-      
+
       console.log(`[agent]: Received text input: "${msg.message}" from ${identity}. Triggering response...`);
-      
+
       // Explicitly append to context and trigger reply for Realtime Model
       session.chatCtx.addMessage({
         role: 'user',
         content: msg.message,
       });
-      
+
       session.generateReply();
     });
     // ---------------------------
 
-    // --- ACOUSTIC FALLBACK LOGIC ---
-    // The Semantic VAD (Cloud) is handled automatically by 'realtime_llm' mode.
-    // We add this local listener as a "safety net" for ambiguous cases.
-    let lastAcousticSpeechTime = 0;
-    const ACOUSTIC_FALLBACK_DELAY = 300; // ms safety net
 
-    session.on(voice.AgentSessionEventTypes.UserStateChanged, (ev) => {
-      if (ev.newState !== 'speaking') {
-        // User stopped speaking according to local Silero VAD
-        const now = Date.now();
-        lastAcousticSpeechTime = now;
-
-        setTimeout(() => {
-          // If we are still silent after 300ms and the SDK hasn't triggered a turn yet
-          if (lastAcousticSpeechTime === now && session.userState !== 'speaking') {
-            console.log('[hybrid-vad]: Acoustic fallback trigger (300ms timeout)');
-            session.commitUserTurn();
-          }
-        }, ACOUSTIC_FALLBACK_DELAY);
-      }
-    });
-    // -------------------------------------
 
     const avatar = new AvatarSession({
       agentId: process.env.LEMONSLICE_AGENT_ID!,
