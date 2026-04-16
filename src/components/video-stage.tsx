@@ -13,6 +13,111 @@ import { Track } from "livekit-client";
 import { Users, Send, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
+import AppIcon from "../app/icon.png";
+
+import { useMotionValue, useSpring } from "framer-motion";
+
+/**
+ * High-End Reactive Audio Visualizer
+ */
+function VoiceVisualizer() {
+  const participants = useParticipants();
+  const agent = participants.find(p => p.identity === 'lemonslice-avatar-agent');
+  
+  // Use a spring-dampened motion value for organic, smooth transitions
+  const audioMotion = useMotionValue(0);
+  const smoothLevel = useSpring(audioMotion, { 
+    damping: 30, // High damping for smoothness
+    stiffness: 150, // Decent stiffness for responsiveness
+    mass: 0.5
+  });
+
+  useEffect(() => {
+    if (!agent) return;
+    // High-frequency poll for the smoothest visual data
+    const interval = setInterval(() => {
+      audioMotion.set(agent.audioLevel);
+    }, 16); // ~60fps poll
+    return () => clearInterval(interval);
+  }, [agent, audioMotion]);
+
+  return (
+    <div className="relative flex items-center justify-center">
+      {/* Deep Background Pulse - Smoothed */}
+      <motion.div
+        style={{ 
+          scale: useSpring(audioMotion, { stiffness: 40, damping: 20 }), // Slower, deeper pulse
+          opacity: useSpring(audioMotion, { stiffness: 40, damping: 25 })
+        }}
+        className="absolute inset-[-120px] rounded-full bg-[#00b4d8] blur-[100px] pointer-events-none opacity-0"
+      />
+      
+      {/* Background Reactive Glows - Smoothed */}
+      <motion.div
+        style={{ 
+          scale: smoothLevel,
+          opacity: smoothLevel
+        }}
+        className="absolute inset-[-60px] rounded-full bg-[#00b4d8] blur-[80px] pointer-events-none opacity-0"
+      />
+      
+      {/* Spinning Outer Ring */}
+      <motion.div
+        animate={{ rotate: 360 }}
+        transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+        className="absolute inset-[-40px] rounded-full border border-white/10 border-t-[#00b4d8]/40 border-r-[#560bad]/40"
+      />
+
+      {/* Reactive Frequency Rings - Smoothed with useTransform */}
+      <motion.div
+        style={{ 
+          scale: 1, // Base scale
+          scaleX: useSpring(audioMotion, { stiffness: 100, damping: 40 }), // Pulse X
+          scaleY: useSpring(audioMotion, { stiffness: 100, damping: 40 }), // Pulse Y
+          borderColor: "rgba(0, 180, 216, 0.4)"
+        }}
+        className="absolute inset-[-20px] rounded-full border-2 border-white/5 transition-colors"
+      />
+      
+      <motion.div
+        style={{ 
+          scale: smoothLevel,
+          opacity: smoothLevel
+        }}
+        className="absolute inset-[-10px] rounded-full bg-gradient-to-tr from-[#00b4d8]/20 to-[#560bad]/20 blur-md"
+      />
+
+      {/* Central Spinning Logo */}
+      <div className="relative h-40 w-40 md:h-56 md:w-56 rounded-full bg-[#0a0a0a] border border-white/10 flex items-center justify-center overflow-hidden shadow-[0_0_40px_rgba(0,0,0,0.8)]">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
+          className="relative h-32 w-32 md:h-44 md:w-44 opacity-90"
+        >
+          <Image src={AppIcon} alt="Logo" fill sizes="176px" className="object-contain" />
+        </motion.div>
+        
+        {/* Glassmorphism Highlight */}
+        <div className="absolute inset-0 bg-gradient-to-tr from-white/5 via-transparent to-transparent pointer-events-none" />
+      </div>
+
+      {/* Frequency Bar Visualizer - Subtle and Smoothed */}
+      <div className="absolute -bottom-16 flex items-center gap-1.5 h-10">
+        {[...Array(9)].map((_, i) => (
+          <motion.div
+            key={i}
+            style={{ 
+              height: 8,
+              opacity: useSpring(audioMotion, { stiffness: 100, damping: 30 }) 
+            }}
+            className="w-1.5 rounded-full bg-gradient-to-t from-[#00b4d8] to-white"
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /**
  * Custom Stable Video Stage
@@ -108,6 +213,70 @@ export default function VideoStage({ mode = 'video' }: { mode?: string }) {
         </div>
 
 
+      </div>
+    );
+  }
+
+  if (mode === 'voice') {
+    return (
+      <div className="w-full h-full flex flex-col bg-[#050505] relative overflow-hidden">
+        {/* Deep Ambient Aura */}
+        <div className="absolute inset-0 bg-[#050505]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#1a0f2e_0%,_transparent_70%)] opacity-60" />
+        
+        {/* Animated Background Orbs */}
+        <motion.div 
+            animate={{ 
+                scale: [1, 1.2, 1],
+                opacity: [0.05, 0.15, 0.05],
+                x: [-30, 30, -30],
+                y: [-30, 30, -30]
+            }}
+            transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute top-[10%] left-[10%] w-[500px] h-[500px] bg-[#00b4d8] rounded-full blur-[140px] pointer-events-none" 
+        />
+        <motion.div 
+            animate={{ 
+                scale: [1.3, 1, 1.3],
+                opacity: [0.05, 0.15, 0.05],
+                x: [30, -30, 30],
+                y: [30, -30, 30]
+            }}
+            transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute bottom-[10%] right-[10%] w-[600px] h-[600px] bg-[#560bad] rounded-full blur-[150px] pointer-events-none" 
+        />
+
+        {/* Central Visualizer Stage */}
+        <div className="flex-1 flex flex-col items-center justify-center z-10 p-6">
+           <VoiceVisualizer />
+           
+           <div className="mt-20 text-center">
+              <div className="flex items-center justify-center gap-2 opacity-40 hover:opacity-100 transition-opacity duration-500">
+                 <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00b4d8] opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#00b4d8]"></span>
+                 </span>
+                 <p className="text-[#00b4d8] text-[8px] font-bold tracking-[0.2em] uppercase">AI Active</p>
+              </div>
+           </div>
+        </div>
+
+        {/* Control Bar - Minimized for Voice */}
+        <div className="h-28 flex items-center justify-center bg-transparent border-t border-white/5 z-20 relative">
+           <div className="absolute inset-0 bg-black/20 backdrop-blur-md pointer-events-none" />
+           <div className="relative z-10 scale-110">
+              <ControlBar 
+                variation="minimal" 
+                controls={{ 
+                    microphone: true, 
+                    camera: false, 
+                    chat: false, 
+                    screenShare: false, 
+                    leave: true 
+                }} 
+              />
+           </div>
+        </div>
       </div>
     );
   }

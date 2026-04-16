@@ -3,7 +3,7 @@ import { AccessToken } from "livekit-server-sdk";
 
 export async function POST(req: NextRequest) {
   try {
-    const { roomName, participantName } = await req.json();
+    const { roomName, participantName, metadata } = await req.json();
 
     if (!roomName || !participantName) {
       return NextResponse.json({ error: "roomName and participantName are required" }, { status: 400 });
@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
 
     const at = new AccessToken(apiKey, apiSecret, {
       identity: participantName,
+      metadata: metadata, // Pass shared metadata (e.g., session mode)
     });
 
     at.addGrant({

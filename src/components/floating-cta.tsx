@@ -90,10 +90,11 @@ export default function FloatingCTA() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          roomName: generatedRoomName,
-          participantName: `guest_${Math.floor(Math.random() * 10000)}`,
-        }),
+          body: JSON.stringify({
+            roomName: generatedRoomName,
+            participantName: `guest_${Math.floor(Math.random() * 10000)}`,
+            metadata: JSON.stringify({ mode: pendingMode }),
+          }),
       });
 
       if (!response.ok) {
@@ -359,7 +360,7 @@ export default function FloatingCTA() {
                       {/* Right: Actions */}
                       <div className="flex items-center gap-2 md:gap-3">
                         {/* Share Button (Only visible when active in a room) */}
-                        {roomName && (sessionState === 'live' || sessionState === 'chat') && (
+                        {roomName && (sessionState === 'live' || sessionState === 'chat') && pendingMode !== 'voice' && (
                           <button
                             onClick={handleShare}
                             className="flex items-center gap-1.5 md:gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all backdrop-blur-md text-gray-300 hover:text-white text-[10px] md:text-xs font-bold uppercase tracking-widest group cursor-pointer active:scale-95 shrink-0"

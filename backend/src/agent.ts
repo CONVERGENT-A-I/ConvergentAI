@@ -110,21 +110,35 @@ Act naturally and politely. Do not sound robotic.`,
 
 
 
-    const avatar = new AvatarSession({
-      agentId: process.env.LEMONSLICE_AGENT_ID!,
-      apiKey: process.env.LEMONSLICE_API_KEY!,
-      idleTimeout: 3600, // Important: prevents avatar from leaving due to no audio
+    // Determine if we should skip the avatar based on participant metadata
+    const participants = Array.from(ctx.room.remoteParticipants.values());
+    const isVoiceOnly = participants.some(p => {
+      try {
+        const meta = JSON.parse(p.metadata || '{}');
+        return meta.mode === 'voice';
+      } catch {
+        return false;
+      }
     });
 
-    try {
-      console.log(`[agent]: Starting LemonSlice avatar and linking to AI...`);
-      await avatar.start(session, ctx.room);
-      console.log('[agent]: LemonSlice avatar started and synced successfully!');
-    } catch (error) {
-      console.error('[agent]: Error starting LemonSlice avatar:', error);
-    }
+    if (isVoiceOnly) {
+      console.log('[agent]: 🎙️ Voice-only mode detected. Skipping avatar initialization.');
+    } else {
+      const avatar = new AvatarSession({
+        agentId: process.env.LEMONSLICE_AGENT_ID!,
+        apiKey: process.env.LEMONSLICE_API_KEY!,
+        idleTimeout: 3600, // Important: prevents avatar from leaving due to no audio
+      });
 
-    console.log('[agent]: Avatar injection sequence complete!');
+      try {
+        console.log(`[agent]: Starting LemonSlice avatar and linking to AI...`);
+        await avatar.start(session, ctx.room);
+        console.log('[agent]: LemonSlice avatar started and synced successfully!');
+      } catch (error) {
+        console.error('[agent]: Error starting LemonSlice avatar:', error);
+      }
+      console.log('[agent]: Avatar injection sequence complete!');
+    }
   },
 };
 
