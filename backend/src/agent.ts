@@ -1,6 +1,5 @@
 import { type JobContext, ServerOptions, cli } from '@livekit/agents';
 import { RoomEvent } from '@livekit/rtc-node';
-import { AvatarSession } from '@livekit/agents-plugin-lemonslice';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -91,54 +90,19 @@ Act naturally and politely. Do not sound robotic.`,
     console.log(`[agent]: OpenAI Agent session started with Hybrid VAD!`);
 
     // --- TEXT INPUT HANDLING ---
-    // Listen for text messages from the "Type to AI" mode
+    // Listen for text messages from the "Type to AI" mode.
+    // generateReply({ userInput }) is the correct single-call API for the
+    // Realtime model — it injects the user's text turn AND triggers audio response.
     ctx.room.on(RoomEvent.ChatMessage, (msg, participant) => {
-      const identity = participant?.identity || (msg as any).participantIdentity;
+      const identity = participant?.identity ?? (msg as any).participantIdentity;
       if (!msg.message || identity === ctx.room.localParticipant?.identity) return;
 
-      console.log(`[agent]: Received text input: "${msg.message}" from ${identity}. Triggering response...`);
-
-      // Explicitly append to context and trigger reply for Realtime Model
-      session.chatCtx.addMessage({
-        role: 'user',
-        content: msg.message,
-      });
-
-      session.generateReply();
+      console.log(`[agent]: 💬 Text input: "${msg.message}" from ${identity}`);
+      session.generateReply({ userInput: msg.message });
     });
     // ---------------------------
 
-
-
-    // Determine if we should skip the avatar based on participant metadata
-    const participants = Array.from(ctx.room.remoteParticipants.values());
-    const isVoiceOnly = participants.some(p => {
-      try {
-        const meta = JSON.parse(p.metadata || '{}');
-        return meta.mode === 'voice';
-      } catch {
-        return false;
-      }
-    });
-
-    if (isVoiceOnly) {
-      console.log('[agent]: 🎙️ Voice-only mode detected. Skipping avatar initialization.');
-    } else {
-      const avatar = new AvatarSession({
-        agentId: process.env.LEMONSLICE_AGENT_ID!,
-        apiKey: process.env.LEMONSLICE_API_KEY!,
-        idleTimeout: 3600, // Important: prevents avatar from leaving due to no audio
-      });
-
-      try {
-        console.log(`[agent]: Starting LemonSlice avatar and linking to AI...`);
-        await avatar.start(session, ctx.room);
-        console.log('[agent]: LemonSlice avatar started and synced successfully!');
-      } catch (error) {
-        console.error('[agent]: Error starting LemonSlice avatar:', error);
-      }
-      console.log('[agent]: Avatar injection sequence complete!');
-    }
+    console.log('[agent]: Agent loop active and awaiting audio/text triggers.');
   },
 };
 

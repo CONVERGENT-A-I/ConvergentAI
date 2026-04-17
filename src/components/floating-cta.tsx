@@ -64,6 +64,7 @@ export default function FloatingCTA() {
   const [sessionState, setSessionState] = useState<SessionState>('idle');
   const [token, setToken] = useState<string | null>(null);
   const [lkUrl, setLkUrl] = useState<string | null>(null);
+  const [keyframeMetaData, setKeyframeMetaData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLkConnected, setIsLkConnected] = useState(false);
   const [isAgentReady, setIsAgentReady] = useState(false);
@@ -73,10 +74,16 @@ export default function FloatingCTA() {
   const [isCopied, setIsCopied] = useState(false);
   const searchParams = useSearchParams();
 
-  const fetchToken = async () => {
+  const isFetchingRef = useRef(false);
+
+  const fetchToken = async (mode?: string) => {
+    // Prevent concurrent duplicate calls (e.g. compliance agree + mode button)
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     try {
       setSessionState('connecting');
       setError(null);
+      setKeyframeMetaData(null);
 
       const urlRoom = searchParams.get('room');
       const generatedRoomName = urlRoom || roomName || `room-${Math.random().toString(36).substring(2, 11)}`;
@@ -85,16 +92,17 @@ export default function FloatingCTA() {
         setRoomName(generatedRoomName);
       }
 
+      const activeMode = mode ?? pendingMode;
+
       const response = await fetch('/api/get-token', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-          body: JSON.stringify({
-            roomName: generatedRoomName,
-            participantName: `guest_${Math.floor(Math.random() * 10000)}`,
-            metadata: JSON.stringify({ mode: pendingMode }),
-          }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomName: generatedRoomName,
+          participantName: `guest_${Math.floor(Math.random() * 10000)}`,
+          metadata: JSON.stringify({ mode: activeMode }),
+          mode: activeMode, // passed explicitly so the route can conditionally create Keyframe session
+        }),
       });
 
       if (!response.ok) {
@@ -104,11 +112,14 @@ export default function FloatingCTA() {
       const data = await response.json();
       setToken(data.token);
       setLkUrl(data.serverUrl);
+      setKeyframeMetaData(data.keyframe ?? null);
       setSessionState('live');
     } catch (err) {
       console.error('Error connecting to LiveKit:', err);
       setError('Connection failed. Please try again.');
       setSessionState('idle');
+    } finally {
+      isFetchingRef.current = false;
     }
   };
 
@@ -117,7 +128,7 @@ export default function FloatingCTA() {
     if (!hasAgreed) {
       setShowDisclosure(true);
     } else {
-      fetchToken();
+      fetchToken(mode); // pass mode directly to avoid stale pendingMode state
     }
   };
 
@@ -328,7 +339,7 @@ export default function FloatingCTA() {
                         if (pendingMode === 'chat') {
                           setSessionState('chat');
                         } else {
-                          await fetchToken();
+                          await fetchToken(pendingMode); // pass mode explicitly
                         }
                       }}
                       className="w-full sm:w-auto px-10 py-4 rounded-xl bg-gradient-to-r from-[#00b4d8] via-[#023e8a] to-[#560bad] text-white font-black tracking-wider transition-all shadow-[0_0_30px_rgba(0,180,216,0.4)] hover:shadow-[0_0_50px_rgba(0,180,216,0.6)] transform hover:scale-[1.03] active:scale-95 cursor-pointer uppercase text-sm"
@@ -499,8 +510,12 @@ export default function FloatingCTA() {
                                   </div>
                                 </div>
                               )}
-                              <VideoStage mode={pendingMode} />
-                              <RoomAudioRenderer />
+                              <VideoStage mode={pendingMode} keyframeMetadata={keyframeMetaData} />
+                              {/* Audio renderer — suppressed for avatar-chat because
+                                  Keyframe re-renders the agent's audio in sync with
+                                  the avatar video and plays it through KeyframeAvatar's
+                                  audio element. Rendering both would cause double audio. */}
+                              {pendingMode !== 'avatar-chat' && <RoomAudioRenderer />}
                             </LiveKitRoom>
                           </motion.div>
                         )}

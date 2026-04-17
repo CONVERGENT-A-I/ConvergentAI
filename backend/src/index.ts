@@ -58,9 +58,59 @@ app.post('/api/get-token', async (req: Request, res: Response) => {
 
     const token = await at.toJwt();
 
+    // --- KEYFRAME LABS INTEGRATION ---
+    let keyframeMetadata = null;
+    const keyframeApiKey = process.env.KEYFRAME_API_KEY;
+    const personaSlug = process.env.KEYFRAME_PERSONA_SLUG;
+
+    if (keyframeApiKey && personaSlug) {
+      try {
+        console.log(`[server]: Requesting Keyframe session for persona: ${personaSlug}`);
+        const kfRes = await fetch("https://api.keyframelabs.com/v1/sessions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${keyframeApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            persona_slug: personaSlug,
+          }),
+        });
+
+        if (kfRes.ok) {
+          const raw = await kfRes.json();
+          console.log(`[server]: Keyframe raw response:`, JSON.stringify(raw, null, 2));
+
+          // Normalize: API may return flat { server_url, participant_token, agent_identity }
+          // OR nested { session_details: { server_url, ... }, voice_agent_details: { ... } }
+          if (raw.session_details) {
+            keyframeMetadata = {
+              server_url: raw.session_details.server_url,
+              participant_token: raw.session_details.participant_token,
+              agent_identity: raw.session_details.agent_identity,
+            };
+          } else {
+            keyframeMetadata = {
+              server_url: raw.server_url,
+              participant_token: raw.participant_token,
+              agent_identity: raw.agent_identity,
+            };
+          }
+          console.log(`[server]: Keyframe session normalized →`, keyframeMetadata);
+        } else {
+          const errorBody = await kfRes.text();
+          console.error(`[server]: Keyframe API Error (${kfRes.status}):`, errorBody);
+        }
+      } catch (error) {
+        console.error('[server]: Failed to fetch Keyframe session:', error);
+      }
+    }
+    // ---------------------------------
+
     res.json({
       token,
       serverUrl: wsUrl,
+      keyframe: keyframeMetadata
     });
   } catch (error) {
     console.error('Error generating LiveKit token:', error);
