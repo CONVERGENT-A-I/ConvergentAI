@@ -16,14 +16,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import AppIcon from "../app/icon.png";
 
-import { useMotionValue, useSpring } from "framer-motion";
+import { useMotionValue, useSpring, useTransform } from "framer-motion";
 
 /**
  * High-End Reactive Audio Visualizer
  */
 function VoiceVisualizer() {
   const participants = useParticipants();
-  const agent = participants.find(p => p.identity === 'lemonslice-avatar-agent');
+  // Find either the video avatar session or the voice agent session
+  const agent = participants.find(p => p.identity === 'lemonslice-avatar-agent' || p.identity.startsWith('agent-'));
   
   // Use a spring-dampened motion value for organic, smooth transitions
   const audioMotion = useMotionValue(0);
@@ -32,6 +33,12 @@ function VoiceVisualizer() {
     stiffness: 150, // Decent stiffness for responsiveness
     mass: 0.5
   });
+
+  // Map the 0-1 audio level to visually impactful ranges
+  const glowScale = useTransform(smoothLevel, [0, 1], [1, 1.6]);
+  const glowOpacity = useTransform(smoothLevel, [0, 1], [0.05, 0.4]);
+  const ringScale = useTransform(smoothLevel, [0, 1], [1, 1.2]);
+  const ringOpacity = useTransform(smoothLevel, [0, 1], [0.1, 0.6]);
 
   useEffect(() => {
     if (!agent) return;
@@ -47,19 +54,19 @@ function VoiceVisualizer() {
       {/* Deep Background Pulse - Smoothed */}
       <motion.div
         style={{ 
-          scale: useSpring(audioMotion, { stiffness: 40, damping: 20 }), // Slower, deeper pulse
-          opacity: useSpring(audioMotion, { stiffness: 40, damping: 25 })
+          scale: glowScale,
+          opacity: glowOpacity
         }}
-        className="absolute inset-[-120px] rounded-full bg-[#00b4d8] blur-[100px] pointer-events-none opacity-0"
+        className="absolute inset-[-120px] rounded-full bg-[#00b4d8] blur-[100px] pointer-events-none"
       />
       
       {/* Background Reactive Glows - Smoothed */}
       <motion.div
         style={{ 
-          scale: smoothLevel,
-          opacity: smoothLevel
+          scale: ringScale,
+          opacity: ringOpacity
         }}
-        className="absolute inset-[-60px] rounded-full bg-[#00b4d8] blur-[80px] pointer-events-none opacity-0"
+        className="absolute inset-[-60px] rounded-full bg-[#00b4d8] blur-[80px] pointer-events-none"
       />
       
       {/* Spinning Outer Ring */}
@@ -109,9 +116,10 @@ function VoiceVisualizer() {
             key={i}
             style={{ 
               height: 8,
-              opacity: useSpring(audioMotion, { stiffness: 100, damping: 30 }) 
+              scaleY: useTransform(smoothLevel, [0, 1], [1, 1.5 + Math.random()]),
+              opacity: useTransform(smoothLevel, [0, 1], [0.3, 1]) 
             }}
-            className="w-1.5 rounded-full bg-gradient-to-t from-[#00b4d8] to-white"
+            className="w-1.5 rounded-full bg-gradient-to-t from-[#00b4d8] to-white origin-bottom"
           />
         ))}
       </div>
