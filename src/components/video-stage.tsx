@@ -281,16 +281,43 @@ export default function VideoStage({ mode = 'video', keyframeMetadata }: { mode?
       </div>
     );
   }
+  const totalTiles = gridTracks.length + 1; // Human tracks + Keyframe Avatar
+  const gridClass = 
+    totalTiles === 1 ? "grid-cols-1 grid-rows-1" :
+    totalTiles === 2 ? "grid-cols-1 md:grid-cols-2 grid-rows-2 md:grid-rows-1" :
+    totalTiles <= 4 ? "grid-cols-2 grid-rows-2" :
+    "grid-cols-2 md:grid-cols-3 grid-rows-3 md:grid-rows-2";
 
   return (
     <div className="w-full h-full flex flex-col bg-black overflow-hidden">
-      <div className="flex-1 relative min-h-0">
-        <GridLayout
-          tracks={gridTracks}
-          className="w-full h-full p-4"
-        >
-          <ParticipantTile />
-        </GridLayout>
+      <div className="flex-1 relative min-h-0 p-4 flex items-center justify-center">
+        <div className={`w-full h-full max-w-7xl max-h-[85vh] mx-auto grid gap-4 ${gridClass}`}>
+          
+          {/* Human Participants */}
+          {gridTracks.map(t => (
+            <div key={t.participant.identity} className="relative w-full h-full rounded-2xl overflow-hidden bg-[#1a1a1a]">
+              <ParticipantTile trackRef={t} className="w-full h-full" />
+            </div>
+          ))}
+
+          {/* AI Avatar Participant */}
+          <div className="relative w-full h-full rounded-2xl overflow-hidden bg-[#050505] border border-white/5 shadow-2xl group transition-all duration-300 hover:border-[#00b4d8]/40">
+            {keyframeMetadata ? (
+              <KeyframeAvatar keyframeMetadata={keyframeMetadata} className="w-full h-full rounded-2xl" />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center gap-4 text-gray-500">
+                <Loader2 className="h-8 w-8 animate-spin text-[#00b4d8]" />
+                <p className="text-xs tracking-widest uppercase">Initializing Agent...</p>
+              </div>
+            )}
+            {/* Custom Participant Label overlay to match Livekit styles */}
+            <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2 z-20">
+              <div className="h-2 w-2 rounded-full bg-[#00b4d8] animate-pulse" />
+              <span className="text-white text-xs font-semibold tracking-wide">Ailana AI</span>
+            </div>
+          </div>
+          
+        </div>
       </div>
 
       {/* Premium Minimal Control Bar */}

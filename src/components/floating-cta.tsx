@@ -511,11 +511,11 @@ export default function FloatingCTA() {
                                 </div>
                               )}
                               <VideoStage mode={pendingMode} keyframeMetadata={keyframeMetaData} />
-                              {/* Audio renderer — suppressed for avatar-chat because
+                              {/* Audio renderer — suppressed for avatar-chat and video because
                                   Keyframe re-renders the agent's audio in sync with
                                   the avatar video and plays it through KeyframeAvatar's
                                   audio element. Rendering both would cause double audio. */}
-                              {pendingMode !== 'avatar-chat' && <RoomAudioRenderer />}
+                              {pendingMode === 'voice' && <RoomAudioRenderer />}
                             </LiveKitRoom>
                           </motion.div>
                         )}

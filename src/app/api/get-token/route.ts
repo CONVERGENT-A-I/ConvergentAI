@@ -35,8 +35,7 @@ export async function POST(req: NextRequest) {
     // Only created for avatar-chat mode — avoids burning concurrent session
     // slots for video/voice users on limited Keyframe dev plans.
     let keyframe: { server_url: string; participant_token: string; agent_identity: string } | null = null;
-
-    if (mode === "avatar-chat") {
+    if (mode === "avatar-chat" || mode === "video") {
       const kfApiKey = process.env.KEYFRAME_API_KEY;
       const kfSlug = process.env.KEYFRAME_PERSONA_SLUG;
 
