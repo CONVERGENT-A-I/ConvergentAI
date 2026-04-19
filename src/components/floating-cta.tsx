@@ -124,19 +124,50 @@ export default function FloatingCTA() {
   };
 
   const handleAIAction = (mode: 'video' | 'voice' | 'avatar-chat') => {
+    if (sessionState === 'live' && pendingMode === mode) return;
+
     setPendingMode(mode);
     if (!hasAgreed) {
       setShowDisclosure(true);
     } else {
-      fetchToken(mode); // pass mode directly to avoid stale pendingMode state
+      if (sessionState === 'live' || sessionState === 'chat') {
+        // Automatically leave the current channel and generate a fresh room/agent connection
+        setSessionState('idle');
+        setToken(null);
+        setLkUrl(null);
+        setIsLkConnected(false);
+        setIsAgentReady(false);
+        setRoomName(''); // Ensure a fresh instance is spun up
+        
+        // 150ms delay allows React to tear down the old Keyframe/WebRTC components safely
+        setTimeout(() => {
+          fetchToken(mode);
+        }, 150);
+        return;
+      }
+      fetchToken(mode);
     }
   };
 
   const handleChatAction = () => {
+    if (sessionState === 'chat') return;
     setPendingMode('chat');
     if (!hasAgreed) {
       setShowDisclosure(true);
     } else {
+      if (sessionState === 'live') {
+        // Automatically disconnect WebRTC before switching to isolated Live Chat
+        setSessionState('idle');
+        setToken(null);
+        setLkUrl(null);
+        setIsLkConnected(false);
+        setIsAgentReady(false);
+        setRoomName('');
+        setTimeout(() => {
+          setSessionState('chat');
+        }, 150);
+        return;
+      }
       setSessionState('chat');
     }
   };

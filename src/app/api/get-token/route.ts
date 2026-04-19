@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
       roomJoin: true,
       room: roomName,
       canPublish: true,
+      canPublishData: true,
       canSubscribe: true,
     });
 
@@ -35,11 +36,10 @@ export async function POST(req: NextRequest) {
     // Only created for avatar-chat mode — avoids burning concurrent session
     // slots for video/voice users on limited Keyframe dev plans.
     let keyframe: { server_url: string; participant_token: string; agent_identity: string } | null = null;
-    if (mode === "avatar-chat" || mode === "video") {
-      const kfApiKey = process.env.KEYFRAME_API_KEY;
-      const kfSlug = process.env.KEYFRAME_PERSONA_SLUG;
+    const kfApiKey = process.env.KEYFRAME_API_KEY;
+    const kfSlug = process.env.KEYFRAME_PERSONA_SLUG;
 
-      if (kfApiKey && kfSlug) {
+    if (kfApiKey && kfSlug) {
         try {
           console.log(`[get-token]: Requesting Keyframe session for persona: ${kfSlug}`);
           const kfRes = await fetch("https://api.keyframelabs.com/v1/sessions", {
@@ -80,7 +80,6 @@ export async function POST(req: NextRequest) {
       } else {
         console.warn("[get-token]: KEYFRAME_API_KEY or KEYFRAME_PERSONA_SLUG missing — avatar disabled");
       }
-    }
     // ─────────────────────────────────────────────────────────────────────
 
     return NextResponse.json({ token, serverUrl: wsUrl, keyframe });

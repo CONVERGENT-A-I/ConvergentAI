@@ -39,6 +39,7 @@ export default {
     });
 
     const agent = new voice.Agent({
+      name: "agent-ailana",
       instructions: `You are Ailana AI, a friendly female financial advisor and mortgage assistant.
 IMPORTANT: You must only speak and understand English. If the user speaks another language, politely insist on continuing in English.
 Keep your responses incredibly concise, conversational, and completely free of complex formatting.
@@ -65,6 +66,7 @@ Act naturally and politely. Do not sound robotic.`,
     // Connect the AI voice strictly to the room
     const session = new voice.AgentSession({
       llm: agent.llm!,
+      userAwayTimeout: null, // Prevent agent from going to sleep during "Type to AI" (microphone muted)
     });
 
     // Handle unexpected errors (Double-layer protection)
@@ -84,16 +86,28 @@ Act naturally and politely. Do not sound robotic.`,
 
     console.log(`[agent]: OpenAI Agent session started with Hybrid VAD!`);
 
-    // --- TEXT INPUT HANDLING ---
-    // Listen for text messages from the "Type to AI" mode.
-    // generateReply({ userInput }) is the correct single-call API for the
-    // Realtime model — it injects the user's text turn AND triggers audio response.
     ctx.room.on(RoomEvent.ChatMessage, (msg, participant) => {
       const identity = participant?.identity ?? (msg as any).participantIdentity;
       if (!msg.message || identity === ctx.room.localParticipant?.identity) return;
 
-      console.log(`[agent]: 💬 Text input: "${msg.message}" from ${identity}`);
+      console.log(`[agent]: 💬 Text input (ChatMessage): "${msg.message}" from ${identity}`);
       session.generateReply({ userInput: msg.message });
+    });
+
+    // Fallback/Direct intercept for LiveKit's 'lk-chat' data channel payloads emitted by the React UI
+    ctx.room.on(RoomEvent.DataReceived, (payload, participant, kind, topic) => {
+      if (topic === 'lk-chat') {
+        try {
+          const str = new TextDecoder().decode(payload);
+          const parsed = JSON.parse(str);
+          if (parsed?.message && participant?.identity !== ctx.room.localParticipant?.identity) {
+             console.log(`[agent]: 💬 Text input (DataReceived lk-chat): "${parsed.message}" from ${participant?.identity}`);
+             session.generateReply({ userInput: parsed.message });
+          }
+        } catch (err) {
+          // ignore corrupted payload
+        }
+      }
     });
     // ---------------------------
 
