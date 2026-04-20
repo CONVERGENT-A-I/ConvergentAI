@@ -1,7 +1,6 @@
 import { type JobContext, ServerOptions, cli } from '@livekit/agents';
 import { RoomEvent } from '@livekit/rtc-node';
 import dotenv from 'dotenv';
-import path from 'path';
 import { fileURLToPath } from 'url';
 import { voice } from '@livekit/agents';
 import * as openai from '@livekit/agents-plugin-openai';
@@ -19,6 +18,9 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
+// Shared VAD model to minimize connection latency (only loaded once)
+let globalSileroVad: silero.VAD | null = null;
+
 export default {
   async entry(ctx: JobContext) {
     console.log(`[agent]: Receiving job for room: ${ctx.room.name}`);
@@ -28,89 +30,120 @@ export default {
       return;
     }
 
+    // Pre-load VAD if not already ready (Eliminates the 3-5s connection delay)
+    if (!globalSileroVad) {
+      console.log(`[agent]: Pre-warming Hybrid VAD (First connection)...`);
+      globalSileroVad = await silero.VAD.load({
+        minSilenceDuration: 300,
+        prefixPaddingDuration: 200,
+      });
+    }
+
     await ctx.connect();
     console.log(`[agent]: Connected to room: ${ctx.room.name}`);
 
-    // Create the OpenAI Realtime AI Brain
-    console.log(`[agent]: Initializing Hybrid VAD (Acoustic + Semantic)...`);
-    const sileroVad = await silero.VAD.load({
-      minSilenceDuration: 300,
-      prefixPaddingDuration: 200,
+    const model = new openai.realtime.RealtimeModel({
+      voice: "shimmer", 
+      modalities: ["audio", "text"],
+      turnDetection: null, 
     });
 
-    const agent = new voice.Agent({
-      instructions: `You are Ailana AI, a friendly female financial advisor and mortgage assistant.
-IMPORTANT: You must only speak and understand English. If the user speaks another language, politely insist on continuing in English.
+    const baseInstructions = `You are Ailana AI, a friendly female financial advisor and mortgage assistant.
+IMPORTANT: You must only speak and understand English. 
 Keep your responses incredibly concise, conversational, and completely free of complex formatting.
-Act naturally and politely. Do not sound robotic.`,
-      vad: sileroVad,
-      llm: new openai.realtime.RealtimeModel({
-        voice: "shimmer", // Premium Female Voice
-        modalities: ["audio", "text"],
-        turnDetection: null, // Disable server-side VAD
-      }),
+Act naturally and politely. Do not sound robotic.`;
+
+    const introInstructions = `${baseInstructions}
+STRICT RESTRICTION: DO NOT GREET THE USER. Remain completely silent until you receive a specific SYSTEM_INTRO_TRIGGER signal.`;
+
+    const interactiveInstructions = `${baseInstructions}
+You are now in active conversation mode. Respond helpfully to user questions about mortgages.`;
+
+    // 1. Initial "Manual" Agent (Optimized: No VAD for startup speed)
+    const manualAgent = new voice.Agent({
+      instructions: introInstructions,
+      llm: model,
+      turnHandling: {
+        turnDetection: 'manual', 
+      },
+    });
+
+    // 2. Interactive "VAD" Agent 
+    const vadAgent = new voice.Agent({
+      instructions: interactiveInstructions,
+      vad: globalSileroVad,
+      llm: model,
       turnHandling: {
         turnDetection: 'vad',
         endpointing: {
-          minDelay: 250, // Ultra-fast trigger (250ms)
+          minDelay: 350, 
         },
         interruption: {
-          minDuration: 200, // Snapier interruptions (200ms)
+          minDuration: 300, 
         },
       },
     });
 
-    console.log(`[agent]: Starting OpenAI Realtime Agent (English / Female)...`);
+    console.log(`[agent]: Starting AI Session in PASSIVE mode...`);
 
-    // Connect the AI voice strictly to the room
     const session = new voice.AgentSession({
-      llm: agent.llm!,
-      userAwayTimeout: null, // Prevent agent from going to sleep during "Type to AI" (microphone muted)
+      llm: model,
+      userAwayTimeout: null, 
     });
 
-    // Handle unexpected errors (Double-layer protection)
     session.on(voice.AgentSessionEventTypes.Error, (err: any) => {
-      const msg = err?.error?.message || err?.message || '';
-      if (msg.includes('audio_end_ms')) {
-        console.warn('[agent]: 🛡️ Suppressed session error: audio_end_ms is null');
-        return;
-      }
-      console.error('[agent]: Agent session error:', err);
+      if (err?.message?.includes('audio_end_ms')) return;
+      console.error('[agent]: Session error:', err);
     });
 
     await session.start({
-      agent,
+      agent: manualAgent,
       room: ctx.room,
     });
-
-    console.log(`[agent]: OpenAI Agent session started with Hybrid VAD!`);
 
     ctx.room.on(RoomEvent.ChatMessage, (msg, participant) => {
       const identity = participant?.identity ?? (msg as any).participantIdentity;
       if (!msg.message || identity === ctx.room.localParticipant?.identity) return;
-
-      console.log(`[agent]: 💬 Text input (ChatMessage): "${msg.message}" from ${identity}`);
+      if (msg.message === 'SYSTEM_INTRO_TRIGGER') return;
       session.generateReply({ userInput: msg.message });
     });
 
-    // Fallback/Direct intercept for LiveKit's 'lk-chat' data channel payloads emitted by the React UI
-    ctx.room.on(RoomEvent.DataReceived, (payload, participant, kind, topic) => {
+    ctx.room.on(RoomEvent.DataReceived, async (payload, participant, kind, topic) => {
       if (topic === 'lk-chat') {
         try {
           const str = new TextDecoder().decode(payload);
           const parsed = JSON.parse(str);
           if (parsed?.message && participant?.identity !== ctx.room.localParticipant?.identity) {
-             console.log(`[agent]: 💬 Text input (DataReceived lk-chat): "${parsed.message}" from ${participant?.identity}`);
+             if (parsed.message === 'SYSTEM_INTRO_TRIGGER') {
+                 console.log(`[agent]: 💬 [STEP 1] Received Intro Trigger. Purging session...`);
+                 await session.interrupt({ force: true });
+                 await new Promise(resolve => setTimeout(resolve, 500));
+
+                 console.log(`[agent]: 💬 [STEP 2] Speaking Welcome Introduction...`);
+                 const handle = session.generateReply({ 
+                   instructions: "SYSTEM NOTICE: GREETING OVERRIDE. Say EXACTLY this phrase and nothing else: 'Hi! I am here to help you with mortgage related questions. Please select the Live with Ailana if you want to continue conversation with me or select any other channel of your choice.'" 
+                 });
+                 
+                 await handle.waitForPlayout();
+                 
+                 console.log(`[agent]: 💬 [STEP 3] Transitioning to Interactive Intelligence.`);
+                 session.updateAgent(vadAgent);
+
+                 const response = JSON.stringify({ message: 'SYSTEM_INTRO_DONE' });
+                 await ctx.room.localParticipant?.publishData(new TextEncoder().encode(response), { topic: 'lk-chat', reliable: true });
+                 await ctx.room.localParticipant?.sendChatMessage(response);
+                 
+                 console.log(`[agent]: ✅ [STEP 4] Done. User ready.`);
+                 return;
+             }
+             if (parsed.message === 'SYSTEM_INTRO_TRIGGER') return;
              session.generateReply({ userInput: parsed.message });
           }
-        } catch (err) {
-          // ignore corrupted payload
-        }
+        } catch (err) {}
       }
     });
-    // ---------------------------
 
-    console.log('[agent]: Agent loop active and awaiting audio/text triggers.');
+    console.log('[agent]: Ready for triggers.');
   },
 };
 

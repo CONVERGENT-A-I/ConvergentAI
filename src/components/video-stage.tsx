@@ -153,7 +153,7 @@ export default function VideoStage({ mode = 'video', keyframeMetadata }: { mode?
     (t) => !t.participant.identity.startsWith('agent-') && !t.participant.identity.startsWith('keyframe-')
   );
 
-  if (mode === 'avatar-chat') {
+  if (mode === 'avatar-chat' || mode === 'intro-avatar') {
     return (
       <div className="w-full h-full flex flex-col bg-[#050505] relative overflow-hidden">
         {/* Deep Ambient Background */}
@@ -179,41 +179,43 @@ export default function VideoStage({ mode = 'video', keyframeMetadata }: { mode?
         </div>
 
         {/* Input Bar — below the avatar, never overlapping */}
-        <div className="shrink-0 z-20 px-6 py-4 bg-gradient-to-t from-black via-black/80 to-transparent">
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            whileHover={{ scale: 1.01 }}
-            className="group relative w-full max-w-2xl mx-auto"
-          >
-            <div className="absolute -inset-1 bg-gradient-to-r from-[#00b4d8]/20 via-[#560bad]/20 to-[#00b4d8]/20 rounded-full blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
-            <div className="relative flex items-center gap-2 p-1.5 md:p-2 rounded-full bg-black/60 backdrop-blur-3xl border border-white/20 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all duration-300 group-focus-within:border-[#00b4d8]/50 group-focus-within:bg-black/80">
-              <textarea
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    if (inputText.trim()) { send(inputText); setInputText(""); }
-                  }
-                }}
-                placeholder="Message Ailana..."
-                rows={1}
-                className="flex-1 bg-transparent border-none text-white placeholder-white/20 text-sm md:text-base px-6 py-3 md:py-3.5 outline-none resize-none transition-all duration-300 font-medium tracking-wide"
-                style={{ maxHeight: '100px' }}
-              />
-              <motion.button
-                onClick={() => { if (inputText.trim()) { send(inputText); setInputText(""); } }}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                disabled={!inputText.trim()}
-                className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-gradient-to-br from-[#00b4d8] to-[#023e8a] text-white flex items-center justify-center shrink-0 disabled:opacity-20 disabled:grayscale transition-all duration-300 shadow-lg"
-              >
-                <Send className="h-4 w-4 md:h-5 md:w-5" />
-              </motion.button>
-            </div>
-          </motion.div>
-        </div>
+        {mode !== 'intro-avatar' && (
+          <div className="shrink-0 z-20 px-6 py-4 bg-gradient-to-t from-black via-black/80 to-transparent">
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              whileHover={{ scale: 1.01 }}
+              className="group relative w-full max-w-2xl mx-auto"
+            >
+              <div className="absolute -inset-1 bg-gradient-to-r from-[#00b4d8]/20 via-[#560bad]/20 to-[#00b4d8]/20 rounded-full blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
+              <div className="relative flex items-center gap-2 p-1.5 md:p-2 rounded-full bg-black/60 backdrop-blur-3xl border border-white/20 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all duration-300 group-focus-within:border-[#00b4d8]/50 group-focus-within:bg-black/80">
+                <textarea
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (inputText.trim()) { send(inputText); setInputText(""); }
+                    }
+                  }}
+                  placeholder="Message Ailana..."
+                  rows={1}
+                  className="flex-1 bg-transparent border-none text-white placeholder-white/20 text-sm md:text-base px-6 py-3 md:py-3.5 outline-none resize-none transition-all duration-300 font-medium tracking-wide"
+                  style={{ maxHeight: '100px' }}
+                />
+                <motion.button
+                  onClick={() => { if (inputText.trim()) { send(inputText); setInputText(""); } }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  disabled={!inputText.trim()}
+                  className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-gradient-to-br from-[#00b4d8] to-[#023e8a] text-white flex items-center justify-center shrink-0 disabled:opacity-20 disabled:grayscale transition-all duration-300 shadow-lg"
+                >
+                  <Send className="h-4 w-4 md:h-5 md:w-5" />
+                </motion.button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </div>
     );
   }
