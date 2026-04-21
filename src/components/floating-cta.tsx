@@ -37,13 +37,7 @@ function IntroTrigger({ isIntroPhase, onIntroComplete }: { isIntroPhase: boolean
   const agentReady = participants.length > 0;
 
   useEffect(() => {
-    // [SAFETY FALLBACK] If Agent signal fails (e.g. keyframe limit, network glitch), reveal buttons after 20s
-    const fallbackTimer = setTimeout(() => {
-      if (isIntroPhase) {
-        console.warn("[ui]: ⚠️ Intro signal timeout (20s). Showing selection buttons via fallback.");
-        onIntroComplete();
-      }
-    }, 20000);
+    // Remove the 20s fallback timer as per user request to solely show buttons after intro completion.
 
     const handleData = (payload: Uint8Array, participant: any, kind: any, topic: string | undefined) => {
       if (topic === 'lk-chat') {
@@ -52,7 +46,6 @@ function IntroTrigger({ isIntroPhase, onIntroComplete }: { isIntroPhase: boolean
           const parsed = JSON.parse(str);
           if (parsed.message === 'SYSTEM_INTRO_DONE') {
             console.log("[ui]: 🤖 Agent signaled intro completion. Happy path!");
-            clearTimeout(fallbackTimer);
             onIntroComplete();
           }
         } catch (e) {
@@ -63,7 +56,6 @@ function IntroTrigger({ isIntroPhase, onIntroComplete }: { isIntroPhase: boolean
 
     room.on(RoomEvent.DataReceived, handleData);
     return () => {
-      clearTimeout(fallbackTimer);
       room.off(RoomEvent.DataReceived, handleData);
     };
   }, [room, onIntroComplete, isIntroPhase]);
@@ -155,7 +147,11 @@ export default function FloatingCTA() {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     try {
-      setFlowPhase('connecting');
+      // Only show 'connecting' if we aren't already in a meaningful phase
+      if (flowPhase === 'idle') {
+        setFlowPhase('connecting');
+      }
+      
       setIsIntroComplete(false);
       setError(null);
       setKeyframeMetaData(null);
@@ -206,10 +202,10 @@ export default function FloatingCTA() {
     if (!hasAgreed) {
       setFlowPhase('compliance');
     } else {
-      if (flowPhase === 'intro' || flowPhase === 'live' || flowPhase === 'chat') {
-        if (mode === 'video' || mode === 'voice' || mode === 'avatar-chat') {
-          setFlowPhase('live');
-        }
+      // If we are already connected (in intro or live), don't re-fetch token.
+      // Simply switching the phase/mode is enough as the room session persists.
+      if (isLkConnected || flowPhase === 'intro' || flowPhase === 'live') {
+        setFlowPhase('live');
         return;
       }
       fetchToken(mode);
@@ -239,6 +235,7 @@ export default function FloatingCTA() {
       setRoomName('');
       setFlowPhase('chat');
     } else {
+      // Seamlessly transition to live mode within the same room
       setFlowPhase('live');
     }
   };
@@ -448,18 +445,13 @@ export default function FloatingCTA() {
                       )}
 
                       {flowPhase === 'connecting' && (
-                        <motion.div key="connecting-view" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }} className="flex flex-col items-center justify-center text-center px-6">
+                        <motion.div key="connecting-view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center text-center px-6">
                           <div className="relative mb-8">
-                            <Loader2 className="h-20 w-20 text-[#00b4d8] animate-spin opacity-20" />
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <div className="h-12 w-12 rounded-full bg-[#00b4d8] animate-pulse" />
-                            </div>
+                            <div className="absolute inset-0 rounded-full border-2 border-[#00b4d8]/20 animate-ping" />
+                            <Loader2 className="h-16 w-16 text-[#00b4d8] animate-spin opacity-40" />
                           </div>
-                          <h3 className="text-2xl font-bold text-white mb-4 tracking-tight">Initializing Secure Bridge...</h3>
-                          <div className="bg-white/5 border border-white/10 px-6 py-4 rounded-2xl max-w-sm">
-                            <p className="text-[11px] md:text-xs text-[#00b4d8] font-bold uppercase tracking-[0.2em] mb-2 opacity-80">Regulatory Disclosure</p>
-                            <p className="text-gray-300 text-sm md:text-base font-medium leading-relaxed">This video call will be recorded for regulatory compliance.</p>
-                          </div>
+                          <h3 className="text-xl font-bold text-white mb-2 tracking-tight">Initializing Session</h3>
+                          <p className="text-[#00b4d8]/60 text-[10px] font-bold uppercase tracking-[0.2em]">Establishing Secure Bridge</p>
                         </motion.div>
                       )}
 
@@ -487,43 +479,61 @@ export default function FloatingCTA() {
                                 animate={{ opacity: 1, scale: 1 }}
                                 className="absolute inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 sm:p-8"
                               >
-                                <div className="max-w-2xl w-full flex flex-col gap-6 md:gap-8">
+                                <div className="max-w-4xl w-full flex flex-col gap-4 md:gap-8 max-h-full overflow-y-auto custom-scrollbar p-2">
                                   <h3 className="text-white font-bold text-center text-xl md:text-3xl mb-2 md:mb-6 tracking-wide drop-shadow-md">Select your preferred channel</h3>
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
-                                    <button onClick={() => handleAIAction('video')} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-4 p-5 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
-                                      <div className="h-12 w-12 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
-                                        <Video className="h-5 w-5 md:h-6 md:w-6" />
+                                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 md:gap-6">
+                                    <button onClick={() => handleAIAction('video')} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
+                                      <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
+                                        <Video className="h-4 w-4 md:h-6 md:w-6" />
                                       </div>
                                       <div className="flex flex-col text-center sm:text-left">
-                                        <span className="font-bold text-white tracking-wide text-sm md:text-lg">Video Meet</span>
-                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden sm:block">Face-to-face interaction with Ailana</span>
+                                        <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Live with Ailana</span>
+                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Face-to-face interaction with Ailana</span>
                                       </div>
                                     </button>
-                                    <button onClick={() => handleAIAction('avatar-chat')} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-4 p-5 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
-                                      <div className="h-12 w-12 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
-                                        <MessageCircle className="h-5 w-5 md:h-6 md:w-6" />
+                                    <button onClick={() => handleAIAction('avatar-chat')} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
+                                      <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
+                                        <MessageCircle className="h-4 w-4 md:h-6 md:w-6" />
                                       </div>
                                       <div className="flex flex-col text-center sm:text-left">
-                                        <span className="font-bold text-white tracking-wide text-sm md:text-lg">Type to AI</span>
-                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden sm:block">Silent text-based engagement</span>
+                                        <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Type to AI</span>
+                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Silent text-based engagement</span>
                                       </div>
                                     </button>
-                                    <button onClick={() => handleAIAction('voice')} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-4 p-5 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
-                                      <div className="h-12 w-12 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
-                                        <Mic className="h-5 w-5 md:h-6 md:w-6" />
+                                    <button onClick={() => handleAIAction('voice')} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
+                                      <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
+                                        <Mic className="h-4 w-4 md:h-6 md:w-6" />
                                       </div>
                                       <div className="flex flex-col text-center sm:text-left">
-                                        <span className="font-bold text-white tracking-wide text-sm md:text-lg">Speak to AI</span>
-                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden sm:block">Private two-way voice call</span>
+                                        <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Speak to AI</span>
+                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Private two-way voice call</span>
                                       </div>
                                     </button>
-                                    <button onClick={handleChatAction} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-4 p-5 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
-                                      <div className="h-12 w-12 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
-                                        <MessageCircle className="h-5 w-5 md:h-6 md:w-6" />
+                                    <button onClick={handleChatAction} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
+                                      <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
+                                        <MessageCircle className="h-4 w-4 md:h-6 md:w-6" />
                                       </div>
                                       <div className="flex flex-col text-center sm:text-left">
-                                        <span className="font-bold text-white tracking-wide text-sm md:text-lg">Live Chat</span>
-                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden sm:block">Text a human representative</span>
+                                        <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Live Chat</span>
+                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Text a human representative</span>
+                                      </div>
+                                    </button>
+                                    <button onClick={() => window.location.href = 'tel:+1234567890'} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
+                                      <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
+                                        <Phone className="h-4 w-4 md:h-6 md:w-6" />
+                                      </div>
+                                      <div className="flex flex-col text-center sm:text-left">
+                                        <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Talk to Officer</span>
+                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Speak directly with our team</span>
+                                      </div>
+                                    </button>
+                                    <button onClick={() => window.open("https://warpme.neetocal.com/meeting-with-david-patten-19", "_blank", "noopener,noreferrer")} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
+                                      <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
+                                        <Calendar className="h-4 w-4 md:h-6 md:w-6" />
+                                      </div>
+                                      <div className="flex flex-col text-center sm:text-left">
+                                        <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Book Appt.</span>
+                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Schedule a consultation</span>
                                       </div>
                                     </button>
                                   </div>
@@ -715,7 +725,7 @@ export default function FloatingCTA() {
                       <SideButton
                         onClick={() => handleAIAction('video')}
                         icon={<Video className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
-                        label="Video Meet"
+                        label="Live with Ailana"
                         isActive={(flowPhase === 'live' || flowPhase === 'connecting' || flowPhase === 'compliance') && pendingMode === 'video'}
                       />
                       <SideButton

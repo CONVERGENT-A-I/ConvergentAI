@@ -80,7 +80,7 @@ You are now in active conversation mode. Respond helpfully to user questions abo
 
     // TTS for precise intro
     const introTts = new openai.TTS({ voice: "shimmer" });
-    const introText = "Hi! I am here to help you with mortgage related questions. Please select the Live with Ailana if you want to continue conversation with me or select any other channel of your choice.";
+    const introText = "Hi! I am here to help you with mortgage related questions, Please select the Live with Ailana if you want to continue conversation with me or select any other channel of your choice.";
 
     const handleSystemMessages = async (messageText: string, participantIdentity: string | undefined) => {
       if (messageText === 'SYSTEM_INTRO_TRIGGER') {
