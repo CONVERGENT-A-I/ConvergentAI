@@ -1,8 +1,7 @@
-import { type JobContext, ServerOptions, cli } from '@livekit/agents';
-import { RoomEvent } from '@livekit/rtc-node';
+import { type JobContext, ServerOptions, cli, voice, tts } from '@livekit/agents';
+import { RoomEvent, AudioSource, LocalAudioTrack } from '@livekit/rtc-node';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
-import { voice } from '@livekit/agents';
 import * as openai from '@livekit/agents-plugin-openai';
 import * as silero from '@livekit/agents-plugin-silero';
 
@@ -30,7 +29,7 @@ export default {
       return;
     }
 
-    // Pre-load VAD if not already ready (Eliminates the 3-5s connection delay)
+    // Pre-load VAD if not already ready
     if (!globalSileroVad) {
       console.log(`[agent]: Pre-warming Hybrid VAD (First connection)...`);
       globalSileroVad = await silero.VAD.load({
@@ -38,9 +37,6 @@ export default {
         prefixPaddingDuration: 200,
       });
     }
-
-    await ctx.connect();
-    console.log(`[agent]: Connected to room: ${ctx.room.name}`);
 
     const model = new openai.realtime.RealtimeModel({
       voice: "shimmer", 
@@ -53,22 +49,10 @@ IMPORTANT: You must only speak and understand English.
 Keep your responses incredibly concise, conversational, and completely free of complex formatting.
 Act naturally and politely. Do not sound robotic.`;
 
-    const introInstructions = `${baseInstructions}
-STRICT RESTRICTION: DO NOT GREET THE USER. Remain completely silent until you receive a specific SYSTEM_INTRO_TRIGGER signal.`;
-
     const interactiveInstructions = `${baseInstructions}
 You are now in active conversation mode. Respond helpfully to user questions about mortgages.`;
 
-    // 1. Initial "Manual" Agent (Optimized: No VAD for startup speed)
-    const manualAgent = new voice.Agent({
-      instructions: introInstructions,
-      llm: model,
-      turnHandling: {
-        turnDetection: 'manual', 
-      },
-    });
-
-    // 2. Interactive "VAD" Agent 
+    // Interactive "VAD" Agent 
     const vadAgent = new voice.Agent({
       instructions: interactiveInstructions,
       vad: globalSileroVad,
@@ -84,8 +68,6 @@ You are now in active conversation mode. Respond helpfully to user questions abo
       },
     });
 
-    console.log(`[agent]: Starting AI Session in PASSIVE mode...`);
-
     const session = new voice.AgentSession({
       llm: model,
       userAwayTimeout: null, 
@@ -96,53 +78,116 @@ You are now in active conversation mode. Respond helpfully to user questions abo
       console.error('[agent]: Session error:', err);
     });
 
-    await session.start({
-      agent: manualAgent,
-      room: ctx.room,
-    });
+    // TTS for precise intro
+    const introTts = new openai.TTS({ voice: "shimmer" });
+    const introText = "Hi! I am here to help you with mortgage related questions. Please select the Live with Ailana if you want to continue conversation with me or select any other channel of your choice.";
 
-    ctx.room.on(RoomEvent.ChatMessage, (msg, participant) => {
+    const handleSystemMessages = async (messageText: string, participantIdentity: string | undefined) => {
+      if (messageText === 'SYSTEM_INTRO_TRIGGER') {
+         console.log(`[agent]: 💬 [STEP 1] Received Intro Trigger. Playing exact TTS...`);
+         
+         const chunkedStream = introTts.synthesize(introText);
+         
+         const sampleRate = introTts.sampleRate;
+         const numChannels = introTts.numChannels;
+         const source = new AudioSource(sampleRate, numChannels);
+         const track = LocalAudioTrack.createAudioTrack('intro-audio', source);
+         
+         // CRITICAL: Set source to SOURCE_MICROPHONE so KeyframeAvatar can find it
+         const { TrackSource } = await import('@livekit/rtc-node');
+         const pub = await ctx.room.localParticipant?.publishTrack(track, { 
+           source: TrackSource.SOURCE_MICROPHONE 
+         } as any);
+
+         console.log(`[agent]: 💬 [STEP 2] Streaming intro audio...`);
+         for await (const event of chunkedStream) {
+            if ((event as any).frame) {
+              await source.captureFrame((event as any).frame);
+            }
+         }
+         
+         console.log(`[agent]: 💬 [STEP 3] Intro audio streaming complete. Waiting for playout...`);
+         await source.waitForPlayout();
+         if (pub?.sid) {
+           await ctx.room.localParticipant?.unpublishTrack(pub.sid);
+         }
+         await source.close();
+
+         const response = JSON.stringify({ message: 'SYSTEM_INTRO_DONE' });
+         await ctx.room.localParticipant?.publishData(new TextEncoder().encode(response), { topic: 'lk-chat', reliable: true });
+         await ctx.room.localParticipant?.sendChatMessage(response);
+         
+         console.log(`[agent]: ✅ [STEP 4] Intro fully played. Waiting for channel selection.`);
+         return;
+      }
+
+      if (messageText === 'SYSTEM_CHANNEL_START') {
+         console.log(`[agent]: 🚀 [STEP 5] Channel Started. Spinning up Realtime Agent...`);
+         await session.start({
+           agent: vadAgent,
+           room: ctx.room,
+         });
+         console.log(`[agent]: 🟢 Realtime Agent connected and ready.`);
+         return;
+      }
+
+      // If it's a normal message, generate a reply
+      session.generateReply({ userInput: messageText });
+    };
+
+    // 1. Register event listeners BEFORE connecting to avoid race conditions
+    ctx.room.on(RoomEvent.ChatMessage, async (msg, participant) => {
       const identity = participant?.identity ?? (msg as any).participantIdentity;
+      console.log(`[agent-debug]: ChatMessage received from ${identity}:`, msg.message);
       if (!msg.message || identity === ctx.room.localParticipant?.identity) return;
-      if (msg.message === 'SYSTEM_INTRO_TRIGGER') return;
-      session.generateReply({ userInput: msg.message });
+      await handleSystemMessages(msg.message, identity);
     });
 
     ctx.room.on(RoomEvent.DataReceived, async (payload, participant, kind, topic) => {
-      if (topic === 'lk-chat') {
+      const identity = participant?.identity;
+      console.log(`[agent-debug]: DataReceived from ${identity} on topic ${topic}`);
+      
+      if (topic === 'lk-chat' && identity !== ctx.room.localParticipant?.identity) {
         try {
           const str = new TextDecoder().decode(payload);
           const parsed = JSON.parse(str);
-          if (parsed?.message && participant?.identity !== ctx.room.localParticipant?.identity) {
-             if (parsed.message === 'SYSTEM_INTRO_TRIGGER') {
-                 console.log(`[agent]: 💬 [STEP 1] Received Intro Trigger. Purging session...`);
-                 await session.interrupt({ force: true });
-                 await new Promise(resolve => setTimeout(resolve, 500));
-
-                 console.log(`[agent]: 💬 [STEP 2] Speaking Welcome Introduction...`);
-                 const handle = session.generateReply({ 
-                   instructions: "SYSTEM NOTICE: GREETING OVERRIDE. Say EXACTLY this phrase and nothing else: 'Hi! I am here to help you with mortgage related questions. Please select the Live with Ailana if you want to continue conversation with me or select any other channel of your choice.'" 
-                 });
-                 
-                 await handle.waitForPlayout();
-                 
-                 console.log(`[agent]: 💬 [STEP 3] Transitioning to Interactive Intelligence.`);
-                 session.updateAgent(vadAgent);
-
-                 const response = JSON.stringify({ message: 'SYSTEM_INTRO_DONE' });
-                 await ctx.room.localParticipant?.publishData(new TextEncoder().encode(response), { topic: 'lk-chat', reliable: true });
-                 await ctx.room.localParticipant?.sendChatMessage(response);
-                 
-                 console.log(`[agent]: ✅ [STEP 4] Done. User ready.`);
-                 return;
-             }
-             if (parsed.message === 'SYSTEM_INTRO_TRIGGER') return;
-             session.generateReply({ userInput: parsed.message });
+          if (parsed.message) {
+            await handleSystemMessages(parsed.message, identity);
+          } else if (typeof parsed === 'string') {
+            await handleSystemMessages(parsed, identity);
           }
-        } catch (err) {}
+        } catch (e) {
+          const str = new TextDecoder().decode(payload);
+          await handleSystemMessages(str, identity);
+        }
       }
     });
 
+    ctx.room.registerTextStreamHandler('lk-chat', async (stream, participant) => {
+      console.log(`[agent-debug]: Text stream received on lk-chat from ${participant?.identity}`);
+      let fullText = '';
+      for await (const chunk of stream) {
+        fullText += chunk;
+      }
+      console.log(`[agent-debug]: Full text stream content:`, fullText);
+      try {
+        const parsed = JSON.parse(fullText);
+        if (parsed?.message && participant?.identity !== ctx.room.localParticipant?.identity) {
+          await handleSystemMessages(parsed.message, participant?.identity);
+        } else if (participant?.identity !== ctx.room.localParticipant?.identity) {
+          await handleSystemMessages(fullText, participant?.identity);
+        }
+      } catch (err) {
+        if (participant?.identity !== ctx.room.localParticipant?.identity) {
+          await handleSystemMessages(fullText, participant?.identity);
+        }
+      }
+    });
+
+    // 2. Now connect
+    await ctx.connect();
+    console.log(`[agent]: Connected to room: ${ctx.room.name}`);
+    console.log(`[agent]: My identity is: ${ctx.room.localParticipant?.identity}`);
     console.log('[agent]: Ready for triggers.');
   },
 };

@@ -50,12 +50,25 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
   // ── Detect agent's audio MediaStream (for lip-sync) ─────────────────────
   const participants = useParticipants();
   const agentMediaStream: MediaStream | undefined = (() => {
-    const agent = participants.find((p) => p.identity.startsWith("agent-"));
+    // 1. Try to find participant starting with 'agent-'
+    let agent = participants.find((p) => p.identity.startsWith("agent-"));
+    
+    // 2. Fallback: Take the first remote participant that isn't us (guest)
+    if (!agent) {
+      agent = participants.find((p) => !p.identity.startsWith("guest_"));
+    }
+
     if (!agent) return undefined;
+
     const pub = agent
       .getTrackPublications()
       .find((p) => p.source === Track.Source.Microphone && p.isSubscribed);
-    return (pub?.track as any)?.mediaStream as MediaStream | undefined;
+    
+    const stream = (pub?.track as any)?.mediaStream as MediaStream | undefined;
+    if (stream) {
+      console.log(`[KeyframeAvatar] 🎤 Found audio stream from agent: ${agent.identity}`);
+    }
+    return stream;
   })();
 
   // ── Step 1: Connect PersonaSession ──────────────────────────────────────

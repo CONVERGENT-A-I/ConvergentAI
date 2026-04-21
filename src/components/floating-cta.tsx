@@ -34,7 +34,7 @@ function IntroTrigger({ isIntroPhase, onIntroComplete }: { isIntroPhase: boolean
   const room = useRoomContext();
   const participants = useRemoteParticipants();
   const hasTriggered = useRef(false);
-  const agentReady = participants.some(p => p.identity.startsWith('agent-') || p.identity.startsWith('keyframe-'));
+  const agentReady = participants.length > 0;
 
   useEffect(() => {
     // [SAFETY FALLBACK] If Agent signal fails (e.g. keyframe limit, network glitch), reveal buttons after 20s
@@ -71,15 +71,35 @@ function IntroTrigger({ isIntroPhase, onIntroComplete }: { isIntroPhase: boolean
   useEffect(() => {
     if (agentReady && isIntroPhase && !hasTriggered.current) {
       hasTriggered.current = true;
+      console.log("[ui]: 🚀 Agent detected. Sending SYSTEM_INTRO_TRIGGER to backend...");
+      
+      // Send via useChat (TextStream)
       send("SYSTEM_INTRO_TRIGGER");
+
+      // Fallback: Send via raw Data Channel
+      const encoder = new TextEncoder();
+      const payload = encoder.encode(JSON.stringify({ message: "SYSTEM_INTRO_TRIGGER" }));
+      room.localParticipant.publishData(payload, { topic: "lk-chat", reliable: true });
     }
-  }, [agentReady, isIntroPhase, send]);
+  }, [agentReady, isIntroPhase, send, room]);
 
   return null;
 }
 
+function ChannelStartTrigger({ isLivePhase }: { isLivePhase: boolean }) {
+  const { send } = useChat();
+  const hasTriggered = useRef(false);
 
+  useEffect(() => {
+    if (isLivePhase && !hasTriggered.current) {
+      hasTriggered.current = true;
+      console.log("[ui]: 🚀 Channel starting. Sending SYSTEM_CHANNEL_START to backend...");
+      send("SYSTEM_CHANNEL_START");
+    }
+  }, [isLivePhase, send]);
 
+  return null;
+}
 
 function SideButton({ icon, label, onClick, isActive }: { icon: React.ReactNode; label: string; onClick?: () => void; isActive?: boolean }) {
   return (
@@ -459,6 +479,7 @@ export default function FloatingCTA() {
                           >
                             <AgentReadinessCheck onAgentReady={setIsAgentReady} />
                             <IntroTrigger isIntroPhase={flowPhase === 'intro'} onIntroComplete={() => setIsIntroComplete(true)} />
+                            <ChannelStartTrigger isLivePhase={flowPhase === 'live' && pendingMode !== 'chat'} />
 
                             {flowPhase === 'intro' && isIntroComplete && (
                               <motion.div
