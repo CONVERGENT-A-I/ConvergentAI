@@ -243,6 +243,11 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
       const ctx = new AudioContext({ sampleRate: SAMPLE_RATE }); // 24 kHz
       audioCtxRef.current = ctx;
 
+      // Resume if browser auto-suspends (common before user gesture)
+      if (ctx.state === "suspended") {
+        await ctx.resume();
+      }
+
       const source = ctx.createMediaStreamSource(stream);
       sourceRef.current = source;
 
@@ -278,6 +283,14 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
       const url  = URL.createObjectURL(blob);
       await ctx.audioWorklet.addModule(url);
       URL.revokeObjectURL(url);
+
+      // Guard: After the async addModule(), the context may have been closed
+      // by a concurrent tearDownAudioPipe() (e.g. effect cleanup / remount).
+      // Creating an AudioWorkletNode on a closed context throws InvalidStateError.
+      if (ctx.state === "closed" || audioCtxRef.current !== ctx) {
+        console.warn("[KeyframeAvatar] ⚠️ AudioContext closed during setup — aborting pipe");
+        return;
+      }
 
       const processor = new AudioWorkletNode(ctx, "kf-pcm-capture", {
         numberOfInputs: 1,

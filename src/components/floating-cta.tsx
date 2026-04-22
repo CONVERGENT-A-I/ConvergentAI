@@ -293,6 +293,18 @@ export default function FloatingCTA() {
     return () => clearTimeout(timeout);
   }, [isOpen, hasAutoHidden]);
 
+  // Auto-collapse sidebar after user selects a channel (transitions out of intro)
+  useEffect(() => {
+    if (flowPhase === 'live' || flowPhase === 'compliance' || flowPhase === 'chat') {
+      setIsNavExpanded(true); // briefly show so user sees where the nav went
+      const collapseTimer = setTimeout(() => {
+        setIsNavExpanded(false);
+        setHasAutoHidden(true);
+      }, 3000);
+      return () => clearTimeout(collapseTimer);
+    }
+  }, [flowPhase]);
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -386,11 +398,11 @@ export default function FloatingCTA() {
                 initial={{ scale: 1.05, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="relative w-[95vw] sm:w-[90vw] max-w-6xl h-[85vh] min-h-[500px] max-h-[850px] bg-[#050505] rounded-3xl shadow-[0_0_80px_rgba(0,180,216,0.15)] flex flex-col overflow-hidden border border-[#00b4d8]/20"
+                className="relative w-[95vw] sm:w-[90vw] max-w-6xl h-[90vh] min-h-[500px] max-h-[920px] bg-[#050505] rounded-3xl shadow-[0_0_80px_rgba(0,180,216,0.15)] flex flex-col overflow-hidden border border-[#00b4d8]/20"
               >
 
-                <div className="absolute inset-0 flex flex-col p-4 sm:p-6 md:p-12 overflow-hidden bg-gradient-to-br from-[#050505] to-[#111111] z-0">
-                  <div className="flex items-center justify-between gap-3 mb-6 md:mb-8 relative z-10 pt-2 md:pt-0 w-full">
+                <div className="absolute inset-0 flex flex-col p-3 sm:p-4 md:p-6 overflow-hidden bg-gradient-to-br from-[#050505] to-[#111111] z-0">
+                  <div className="flex items-center justify-between gap-3 mb-3 md:mb-4 relative z-10 pt-1 md:pt-0 w-full">
                     <div className="flex items-center gap-3">
                       <div className="relative h-8 w-8 md:h-10 md:w-10 flex shrink-0 items-center justify-center overflow-hidden rounded-full shadow-[0_0_15px_rgba(0,180,216,0.3)] bg-transparent">
                         <Image src={AppIcon} alt="ConvergentAI Logo" fill sizes="40px" className="object-contain" />
@@ -427,7 +439,7 @@ export default function FloatingCTA() {
                     </div>
                   </div>
 
-                  <div className="flex-1 relative w-full h-full flex flex-col items-center justify-center rounded-2xl bg-black/60 shadow-xl border border-white/5 overflow-hidden">
+                  <div className="flex-1 min-h-0 relative w-full flex flex-col items-center justify-center rounded-2xl bg-black/60 shadow-xl border border-white/5 overflow-hidden">
                     <div className="absolute inset-0 bg-gradient-to-b from-[#00b4d8]/10 to-transparent pointer-events-none" />
 
                     <AnimatePresence mode="wait">
@@ -643,14 +655,14 @@ export default function FloatingCTA() {
 
                             {/* REC badge + labels (only show once fully connected) */}
                             {isLkConnected && isAgentReady && (
-                              <div className="absolute inset-0 z-10 pointer-events-none">
+                              <div className="absolute inset-0 z-40 pointer-events-none">
                                 <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-red-500/30">
                                   <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}><Circle className="h-3 w-3 fill-red-500 text-red-500" /></motion.div>
                                   <span className="text-[10px] md:text-xs font-black text-white uppercase tracking-widest">Rec</span>
                                   <div className="h-1 w-1 rounded-full bg-white/20 mx-1" />
                                   <span className="text-[10px] md:text-xs font-mono text-white/80">{formatTime(recordingSeconds)}</span>
                                 </div>
-                                <div className="absolute top-4 right-16 flex flex-col items-end">
+                                <div className="absolute top-4 right-4 flex flex-col items-end">
                                   <span className="text-[10px] text-[#00b4d8] font-bold uppercase tracking-widest mb-0.5 opacity-80">Ailana AI</span>
                                   <span className="text-white/60 font-medium text-[10px] uppercase tracking-tighter">Secure Regulatory Stream</span>
                                 </div>

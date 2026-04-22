@@ -176,7 +176,7 @@ export default function VideoStage({ mode = 'video', keyframeMetadata }: { mode?
       <div className="flex-1 min-h-0 relative z-10 flex flex-col">
         
         {/* Content Area */}
-        <div className="flex-1 min-h-0 relative flex flex-col p-4 md:p-6 items-center justify-center">
+        <div className={`flex-1 min-h-0 relative flex flex-col items-center justify-center ${isAvatarOnly || (mode === 'video' && gridTracks.length === 0) ? 'p-0' : 'p-4 md:p-6'}`}>
           
           {isVoiceOnly ? (
             /* Voice Visualizer Mode */
@@ -189,12 +189,11 @@ export default function VideoStage({ mode = 'video', keyframeMetadata }: { mode?
                 </div>
               </div>
             </div>
-          ) : (
-            /* Video / Avatar Mode (Unified Grid/Fullscreen) */
-            <div className={`w-full h-full max-w-7xl mx-auto grid gap-4 transition-all duration-500 ${isAvatarOnly ? 'grid-cols-1' : gridClass}`}>
-              
-              {/* AI Avatar Participant - This instance persists! */}
-              <div className={`relative w-full h-full rounded-2xl overflow-hidden transition-all duration-500 ${isAvatarOnly ? 'shadow-none border-none' : 'bg-[#050505] border border-white/5 shadow-2xl group hover:border-[#00b4d8]/40'}`}>
+          ) : isAvatarOnly || gridTracks.length === 0 ? (
+            /* Avatar-dominant mode: avatar fills full space, "You" is a small PiP overlay */
+            <div className="w-full h-full relative">
+              {/* AI Avatar — full size */}
+              <div className={`absolute inset-0 overflow-hidden transition-all duration-500 ${isAvatarOnly ? 'rounded-none' : 'rounded-2xl bg-[#050505] border border-white/5 shadow-2xl'}`}>
                 {keyframeMetadata ? (
                   <KeyframeAvatar 
                     keyframeMetadata={keyframeMetadata} 
@@ -215,20 +214,44 @@ export default function VideoStage({ mode = 'video', keyframeMetadata }: { mode?
                 )}
               </div>
 
-              {/* Human Participants (Only shown in non-avatar-only modes) */}
-              {!isAvatarOnly && gridTracks.map(t => (
+              {/* "You" — small PiP overlay (only in video mode, not avatar-only) */}
+              {!isAvatarOnly && (
+                <div className="absolute bottom-4 right-4 w-28 h-20 md:w-36 md:h-24 rounded-xl overflow-hidden bg-[#1a1a1a]/80 border border-white/10 flex flex-col items-center justify-center gap-1 z-20 shadow-lg backdrop-blur-sm">
+                  <Users className="h-4 w-4 text-white/20" />
+                  <p className="text-white/30 text-[8px] font-bold uppercase tracking-widest">You</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Multi-participant grid (human camera tracks present) */
+            <div className={`w-full h-full max-w-7xl mx-auto grid gap-4 transition-all duration-500 ${gridClass}`}>
+              
+              {/* AI Avatar Participant */}
+              <div className="relative w-full h-full rounded-2xl overflow-hidden transition-all duration-500 bg-[#050505] border border-white/5 shadow-2xl group hover:border-[#00b4d8]/40">
+                {keyframeMetadata ? (
+                  <KeyframeAvatar 
+                    keyframeMetadata={keyframeMetadata} 
+                    className="w-full h-full rounded-2xl" 
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-4 text-gray-500 bg-black/20">
+                    <Loader2 className="h-8 w-8 animate-spin text-[#00b4d8]" />
+                    <p className="text-xs tracking-widest uppercase">Connecting Ailana...</p>
+                  </div>
+                )}
+                
+                <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2 z-20">
+                  <div className="h-2 w-2 rounded-full bg-[#00b4d8] animate-pulse" />
+                  <span className="text-white text-xs font-semibold tracking-wide">Ailana AI</span>
+                </div>
+              </div>
+
+              {/* Human Participants */}
+              {gridTracks.map(t => (
                 <div key={t.participant.identity || t.participant.sid} className="relative w-full h-full rounded-2xl overflow-hidden bg-[#1a1a1a] border border-white/5 shadow-xl transition-all duration-500">
                   <ParticipantTile trackRef={t} className="w-full h-full" />
                 </div>
               ))}
-
-              {/* Local User Fallback Tile */}
-              {!isAvatarOnly && gridTracks.length === 0 && (
-                <div className="relative w-full h-full rounded-2xl overflow-hidden bg-[#1a1a1a]/50 border border-dashed border-white/10 flex flex-col items-center justify-center gap-3">
-                  <Users className="h-6 w-6 text-white/20" />
-                  <p className="text-white/30 text-[10px] font-bold uppercase tracking-widest">You</p>
-                </div>
-              )}
             </div>
           )}
         </div>
