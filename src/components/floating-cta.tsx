@@ -29,6 +29,44 @@ function AgentReadinessCheck({ onAgentReady }: { onAgentReady: (r: boolean) => v
   return null;
 }
 
+/**
+ * Automatically mutes mic & camera when switching to channels that don't need them.
+ * Lives inside <LiveKitRoom> so it has access to the room context.
+ */
+function MediaGuard({ mode }: { mode: string }) {
+  const room = useRoomContext();
+  const prevMode = useRef(mode);
+
+  useEffect(() => {
+    if (prevMode.current === mode) return;
+    prevMode.current = mode;
+
+    const lp = room.localParticipant;
+    if (!lp) return;
+
+    // avatar-chat & intro-avatar: mute mic + disable camera (text-only / intro)
+    if (mode === 'avatar-chat' || mode === 'intro-avatar') {
+      lp.setMicrophoneEnabled(false).catch(() => {});
+      lp.setCameraEnabled(false).catch(() => {});
+      console.log('[MediaGuard] 🔇 Mic & camera OFF for', mode);
+    }
+    // voice: enable mic, disable camera
+    else if (mode === 'voice') {
+      lp.setMicrophoneEnabled(true).catch(() => {});
+      lp.setCameraEnabled(false).catch(() => {});
+      console.log('[MediaGuard] 🎤 Mic ON, camera OFF for voice');
+    }
+    // video: enable mic + camera
+    else if (mode === 'video') {
+      lp.setMicrophoneEnabled(true).catch(() => {});
+      lp.setCameraEnabled(true).catch(() => {});
+      console.log('[MediaGuard] 🎤📹 Mic & camera ON for video');
+    }
+  }, [mode, room]);
+
+  return null;
+}
+
 function IntroTrigger({ isIntroPhase, onIntroComplete }: { isIntroPhase: boolean; onIntroComplete: () => void }) {
   const { send } = useChat();
   const room = useRoomContext();
@@ -156,7 +194,8 @@ export default function FloatingCTA() {
     isFetchingRef.current = true;
     try {
       // Only show 'connecting' if we aren't already in a meaningful phase
-      if (flowPhase === 'idle') {
+      // Don't override intro phase — the CTA already set it to 'intro'
+      if (flowPhase === 'idle' && mode !== 'intro-avatar') {
         setFlowPhase('connecting');
       }
       
@@ -483,6 +522,7 @@ export default function FloatingCTA() {
                             onDisconnected={() => { setFlowPhase('idle'); setToken(null); setLkUrl(null); setIsLkConnected(false); setIsAgentReady(false); setRecordingSeconds(0); setRoomName(''); }}
                           >
                             <AgentReadinessCheck onAgentReady={setIsAgentReady} />
+                            <MediaGuard mode={pendingMode} />
                             <IntroTrigger isIntroPhase={flowPhase === 'intro'} onIntroComplete={() => setIsIntroComplete(true)} />
                             <ChannelStartTrigger isLivePhase={flowPhase === 'live'} mode={pendingMode} />
 
@@ -699,7 +739,7 @@ export default function FloatingCTA() {
                   </div>
                 </div>
 
-                {flowPhase !== 'intro' && (
+                {flowPhase !== 'intro' && flowPhase !== 'connecting' && (
                   <div
                     onMouseEnter={() => { setIsNavExpanded(true); setHasAutoHidden(true); }}
                     onMouseLeave={() => { if (hasAutoHidden) setIsNavExpanded(false); }}
@@ -718,19 +758,19 @@ export default function FloatingCTA() {
                         onClick={() => handleAIAction('video')}
                         icon={<Video className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
                         label="Live with Ailana"
-                        isActive={(flowPhase === 'live' || flowPhase === 'connecting' || flowPhase === 'compliance') && pendingMode === 'video'}
+                        isActive={(flowPhase === 'live' || flowPhase === 'compliance') && pendingMode === 'video'}
                       />
                       <SideButton
                         onClick={() => handleAIAction('avatar-chat')}
                         icon={<Send className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
                         label="Type to AI"
-                        isActive={(flowPhase === 'live' || flowPhase === 'connecting' || flowPhase === 'compliance') && pendingMode === 'avatar-chat'}
+                        isActive={(flowPhase === 'live' || flowPhase === 'compliance') && pendingMode === 'avatar-chat'}
                       />
                       <SideButton
                         onClick={() => handleAIAction('voice')}
                         icon={<Mic className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
                         label="AI Voice - Speak to AI"
-                        isActive={(flowPhase === 'live' || flowPhase === 'connecting' || flowPhase === 'compliance') && pendingMode === 'voice'}
+                        isActive={(flowPhase === 'live' || flowPhase === 'compliance') && pendingMode === 'voice'}
                       />
                       <SideButton
                         onClick={handleChatAction}
