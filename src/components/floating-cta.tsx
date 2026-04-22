@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, Sparkles, X, Phone, Calendar, Video, Mic, Menu, Circle, Loader2, Send, Share2, Check } from "lucide-react";
+import { MessageCircle, Sparkles, X, Phone, Calendar, Video, Mic, Menu, Circle, Loader2, Send, Share2, Check, Shield, ArrowRight } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import {
   LiveKitRoom,
@@ -148,6 +148,7 @@ export default function FloatingCTA() {
   const searchParams = useSearchParams();
 
   const isFetchingRef = useRef(false);
+  const participantIdentityRef = useRef<string | null>(null);
 
   const fetchToken = async (mode?: string) => {
     // Prevent concurrent duplicate calls (e.g. compliance agree + mode button)
@@ -161,7 +162,10 @@ export default function FloatingCTA() {
       
       setIsIntroComplete(false);
       setError(null);
-      setKeyframeMetaData(null);
+      // Keep existing metadata if we are already connected to prevent avatar flicker
+      if (!isLkConnected) {
+        setKeyframeMetaData(null);
+      }
 
       const urlRoom = searchParams.get('room');
       const generatedRoomName = urlRoom || roomName || `room-${Math.random().toString(36).substring(2, 11)}`;
@@ -172,12 +176,16 @@ export default function FloatingCTA() {
 
       const activeMode = mode ?? pendingMode;
 
+      if (!participantIdentityRef.current) {
+        participantIdentityRef.current = `guest_${Math.floor(Math.random() * 10000)}`;
+      }
+
       const response = await fetch('/api/get-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           roomName: generatedRoomName,
-          participantName: `guest_${Math.floor(Math.random() * 10000)}`,
+          participantName: participantIdentityRef.current,
           metadata: JSON.stringify({ mode: activeMode }),
           mode: activeMode, // passed explicitly so the route can conditionally create Keyframe session
         }),
@@ -209,9 +217,12 @@ export default function FloatingCTA() {
     if (!hasAgreed) {
       setFlowPhase('compliance');
     } else {
-      // If we are already connected (in intro or live), don't re-fetch token.
-      // Simply switching the phase/mode is enough as the room session persists.
+      // If we are already connected (in intro or live), we usually don't re-fetch.
+      // But if we are missing keyframe metadata for an avatar mode, we must fetch it.
       if (isLkConnected || flowPhase === 'intro' || flowPhase === 'live') {
+        if (!keyframeMetaData && mode !== 'voice') {
+          fetchToken(mode);
+        }
         setFlowPhase('live');
         return;
       }
@@ -478,6 +489,61 @@ export default function FloatingCTA() {
                           >
                             <AgentReadinessCheck onAgentReady={setIsAgentReady} />
                             <IntroTrigger isIntroPhase={flowPhase === 'intro'} onIntroComplete={() => setIsIntroComplete(true)} />
+
+                            {/* Compliance Overlay - Show over the room session if we need agreement */}
+                            {flowPhase === 'compliance' && (
+                              <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                className="absolute inset-0 z-[150] flex items-center justify-center bg-[#050505] p-6 md:p-10"
+                              >
+                                <div className="max-w-2xl w-full flex flex-col justify-center space-y-8">
+                                  <div className="space-y-4 text-center">
+                                    <h2 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">
+                                      Safety & Compliance
+                                    </h2>
+                                    <p className="text-gray-400 leading-relaxed text-lg">
+                                      To provide you with the best experience, our AI assistant uses real-time voice and video processing. By continuing, you agree to our terms of service and acknowledge that this conversation may be recorded for quality and safety purposes.
+                                    </p>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-2">
+                                      <div className="h-8 w-8 rounded-lg bg-[#00b4d8]/20 flex items-center justify-center">
+                                        <Shield className="h-4 w-4 text-[#00b4d8]" />
+                                      </div>
+                                      <h4 className="font-semibold text-white">Privacy First</h4>
+                                      <p className="text-xs text-gray-500">Your data is encrypted and handled with strict privacy protocols.</p>
+                                    </div>
+                                    <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-2">
+                                      <div className="h-8 w-8 rounded-lg bg-[#560bad]/20 flex items-center justify-center">
+                                        <Mic className="h-4 w-4 text-[#560bad]" />
+                                      </div>
+                                      <h4 className="font-semibold text-white">Live Processing</h4>
+                                      <p className="text-xs text-gray-500">Real-time analysis enables human-like interaction and accuracy.</p>
+                                    </div>
+                                  </div>
+
+                                  <div className="pt-6 flex flex-col gap-4">
+                                    <button
+                                      onClick={handleAgree}
+                                      className="w-full py-4 rounded-2xl bg-white text-black font-bold text-lg hover:bg-[#00b4d8] hover:text-white transition-all duration-300 shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-center gap-3 group"
+                                    >
+                                      Accept and Continue
+                                      <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setFlowPhase('intro'); // Go back to intro options if declined
+                                      }}
+                                      className="w-full py-3 rounded-xl border border-white/10 text-gray-500 text-sm hover:bg-white/5 transition-colors"
+                                    >
+                                      Go Back
+                                    </button>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
 
                             {flowPhase === 'intro' && isIntroComplete && (
                               <motion.div

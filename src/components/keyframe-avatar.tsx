@@ -40,6 +40,7 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
   const videoRef       = useRef<HTMLVideoElement>(null);
   const audioRef       = useRef<HTMLAudioElement>(null);
   const sessionRef     = useRef<PersonaSession | null>(null);
+  const isRetrying     = useRef(false);
   const isConnectedRef = useRef(false);   // true only after onStateChange("connected")
   const audioCtxRef    = useRef<AudioContext | null>(null);
   const processorRef   = useRef<AudioWorkletNode | null>(null);
@@ -71,29 +72,52 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
     return stream;
   })();
 
+  // ── Step 0: Detect agent identity ──────────────────────────────────────
+  const [detectedAgentId, setDetectedAgentId] = useState<string | null>(null);
+  const [connectionTrigger, setConnectionTrigger] = useState(0);
+
+  useEffect(() => {
+    const agent = participants.find(p => p.identity === 'agent' || p.identity.startsWith('agent-'));
+    if (agent?.identity && agent.identity !== detectedAgentId) {
+      console.log(`[KeyframeAvatar] 🔍 Detected agent identity: ${agent.identity}`);
+      setDetectedAgentId(agent.identity);
+      // Trigger connection if we aren't connected yet
+      if (!isConnectedRef.current) {
+        setConnectionTrigger(prev => prev + 1);
+      }
+    }
+  }, [participants, detectedAgentId]);
+
   // ── Step 1: Connect PersonaSession ──────────────────────────────────────
   useEffect(() => {
-    if (!keyframeMetadata?.server_url || !keyframeMetadata?.participant_token) {
-      console.error("[KeyframeAvatar] ❌ Missing credentials:", keyframeMetadata);
-      setStatus("error");
+    // CRITICAL: If we are already connected, stay connected. 
+    // This prevents the "appeared and then disappeared" issue caused by 
+    // the agent joining and triggering a re-render.
+    if (isConnectedRef.current || status === "connected") {
+      return;
+    }
+
+    const targetIdentity = detectedAgentId || keyframeMetadata?.agent_identity;
+    
+    if (!keyframeMetadata?.server_url || !keyframeMetadata?.participant_token || !targetIdentity) {
       return;
     }
 
     let cancelled = false;
 
-    // 150ms delay — StrictMode's mount→cleanup→remount fires in < 5ms,
-    // so the cleanup's clearTimeout() cancels this before it runs.
+    // 200ms delay — let room stabilize
     const connectionTimer = setTimeout(async () => {
-      if (cancelled) return;
+      if (cancelled || isConnectedRef.current) return;
 
-      // Find the real agent identity from participants
-      const realAgent = participants.find(p => p.identity === 'agent' || p.identity.startsWith('agent-'));
-      const targetIdentity = realAgent?.identity || keyframeMetadata.agent_identity || "agent";
-
-      console.log("[KeyframeAvatar] Connecting →", {
+      console.log("[KeyframeAvatar] Attempting connection →", {
         serverUrl:     keyframeMetadata.server_url,
         agentIdentity: targetIdentity,
       });
+
+      // Debug: Log all participants
+      console.log("[KeyframeAvatar] Current participants in room:", 
+        participants.map(p => `${p.identity} (${p.sid})`).join(", ")
+      );
 
       const session = createClient({
         serverUrl:        keyframeMetadata.server_url,
@@ -122,19 +146,17 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
           if (state === "connected") {
             isConnectedRef.current = true;
             setStatus("connected");
-          } else {
-            isConnectedRef.current = false;
-            if (state === "error" || state === "disconnected") {
-              setStatus("error");
+          } else if (state === "error" || state === "disconnected") {
+            if (!isRetrying.current) {
+               isConnectedRef.current = false;
+               setStatus("error");
             }
           }
         },
 
         onError: (err) => {
           if (cancelled) return;
-          console.error("[KeyframeAvatar] ❌ Error:", err);
-          isConnectedRef.current = false;
-          setStatus("error");
+          console.error("[KeyframeAvatar] ❌ Error callback:", err);
         },
 
         onClose: (reason) => {
@@ -146,31 +168,62 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
 
       sessionRef.current = session;
 
-      try {
-        await session.connect();
-        if (!cancelled) console.log("[KeyframeAvatar] ✅ connect() resolved");
-      } catch (err) {
-        if (!cancelled) {
-          console.error("[KeyframeAvatar] ❌ connect() failed:", err);
-          setStatus("error");
+      const maxRetries = 3;
+      let attempt = 0;
+      let isConnecting = false;
+
+      const connectWithRetry = async () => {
+        if (cancelled || isConnectedRef.current || isConnecting) return;
+        
+        try {
+          isConnecting = true;
+          attempt++;
+          console.log(`[KeyframeAvatar] session.connect() attempt ${attempt}/${maxRetries}...`);
+          
+          await session.connect();
+          
+          if (!cancelled) {
+            console.log("[KeyframeAvatar] ✅ connect() resolved");
+            isRetrying.current = false;
+            isConnectedRef.current = true;
+            setStatus("connected");
+          }
+        } catch (err) {
+          console.error(`[KeyframeAvatar] ❌ connect() attempt ${attempt} failed:`, err);
+          
+          if (attempt < maxRetries && !cancelled) {
+            console.log("[KeyframeAvatar] ⏳ Retrying in 1.5s...");
+            isRetrying.current = true;
+            setTimeout(() => {
+              isConnecting = false;
+              connectWithRetry();
+            }, 1500);
+          } else if (!cancelled) {
+            isRetrying.current = false;
+            setStatus("error");
+          }
+        } finally {
+          if (!isRetrying.current) {
+            isConnecting = false;
+          }
         }
-      }
-    }, 150);
+      };
+
+      connectWithRetry();
+    }, 200); 
 
     return () => {
       cancelled = true;
-      clearTimeout(connectionTimer);      // prevents StrictMode double-connect
-      isConnectedRef.current = false;
+      clearTimeout(connectionTimer);
       const session = sessionRef.current;
       if (session) {
         session.close().catch(() => {});
         sessionRef.current = null;
       }
-      // Tear down audio pipe too
+      isConnectedRef.current = false;
       tearDownAudioPipe();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [keyframeMetadata]);
+  }, [keyframeMetadata, connectionTrigger]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   function tearDownAudioPipe() {
