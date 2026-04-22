@@ -75,27 +75,27 @@ function IntroTrigger({ isIntroPhase, onIntroComplete }: { isIntroPhase: boolean
   return null;
 }
 
-function ChannelStartTrigger({ isLivePhase }: { isLivePhase: boolean }) {
+function ChannelStartTrigger({ isLivePhase, mode }: { isLivePhase: boolean; mode: string }) {
   const { send } = useChat();
   const room = useRoomContext();
-  const hasTriggered = useRef(false);
+  const lastTriggeredMode = useRef<string | null>(null);
 
   useEffect(() => {
-    if (isLivePhase && !hasTriggered.current && room.state === 'connected') {
+    if (isLivePhase && room.state === 'connected' && lastTriggeredMode.current !== mode) {
       try {
-        hasTriggered.current = true;
-        console.log("[ui]: 🚀 Channel starting. Sending SYSTEM_CHANNEL_START to backend...");
-        send("SYSTEM_CHANNEL_START");
+        lastTriggeredMode.current = mode;
+        console.log(`[ui]: 🚀 Channel starting (${mode}). Sending SYSTEM_CHANNEL_START...`);
+        send(`SYSTEM_CHANNEL_START:${mode}`);
       } catch (err) {
         console.warn("[ui]: Failed to send start trigger, will retry on next render:", err);
-        hasTriggered.current = false;
+        lastTriggeredMode.current = null; // retry
       }
     }
-    // If we leave live phase, reset so it can trigger again if we return (e.g. after chat)
+    
     if (!isLivePhase) {
-      hasTriggered.current = false;
+      lastTriggeredMode.current = null;
     }
-  }, [isLivePhase, send, room.state]);
+  }, [isLivePhase, mode, send, room.state]);
 
   return null;
 }
@@ -162,7 +162,6 @@ export default function FloatingCTA() {
       
       setIsIntroComplete(false);
       setError(null);
-      // Keep existing metadata if we are already connected to prevent avatar flicker
       if (!isLkConnected) {
         setKeyframeMetaData(null);
       }
@@ -187,7 +186,7 @@ export default function FloatingCTA() {
           roomName: generatedRoomName,
           participantName: participantIdentityRef.current,
           metadata: JSON.stringify({ mode: activeMode }),
-          mode: activeMode, // passed explicitly so the route can conditionally create Keyframe session
+          mode: activeMode, 
         }),
       });
 
@@ -217,8 +216,6 @@ export default function FloatingCTA() {
     if (!hasAgreed) {
       setFlowPhase('compliance');
     } else {
-      // If we are already connected (in intro or live), we usually don't re-fetch.
-      // But if we are missing keyframe metadata for an avatar mode, we must fetch it.
       if (isLkConnected || flowPhase === 'intro' || flowPhase === 'live') {
         if (!keyframeMetaData && mode !== 'voice') {
           fetchToken(mode);
@@ -253,7 +250,6 @@ export default function FloatingCTA() {
       setRoomName('');
       setFlowPhase('chat');
     } else {
-      // Seamlessly transition to live mode within the same room
       setFlowPhase('live');
     }
   };
@@ -270,7 +266,6 @@ export default function FloatingCTA() {
     }
   };
 
-  // Detect shared room from URL
   useEffect(() => {
     const sharedRoom = searchParams.get('room');
     if (sharedRoom) {
@@ -279,7 +274,6 @@ export default function FloatingCTA() {
     }
   }, [searchParams]);
 
-  // Auto-peek options drawer after 7 seconds exactly once per session
   useEffect(() => {
     let timeout: NodeJS.Timeout;
     if (isOpen && !hasAutoHidden) {
@@ -289,30 +283,27 @@ export default function FloatingCTA() {
         setHasAutoHidden(true);
       }, 7000);
     } else if (!isOpen) {
-      setHasAutoHidden(false); // Reset when modal closes so the 7 seconds repeats next time
-      setFlowPhase('idle'); // Reset session state when modal is closed
+      setHasAutoHidden(false); 
+      setFlowPhase('idle'); 
       setToken(null);
       setLkUrl(null);
       setIsLkConnected(false);
-      setRoomName(''); // Clear room name state so a fresh room is created next time (unless URL dictates otherwise)
+      setRoomName(''); 
     }
     return () => clearTimeout(timeout);
   }, [isOpen, hasAutoHidden]);
 
-  // Lock background scroll while modal is open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
     }
-    // Always restore on unmount
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
 
   const hasAnnouncedRef = useRef(false);
 
-  // Audible recording announcement
   useEffect(() => {
     if ((flowPhase === 'live' || flowPhase === 'intro') && isLkConnected && typeof window !== 'undefined') {
       if (hasAnnouncedRef.current) return;
@@ -324,21 +315,20 @@ export default function FloatingCTA() {
         const announcement = new SpeechSynthesisUtterance("This session is being recorded for regulatory and compliance purposes.");
         const voices = window.speechSynthesis.getVoices();
 
-        // Target high-quality female voices specifically
         const femaleVoice = voices.find(v =>
           v.name.includes('Samantha') ||
           v.name.includes('Female') ||
           v.name.includes('Zira') ||
           v.name.includes('Google UK English Female') ||
-          v.name.includes('Google US English') // Often defaults to a clear female voice
+          v.name.includes('Google US English')
         );
 
         if (femaleVoice) announcement.voice = femaleVoice;
         announcement.rate = 1.0;
-        announcement.pitch = 1.15; // Friendlier, more feminine pitch
+        announcement.pitch = 1.15; 
         announcement.volume = 0.9;
 
-        window.speechSynthesis.cancel(); // Cancel any queued speech before speaking
+        window.speechSynthesis.cancel(); 
         window.speechSynthesis.speak(announcement);
       };
 
@@ -347,7 +337,7 @@ export default function FloatingCTA() {
       } else {
         window.speechSynthesis.onvoiceschanged = () => {
           announce();
-          window.speechSynthesis.onvoiceschanged = null; // Clean up
+          window.speechSynthesis.onvoiceschanged = null;
         };
       }
     } else {
@@ -355,14 +345,12 @@ export default function FloatingCTA() {
     }
 
     return () => {
-      // Cleanup not to cancel speech on unmount necessarily, but to clear the event
       if (window.speechSynthesis) {
         window.speechSynthesis.onvoiceschanged = null;
       }
     };
   }, [flowPhase, isLkConnected]);
 
-  // Timer for REC badge
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isLkConnected && (flowPhase === 'live' || flowPhase === 'intro')) {
@@ -393,7 +381,6 @@ export default function FloatingCTA() {
             className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-md font-sans"
           >
             <AnimatePresence mode="wait">
-/* Main Interactive Stage */
               <motion.div
                 key="main-stage"
                 initial={{ scale: 1.05, opacity: 0 }}
@@ -404,7 +391,6 @@ export default function FloatingCTA() {
 
                 <div className="absolute inset-0 flex flex-col p-4 sm:p-6 md:p-12 overflow-hidden bg-gradient-to-br from-[#050505] to-[#111111] z-0">
                   <div className="flex items-center justify-between gap-3 mb-6 md:mb-8 relative z-10 pt-2 md:pt-0 w-full">
-                    {/* Left: Branding */}
                     <div className="flex items-center gap-3">
                       <div className="relative h-8 w-8 md:h-10 md:w-10 flex shrink-0 items-center justify-center overflow-hidden rounded-full shadow-[0_0_15px_rgba(0,180,216,0.3)] bg-transparent">
                         <Image src={AppIcon} alt="ConvergentAI Logo" fill sizes="40px" className="object-contain" />
@@ -412,9 +398,7 @@ export default function FloatingCTA() {
                       <span className="font-extrabold text-white text-base md:text-2xl tracking-tight">ConvergentAI</span>
                     </div>
 
-                    {/* Right: Actions */}
                     <div className="flex items-center gap-2 md:gap-3">
-                      {/* Share Button (Only visible when active in a room) */}
                       {roomName && (flowPhase === 'live' || flowPhase === 'chat' || flowPhase === 'intro' || flowPhase === 'compliance') && pendingMode !== 'voice' && (
                         <button
                           onClick={handleShare}
@@ -434,7 +418,6 @@ export default function FloatingCTA() {
                         </button>
                       )}
 
-                      {/* Close Button */}
                       <button
                         onClick={() => setIsOpen(false)}
                         className="p-2 md:p-2.5 rounded-full bg-white/10 text-gray-200 hover:bg-[#ff3333] hover:text-white transition-colors shadow-sm cursor-pointer shrink-0"
@@ -489,8 +472,8 @@ export default function FloatingCTA() {
                           >
                             <AgentReadinessCheck onAgentReady={setIsAgentReady} />
                             <IntroTrigger isIntroPhase={flowPhase === 'intro'} onIntroComplete={() => setIsIntroComplete(true)} />
+                            <ChannelStartTrigger isLivePhase={flowPhase === 'live'} mode={pendingMode} />
 
-                            {/* Compliance Overlay - Show over the room session if we need agreement */}
                             {flowPhase === 'compliance' && (
                               <motion.div
                                 initial={{ opacity: 0 }}
@@ -674,7 +657,7 @@ export default function FloatingCTA() {
                               </div>
                             )}
                             <VideoStage mode={pendingMode} keyframeMetadata={keyframeMetaData} />
-                            <ChannelStartTrigger isLivePhase={flowPhase === 'live' && pendingMode !== 'chat'} />
+                            <ChannelStartTrigger isLivePhase={flowPhase === 'live' && pendingMode !== 'chat'} mode={pendingMode} />
 
                             {/* Standard audio renderer — used for 'voice' and as safety fallback */}
                             {pendingMode === 'voice' && <RoomAudioRenderer />}

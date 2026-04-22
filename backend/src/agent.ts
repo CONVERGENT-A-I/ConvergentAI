@@ -127,19 +127,26 @@ You are now in active conversation mode. Respond helpfully to user questions abo
         return;
       }
 
-      if (messageText === 'SYSTEM_CHANNEL_START') {
-        console.log(`[agent]: 🚀 [STEP 5] Channel Started. Spinning up Realtime Agent...`);
+      if (messageText.startsWith('SYSTEM_CHANNEL_START')) {
+        const targetMode = messageText.split(':')[1] || 'video';
+        console.log(`[agent]: 🚀 [STEP 5] Channel Started (${targetMode}). Syncing Realtime Agent...`);
 
         if ((session as any)._started) {
-          console.log(`[agent]: ⚠️ Session already started, ignoring duplicate trigger.`);
+          console.log(`[agent]: ⚠️ Session already started. Informing agent of mode switch to ${targetMode}.`);
+          // Note: Session is already healthy and listening to all tracks by default in this version.
           return;
         }
 
-        const participant = ctx.room.remoteParticipants.values().next().value;
+        // Find the actual human participant by filtering out known agent identities
+        const participants = Array.from(ctx.room.remoteParticipants.values());
+        const participant = participants.find(p => 
+          p.identity !== 'agent' && 
+          !p.identity.startsWith('agent-') && 
+          !p.identity.startsWith('keyframe-')
+        ) || participants[0];
+
         if (participant) {
           console.log(`[agent]: Found participant ${participant.identity} for interactive session.`);
-        } else {
-          console.warn(`[agent]: ⚠️ No remote participants found yet. Proceeding with session start anyway.`);
         }
 
         try {
@@ -149,7 +156,7 @@ You are now in active conversation mode. Respond helpfully to user questions abo
             room: ctx.room,
           });
           (session as any)._started = true;
-          console.log(`[agent]: 🟢 Realtime Agent session.start() completed. Mode is ready.`);
+          console.log(`[agent]: 🟢 Realtime Agent session.start() completed. Mode ${targetMode} is ready.`);
         } catch (err) {
           console.error(`[agent]: ❌ Failed to start session:`, err);
         }
