@@ -40,7 +40,7 @@ export default {
 
     const model = new openai.realtime.RealtimeModel({
       model: "gpt-4o-mini-realtime-preview",
-      voice: "shimmer",
+      voice: "coral",
       modalities: ["audio", "text"],
       turnDetection: null,
     });
@@ -69,7 +69,7 @@ You are now in active conversation mode. Respond helpfully to user questions abo
       },
     });
 
-    
+
     const session = new voice.AgentSession({
       llm: model,
       userAwayTimeout: null,
@@ -85,7 +85,7 @@ You are now in active conversation mode. Respond helpfully to user questions abo
     });
 
     // TTS for precise intro
-    const introTts = new openai.TTS({ voice: "shimmer" });
+    const introTts = new openai.TTS({ voice: "coral" });
     const introText = "Hi! I am here to help you with mortgage related questions, Please select the Live with Ailana if you want to continue conversation with me or select any other channel of your choice.";
 
     const handleSystemMessages = async (messageText: string, participantIdentity: string | undefined) => {
