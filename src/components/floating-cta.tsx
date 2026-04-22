@@ -467,9 +467,9 @@ export default function FloatingCTA() {
                           <LiveKitRoom
                             key={roomName}
                             video={pendingMode === 'video'}
-                            audio={pendingMode !== 'avatar-chat'}
-                            token={token}
-                            serverUrl={lkUrl}
+                            audio={hasAgreed && (pendingMode !== 'avatar-chat')}
+                            token={token || ""}
+                            serverUrl={lkUrl || ""}
                             connect={true}
                             data-lk-theme="default"
                             className="w-full h-full"
@@ -610,13 +610,9 @@ export default function FloatingCTA() {
                             <VideoStage mode={pendingMode} keyframeMetadata={keyframeMetaData} />
                             <ChannelStartTrigger isLivePhase={flowPhase === 'live' && pendingMode !== 'chat'} />
 
-
-                            {/* Audio renderer — suppressed for avatar-chat and video because
-                                  Keyframe re-renders the agent's audio in sync with
-                                  the avatar video and plays it through KeyframeAvatar's
-                                  audio element. Rendering both would cause double audio. */}
+                            {/* Standard audio renderer — used for 'voice' and as safety fallback */}
                             {pendingMode === 'voice' && <RoomAudioRenderer />}
-                          </LiveKitRoom>
+                           </LiveKitRoom>
                         </motion.div>
                       )}
 

@@ -83,19 +83,22 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
 
     // 150ms delay — StrictMode's mount→cleanup→remount fires in < 5ms,
     // so the cleanup's clearTimeout() cancels this before it runs.
-    // Only the real final mount survives to actually connect.
     const connectionTimer = setTimeout(async () => {
       if (cancelled) return;
 
+      // Find the real agent identity from participants
+      const realAgent = participants.find(p => p.identity === 'agent' || p.identity.startsWith('agent-'));
+      const targetIdentity = realAgent?.identity || keyframeMetadata.agent_identity || "agent";
+
       console.log("[KeyframeAvatar] Connecting →", {
         serverUrl:     keyframeMetadata.server_url,
-        agentIdentity: keyframeMetadata.agent_identity,
+        agentIdentity: targetIdentity,
       });
 
       const session = createClient({
         serverUrl:        keyframeMetadata.server_url,
         participantToken: keyframeMetadata.participant_token,
-        agentIdentity:    keyframeMetadata.agent_identity,
+        agentIdentity:    targetIdentity,
 
         onVideoTrack: (track) => {
           if (cancelled || !videoRef.current) return;
@@ -107,12 +110,10 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
         },
 
         onAudioTrack: (track) => {
-          // Keyframe re-renders the piped audio alongside the avatar video.
-          // RoomAudioRenderer is suppressed for avatar-chat, so this is the
-          // ONLY audio output — perfectly lip-synced with the avatar's mouth.
+          console.log("[KeyframeAvatar] ✅ Audio track received from Keyframe");
           if (cancelled || !audioRef.current) return;
           audioRef.current.srcObject = new MediaStream([track]);
-          audioRef.current.play().catch(() => {});
+          audioRef.current.play().catch((e) => console.warn("[KeyframeAvatar] Audio playback failed:", e));
         },
 
         onStateChange: (state) => {
