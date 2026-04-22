@@ -356,7 +356,7 @@ export default function FloatingCTA() {
   const hasAnnouncedRef = useRef(false);
 
   useEffect(() => {
-    if ((flowPhase === 'live' || flowPhase === 'intro') && isLkConnected && typeof window !== 'undefined') {
+    if (flowPhase === 'live' && isLkConnected && typeof window !== 'undefined') {
       if (hasAnnouncedRef.current) return;
 
       const announce = () => {
@@ -404,7 +404,7 @@ export default function FloatingCTA() {
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (isLkConnected && (flowPhase === 'live' || flowPhase === 'intro')) {
+    if (isLkConnected && flowPhase === 'live') {
       interval = setInterval(() => {
         setRecordingSeconds(prev => prev + 1);
       }, 1000);
@@ -693,8 +693,8 @@ export default function FloatingCTA() {
                               )}
                             </AnimatePresence>
 
-                            {/* REC badge + labels (only show once fully connected) */}
-                            {isLkConnected && isAgentReady && (
+                            {/* REC badge + labels (only show once fully connected in live phase) */}
+                            {isLkConnected && isAgentReady && flowPhase === 'live' && (
                               <div className="absolute inset-0 z-40 pointer-events-none">
                                 <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-red-500/30">
                                   <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}><Circle className="h-3 w-3 fill-red-500 text-red-500" /></motion.div>

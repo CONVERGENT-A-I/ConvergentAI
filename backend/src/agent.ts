@@ -1,5 +1,5 @@
 import { type JobContext, ServerOptions, cli, voice, tts } from '@livekit/agents';
-import { RoomEvent, AudioSource, LocalAudioTrack } from '@livekit/rtc-node';
+import { RoomEvent, AudioSource, LocalAudioTrack, TrackSource } from '@livekit/rtc-node';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import * as openai from '@livekit/agents-plugin-openai';
@@ -20,6 +20,29 @@ process.on('uncaughtException', (err) => {
 // Shared VAD model to minimize connection latency (only loaded once)
 let globalSileroVad: silero.VAD | null = null;
 
+// Pre-cached intro audio frames (synthesized once, reused on every trigger)
+let cachedIntroFrames: any[] | null = null;
+let introSampleRate = 24000;
+let introNumChannels = 1;
+
+async function prewarmIntroAudio() {
+  if (cachedIntroFrames) return;
+  console.log('[agent]: 🔥 Pre-warming intro TTS audio...');
+  const introTts = new openai.TTS({ voice: "coral" });
+  introSampleRate = introTts.sampleRate;
+  introNumChannels = introTts.numChannels;
+  const introText = "Hi! I am Ailana your Virtual AI Assistant. I am here to help you with mortgage related questions, Please select Live with Ailana if you want to continue conversation with me or select any other channel of your choice.";
+  const stream = introTts.synthesize(introText);
+  const frames: any[] = [];
+  for await (const event of stream) {
+    if ((event as any).frame) {
+      frames.push((event as any).frame);
+    }
+  }
+  cachedIntroFrames = frames;
+  console.log(`[agent]: ✅ Intro audio pre-cached (${frames.length} frames)`);
+}
+
 export default {
   async entry(ctx: JobContext) {
     console.log(`[agent]: Receiving job for room: ${ctx.room.name}`);
@@ -37,6 +60,9 @@ export default {
         prefixPaddingDuration: 200,
       });
     }
+
+    // Pre-warm intro audio in parallel with model setup (non-blocking)
+    const introWarm = prewarmIntroAudio();
 
     const model = new openai.realtime.RealtimeModel({
       model: "gpt-4o-mini-realtime-preview",
@@ -84,31 +110,24 @@ You are now in active conversation mode. Respond helpfully to user questions abo
       console.log(`[agent-debug]: Agent state changed to: ${state}`);
     });
 
-    // TTS for precise intro
-    const introTts = new openai.TTS({ voice: "coral" });
-    const introText = "Hi! I am here to help you with mortgage related questions, Please select the Live with Ailana if you want to continue conversation with me or select any other channel of your choice.";
+    // Ensure intro audio is ready before handling triggers
+    await introWarm;
 
     const handleSystemMessages = async (messageText: string, participantIdentity: string | undefined) => {
       if (messageText === 'SYSTEM_INTRO_TRIGGER') {
-        console.log(`[agent]: 💬 [STEP 1] Received Intro Trigger. Playing exact TTS...`);
+        console.log(`[agent]: 💬 [STEP 1] Received Intro Trigger. Playing cached TTS...`);
 
-        const chunkedStream = introTts.synthesize(introText);
-
-        const sampleRate = introTts.sampleRate;
-        const numChannels = introTts.numChannels;
-        const source = new AudioSource(sampleRate, numChannels);
+        const source = new AudioSource(introSampleRate, introNumChannels);
         const track = LocalAudioTrack.createAudioTrack('intro-audio', source);
 
-        // CRITICAL: Set source to SOURCE_MICROPHONE so KeyframeAvatar can find it
-        const { TrackSource } = await import('@livekit/rtc-node');
         const pub = await ctx.room.localParticipant?.publishTrack(track, {
           source: TrackSource.SOURCE_MICROPHONE
         } as any);
 
-        console.log(`[agent]: 💬 [STEP 2] Streaming intro audio...`);
-        for await (const event of chunkedStream) {
-          if ((event as any).frame) {
-            await source.captureFrame((event as any).frame);
+        console.log(`[agent]: 💬 [STEP 2] Streaming pre-cached intro audio...`);
+        if (cachedIntroFrames) {
+          for (const frame of cachedIntroFrames) {
+            await source.captureFrame(frame);
           }
         }
 
