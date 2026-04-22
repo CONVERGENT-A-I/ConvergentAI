@@ -145,12 +145,12 @@ export default function VideoStage({ mode = 'video', keyframeMetadata }: { mode?
 
   // Human participants only — excludes agent and any Keyframe participants
   const participants = useParticipants().filter(
-    (p) => !p.identity.startsWith('agent-') && !p.identity.startsWith('keyframe-')
+    (p) => p.identity !== 'agent' && !p.identity.startsWith('agent-') && !p.identity.startsWith('keyframe-')
   );
 
   // Video grid tracks — exclude tiles from agent participants
   const gridTracks = tracks.filter(
-    (t) => !t.participant.identity.startsWith('agent-') && !t.participant.identity.startsWith('keyframe-')
+    (t) => t.participant.identity !== 'agent' && !t.participant.identity.startsWith('agent-') && !t.participant.identity.startsWith('keyframe-')
   );
 
   if (mode === 'avatar-chat' || mode === 'intro-avatar') {
@@ -296,11 +296,14 @@ export default function VideoStage({ mode = 'video', keyframeMetadata }: { mode?
         <div className={`w-full h-full max-w-7xl max-h-[85vh] mx-auto grid gap-4 ${gridClass}`}>
           
           {/* Human Participants */}
-          {gridTracks.map(t => (
-            <div key={t.participant.identity} className="relative w-full h-full rounded-2xl overflow-hidden bg-[#1a1a1a]">
-              <ParticipantTile trackRef={t} className="w-full h-full" />
-            </div>
-          ))}
+          {gridTracks.map(t => {
+            if (!t.participant) return null;
+            return (
+              <div key={t.participant.identity || t.participant.sid} className="relative w-full h-full rounded-2xl overflow-hidden bg-[#1a1a1a]">
+                <ParticipantTile trackRef={t} className="w-full h-full" />
+              </div>
+            );
+          })}
 
           {/* AI Avatar Participant */}
           <div className="relative w-full h-full rounded-2xl overflow-hidden bg-[#050505] border border-white/5 shadow-2xl group transition-all duration-300 hover:border-[#00b4d8]/40">

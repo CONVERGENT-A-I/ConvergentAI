@@ -50,8 +50,8 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
   // ── Detect agent's audio MediaStream (for lip-sync) ─────────────────────
   const participants = useParticipants();
   const agentMediaStream: MediaStream | undefined = (() => {
-    // 1. Try to find participant starting with 'agent-'
-    let agent = participants.find((p) => p.identity.startsWith("agent-"));
+    // 1. Try to find participant starting with 'agent-' or exactly 'agent'
+    let agent = participants.find((p) => p.identity === "agent" || p.identity.startsWith("agent-"));
     
     // 2. Fallback: Take the first remote participant that isn't us (guest)
     if (!agent) {

@@ -65,10 +65,7 @@ function IntroTrigger({ isIntroPhase, onIntroComplete }: { isIntroPhase: boolean
       hasTriggered.current = true;
       console.log("[ui]: 🚀 Agent detected. Sending SYSTEM_INTRO_TRIGGER to backend...");
       
-      // Send via useChat (TextStream)
-      send("SYSTEM_INTRO_TRIGGER");
-
-      // Fallback: Send via raw Data Channel
+      // Send via raw Data Channel for reliability
       const encoder = new TextEncoder();
       const payload = encoder.encode(JSON.stringify({ message: "SYSTEM_INTRO_TRIGGER" }));
       room.localParticipant.publishData(payload, { topic: "lk-chat", reliable: true });
@@ -80,15 +77,25 @@ function IntroTrigger({ isIntroPhase, onIntroComplete }: { isIntroPhase: boolean
 
 function ChannelStartTrigger({ isLivePhase }: { isLivePhase: boolean }) {
   const { send } = useChat();
+  const room = useRoomContext();
   const hasTriggered = useRef(false);
 
   useEffect(() => {
-    if (isLivePhase && !hasTriggered.current) {
-      hasTriggered.current = true;
-      console.log("[ui]: 🚀 Channel starting. Sending SYSTEM_CHANNEL_START to backend...");
-      send("SYSTEM_CHANNEL_START");
+    if (isLivePhase && !hasTriggered.current && room.state === 'connected') {
+      try {
+        hasTriggered.current = true;
+        console.log("[ui]: 🚀 Channel starting. Sending SYSTEM_CHANNEL_START to backend...");
+        send("SYSTEM_CHANNEL_START");
+      } catch (err) {
+        console.warn("[ui]: Failed to send start trigger, will retry on next render:", err);
+        hasTriggered.current = false;
+      }
     }
-  }, [isLivePhase, send]);
+    // If we leave live phase, reset so it can trigger again if we return (e.g. after chat)
+    if (!isLivePhase) {
+      hasTriggered.current = false;
+    }
+  }, [isLivePhase, send, room.state]);
 
   return null;
 }
@@ -458,7 +465,7 @@ export default function FloatingCTA() {
                       {(flowPhase === 'live' || flowPhase === 'intro' || flowPhase === 'compliance') && token && lkUrl && (
                         <motion.div key="live-view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 flex flex-col items-center justify-center p-0">
                           <LiveKitRoom
-                            key={token}
+                            key={roomName}
                             video={pendingMode === 'video'}
                             audio={pendingMode !== 'avatar-chat'}
                             token={token}
@@ -471,7 +478,6 @@ export default function FloatingCTA() {
                           >
                             <AgentReadinessCheck onAgentReady={setIsAgentReady} />
                             <IntroTrigger isIntroPhase={flowPhase === 'intro'} onIntroComplete={() => setIsIntroComplete(true)} />
-                            <ChannelStartTrigger isLivePhase={flowPhase === 'live' && pendingMode !== 'chat'} />
 
                             {flowPhase === 'intro' && isIntroComplete && (
                               <motion.div
@@ -602,79 +608,8 @@ export default function FloatingCTA() {
                               </div>
                             )}
                             <VideoStage mode={pendingMode} keyframeMetadata={keyframeMetaData} />
-                            {flowPhase === 'compliance' && (
-                              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-[140]" />
-                            )}
-                            <AnimatePresence>
-                              {flowPhase === 'compliance' && (
+                            <ChannelStartTrigger isLivePhase={flowPhase === 'live' && pendingMode !== 'chat'} />
 
-                                /* Focused Compliance Disclosure Gate */
-                                <motion.div
-                                  key="compliance-gate"
-                                  initial={{ scale: 0.9, opacity: 0, y: 30 }}
-                                  animate={{ scale: 1, opacity: 1, y: 0 }}
-                                  exit={{ scale: 0.95, opacity: 0, y: -20 }}
-                                  transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-2xl bg-[#0a0a0a]/95 z-[150] backdrop-blur-xl border border-[#00b4d8]/30 rounded-3xl p-6 md:p-10 shadow-[0_0_100px_rgba(0,180,216,0.15)] flex flex-col overflow-hidden  max-h-[850px] min-h-[500px]"
-                                >
-                                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#00b4d8] to-transparent opacity-50" />
-
-                                  <h2 className="text-xl md:text-3xl font-bold text-white mb-6 shrink-0 flex items-center gap-4">
-                                    <div className="h-10 w-10 md:h-12 md:w-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 shadow-inner overflow-hidden relative">
-                                      <Image src={AppIcon} alt="Logo" fill sizes="48px" className="object-cover scale-75" />
-                                    </div>
-                                    Regulatory Notice
-                                  </h2>
-
-                                  <div className="text-gray-300 text-[14px] md:text-[16px] space-y-4 md:space-y-6 mb-8 md:mb-12 leading-relaxed overflow-y-auto flex-1 pr-3 custom-scrollbar">
-                                    <p className="font-semibold text-white/90 text-lg">
-                                      Interaction with Ailana (AI Assistant)
-                                    </p>
-                                    <p>
-                                      Before proceeding, please acknowledge that you are interacting with an automated system designed for mortgage informational purposes.
-                                    </p>
-                                    <ul className="space-y-4 md:space-y-6 list-none">
-                                      <li className="flex items-start gap-4">
-                                        <div className="mt-1.5 h-2 w-2 rounded-full bg-[#00b4d8] shrink-0 shadow-[0_0_10px_rgba(0,180,216,0.8)]" />
-                                        <span><strong className="text-white block mb-0.5">Non-Human Interaction:</strong> Ailana is an AI, not a human loan officer.</span>
-                                      </li>
-                                      <li className="flex items-start gap-4">
-                                        <div className="mt-1.5 h-2 w-2 rounded-full bg-[#00b4d8] shrink-0 shadow-[0_0_10px_rgba(0,180,216,0.8)]" />
-                                        <span><strong className="text-white block mb-0.5">Informational Only:</strong> Responses do not constitute financial advice, credit offers, or rate locks.</span>
-                                      </li>
-                                      <li className="flex items-start gap-4">
-                                        <div className="mt-1.5 h-2 w-2 rounded-full bg-[#00b4d8] shrink-0 shadow-[0_0_10px_rgba(0,180,216,0.8)]" />
-                                        <span><strong className="text-white block mb-1">Audit Trail:</strong> This conversation is recorded and timestamped for regulatory compliance and quality assurance.</span>
-                                      </li>
-                                      <li className="flex items-start gap-4">
-                                        <div className="mt-1.5 h-2 w-2 rounded-full bg-[#ef4444] shrink-0 shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
-                                        <span><strong className="text-[#ef4444] block mb-1">Recording Clause:</strong> You consent to the recording of audio, video, and chat for compliance.</span>
-                                      </li>
-                                      <li className="flex items-start gap-4">
-                                        <div className="mt-1.5 h-2 w-2 rounded-full bg-[#a855f7] shrink-0 shadow-[0_0_10px_rgba(168,85,247,0.8)]" />
-                                        <span><strong className="text-[#a855f7] block mb-1">Human Off-Ramp:</strong> You can request a human representative at any time by saying "Agent."</span>
-                                      </li>
-                                    </ul>
-                                  </div>
-
-                                  <div className="flex flex-col sm:flex-row gap-4 items-center justify-end border-t border-white/5 pt-6 md:pt-10 mt-auto">
-                                    <button
-                                      onClick={() => setIsOpen(false)}
-                                      className="w-full sm:w-auto px-8 py-3.5 font-bold text-gray-400 hover:text-white transition-all cursor-pointer hover:bg-white/5 rounded-xl"
-                                    >
-                                      No Thanks
-                                    </button>
-                                    <button
-                                      onClick={handleAgree}
-                                      className="w-full sm:w-auto px-10 py-4 rounded-xl bg-gradient-to-r from-[#00b4d8] via-[#023e8a] to-[#560bad] text-white font-black tracking-wider transition-all shadow-[0_0_30px_rgba(0,180,216,0.4)] hover:shadow-[0_0_50px_rgba(0,180,216,0.6)] transform hover:scale-[1.03] active:scale-95 cursor-pointer uppercase text-sm"
-                                    >
-                                      I Agree & Continue
-                                    </button>
-                                  </div>
-                                </motion.div>
-
-                              )}
-                            </AnimatePresence>
 
                             {/* Audio renderer — suppressed for avatar-chat and video because
                                   Keyframe re-renders the agent's audio in sync with
@@ -752,6 +687,82 @@ export default function FloatingCTA() {
                   </div>
                 )}
               </motion.div>
+            </AnimatePresence>
+
+            {/* Regulatory Compliance Gate - Moved to top level to be "above everything" */}
+            <AnimatePresence>
+              {flowPhase === 'compliance' && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[300] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-md"
+                >
+                  <motion.div
+                    key="compliance-gate"
+                    initial={{ scale: 0.9, opacity: 0, y: 30 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.95, opacity: 0, y: -20 }}
+                    transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                    className="relative w-full max-w-2xl bg-[#0a0a0a]/95 backdrop-blur-xl border border-[#00b4d8]/30 rounded-3xl p-6 md:p-10 shadow-[0_0_100px_rgba(0,180,216,0.25)] flex flex-col overflow-hidden max-h-[90vh]"
+                  >
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#00b4d8] to-transparent opacity-50" />
+
+                    <h2 className="text-xl md:text-3xl font-bold text-white mb-6 shrink-0 flex items-center gap-4">
+                      <div className="h-10 w-10 md:h-12 md:w-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 shadow-inner overflow-hidden relative">
+                        <Image src={AppIcon} alt="Logo" fill sizes="48px" className="object-cover scale-75" />
+                      </div>
+                      Regulatory Notice
+                    </h2>
+
+                    <div className="text-gray-300 text-[14px] md:text-[16px] space-y-4 md:space-y-6 mb-8 md:mb-12 leading-relaxed overflow-y-auto flex-1 pr-3 custom-scrollbar">
+                      <p className="font-semibold text-white/90 text-lg">
+                        Interaction with Ailana (AI Assistant)
+                      </p>
+                      <p>
+                        Before proceeding, please acknowledge that you are interacting with an automated system designed for mortgage informational purposes.
+                      </p>
+                      <ul className="space-y-4 md:space-y-6 list-none">
+                        <li className="flex items-start gap-4">
+                          <div className="mt-1.5 h-2 w-2 rounded-full bg-[#00b4d8] shrink-0 shadow-[0_0_10px_rgba(0,180,216,0.8)]" />
+                          <span><strong className="text-white block mb-0.5">Non-Human Interaction:</strong> Ailana is an AI, not a human loan officer.</span>
+                        </li>
+                        <li className="flex items-start gap-4">
+                          <div className="mt-1.5 h-2 w-2 rounded-full bg-[#00b4d8] shrink-0 shadow-[0_0_10px_rgba(0,180,216,0.8)]" />
+                          <span><strong className="text-white block mb-0.5">Informational Only:</strong> Responses do not constitute financial advice, credit offers, or rate locks.</span>
+                        </li>
+                        <li className="flex items-start gap-4">
+                          <div className="mt-1.5 h-2 w-2 rounded-full bg-[#00b4d8] shrink-0 shadow-[0_0_10px_rgba(0,180,216,0.8)]" />
+                          <span><strong className="text-white block mb-1">Audit Trail:</strong> This conversation is recorded and timestamped for regulatory compliance and quality assurance.</span>
+                        </li>
+                        <li className="flex items-start gap-4">
+                          <div className="mt-1.5 h-2 w-2 rounded-full bg-[#ef4444] shrink-0 shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
+                          <span><strong className="text-[#ef4444] block mb-1">Recording Clause:</strong> You consent to the recording of audio, video, and chat for compliance.</span>
+                        </li>
+                        <li className="flex items-start gap-4">
+                          <div className="mt-1.5 h-2 w-2 rounded-full bg-[#a855f7] shrink-0 shadow-[0_0_10px_rgba(168,85,247,0.8)]" />
+                          <span><strong className="text-[#a855f7] block mb-1">Human Off-Ramp:</strong> You can request a human representative at any time by saying "Agent."</span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-4 items-center justify-end border-t border-white/5 pt-6 md:pt-10 mt-auto">
+                      <button
+                        onClick={() => setIsOpen(false)}
+                        className="w-full sm:w-auto px-8 py-3.5 font-bold text-gray-400 hover:text-white transition-all cursor-pointer hover:bg-white/5 rounded-xl"
+                      >
+                        No Thanks
+                      </button>
+                      <button
+                        onClick={handleAgree}
+                        className="w-full sm:w-auto px-10 py-4 rounded-xl bg-gradient-to-r from-[#00b4d8] via-[#023e8a] to-[#560bad] text-white font-black tracking-wider transition-all shadow-[0_0_30px_rgba(0,180,216,0.4)] hover:shadow-[0_0_50px_rgba(0,180,216,0.6)] transform hover:scale-[1.03] active:scale-95 cursor-pointer uppercase text-sm"
+                      >
+                        I Agree & Continue
+                      </button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
             </AnimatePresence>
           </motion.div>
         )}
