@@ -42,4 +42,13 @@ next-env.d.ts
 
 .vercel
 
-Dockerfile
+/src/generated/prisma
+
+backend/node_modules
+backend/.env
+backend/.env.example
+backend/.env.local
+backend/dist
+
+test
+>>>>>>> 6d8319f0f24030f15dc58c7c286fbe935d1dcf84

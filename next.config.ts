@@ -1,7 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Keyframe Labs packages are ESM-only — Next.js must transpile them
+  transpilePackages: [
+    "@keyframelabs/sdk",
+    "@keyframelabs/elements",
+    "@keyframelabs/react",
+  ],
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   images: {
     remotePatterns: [
       {

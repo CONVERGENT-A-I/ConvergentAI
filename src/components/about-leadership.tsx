@@ -6,6 +6,7 @@ import a1 from "../../public/a1.png";
 import a2 from "../../public/a2.png";
 
 
+
 const LinkedinIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
