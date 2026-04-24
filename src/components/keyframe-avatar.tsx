@@ -146,6 +146,17 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
           if (state === "connected") {
             isConnectedRef.current = true;
             setStatus("connected");
+            
+            // Set base emotion to happy (smile) as per user request
+            if (sessionRef.current) {
+              console.log("[KeyframeAvatar] 😊 Setting emotion to happy");
+              try {
+                // @ts-ignore - setEmotion exists in latest SDK but might missing from local types
+                sessionRef.current.setEmotion("happy");
+              } catch (e) {
+                console.warn("[KeyframeAvatar] Failed to set initial emotion:", e);
+              }
+            }
           } else if (state === "error" || state === "disconnected") {
             if (!isRetrying.current) {
                isConnectedRef.current = false;

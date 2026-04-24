@@ -48,7 +48,10 @@ export async function POST(req: NextRequest) {
               Authorization: `Bearer ${kfApiKey}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ persona_slug: kfSlug }),
+            body: JSON.stringify({ 
+              persona_slug: kfSlug,
+              emotion: "happy" // Set default mood to smile
+            }),
           });
 
           if (kfRes.ok) {
