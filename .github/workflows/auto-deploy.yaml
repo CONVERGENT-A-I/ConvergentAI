@@ -26,6 +26,7 @@ jobs:
             --quiet \
             --command "
               set -e
+              ls -la /opt/convergent-ai
               git config --global --add safe.directory /opt/convergent-ai/ConvergentAI
               cd /opt/convergent-ai/ConvergentAI
               git fetch origin main
