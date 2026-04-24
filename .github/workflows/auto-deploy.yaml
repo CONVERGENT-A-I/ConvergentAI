@@ -26,11 +26,11 @@ jobs:
             --quiet \
             --command "
               set -e
-              ls -la /opt/convergent-ai
-              git config --global --add safe.directory /opt/convergent-ai/ConvergentAI
-              cd /opt/convergent-ai/ConvergentAI
-              git fetch origin main
-              git reset --hard origin/main
-              docker ps
+              sudo ls -la /opt/convergent-ai
+              sudo git config --global --add safe.directory /opt/convergent-ai/ConvergentAI
+              sudo cd /opt/convergent-ai/ConvergentAI
+              sudo git fetch origin main
+              sudo git reset --hard origin/main
+              sudo docker ps
 
             "
