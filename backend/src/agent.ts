@@ -17,8 +17,7 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
-// Shared VAD model to minimize connection latency (only loaded once)
-let globalSileroVad: silero.VAD | null = null;
+// Removed globalSileroVad - VAD instances are stateful and must be per-session
 
 // Pre-cached intro audio frames (synthesized once, reused on every trigger)
 let cachedIntroFrames: any[] | null = null;
@@ -52,14 +51,12 @@ export default {
       return;
     }
 
-    // Pre-load VAD if not already ready
-    if (!globalSileroVad) {
-      console.log(`[agent]: Pre-warming Hybrid VAD (First connection)...`);
-      globalSileroVad = await silero.VAD.load({
-        minSilenceDuration: 300,
-        prefixPaddingDuration: 200,
-      });
-    }
+    // Load a fresh VAD instance for this specific session
+    console.log(`[agent]: Loading Hybrid VAD...`);
+    const sessionVad = await silero.VAD.load({
+      minSilenceDuration: 300,
+      prefixPaddingDuration: 200,
+    });
 
     // Pre-warm intro audio in parallel with model setup (non-blocking)
     const introWarm = prewarmIntroAudio();
@@ -82,7 +79,7 @@ You are now in active conversation mode. Respond helpfully to user questions abo
     // Interactive "VAD" Agent 
     const vadAgent = new voice.Agent({
       instructions: interactiveInstructions,
-      vad: globalSileroVad,
+      vad: sessionVad,
       llm: model,
       turnHandling: {
         turnDetection: 'vad',
@@ -176,6 +173,11 @@ You are now in active conversation mode. Respond helpfully to user questions abo
           });
           (session as any)._started = true;
           console.log(`[agent]: 🟢 Realtime Agent session.start() completed. Mode ${targetMode} is ready.`);
+          
+          // Proactively initiate conversation so the user isn't met with silence
+          session.generateReply({ 
+            userInput: "Please say a brief, friendly greeting to start the conversation and ask how you can help." 
+          });
         } catch (err) {
           console.error(`[agent]: ❌ Failed to start session:`, err);
         }

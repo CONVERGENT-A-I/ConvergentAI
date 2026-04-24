@@ -35,34 +35,35 @@ function AgentReadinessCheck({ onAgentReady }: { onAgentReady: (r: boolean) => v
  */
 function MediaGuard({ mode }: { mode: string }) {
   const room = useRoomContext();
-  const prevMode = useRef(mode);
 
   useEffect(() => {
-    if (prevMode.current === mode) return;
-    prevMode.current = mode;
+    // Only run once the room is actually connected to prevent pre-connection state errors
+    if (room.state !== 'connected') return;
 
     const lp = room.localParticipant;
     if (!lp) return;
 
-    // avatar-chat & intro-avatar: mute mic + disable camera (text-only / intro)
-    if (mode === 'avatar-chat' || mode === 'intro-avatar') {
-      lp.setMicrophoneEnabled(false).catch(() => {});
-      lp.setCameraEnabled(false).catch(() => {});
-      console.log('[MediaGuard] 🔇 Mic & camera OFF for', mode);
-    }
-    // voice: enable mic, disable camera
-    else if (mode === 'voice') {
-      lp.setMicrophoneEnabled(true).catch(() => {});
-      lp.setCameraEnabled(false).catch(() => {});
-      console.log('[MediaGuard] 🎤 Mic ON, camera OFF for voice');
-    }
-    // video: enable mic + camera
-    else if (mode === 'video') {
-      lp.setMicrophoneEnabled(true).catch(() => {});
-      lp.setCameraEnabled(true).catch(() => {});
-      console.log('[MediaGuard] 🎤📹 Mic & camera ON for video');
-    }
-  }, [mode, room]);
+    console.log(`[MediaGuard] 🔄 Syncing media state for mode: ${mode}`);
+
+    // Explicitly handle all modes as the single source of truth
+    const syncMedia = async () => {
+      if (mode === 'avatar-chat' || mode === 'intro-avatar') {
+        try { await lp.setMicrophoneEnabled(false); } catch (e) { }
+        try { await lp.setCameraEnabled(false); } catch (e) { }
+        console.log('[MediaGuard] 🔇 Mic & camera OFF');
+      } else if (mode === 'voice') {
+        try { await lp.setMicrophoneEnabled(true); } catch (e) { console.error("Mic error:", e); }
+        try { await lp.setCameraEnabled(false); } catch (e) { }
+        console.log('[MediaGuard] 🎤 Mic ON, camera OFF');
+      } else if (mode === 'video') {
+        try { await lp.setMicrophoneEnabled(true); } catch (e) { console.error("Mic error:", e); }
+        try { await lp.setCameraEnabled(true); } catch (e) { console.error("Camera error:", e); }
+        console.log('[MediaGuard] 🎤📹 Mic & camera ON');
+      }
+    };
+    
+    syncMedia();
+  }, [mode, room, room.state]);
 
   return null;
 }
@@ -100,13 +101,21 @@ function IntroTrigger({ isIntroPhase, onIntroComplete }: { isIntroPhase: boolean
 
   useEffect(() => {
     if (agentReady && isIntroPhase && !hasTriggered.current) {
-      hasTriggered.current = true;
-      console.log("[ui]: 🚀 Agent detected. Sending SYSTEM_INTRO_TRIGGER to backend...");
-      
-      // Send via raw Data Channel for reliability
-      const encoder = new TextEncoder();
-      const payload = encoder.encode(JSON.stringify({ message: "SYSTEM_INTRO_TRIGGER" }));
-      room.localParticipant.publishData(payload, { topic: "lk-chat", reliable: true });
+      const trySend = async (retries = 3) => {
+        try {
+          console.log("[ui]: 🚀 Agent detected. Sending SYSTEM_INTRO_TRIGGER to backend...");
+          const encoder = new TextEncoder();
+          const payload = encoder.encode(JSON.stringify({ message: "SYSTEM_INTRO_TRIGGER" }));
+          await room.localParticipant.publishData(payload, { topic: "lk-chat", reliable: true });
+          hasTriggered.current = true;
+        } catch (err) {
+          console.warn(`[ui]: Failed to send intro trigger (retries left: ${retries}):`, err);
+          if (retries > 0) {
+            setTimeout(() => trySend(retries - 1), 500);
+          }
+        }
+      };
+      trySend();
     }
   }, [agentReady, isIntroPhase, send, room]);
 
@@ -116,24 +125,35 @@ function IntroTrigger({ isIntroPhase, onIntroComplete }: { isIntroPhase: boolean
 function ChannelStartTrigger({ isLivePhase, mode }: { isLivePhase: boolean; mode: string }) {
   const { send } = useChat();
   const room = useRoomContext();
+  const participants = useRemoteParticipants();
+  const agentReady = participants.length > 0;
   const lastTriggeredMode = useRef<string | null>(null);
 
   useEffect(() => {
-    if (isLivePhase && room.state === 'connected' && lastTriggeredMode.current !== mode) {
-      try {
-        lastTriggeredMode.current = mode;
-        console.log(`[ui]: 🚀 Channel starting (${mode}). Sending SYSTEM_CHANNEL_START...`);
-        send(`SYSTEM_CHANNEL_START:${mode}`);
-      } catch (err) {
-        console.warn("[ui]: Failed to send start trigger, will retry on next render:", err);
-        lastTriggeredMode.current = null; // retry
-      }
+    if (isLivePhase && room.state === 'connected' && agentReady && lastTriggeredMode.current !== mode) {
+      const trySend = async (retries = 3) => {
+        try {
+          lastTriggeredMode.current = mode;
+          console.log(`[ui]: 🚀 Channel starting (${mode}). Sending SYSTEM_CHANNEL_START...`);
+          const encoder = new TextEncoder();
+          const payload = encoder.encode(JSON.stringify({ message: `SYSTEM_CHANNEL_START:${mode}` }));
+          await room.localParticipant.publishData(payload, { topic: "lk-chat", reliable: true });
+        } catch (err) {
+          console.warn(`[ui]: Failed to send start trigger (retries left: ${retries}):`, err);
+          if (retries > 0) {
+            setTimeout(() => trySend(retries - 1), 500);
+          } else {
+            lastTriggeredMode.current = null; // reset so next mode change can try again
+          }
+        }
+      };
+      trySend();
     }
-    
+
     if (!isLivePhase) {
       lastTriggeredMode.current = null;
     }
-  }, [isLivePhase, mode, send, room.state]);
+  }, [isLivePhase, mode, send, room.state, agentReady]);
 
   return null;
 }
@@ -198,7 +218,7 @@ export default function FloatingCTA() {
       if (flowPhase === 'idle' && mode !== 'intro-avatar') {
         setFlowPhase('connecting');
       }
-      
+
       setIsIntroComplete(false);
       setError(null);
       if (!isLkConnected) {
@@ -225,7 +245,7 @@ export default function FloatingCTA() {
           roomName: generatedRoomName,
           participantName: participantIdentityRef.current,
           metadata: JSON.stringify({ mode: activeMode }),
-          mode: activeMode, 
+          mode: activeMode,
         }),
       });
 
@@ -249,6 +269,7 @@ export default function FloatingCTA() {
   };
 
   const handleAIAction = (mode: 'video' | 'voice' | 'avatar-chat') => {
+    setIsOpen(true);
     if (flowPhase === 'live' && pendingMode === mode) return;
 
     setPendingMode(mode);
@@ -267,6 +288,7 @@ export default function FloatingCTA() {
   };
 
   const handleChatAction = () => {
+    setIsOpen(true);
     if (flowPhase === 'chat') return;
     setPendingMode('chat');
     if (!hasAgreed) {
@@ -289,7 +311,12 @@ export default function FloatingCTA() {
       setRoomName('');
       setFlowPhase('chat');
     } else {
-      setFlowPhase('live');
+      if (!token) {
+        setFlowPhase('connecting');
+        fetchToken(pendingMode);
+      } else {
+        setFlowPhase('live');
+      }
     }
   };
 
@@ -322,12 +349,12 @@ export default function FloatingCTA() {
         setHasAutoHidden(true);
       }, 7000);
     } else if (!isOpen) {
-      setHasAutoHidden(false); 
-      setFlowPhase('idle'); 
+      setHasAutoHidden(false);
+      setFlowPhase('idle');
       setToken(null);
       setLkUrl(null);
       setIsLkConnected(false);
-      setRoomName(''); 
+      setRoomName('');
     }
     return () => clearTimeout(timeout);
   }, [isOpen, hasAutoHidden]);
@@ -376,10 +403,10 @@ export default function FloatingCTA() {
 
         if (femaleVoice) announcement.voice = femaleVoice;
         announcement.rate = 1.0;
-        announcement.pitch = 1.15; 
+        announcement.pitch = 1.15;
         announcement.volume = 0.9;
 
-        window.speechSynthesis.cancel(); 
+        window.speechSynthesis.cancel();
         window.speechSynthesis.speak(announcement);
       };
 
@@ -511,8 +538,8 @@ export default function FloatingCTA() {
                         <motion.div key="live-view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 flex flex-col items-center justify-center p-0">
                           <LiveKitRoom
                             key={roomName}
-                            video={pendingMode === 'video'}
-                            audio={hasAgreed && (pendingMode !== 'avatar-chat')}
+                            video={false}
+                            audio={false}
                             token={token || ""}
                             serverUrl={lkUrl || ""}
                             connect={true}
@@ -711,9 +738,9 @@ export default function FloatingCTA() {
                             <VideoStage mode={pendingMode} keyframeMetadata={keyframeMetaData} />
                             <ChannelStartTrigger isLivePhase={flowPhase === 'live' && pendingMode !== 'chat'} mode={pendingMode} />
 
-                            {/* Standard audio renderer — used for 'voice' and as safety fallback */}
-                            {pendingMode === 'voice' && <RoomAudioRenderer />}
-                           </LiveKitRoom>
+                            {/* Standard audio renderer — used as a safety fallback when Keyframe is offline */}
+                            {!keyframeMetaData && <RoomAudioRenderer />}
+                          </LiveKitRoom>
                         </motion.div>
                       )}
 
