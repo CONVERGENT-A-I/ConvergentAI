@@ -40,20 +40,18 @@ jobs:
                 echo Build Docker image
                 docker build -t convergentai:latest .
 
-                docker ps
-                docker images list
                 #echo Remove old container
-                #docker rm -f convergentai.tech || true
+                docker rm -f convergentai.tech || true
 
-                echo Start new container
-                #docker run -d \
-                #  --name convergentai.tech \
-                #  --restart unless-stopped \
-                #  -p 3000:3000 \
-                #  convergentai:latest
+                #echo Start new container
+                docker run -d \
+                  --name convergentai.tech \
+                  --restart unless-stopped \
+                  -p 3000:3000 \
+                  convergentai:latest
 
-                  #echo Verify container
-                #docker ps | grep convergentai.tech
+                #echo Verify container
+                docker ps | grep convergentai.tech
 
                 #echo Delete old unused images
                 #docker image prune -f
