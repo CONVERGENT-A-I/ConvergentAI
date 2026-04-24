@@ -18,19 +18,44 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Deploy to VM
+      - name: Deploy Docker app to GCP VM
         run: |
           gcloud compute ssh convergent-ai \
             --zone us-east1-b \
             --project ailana-488814 \
+            --tunnel-through-iap \
             --quiet \
             --command "
               set -e
-              sudo ls -la /opt/convergent-ai
-              sudo git config --global --add safe.directory /opt/convergent-ai/ConvergentAI
-              sudo cd /opt/convergent-ai/ConvergentAI
-              sudo git fetch origin main
-              sudo git reset --hard origin/main
-              sudo docker ps
 
+              sudo bash -lc '
+                cd /opt/convergent-ai/ConvergentAI
+
+                git config --global --add safe.directory /opt/convergent-ai/ConvergentAI
+
+                echo Pull latest code
+                git fetch origin main
+                git reset --hard origin/main
+
+                echo Build Docker image
+                docker build -t convergentai:latest .
+
+                docker ps
+                docker images list
+                #echo Remove old container
+                #docker rm -f convergentai.tech || true
+
+                echo Start new container
+                #docker run -d \
+                #  --name convergentai.tech \
+                #  --restart unless-stopped \
+                #  -p 3000:3000 \
+                #  convergentai:latest
+
+                  #echo Verify container
+                #docker ps | grep convergentai.tech
+
+                #echo Delete old unused images
+                #docker image prune -f
+              '
             "
