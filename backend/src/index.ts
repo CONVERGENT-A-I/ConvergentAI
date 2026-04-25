@@ -74,7 +74,7 @@ app.post('/api/get-token', async (req: Request, res: Response) => {
           },
           body: JSON.stringify({
             persona_slug: personaSlug,
-            emotion: "happy" // Set default mood to smile
+            //emotion: "happy" // Set default mood to smile
           }),
         });
 

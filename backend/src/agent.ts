@@ -27,10 +27,10 @@ let introNumChannels = 1;
 async function prewarmIntroAudio() {
   if (cachedIntroFrames) return;
   console.log('[agent]: 🔥 Pre-warming intro TTS audio...');
-  const introTts = new openai.TTS({ voice: "coral" });
+  const introTts = new openai.TTS({ voice: "alloy" });
   introSampleRate = introTts.sampleRate;
   introNumChannels = introTts.numChannels;
-  const introText = "Hi! I am Ailana your Virtual AI Assistant. I am here to help you with mortgage related questions, Please select Live with Ailana if you want to continue conversation with me or select any other channel of your choice.";
+  const introText = "Hello. I am Ailana. It is a pleasure to meet you. ... As your mortgage assistant, my goal is to make your path to homeownership as clear and straightforward as possible using our specialized AI. ... To ensure we are protecting your privacy and meeting our commitment to transparency, I have placed our AI Use Disclosure on your screen for you to review. ... Once you click 'Agree and Get Started', we can move forward together to find the right mortgage solution for your goals.";
   const stream = introTts.synthesize(introText);
   const frames: any[] = [];
   for await (const event of stream) {
@@ -155,9 +155,9 @@ You are now in active conversation mode. Respond helpfully to user questions abo
 
         // Find the actual human participant by filtering out known agent identities
         const participants = Array.from(ctx.room.remoteParticipants.values());
-        const participant = participants.find(p => 
-          p.identity !== 'agent' && 
-          !p.identity.startsWith('agent-') && 
+        const participant = participants.find(p =>
+          p.identity !== 'agent' &&
+          !p.identity.startsWith('agent-') &&
           !p.identity.startsWith('keyframe-')
         ) || participants[0];
 
@@ -173,10 +173,10 @@ You are now in active conversation mode. Respond helpfully to user questions abo
           });
           (session as any)._started = true;
           console.log(`[agent]: 🟢 Realtime Agent session.start() completed. Mode ${targetMode} is ready.`);
-          
+
           // Proactively initiate conversation so the user isn't met with silence
-          session.generateReply({ 
-            userInput: "Please say a brief, friendly greeting to start the conversation and ask how you can help." 
+          session.generateReply({
+            userInput: "Please say a brief, friendly greeting to start the conversation and ask how you can help."
           });
         } catch (err) {
           console.error(`[agent]: ❌ Failed to start session:`, err);

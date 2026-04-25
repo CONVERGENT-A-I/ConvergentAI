@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
             },
             body: JSON.stringify({ 
               persona_slug: kfSlug,
-              emotion: "happy" // Set default mood to smile
+              //emotion: "happy" // Set default mood to smile
             }),
           });
 

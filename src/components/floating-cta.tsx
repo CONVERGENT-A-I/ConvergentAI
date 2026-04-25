@@ -456,7 +456,7 @@ export default function FloatingCTA() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-md font-sans"
+            className="fixed inset-0 z-[200] flex items-center justify-center p-0 bg-black/50 backdrop-blur-md font-sans"
           >
             <AnimatePresence mode="wait">
               <motion.div
@@ -464,7 +464,7 @@ export default function FloatingCTA() {
                 initial={{ scale: 1.05, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="relative w-[95vw] sm:w-[90vw] max-w-6xl h-[90vh] min-h-[500px] max-h-[920px] bg-[#050505] rounded-3xl shadow-[0_0_80px_rgba(0,180,216,0.15)] flex flex-col overflow-hidden border border-[#00b4d8]/20"
+                className="relative w-full h-full bg-[#050505] shadow-none flex flex-col overflow-hidden border-none"
               >
 
                 <div className="absolute inset-0 flex flex-col p-3 sm:p-4 md:p-6 overflow-hidden bg-gradient-to-br from-[#050505] to-[#111111] z-0">
@@ -505,7 +505,7 @@ export default function FloatingCTA() {
                     </div>
                   </div>
 
-                  <div className="flex-1 min-h-0 relative w-full flex flex-col items-center justify-center rounded-2xl bg-black/60 shadow-xl border border-white/5 overflow-hidden">
+                  <div className="flex-1 min-h-0 relative w-full flex flex-col items-center justify-center bg-black/60 shadow-none border-none overflow-hidden">
                     <div className="absolute inset-0 bg-gradient-to-b from-[#00b4d8]/10 to-transparent pointer-events-none" />
 
                     <AnimatePresence mode="wait">
@@ -766,50 +766,6 @@ export default function FloatingCTA() {
                   </div>
                 </div>
 
-                {flowPhase !== 'intro' && flowPhase !== 'connecting' && (
-                  <div
-                    onMouseEnter={() => { setIsNavExpanded(true); setHasAutoHidden(true); }}
-                    onMouseLeave={() => { if (hasAutoHidden) setIsNavExpanded(false); }}
-                    onTouchStart={() => { setIsNavExpanded(true); setHasAutoHidden(true); }}
-                    className={`absolute z-20 flex md:flex-col items-center justify-center p-2 sm:p-4 md:p-8 shadow-[0_-20px_40px_rgba(0,0,0,0.5)] md:shadow-[-20px_0_40px_rgba(0,0,0,0.5)] border-t md:border-t-0 md:border-l border-white/5 bg-[#0a0a0a]/90 backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] bottom-0 left-0 right-0 w-full md:w-[320px] md:top-0 md:bottom-0 md:left-auto md:right-0 ${isNavExpanded ? "translate-y-0 md:translate-x-0 opacity-100" : "translate-y-[calc(100%-24px)] md:translate-y-0 md:translate-x-[calc(100%-24px)] opacity-60 hover:opacity-100 cursor-pointer"
-                      }`}
-                  >
-                    <div className="hidden md:flex absolute top-1/2 -translate-y-1/2 left-0 w-6 h-full items-center justify-center pointer-events-none">
-                      <div className={`w-1 h-12 rounded-full transition-colors ${isNavExpanded ? 'bg-white/10' : 'bg-[#00b4d8]/60 shadow-[0_0_10px_rgba(0,180,216,0.5)]'}`} />
-                    </div>
-                    <div className="md:hidden absolute top-0 left-1/2 -translate-x-1/2 h-6 w-full flex items-center justify-center pointer-events-none">
-                      <div className={`h-1 w-12 rounded-full transition-colors ${isNavExpanded ? 'bg-white/10' : 'bg-[#00b4d8]/60 shadow-[0_0_10px_rgba(0,180,216,0.5)]'}`} />
-                    </div>
-                    <div className={`grid grid-cols-5 md:flex md:flex-col gap-1 sm:gap-2 md:gap-3.5 w-full mx-auto md:mx-0 transition-opacity duration-300 mt-2 md:mt-0 ${isNavExpanded ? 'opacity-100' : 'opacity-0'}`}>
-                      <SideButton
-                        onClick={() => handleAIAction('video')}
-                        icon={<Video className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
-                        label="Live with Ailana"
-                        isActive={(flowPhase === 'live' || flowPhase === 'compliance') && pendingMode === 'video'}
-                      />
-                      <SideButton
-                        onClick={() => handleAIAction('avatar-chat')}
-                        icon={<Send className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
-                        label="Type to AI"
-                        isActive={(flowPhase === 'live' || flowPhase === 'compliance') && pendingMode === 'avatar-chat'}
-                      />
-                      <SideButton
-                        onClick={() => handleAIAction('voice')}
-                        icon={<Mic className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
-                        label="AI Voice - Speak to AI"
-                        isActive={(flowPhase === 'live' || flowPhase === 'compliance') && pendingMode === 'voice'}
-                      />
-                      <SideButton
-                        onClick={handleChatAction}
-                        icon={<MessageCircle className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
-                        label="Live Chat"
-                        isActive={flowPhase === 'chat'}
-                      />
-                      <SideButton icon={<Phone className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="Talk to Loan Officer" />
-                      <SideButton onClick={() => window.open("https://warpme.neetocal.com/meeting-with-david-patten-19", "_blank", "noopener,noreferrer")} icon={<Calendar className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />} label="Book Appointment" />
-                    </div>
-                  </div>
-                )}
               </motion.div>
             </AnimatePresence>
 
