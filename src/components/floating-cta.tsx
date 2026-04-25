@@ -19,6 +19,7 @@ import LiveChatPanel from "./live-chat-panel";
 import VideoStage from "./video-stage";
 
 type FlowPhase = 'idle' | 'connecting' | 'intro' | 'compliance' | 'live' | 'chat';
+type IntroSubPhase = 'connecting' | 'playing';
 type PendingMode = 'intro-avatar' | 'video' | 'voice' | 'avatar-chat' | 'chat';
 
 function AgentReadinessCheck({ onAgentReady }: { onAgentReady: (r: boolean) => void }) {
@@ -69,56 +70,7 @@ function MediaGuard({ mode }: { mode: string }) {
 }
 
 function IntroTrigger({ isIntroPhase, onIntroComplete }: { isIntroPhase: boolean; onIntroComplete: () => void }) {
-  const { send } = useChat();
-  const room = useRoomContext();
-  const participants = useRemoteParticipants();
-  const hasTriggered = useRef(false);
-  const agentReady = participants.length > 0;
-
-  useEffect(() => {
-    // Remove the 20s fallback timer as per user request to solely show buttons after intro completion.
-
-    const handleData = (payload: Uint8Array, participant: any, kind: any, topic: string | undefined) => {
-      if (topic === 'lk-chat') {
-        try {
-          const str = new TextDecoder().decode(payload);
-          const parsed = JSON.parse(str);
-          if (parsed.message === 'SYSTEM_INTRO_DONE') {
-            console.log("[ui]: 🤖 Agent signaled intro completion. Happy path!");
-            onIntroComplete();
-          }
-        } catch (e) {
-          // ignore corrupted JSON
-        }
-      }
-    };
-
-    room.on(RoomEvent.DataReceived, handleData);
-    return () => {
-      room.off(RoomEvent.DataReceived, handleData);
-    };
-  }, [room, onIntroComplete, isIntroPhase]);
-
-  useEffect(() => {
-    if (agentReady && isIntroPhase && !hasTriggered.current) {
-      const trySend = async (retries = 3) => {
-        try {
-          console.log("[ui]: 🚀 Agent detected. Sending SYSTEM_INTRO_TRIGGER to backend...");
-          const encoder = new TextEncoder();
-          const payload = encoder.encode(JSON.stringify({ message: "SYSTEM_INTRO_TRIGGER" }));
-          await room.localParticipant.publishData(payload, { topic: "lk-chat", reliable: true });
-          hasTriggered.current = true;
-        } catch (err) {
-          console.warn(`[ui]: Failed to send intro trigger (retries left: ${retries}):`, err);
-          if (retries > 0) {
-            setTimeout(() => trySend(retries - 1), 500);
-          }
-        }
-      };
-      trySend();
-    }
-  }, [agentReady, isIntroPhase, send, room]);
-
+  // Disabled: The intro is now handled by a pre-recorded video in the UI.
   return null;
 }
 
@@ -203,6 +155,8 @@ export default function FloatingCTA() {
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [roomName, setRoomName] = useState<string>('');
   const [isCopied, setIsCopied] = useState(false);
+  const [introSubPhase, setIntroSubPhase] = useState<IntroSubPhase>('connecting');
+  const introVideoRef = useRef<HTMLVideoElement>(null);
   const searchParams = useSearchParams();
 
   const isFetchingRef = useRef(false);
@@ -257,7 +211,11 @@ export default function FloatingCTA() {
       setToken(data.token);
       setLkUrl(data.serverUrl);
       setKeyframeMetaData(data.keyframe ?? null);
-      setFlowPhase(mode === 'intro-avatar' ? 'intro' : 'live');
+      
+      // If we are already in intro phase (playing video), don't jump to 'live'
+      if (flowPhase !== 'intro') {
+        setFlowPhase(mode === 'intro-avatar' ? 'intro' : 'live');
+      }
     } catch (err) {
       console.error('Error connecting to LiveKit:', err);
       setError('Connection failed. Please try again.');
@@ -456,7 +414,7 @@ export default function FloatingCTA() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center p-0 bg-black/50 backdrop-blur-md font-sans"
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-md font-sans"
           >
             <AnimatePresence mode="wait">
               <motion.div
@@ -464,7 +422,7 @@ export default function FloatingCTA() {
                 initial={{ scale: 1.05, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="relative w-full h-full bg-[#050505] shadow-none flex flex-col overflow-hidden border-none"
+                className="relative w-[95vw] sm:w-[90vw] max-w-6xl h-[90vh] min-h-[500px] max-h-[920px] bg-[#050505] rounded-3xl shadow-[0_0_80px_rgba(0,180,216,0.15)] flex flex-col overflow-hidden border border-[#00b4d8]/20"
               >
 
                 <div className="absolute inset-0 flex flex-col p-3 sm:p-4 md:p-6 overflow-hidden bg-gradient-to-br from-[#050505] to-[#111111] z-0">
@@ -505,7 +463,7 @@ export default function FloatingCTA() {
                     </div>
                   </div>
 
-                  <div className="flex-1 min-h-0 relative w-full flex flex-col items-center justify-center bg-black/60 shadow-none border-none overflow-hidden">
+                  <div className="flex-1 min-h-0 relative w-full flex flex-col items-center justify-center rounded-2xl bg-black/60 shadow-xl border border-white/5 overflow-hidden">
                     <div className="absolute inset-0 bg-gradient-to-b from-[#00b4d8]/10 to-transparent pointer-events-none" />
 
                     <AnimatePresence mode="wait">
@@ -596,7 +554,9 @@ export default function FloatingCTA() {
                                     </button>
                                     <button
                                       onClick={() => {
-                                        setFlowPhase('intro'); // Go back to intro options if declined
+                                        setFlowPhase('intro');
+                                        setIntroSubPhase('playing');
+                                        setIsIntroComplete(true);
                                       }}
                                       className="w-full py-3 rounded-xl border border-white/10 text-gray-500 text-sm hover:bg-white/5 transition-colors"
                                     >
@@ -607,72 +567,117 @@ export default function FloatingCTA() {
                               </motion.div>
                             )}
 
-                            {flowPhase === 'intro' && isIntroComplete && (
-                              <motion.div
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                className="absolute inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 sm:p-8"
-                              >
-                                <div className="max-w-4xl w-full flex flex-col gap-4 md:gap-8 max-h-full overflow-y-auto custom-scrollbar p-2">
-                                  <h3 className="text-white font-bold text-center text-xl md:text-3xl mb-2 md:mb-6 tracking-wide drop-shadow-md">Select your preferred channel</h3>
-                                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 md:gap-6">
-                                    <button onClick={() => handleAIAction('video')} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
-                                      <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
-                                        <Video className="h-4 w-4 md:h-6 md:w-6" />
-                                      </div>
-                                      <div className="flex flex-col text-center sm:text-left">
-                                        <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Live with Ailana</span>
-                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Face-to-face interaction with Ailana</span>
-                                      </div>
-                                    </button>
-                                    <button onClick={() => handleAIAction('avatar-chat')} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
-                                      <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
-                                        <MessageCircle className="h-4 w-4 md:h-6 md:w-6" />
-                                      </div>
-                                      <div className="flex flex-col text-center sm:text-left">
-                                        <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Type to AI</span>
-                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Silent text-based engagement</span>
-                                      </div>
-                                    </button>
-                                    <button onClick={() => handleAIAction('voice')} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
-                                      <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
-                                        <Mic className="h-4 w-4 md:h-6 md:w-6" />
-                                      </div>
-                                      <div className="flex flex-col text-center sm:text-left">
-                                        <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Speak to AI</span>
-                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Private two-way voice call</span>
-                                      </div>
-                                    </button>
-                                    <button onClick={handleChatAction} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
-                                      <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
-                                        <MessageCircle className="h-4 w-4 md:h-6 md:w-6" />
-                                      </div>
-                                      <div className="flex flex-col text-center sm:text-left">
-                                        <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Live Chat</span>
-                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Text a human representative</span>
-                                      </div>
-                                    </button>
-                                    <button onClick={() => window.location.href = 'tel:+1234567890'} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
-                                      <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
-                                        <Phone className="h-4 w-4 md:h-6 md:w-6" />
-                                      </div>
-                                      <div className="flex flex-col text-center sm:text-left">
-                                        <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Talk to Officer</span>
-                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Speak directly with our team</span>
-                                      </div>
-                                    </button>
-                                    <button onClick={() => window.open("https://warpme.neetocal.com/meeting-with-david-patten-19", "_blank", "noopener,noreferrer")} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
-                                      <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
-                                        <Calendar className="h-4 w-4 md:h-6 md:w-6" />
-                                      </div>
-                                      <div className="flex flex-col text-center sm:text-left">
-                                        <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Book Appt.</span>
-                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Schedule a consultation</span>
-                                      </div>
-                                    </button>
-                                  </div>
-                                </div>
-                              </motion.div>
+                            {flowPhase === 'intro' && (
+                              <div className="absolute inset-0 z-[120] bg-black flex items-center justify-center">
+                                {introSubPhase === 'connecting' && (
+                                  <motion.div 
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className="absolute inset-0 flex flex-col items-center justify-center text-center px-6"
+                                  >
+                                    <div className="relative mb-8">
+                                      <div className="absolute inset-0 rounded-full border-2 border-[#00b4d8]/20 animate-ping" />
+                                      <Loader2 className="h-16 w-16 text-[#00b4d8] animate-spin opacity-40" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-white mb-2 tracking-tight">Initializing Session</h3>
+                                    <p className="text-[#00b4d8]/60 text-[10px] font-bold uppercase tracking-[0.2em]">Establishing Secure Bridge</p>
+                                  </motion.div>
+                                )}
+
+                                {introSubPhase === 'playing' && (
+                                  <motion.div 
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    className="relative w-full h-full flex items-center justify-center"
+                                  >
+                                    <video
+                                      ref={introVideoRef}
+                                      src="/ailana_intro.mp4"
+                                      autoPlay
+                                      playsInline
+                                      className="w-full h-full object-contain bg-black"
+                                      onTimeUpdate={(e) => {
+                                        const video = e.currentTarget;
+                                        if (video.duration > 0 && video.currentTime >= video.duration - 1.0) {
+                                          setIsIntroComplete(true);
+                                        }
+                                      }}
+                                      onEnded={() => setIsIntroComplete(true)}
+                                    />
+                                    
+                                    <AnimatePresence>
+                                      {isIntroComplete && (
+                                        <motion.div
+                                          initial={{ opacity: 0, scale: 0.95 }}
+                                          animate={{ opacity: 1, scale: 1 }}
+                                          className="absolute inset-0 z-[130] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 sm:p-8"
+                                        >
+                                          <div className="max-w-4xl w-full flex flex-col gap-4 md:gap-8 max-h-full overflow-y-auto custom-scrollbar p-2">
+                                            <h3 className="text-white font-bold text-center text-xl md:text-3xl mb-2 md:mb-6 tracking-wide drop-shadow-md">Select your preferred channel</h3>
+                                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 md:gap-6">
+                                              <button onClick={() => handleAIAction('video')} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
+                                                <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
+                                                  <Video className="h-4 w-4 md:h-6 md:w-6" />
+                                                </div>
+                                                <div className="flex flex-col text-center sm:text-left">
+                                                  <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Live with Ailana</span>
+                                                  <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Face-to-face interaction with Ailana</span>
+                                                </div>
+                                              </button>
+                                              <button onClick={() => handleAIAction('avatar-chat')} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
+                                                <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
+                                                  <MessageCircle className="h-4 w-4 md:h-6 md:w-6" />
+                                                </div>
+                                                <div className="flex flex-col text-center sm:text-left">
+                                                  <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Type to AI</span>
+                                                  <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Silent text-based engagement</span>
+                                                </div>
+                                              </button>
+                                              <button onClick={() => handleAIAction('voice')} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
+                                                <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
+                                                  <Mic className="h-4 w-4 md:h-6 md:w-6" />
+                                                </div>
+                                                <div className="flex flex-col text-center sm:text-left">
+                                                  <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Speak to AI</span>
+                                                  <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Private two-way voice call</span>
+                                                </div>
+                                              </button>
+                                              <button onClick={handleChatAction} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
+                                                <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
+                                                  <MessageCircle className="h-4 w-4 md:h-6 md:w-6" />
+                                                </div>
+                                                <div className="flex flex-col text-center sm:text-left">
+                                                  <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Live Chat</span>
+                                                  <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Text a human representative</span>
+                                                </div>
+                                              </button>
+                                              <button onClick={() => window.location.href = 'tel:+1234567890'} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
+                                                <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
+                                                  <Phone className="h-4 w-4 md:h-6 md:w-6" />
+                                                </div>
+                                                <div className="flex flex-col text-center sm:text-left">
+                                                  <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Talk to Officer</span>
+                                                  <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Speak directly with our team</span>
+                                                </div>
+                                              </button>
+                                              <button onClick={() => window.open("https://warpme.neetocal.com/meeting-with-david-patten-19", "_blank", "noopener,noreferrer")} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
+                                                <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
+                                                  <Calendar className="h-4 w-4 md:h-6 md:w-6" />
+                                                </div>
+                                                <div className="flex flex-col text-center sm:text-left">
+                                                  <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Book Appt.</span>
+                                                  <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Schedule a consultation</span>
+                                                </div>
+                                              </button>
+                                            </div>
+                                          </div>
+                                        </motion.div>
+                                      )}
+                                    </AnimatePresence>
+                                  </motion.div>
+                                )}
+                              </div>
                             )}
                             {/* ── Connecting overlay — visible until WebRTC is fully up AND agent arrives ── */}
                             <AnimatePresence>
@@ -766,234 +771,106 @@ export default function FloatingCTA() {
                   </div>
                 </div>
 
-              </motion.div>
-            </AnimatePresence>
-
-            {/* Regulatory Compliance Gate - Moved to top level to be "above everything" */}
-            <AnimatePresence>
-              {flowPhase === 'compliance' && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="fixed inset-0 z-[300] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-md"
-                >
-                  <motion.div
-                    key="compliance-gate"
-                    initial={{ scale: 0.9, opacity: 0, y: 30 }}
-                    animate={{ scale: 1, opacity: 1, y: 0 }}
-                    exit={{ scale: 0.95, opacity: 0, y: -20 }}
-                    transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                    className="relative w-full max-w-2xl bg-[#0a0a0a]/95 backdrop-blur-xl border border-[#00b4d8]/30 rounded-3xl p-6 md:p-10 shadow-[0_0_100px_rgba(0,180,216,0.25)] flex flex-col overflow-hidden max-h-[90vh]"
+                {flowPhase !== 'intro' && flowPhase !== 'connecting' && (
+                  <div
+                    onMouseEnter={() => { setIsNavExpanded(true); setHasAutoHidden(true); }}
+                    onMouseLeave={() => { if (hasAutoHidden) setIsNavExpanded(false); }}
+                    onTouchStart={() => { setIsNavExpanded(true); setHasAutoHidden(true); }}
+                    className={`absolute z-20 flex md:flex-col items-center justify-center p-2 sm:p-4 md:p-8 shadow-[0_-20px_40px_rgba(0,0,0,0.5)] md:shadow-[-20px_0_40px_rgba(0,0,0,0.5)] border-t md:border-t-0 md:border-l border-white/5 bg-[#0a0a0a]/90 backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] bottom-0 left-0 right-0 w-full md:w-[320px] md:top-0 md:bottom-0 md:left-auto md:right-0 ${isNavExpanded ? "translate-y-0 md:translate-x-0 opacity-100" : "translate-y-[calc(100%-24px)] md:translate-y-0 md:translate-x-[calc(100%-24px)] opacity-60 hover:opacity-100 cursor-pointer"
+                      }`}
                   >
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#00b4d8] to-transparent opacity-50" />
-
-                    <h2 className="text-xl md:text-3xl font-bold text-white mb-6 shrink-0 flex items-center gap-4">
-                      <div className="h-10 w-10 md:h-12 md:w-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 shadow-inner overflow-hidden relative">
-                        <Image src={AppIcon} alt="Logo" fill sizes="48px" className="object-cover scale-75" />
-                      </div>
-                      Regulatory Notice
-                    </h2>
-
-                    <div className="text-gray-300 text-[14px] md:text-[16px] space-y-4 md:space-y-6 mb-8 md:mb-12 leading-relaxed overflow-y-auto flex-1 pr-3 custom-scrollbar">
-                      <p className="font-semibold text-white/90 text-lg">
-                        Interaction with Ailana (AI Assistant)
-                      </p>
-                      <p>
-                        Before proceeding, please acknowledge that you are interacting with an automated system designed for mortgage informational purposes.
-                      </p>
-                      <ul className="space-y-4 md:space-y-6 list-none">
-                        <li className="flex items-start gap-4">
-                          <div className="mt-1.5 h-2 w-2 rounded-full bg-[#00b4d8] shrink-0 shadow-[0_0_10px_rgba(0,180,216,0.8)]" />
-                          <span><strong className="text-white block mb-0.5">Non-Human Interaction:</strong> Ailana is an AI, not a human loan officer.</span>
-                        </li>
-                        <li className="flex items-start gap-4">
-                          <div className="mt-1.5 h-2 w-2 rounded-full bg-[#00b4d8] shrink-0 shadow-[0_0_10px_rgba(0,180,216,0.8)]" />
-                          <span><strong className="text-white block mb-0.5">Informational Only:</strong> Responses do not constitute financial advice, credit offers, or rate locks.</span>
-                        </li>
-                        <li className="flex items-start gap-4">
-                          <div className="mt-1.5 h-2 w-2 rounded-full bg-[#00b4d8] shrink-0 shadow-[0_0_10px_rgba(0,180,216,0.8)]" />
-                          <span><strong className="text-white block mb-1">Audit Trail:</strong> This conversation is recorded and timestamped for regulatory compliance and quality assurance.</span>
-                        </li>
-                        <li className="flex items-start gap-4">
-                          <div className="mt-1.5 h-2 w-2 rounded-full bg-[#ef4444] shrink-0 shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
-                          <span><strong className="text-[#ef4444] block mb-1">Recording Clause:</strong> You consent to the recording of audio, video, and chat for compliance.</span>
-                        </li>
-                        <li className="flex items-start gap-4">
-                          <div className="mt-1.5 h-2 w-2 rounded-full bg-[#a855f7] shrink-0 shadow-[0_0_10px_rgba(168,85,247,0.8)]" />
-                          <span><strong className="text-[#a855f7] block mb-1">Human Off-Ramp:</strong> You can request a human representative at any time by saying "Agent."</span>
-                        </li>
-                      </ul>
+                    <div className="hidden md:flex absolute top-1/2 -translate-y-1/2 left-0 w-6 h-full items-center justify-center pointer-events-none">
+                      <div className={`w-1 h-12 rounded-full transition-colors ${isNavExpanded ? 'bg-white/10' : 'bg-[#00b4d8]/60 shadow-[0_0_10px_rgba(0,180,216,0.5)]'}`} />
                     </div>
-
-                    <div className="flex flex-col sm:flex-row gap-4 items-center justify-end border-t border-white/5 pt-6 md:pt-10 mt-auto">
-                      <button
-                        onClick={() => setIsOpen(false)}
-                        className="w-full sm:w-auto px-8 py-3.5 font-bold text-gray-400 hover:text-white transition-all cursor-pointer hover:bg-white/5 rounded-xl"
-                      >
-                        No Thanks
-                      </button>
-                      <button
-                        onClick={handleAgree}
-                        className="w-full sm:w-auto px-10 py-4 rounded-xl bg-gradient-to-r from-[#00b4d8] via-[#023e8a] to-[#560bad] text-white font-black tracking-wider transition-all shadow-[0_0_30px_rgba(0,180,216,0.4)] hover:shadow-[0_0_50px_rgba(0,180,216,0.6)] transform hover:scale-[1.03] active:scale-95 cursor-pointer uppercase text-sm"
-                      >
-                        I Agree & Continue
-                      </button>
+                    <div className="md:hidden absolute top-0 left-1/2 -translate-x-1/2 h-6 w-full flex items-center justify-center pointer-events-none">
+                      <div className={`h-1 w-12 rounded-full transition-colors ${isNavExpanded ? 'bg-white/10' : 'bg-[#00b4d8]/60 shadow-[0_0_10px_rgba(0,180,216,0.5)]'}`} />
                     </div>
-                  </motion.div>
-                </motion.div>
-              )}
+                    <div className={`grid grid-cols-5 md:flex md:flex-col gap-1 sm:gap-2 md:gap-3.5 w-full mx-auto md:mx-0 transition-opacity duration-300 mt-2 md:mt-0 ${isNavExpanded ? 'opacity-100' : 'opacity-0'}`}>
+                      <SideButton
+                        onClick={() => handleAIAction('video')}
+                        icon={<Video className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
+                        label="Live with Ailana"
+                        isActive={(flowPhase === 'live' || flowPhase === 'compliance') && pendingMode === 'video'}
+                      />
+                      <SideButton
+                        onClick={() => handleAIAction('avatar-chat')}
+                        icon={<Send className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
+                        label="Type to AI"
+                        isActive={(flowPhase === 'live' || flowPhase === 'compliance') && pendingMode === 'avatar-chat'}
+                      />
+                      <SideButton
+                        onClick={() => handleAIAction('voice')}
+                        icon={<Mic className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
+                        label="AI Voice - Speak to AI"
+                        isActive={(flowPhase === 'live' || flowPhase === 'compliance') && pendingMode === 'voice'}
+                      />
+                      <SideButton
+                        onClick={handleChatAction}
+                        icon={<MessageCircle className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
+                        label="Live Chat"
+                        isActive={flowPhase === 'chat'}
+                      />
+                      <SideButton
+                        onClick={() => window.location.href = 'tel:+1234567890'}
+                        icon={<Phone className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
+                        label="Talk to Officer"
+                      />
+                      <SideButton
+                        onClick={() => window.open("https://warpme.neetocal.com/meeting-with-david-patten-19", "_blank", "noopener,noreferrer")}
+                        icon={<Calendar className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
+                        label="Book Appt."
+                      />
+                    </div>
+                  </div>
+                )}
+              </motion.div>
             </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <motion.div
-        initial={{ opacity: 0, y: 50, scale: 0.8 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="fixed bottom-4 right-4 md:bottom-6 md:right-6 z-[100] font-sans"
-      >
+      <div className="fixed bottom-6 right-6 z-[100]">
         <motion.div
-          role="button"
-          tabIndex={0}
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
+          layout
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
           onClick={() => {
             setIsOpen(true);
             if (flowPhase === 'idle') {
               setFlowPhase('intro');
+              setIntroSubPhase('connecting');
+              setIsIntroComplete(false);
               setPendingMode('intro-avatar');
               fetchToken('intro-avatar');
+              
+              // 1.5s connecting delay before video
+              setTimeout(() => {
+                setIntroSubPhase('playing');
+              }, 1500);
             }
           }}
           className="group relative flex items-center gap-2.5 md:gap-4 rounded-full bg-gradient-to-br from-[#00b4d8] via-[#023e8a] to-[#560bad] p-1.5 pr-5 md:p-2.5 md:pr-8 text-white shadow-[0_0_40px_rgba(0,180,216,0.5),0_0_20px_rgba(86,11,173,0.5)] transition-all duration-300 hover:shadow-[0_0_60px_rgba(0,180,216,0.7),0_0_30px_rgba(86,11,173,0.7)] hover:-translate-y-2 hover:scale-[1.02] active:scale-95 cursor-pointer"
         >
-          {/* Pulsing Aura Behind Button */}
-          <motion.div
-            className="absolute -inset-2 -z-10 rounded-full bg-gradient-to-br from-[#00b4d8] via-[#023e8a] to-[#560bad] opacity-60 blur-xl"
-            animate={{
-              scale: [1, 1.15, 1],
-              opacity: [0.3, 0.6, 0.3],
-            }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-          />
-          <AnimatePresence>
-            {isHovered && (
-              <motion.div
-                key="hover-effects"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="pointer-events-none absolute -inset-16 z-50"
-              >
-
-                {/* Glitters flowing outwards evenly all around on hover */}
-                {Array.from({ length: 12 }).map((_, i) => {
-                  // Spawn randomly all around the container
-                  const startX = Math.random() * 100;
-                  const startY = Math.random() * 100;
-
-                  // Determine outward direction based on origin
-                  // If on the left side, shoot left; if top, shoot up, etc.
-                  const dirX = startX < 50 ? -1 : 1;
-                  const dirY = startY < 50 ? -1 : 1;
-
-                  // Shoot outward in their respective directions
-                  const randomX = dirX * (Math.random() * 80 + 30);
-                  const randomY = dirY * (Math.random() * 60 + 20);
-
-                  return (
-                    <motion.div
-                      key={i}
-                      className="absolute h-[5px] w-[5px] md:h-2 md:w-2 rounded-full bg-[#a855f7] blur-[1px] shadow-[0_0_15px_rgba(168,85,247,1)]"
-                      style={{
-                        left: `${startX}%`,
-                        top: `${startY}%`,
-                      }}
-                      initial={{ scale: 0, opacity: 0 }}
-                      animate={{
-                        x: randomX,
-                        y: randomY,
-                        scale: [0, Math.random() * 2 + 0.5, 0],
-                        opacity: [0, 1, 0],
-                      }}
-                      transition={{
-                        duration: 1 + Math.random() * 1.5,
-                        repeat: Infinity,
-                        delay: Math.random() * 0.5,
-                        ease: "easeOut",
-                      }}
-                    />
-                  );
-                })}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* 3D Inner Top Highlight for Glassy look */}
-          <div className="pointer-events-none absolute inset-0 rounded-full border-t border-white/50 bg-gradient-to-b from-white/10 to-transparent" />
-
-          {/* Dynamic Glassy Shine (Idle flash & Hover shimmer) */}
-          <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-full">
-            <motion.div
-              className="absolute -top-10 -bottom-10 w-1/2 bg-gradient-to-r from-transparent via-white/40 to-transparent -skew-x-[30deg]"
-              animate={{ x: ["-300%", "400%"] }}
-              transition={
-                isHovered
-                  ? { duration: 1, repeat: Infinity, ease: "linear" }
-                  : { duration: 1.5, repeat: Infinity, repeatDelay: 4.5, ease: "easeInOut" }
-              }
+          <div className="relative h-10 w-10 md:h-14 md:w-14 rounded-full bg-white/20 flex items-center justify-center overflow-hidden border border-white/30 backdrop-blur-sm">
+            <Image
+              src="/friendly_ai_avatar_v2.png"
+              alt="Ailana"
+              fill
+              sizes="(max-width: 768px) 40px, 56px"
+              className="object-cover group-hover:scale-110 transition-transform duration-500"
             />
           </div>
-
-          {/* Avatar Wrapper to handle localized scaling & aggressive waving */}
-          <motion.div
-            className="relative shrink-0 flex items-center justify-center h-10 w-10 md:h-14 md:w-14 origin-bottom md:origin-bottom-right"
-            animate={
-              isHovered
-                ? { rotate: [0, -25, 15, -20, 10, 0], scale: 1.15 }
-                : { rotate: [0, -25, 20, -20, 10, 0], scale: [1, 1.3, 1.3, 1.3, 1.1, 1] }
-            }
-            transition={
-              isHovered
-                ? { duration: 0.9, ease: "easeInOut" }
-                : { duration: 1.5, ease: "easeInOut", repeat: Infinity, repeatDelay: 4.5 }
-            }
-          >
-            {/* Outer pulse ring for the headshot */}
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-              className="absolute -inset-[3px] md:-inset-1 rounded-full border border-dashed border-[#a855f7] opacity-60"
-            />
-
-            {/* AI Headshot Image */}
-            <div className="relative h-full w-full overflow-hidden rounded-full border-[1.5px] border-[#a855f7]/60 bg-[#560bad] shadow-[0_0_15px_rgba(86,11,173,0.5)]">
-              <Image
-                src="/friendly_ai_avatar_v2.png"
-                alt="Friendly AI Assistant"
-                fill
-                sizes="(max-width: 768px) 40px, 56px"
-                className="object-cover"
-              />
-            </div>
-          </motion.div>
-
-          {/* Text Content */}
-          <div className="relative z-10 flex flex-col items-start pr-1 md:pr-2">
-            <span className="text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.25em] text-[#00b4d8] drop-shadow-md">
-              Wait! Let's Talk
-            </span>
-            <span className="flex items-center gap-1.5 text-[13px] md:text-lg font-black tracking-tight text-white group-hover:text-[#00b4d8] transition-all drop-shadow-md">
-              Chat with AI <Sparkles className="h-3.5 w-3.5 md:h-5 md:w-5 text-[#00b4d8]" />
+          <div className="flex flex-col">
+            <span className="text-[10px] md:text-xs font-bold text-white/70 uppercase tracking-[0.2em] mb-0.5">Live with Ailana</span>
+            <span className="text-sm md:text-lg font-black tracking-tight text-white flex items-center gap-2">
+              Start Conversation
+              <Sparkles className="h-3.5 w-3.5 md:h-4 md:w-4 text-yellow-300 animate-pulse" />
             </span>
           </div>
         </motion.div>
-      </motion.div>
+      </div>
     </>
   );
 }

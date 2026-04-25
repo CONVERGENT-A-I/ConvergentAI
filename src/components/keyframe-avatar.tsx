@@ -7,9 +7,9 @@ import { useParticipants } from "@livekit/components-react";
 import { Track } from "livekit-client";
 
 interface KeyframeMetadata {
-  server_url: string;
+  server_url:        string;
   participant_token: string;
-  agent_identity: string;
+  agent_identity:    string;
 }
 
 interface KeyframeAvatarProps {
@@ -37,14 +37,14 @@ interface KeyframeAvatarProps {
  *   connection to the Keyframe room — no duplicate-identity conflicts.
  */
 export default function KeyframeAvatar({ keyframeMetadata, className }: KeyframeAvatarProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const sessionRef = useRef<PersonaSession | null>(null);
-  const isRetrying = useRef(false);
+  const videoRef       = useRef<HTMLVideoElement>(null);
+  const audioRef       = useRef<HTMLAudioElement>(null);
+  const sessionRef     = useRef<PersonaSession | null>(null);
+  const isRetrying     = useRef(false);
   const isConnectedRef = useRef(false);   // true only after onStateChange("connected")
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const processorRef = useRef<AudioWorkletNode | null>(null);
-  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const audioCtxRef    = useRef<AudioContext | null>(null);
+  const processorRef   = useRef<AudioWorkletNode | null>(null);
+  const sourceRef      = useRef<MediaStreamAudioSourceNode | null>(null);
 
   const [status, setStatus] = useState<"connecting" | "connected" | "error">("connecting");
 
@@ -53,7 +53,7 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
   const agentMediaStream: MediaStream | undefined = (() => {
     // 1. Try to find participant starting with 'agent-' or exactly 'agent'
     let agent = participants.find((p) => p.identity === "agent" || p.identity.startsWith("agent-"));
-
+    
     // 2. Fallback: Take the first remote participant that isn't us (guest)
     if (!agent) {
       agent = participants.find((p) => !p.identity.startsWith("guest_"));
@@ -64,7 +64,7 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
     const pub = agent
       .getTrackPublications()
       .find((p) => p.source === Track.Source.Microphone && p.isSubscribed);
-
+    
     const stream = (pub?.track as any)?.mediaStream as MediaStream | undefined;
     if (stream) {
       console.log(`[KeyframeAvatar] 🎤 Found audio stream from agent: ${agent.identity}`);
@@ -98,7 +98,7 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
     }
 
     const targetIdentity = detectedAgentId || keyframeMetadata?.agent_identity;
-
+    
     if (!keyframeMetadata?.server_url || !keyframeMetadata?.participant_token || !targetIdentity) {
       return;
     }
@@ -110,19 +110,19 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
       if (cancelled || isConnectedRef.current) return;
 
       console.log("[KeyframeAvatar] Attempting connection →", {
-        serverUrl: keyframeMetadata.server_url,
+        serverUrl:     keyframeMetadata.server_url,
         agentIdentity: targetIdentity,
       });
 
       // Debug: Log all participants
-      console.log("[KeyframeAvatar] Current participants in room:",
+      console.log("[KeyframeAvatar] Current participants in room:", 
         participants.map(p => `${p.identity} (${p.sid})`).join(", ")
       );
 
       const session = createClient({
-        serverUrl: keyframeMetadata.server_url,
+        serverUrl:        keyframeMetadata.server_url,
         participantToken: keyframeMetadata.participant_token,
-        agentIdentity: targetIdentity,
+        agentIdentity:    targetIdentity,
 
         onVideoTrack: (track) => {
           if (cancelled || !videoRef.current) return;
@@ -146,21 +146,21 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
           if (state === "connected") {
             isConnectedRef.current = true;
             setStatus("connected");
-
+            
             // Set base emotion to happy (smile) as per user request
             if (sessionRef.current) {
               console.log("[KeyframeAvatar] 😊 Setting emotion to happy");
               try {
                 // @ts-ignore - setEmotion exists in latest SDK but might missing from local types
-                //sessionRef.current.setEmotion("happy");
+                sessionRef.current.setEmotion("happy");
               } catch (e) {
                 console.warn("[KeyframeAvatar] Failed to set initial emotion:", e);
               }
             }
           } else if (state === "error" || state === "disconnected") {
             if (!isRetrying.current) {
-              isConnectedRef.current = false;
-              setStatus("error");
+               isConnectedRef.current = false;
+               setStatus("error");
             }
           }
         },
@@ -185,14 +185,14 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
 
       const connectWithRetry = async () => {
         if (cancelled || isConnectedRef.current || isConnecting) return;
-
+        
         try {
           isConnecting = true;
           attempt++;
           console.log(`[KeyframeAvatar] session.connect() attempt ${attempt}/${maxRetries}...`);
-
+          
           await session.connect();
-
+          
           if (!cancelled) {
             console.log("[KeyframeAvatar] ✅ connect() resolved");
             isRetrying.current = false;
@@ -201,7 +201,7 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
           }
         } catch (err) {
           console.error(`[KeyframeAvatar] ❌ connect() attempt ${attempt} failed:`, err);
-
+          
           if (attempt < maxRetries && !cancelled) {
             console.log("[KeyframeAvatar] ⏳ Retrying in 1.5s...");
             isRetrying.current = true;
@@ -221,14 +221,14 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
       };
 
       connectWithRetry();
-    }, 200);
+    }, 200); 
 
     return () => {
       cancelled = true;
       clearTimeout(connectionTimer);
       const session = sessionRef.current;
       if (session) {
-        session.close().catch(() => { });
+        session.close().catch(() => {});
         sessionRef.current = null;
       }
       isConnectedRef.current = false;
@@ -238,12 +238,12 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   function tearDownAudioPipe() {
-    try { sourceRef.current?.disconnect(); } catch (_) { }
-    try { processorRef.current?.disconnect(); } catch (_) { }
-    try { audioCtxRef.current?.close(); } catch (_) { }
-    sourceRef.current = null;
+    try { sourceRef.current?.disconnect(); } catch (_) {}
+    try { processorRef.current?.disconnect(); } catch (_) {}
+    try { audioCtxRef.current?.close(); } catch (_) {}
+    sourceRef.current    = null;
     processorRef.current = null;
-    audioCtxRef.current = null;
+    audioCtxRef.current  = null;
   }
 
   // ── Step 2: Pipe agent audio → Keyframe for lip-sync ────────────────────
@@ -291,7 +291,7 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
         registerProcessor('kf-pcm-capture', KfPcmCapture);
       `;
       const blob = new Blob([workletSrc], { type: "application/javascript" });
-      const url = URL.createObjectURL(blob);
+      const url  = URL.createObjectURL(blob);
       await ctx.audioWorklet.addModule(url);
       URL.revokeObjectURL(url);
 
@@ -327,14 +327,14 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
     } catch (err) {
       console.error("[KeyframeAvatar] ❌ Audio pipe setup failed:", err);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (!agentMediaStream) return;
     startAudioPipe(agentMediaStream);
     return () => tearDownAudioPipe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentMediaStream, startAudioPipe]);
 
   // ── Render ───────────────────────────────────────────────────────────────
