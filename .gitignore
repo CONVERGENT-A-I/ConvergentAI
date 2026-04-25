@@ -50,5 +50,7 @@ backend/.env.example
 backend/.env.local
 backend/dist
 
-test
->>>>>>> 6d8319f0f24030f15dc58c7c286fbe935d1dcf84
+
+# DevOps tools changes
+Dockerfile
+docker-compose.yaml
