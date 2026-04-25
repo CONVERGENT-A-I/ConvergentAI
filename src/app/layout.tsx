@@ -39,7 +39,7 @@ export default function RootLayout({
         <BackendConnectionTest />
         {children}
         <Suspense fallback={null}>
-          {/*<FloatingCTA />*/}
+          <FloatingCTA />
         </Suspense>
         <Footer />
       </body>
