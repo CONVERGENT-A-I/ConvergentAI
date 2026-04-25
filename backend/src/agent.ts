@@ -30,7 +30,7 @@ async function prewarmIntroAudio() {
   const introTts = new openai.TTS({ voice: "alloy" });
   introSampleRate = introTts.sampleRate;
   introNumChannels = introTts.numChannels;
-  const introText = "Hello. I am Ailana. It is a pleasure to meet you. ... As your mortgage assistant, my goal is to make your path to homeownership as clear and straightforward as possible using our specialized AI. ... To ensure we are protecting your privacy and meeting our commitment to transparency, I have placed our AI Use Disclosure on your screen for you to review. ... Once you click 'Agree and Get Started', we can move forward together to find the right mortgage solution for your goals.";
+  const introText = "Hello,,,,, Hello I am Ailana. It is a pleasure to meet you. ... As your mortgage assistant, my goal is to make your path to homeownership as clear and straightforward as possible using our specialized AI. ... To ensure we are protecting your privacy and meeting our commitment to transparency, I have placed our AI Use Disclosure on your screen for you to review. ... Once you Agree and click 'Get Started', we can move forward together to find the right mortgage solution for your goals.";
   const stream = introTts.synthesize(introText);
   const frames: any[] = [];
   for await (const event of stream) {
