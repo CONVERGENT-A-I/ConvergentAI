@@ -199,8 +199,10 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
             isConnectedRef.current = true;
             setStatus("connected");
           }
-        } catch (err) {
-          console.error(`[KeyframeAvatar] ❌ connect() attempt ${attempt} failed:`, err);
+        } catch (err: any) {
+          if (!cancelled && err?.message !== "Client initiated disconnect") {
+            console.error(`[KeyframeAvatar] ❌ connect() attempt ${attempt} failed:`, err);
+          }
           
           if (attempt < maxRetries && !cancelled) {
             console.log("[KeyframeAvatar] ⏳ Retrying in 1.5s...");
