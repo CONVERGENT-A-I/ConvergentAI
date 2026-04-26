@@ -622,7 +622,7 @@ export default function FloatingCTA() {
                         </motion.div>
                       )}
 
-                      {(flowPhase === 'live' || flowPhase === 'compliance') && token && lkUrl && (
+                      {(flowPhase === 'live' || flowPhase === 'compliance' || flowPhase === 'intro') && token && lkUrl && (
                         <motion.div key="live-view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 flex flex-col items-center justify-center p-0">
                           <LiveKitRoom
                             key={roomName}
@@ -638,7 +638,6 @@ export default function FloatingCTA() {
                           >
                             <AgentReadinessCheck onAgentReady={setIsAgentReady} />
                             <MediaGuard mode={pendingMode} />
-                            <IntroTrigger isIntroPhase={flowPhase === 'intro'} onIntroComplete={() => setIsIntroComplete(true)} />
                             <ChannelStartTrigger isLivePhase={flowPhase === 'live'} mode={pendingMode} />
 
                             {flowPhase === 'compliance' && (
