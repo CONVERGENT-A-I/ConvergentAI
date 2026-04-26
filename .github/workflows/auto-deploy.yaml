@@ -45,6 +45,7 @@ jobs:
 
                 #echo Start new container
                 docker run -d \
+                  --env-file .env \
                   --name convergentai.tech \
                   --restart unless-stopped \
                   -p 3000:3000 \
