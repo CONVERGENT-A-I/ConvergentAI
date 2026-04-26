@@ -158,6 +158,7 @@ export default function FloatingCTA() {
   const [introSubPhase, setIntroSubPhase] = useState<IntroSubPhase>('playing');
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [isIntroBlurring, setIsIntroBlurring] = useState(true);
+  const [complianceChecked, setComplianceChecked] = useState(false);
   const introVideoRef = useRef<HTMLVideoElement>(null);
   const searchParams = useSearchParams();
 
@@ -519,92 +520,130 @@ export default function FloatingCTA() {
                             onEnded={() => setIsIntroComplete(true)}
                           />
 
-                          {/* ── Connecting Overlay (Floating ON TOP of blurred video) ── */}
-                          <AnimatePresence>
-                            {isIntroBlurring && (
-                              <motion.div 
-                                key="intro-loader-overlay"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="absolute inset-0 z-[160] flex flex-col items-center justify-center text-center px-6 bg-black/20"
-                              >
-                                <div className="relative mb-8">
-                                  <div className="absolute inset-0 rounded-full border-2 border-[#00b4d8]/40 animate-ping" />
-                                  <Loader2 className="h-20 w-20 text-[#00b4d8] animate-spin opacity-80" />
-                                </div>
-                                <h3 className="text-2xl font-black text-white mb-2 tracking-tight drop-shadow-2xl">Connecting to Ailana</h3>
-                                <p className="text-[#00b4d8] text-xs font-bold uppercase tracking-[0.3em] drop-shadow-md">Preparing Live Experience</p>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
+                          {/* The connecting overlay over the video has been removed as requested */}
                           
                           <AnimatePresence>
                             {isIntroComplete && (
                               <motion.div
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                className="absolute inset-0 z-[130] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 sm:p-8"
+                                className="absolute inset-0 z-[130] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 sm:p-8"
                               >
-                                <div className="max-w-4xl w-full flex flex-col gap-4 md:gap-8 max-h-full overflow-y-auto custom-scrollbar p-2">
-                                  <h3 className="text-white font-bold text-center text-xl md:text-3xl mb-2 md:mb-6 tracking-wide drop-shadow-md">Select your preferred channel</h3>
-                                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 md:gap-6">
-                                    <button onClick={() => handleAIAction('video')} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
-                                      <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
-                                        <Video className="h-4 w-4 md:h-6 md:w-6" />
+                                {!hasAgreed ? (
+                                  <div className="max-w-2xl w-full bg-[#0a0a0a]/90 border border-white/10 rounded-3xl p-6 md:p-10 shadow-[0_0_50px_rgba(0,180,216,0.2)] flex flex-col gap-6 overflow-hidden">
+                                    <div className="text-center space-y-2">
+                                      <h3 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Safety & Compliance</h3>
+                                      <p className="text-gray-400 text-sm">Please review and accept our terms to get started.</p>
+                                    </div>
+
+                                    <div className="flex-1 overflow-y-auto custom-scrollbar bg-black/40 rounded-xl p-4 border border-white/5 text-gray-300 text-xs md:text-sm leading-relaxed max-h-[300px]">
+                                      <h4 className="font-bold text-white mb-2">Terms and Conditions for ConvergentAI</h4>
+                                      <p className="mb-4">1. Introduction: By using our AI assistant, you agree to these terms. Our assistant uses real-time voice and video processing to provide mortgage-related information.</p>
+                                      <p className="mb-4">2. Data Privacy: We value your privacy. Conversations are recorded and processed to improve our service and for regulatory compliance. Your personal data is handled according to our Privacy Policy.</p>
+                                      <p className="mb-4">3. No Financial Advice: The information provided by the AI assistant is for informational purposes only and does not constitute financial, legal, or professional advice. Always consult with a qualified professional for mortgage decisions.</p>
+                                      <p className="mb-4">4. User Responsibility: You are responsible for the information you provide and the actions you take based on the AI's responses.</p>
+                                      <p className="mb-4">5. Recording Disclosure: This session may be recorded for quality assurance and compliance purposes. By continuing, you consent to such recording.</p>
+                                    </div>
+
+                                    <div className="flex flex-col gap-6">
+                                      <label className="flex items-center gap-3 cursor-pointer group">
+                                        <div className="relative flex items-center justify-center">
+                                          <input 
+                                            type="checkbox" 
+                                            className="sr-only" 
+                                            checked={complianceChecked}
+                                            onChange={(e) => setComplianceChecked(e.target.checked)}
+                                          />
+                                          <div className={`h-5 w-5 rounded border transition-all flex items-center justify-center ${complianceChecked ? 'bg-[#00b4d8] border-[#00b4d8]' : 'bg-white/5 border-white/20 group-hover:border-[#00b4d8]/50'}`}>
+                                            {complianceChecked && <Check className="h-3.5 w-3.5 text-white stroke-[3px]" />}
+                                          </div>
+                                        </div>
+                                        <span className="text-gray-300 text-xs md:text-sm font-medium select-none">I have read and agree to the compliance terms above</span>
+                                      </label>
+
+                                      <div className="flex flex-col sm:flex-row gap-3">
+                                        <button 
+                                          onClick={() => setIsOpen(false)}
+                                          className="flex-1 py-3 px-6 rounded-xl border border-white/10 text-gray-400 font-bold hover:bg-white/5 transition-colors cursor-pointer"
+                                        >
+                                          Cancel
+                                        </button>
+                                        <button 
+                                          disabled={!complianceChecked}
+                                          onClick={() => {
+                                            setPendingMode('video');
+                                            setHasAgreed(true);
+                                            setFlowPhase('live');
+                                          }}
+                                          className={`flex-1 py-3 px-6 rounded-xl font-bold transition-all flex items-center justify-center gap-2 group cursor-pointer ${complianceChecked ? 'bg-white text-black hover:bg-[#00b4d8] hover:text-white shadow-[0_10px_20px_rgba(0,180,216,0.2)]' : 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/5'}`}
+                                        >
+                                          Get started
+                                          <ArrowRight className={`h-4 w-4 transition-transform ${complianceChecked ? 'group-hover:translate-x-1' : ''}`} />
+                                        </button>
                                       </div>
-                                      <div className="flex flex-col text-center sm:text-left">
-                                        <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Live with Ailana</span>
-                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Face-to-face interaction with Ailana</span>
-                                      </div>
-                                    </button>
-                                    <button onClick={() => handleAIAction('avatar-chat')} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
-                                      <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
-                                        <MessageCircle className="h-4 w-4 md:h-6 md:w-6" />
-                                      </div>
-                                      <div className="flex flex-col text-center sm:text-left">
-                                        <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Type to AI</span>
-                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Silent text-based engagement</span>
-                                      </div>
-                                    </button>
-                                    <button onClick={() => handleAIAction('voice')} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
-                                      <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
-                                        <Mic className="h-4 w-4 md:h-6 md:w-6" />
-                                      </div>
-                                      <div className="flex flex-col text-center sm:text-left">
-                                        <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Speak to AI</span>
-                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Private two-way voice call</span>
-                                      </div>
-                                    </button>
-                                    <button onClick={handleChatAction} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
-                                      <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
-                                        <MessageCircle className="h-4 w-4 md:h-6 md:w-6" />
-                                      </div>
-                                      <div className="flex flex-col text-center sm:text-left">
-                                        <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Live Chat</span>
-                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Text a human representative</span>
-                                      </div>
-                                    </button>
-                                    <button onClick={() => window.location.href = 'tel:+1234567890'} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
-                                      <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
-                                        <Phone className="h-4 w-4 md:h-6 md:w-6" />
-                                      </div>
-                                      <div className="flex flex-col text-center sm:text-left">
-                                        <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Talk to Officer</span>
-                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Speak directly with our team</span>
-                                      </div>
-                                    </button>
-                                    <button onClick={() => window.open("https://warpme.neetocal.com/meeting-with-david-patten-19", "_blank", "noopener,noreferrer")} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
-                                      <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
-                                        <Calendar className="h-4 w-4 md:h-6 md:w-6" />
-                                      </div>
-                                      <div className="flex flex-col text-center sm:text-left">
-                                        <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Book Appt.</span>
-                                        <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Schedule a consultation</span>
-                                      </div>
-                                    </button>
+                                    </div>
                                   </div>
-                                </div>
+                                ) : (
+                                  <div className="max-w-4xl w-full flex flex-col gap-4 md:gap-8 max-h-full overflow-y-auto custom-scrollbar p-2">
+                                    <h3 className="text-white font-bold text-center text-xl md:text-3xl mb-2 md:mb-6 tracking-wide drop-shadow-md">Select your preferred channel</h3>
+                                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 md:gap-6">
+                                      <button onClick={() => handleAIAction('video')} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
+                                        <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
+                                          <Video className="h-4 w-4 md:h-6 md:w-6" />
+                                        </div>
+                                        <div className="flex flex-col text-center sm:text-left">
+                                          <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Live with Ailana</span>
+                                          <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Face-to-face interaction with Ailana</span>
+                                        </div>
+                                      </button>
+                                      <button onClick={() => handleAIAction('avatar-chat')} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
+                                        <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
+                                          <MessageCircle className="h-4 w-4 md:h-6 md:w-6" />
+                                        </div>
+                                        <div className="flex flex-col text-center sm:text-left">
+                                          <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Type to AI</span>
+                                          <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Silent text-based engagement</span>
+                                        </div>
+                                      </button>
+                                      <button onClick={() => handleAIAction('voice')} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
+                                        <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
+                                          <Mic className="h-4 w-4 md:h-6 md:w-6" />
+                                        </div>
+                                        <div className="flex flex-col text-center sm:text-left">
+                                          <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Speak to AI</span>
+                                          <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Private two-way voice call</span>
+                                        </div>
+                                      </button>
+                                      <button onClick={handleChatAction} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
+                                        <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
+                                          <MessageCircle className="h-4 w-4 md:h-6 md:w-6" />
+                                        </div>
+                                        <div className="flex flex-col text-center sm:text-left">
+                                          <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Live Chat</span>
+                                          <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Text a human representative</span>
+                                        </div>
+                                      </button>
+                                      <button onClick={() => window.location.href = 'tel:+1234567890'} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
+                                        <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
+                                          <Phone className="h-4 w-4 md:h-6 md:w-6" />
+                                        </div>
+                                        <div className="flex flex-col text-center sm:text-left">
+                                          <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Talk to Officer</span>
+                                          <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Speak directly with our team</span>
+                                        </div>
+                                      </button>
+                                      <button onClick={() => window.open("https://warpme.neetocal.com/meeting-with-david-patten-19", "_blank", "noopener,noreferrer")} className="group flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-2 md:gap-4 p-3 md:p-6 rounded-2xl bg-[#0a0a0a]/90 border border-white/10 hover:border-[#00b4d8]/50 hover:bg-white/5 transition-all w-full shadow-[0_0_20px_rgba(0,180,216,0.1)] hover:shadow-[0_0_40px_rgba(0,180,216,0.3)]">
+                                        <div className="h-10 w-10 md:h-14 md:w-14 rounded-full flex-shrink-0 bg-[#0B0F19] group-hover:bg-gradient-to-br from-[#00b4d8] to-[#560bad] border border-white/10 flex items-center justify-center text-[#00b4d8] group-hover:text-white transition-all duration-300 shadow-sm group-hover:scale-110">
+                                          <Calendar className="h-4 w-4 md:h-6 md:w-6" />
+                                        </div>
+                                        <div className="flex flex-col text-center sm:text-left">
+                                          <span className="font-bold text-white tracking-wide text-[10px] sm:text-sm md:text-lg">Book Appt.</span>
+                                          <span className="text-white/60 text-xs md:text-sm mt-1 leading-tight hidden md:block">Schedule a consultation</span>
+                                        </div>
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
                               </motion.div>
                             )}
                           </AnimatePresence>
@@ -757,7 +796,9 @@ export default function FloatingCTA() {
                                 </div>
                               </div>
                             )}
-                            <VideoStage mode={pendingMode} keyframeMetadata={keyframeMetaData} />
+                            <div className={`absolute inset-0 transition-opacity duration-500 pointer-events-none ${flowPhase === 'live' ? 'opacity-100 pointer-events-auto' : 'opacity-0'}`}>
+                              <VideoStage mode={pendingMode} keyframeMetadata={keyframeMetaData} />
+                            </div>
                             <ChannelStartTrigger isLivePhase={flowPhase === 'live' && pendingMode !== 'chat'} mode={pendingMode} />
 
                             {/* Standard audio renderer — used as a safety fallback when Keyframe is offline */}

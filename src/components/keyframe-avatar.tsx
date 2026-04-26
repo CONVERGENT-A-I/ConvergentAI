@@ -72,21 +72,7 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
     return stream;
   })();
 
-  // ── Step 0: Detect agent identity ──────────────────────────────────────
-  const [detectedAgentId, setDetectedAgentId] = useState<string | null>(null);
-  const [connectionTrigger, setConnectionTrigger] = useState(0);
-
-  useEffect(() => {
-    const agent = participants.find(p => p.identity === 'agent' || p.identity.startsWith('agent-'));
-    if (agent?.identity && agent.identity !== detectedAgentId) {
-      console.log(`[KeyframeAvatar] 🔍 Detected agent identity: ${agent.identity}`);
-      setDetectedAgentId(agent.identity);
-      // Trigger connection if we aren't connected yet
-      if (!isConnectedRef.current) {
-        setConnectionTrigger(prev => prev + 1);
-      }
-    }
-  }, [participants, detectedAgentId]);
+  // ── Step 0: Agent detection for audio pipe is handled by agentMediaStream ──
 
   // ── Step 1: Connect PersonaSession ──────────────────────────────────────
   useEffect(() => {
@@ -97,7 +83,7 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
       return;
     }
 
-    const targetIdentity = detectedAgentId || keyframeMetadata?.agent_identity;
+    const targetIdentity = keyframeMetadata?.agent_identity;
     
     if (!keyframeMetadata?.server_url || !keyframeMetadata?.participant_token || !targetIdentity) {
       return;
@@ -236,7 +222,7 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
       isConnectedRef.current = false;
       tearDownAudioPipe();
     };
-  }, [keyframeMetadata, connectionTrigger]);
+  }, [keyframeMetadata]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   function tearDownAudioPipe() {
