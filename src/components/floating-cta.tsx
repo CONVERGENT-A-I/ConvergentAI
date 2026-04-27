@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageCircle, Sparkles, X, Phone, Video, Mic, MicOff, VideoOff, PhoneOff, Monitor, MoreHorizontal, Circle, Loader2, Send, Check, ArrowRight, Clock, Lock } from "lucide-react";
@@ -322,14 +322,71 @@ function ContextualHelp() {
 /** In-room chat panel using LiveKit useChat(), displayed as side panel */
 function InRoomChatPanel() {
   const { chatMessages, send, isSending } = useChat();
+  const room = useRoomContext();
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // State for spoken transcriptions
+  const [transcripts, setTranscripts] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    if (!room) return;
+
+    const handleTranscription = (segments: any[], participant?: any) => {
+      setTranscripts(prev => {
+        const next = { ...prev };
+        for (const seg of segments) {
+          next[seg.id] = {
+            id: seg.id,
+            text: seg.text,
+            timestamp: seg.startTime || Date.now(),
+            isAgent: participant?.identity === 'agent' || participant?.identity?.startsWith('agent'),
+            final: seg.final,
+            type: 'transcript'
+          };
+        }
+        return next;
+      });
+    };
+
+    room.on('transcriptionReceived', handleTranscription);
+    return () => {
+      room.off('transcriptionReceived', handleTranscription);
+    };
+  }, [room]);
+
+  // Merge chat messages and transcripts
+  const displayMessages = useMemo(() => {
+    const combined: any[] = [];
+    
+    // Add manual chat messages
+    chatMessages.forEach(msg => {
+      combined.push({
+        id: msg.id || msg.timestamp.toString(),
+        text: msg.message,
+        timestamp: msg.timestamp,
+        isAgent: msg.from?.identity?.startsWith('agent') || msg.from?.identity === 'agent',
+        type: 'chat',
+        final: true
+      });
+    });
+
+    // Add transcript messages
+    Object.values(transcripts).forEach(tr => {
+      if (tr.text && tr.text.trim()) { // Don't show empty transcripts
+        combined.push(tr);
+      }
+    });
+
+    // Sort by timestamp
+    return combined.sort((a, b) => a.timestamp - b.timestamp);
+  }, [chatMessages, transcripts]);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [chatMessages]);
+  }, [displayMessages]);
 
   const handleSend = () => {
     const text = input.trim();
@@ -354,7 +411,7 @@ function InRoomChatPanel() {
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4" style={{ scrollbarWidth: 'thin' }}>
-        {chatMessages.length === 0 && (
+        {displayMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center px-4 gap-4">
             <div className="h-14 w-14 rounded-full bg-blue-500/10 flex items-center justify-center">
               <MessageCircle className="h-7 w-7 text-blue-500" />
@@ -374,23 +431,26 @@ function InRoomChatPanel() {
           </div>
         )}
 
-        {chatMessages.map((msg, i) => {
-          const isAgent = msg.from?.identity?.startsWith('agent') || msg.from?.identity === 'agent';
+        {displayMessages.map((msg, i) => {
           return (
-            <div key={i} className={`flex gap-2.5 max-w-[90%] ${isAgent ? 'mr-auto' : 'ml-auto flex-row-reverse'}`}>
-              {isAgent && (
+            <div key={msg.id || i} className={`flex gap-2.5 max-w-[90%] ${msg.isAgent ? 'mr-auto' : 'ml-auto flex-row-reverse'}`}>
+              {msg.isAgent && (
                 <div className="h-7 w-7 rounded-full bg-[#00b4d8] flex items-center justify-center shrink-0 mt-0.5">
                   <Sparkles className="h-3.5 w-3.5 text-white" />
                 </div>
               )}
               <div className="flex flex-col gap-0.5">
-                <div className={`px-3.5 py-2.5 text-[13px] leading-relaxed rounded-2xl ${isAgent
+                <div className={`px-3.5 py-2.5 text-[13px] leading-relaxed rounded-2xl ${msg.isAgent
                   ? 'bg-white/10 text-white rounded-tl-sm'
                   : 'bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white rounded-tr-sm shadow-md'
-                  }`}>
-                  {msg.message}
+                  } ${!msg.final ? 'opacity-70 animate-pulse' : ''}`}>
+                  {msg.type === 'transcript' ? (
+                     <span className="italic">{msg.text}</span>
+                  ) : (
+                     <span>{msg.text}</span>
+                  )}
                 </div>
-                <span className={`text-[10px] text-gray-400 font-medium px-1 ${isAgent ? '' : 'text-right'}`}>
+                <span className={`text-[10px] text-gray-400 font-medium px-1 ${msg.isAgent ? '' : 'text-right'}`}>
                   {formatMsgTime(msg.timestamp)}
                 </span>
               </div>

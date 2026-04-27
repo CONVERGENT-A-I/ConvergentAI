@@ -57,7 +57,7 @@ export default {
     // Load a fresh VAD instance for this specific session
     console.log(`[agent]: Loading Hybrid VAD...`);
     const sessionVad = await silero.VAD.load({
-      minSilenceDuration: 300,
+      minSilenceDuration: 200,
       prefixPaddingDuration: 200,
     });
 
@@ -89,10 +89,10 @@ You are now in active conversation mode. Respond helpfully to user questions abo
       turnHandling: {
         turnDetection: 'vad',
         endpointing: {
-          minDelay: 350,
+          minDelay: 200,
         },
         interruption: {
-          minDuration: 300,
+          minDuration: 200,
         },
       },
     });
