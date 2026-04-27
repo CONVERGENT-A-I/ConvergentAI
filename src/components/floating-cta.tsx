@@ -69,11 +69,6 @@ function MediaGuard({ mode }: { mode: string }) {
   return null;
 }
 
-function IntroTrigger({ isIntroPhase, onIntroComplete }: { isIntroPhase: boolean; onIntroComplete: () => void }) {
-  // Disabled: The intro is now handled by a pre-recorded video in the UI.
-  return null;
-}
-
 function ChannelStartTrigger({ isLivePhase, mode }: { isLivePhase: boolean; mode: string }) {
   const { send } = useChat();
   const room = useRoomContext();
