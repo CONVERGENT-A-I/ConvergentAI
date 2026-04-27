@@ -132,7 +132,7 @@ function VoiceVisualizer() {
  * Custom Stable Video Stage
  * Bypasses the default VideoConference component to avoid internal layout reconciliation errors.
  */
-export default function VideoStage({ mode = 'video', keyframeMetadata }: { mode?: string, keyframeMetadata?: any }) {
+export default function VideoStage({ mode = 'video', keyframeMetadata, hideControls = false }: { mode?: string, keyframeMetadata?: any, hideControls?: boolean }) {
   const [inputText, setInputText] = useState("");
   const { send } = useChat();
 
@@ -235,6 +235,7 @@ export default function VideoStage({ mode = 'video', keyframeMetadata }: { mode?
         </div>
 
         {/* Footer / Input Area */}
+        {!hideControls && (
         <div className="shrink-0 z-20">
           {mode === 'avatar-chat' && (
             <div className="px-6 py-4 bg-gradient-to-t from-black via-black/80 to-transparent">
@@ -276,6 +277,7 @@ export default function VideoStage({ mode = 'video', keyframeMetadata }: { mode?
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );

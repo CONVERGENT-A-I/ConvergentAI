@@ -4,37 +4,52 @@ This document details the implementation plan to modernize the Ailana AI Assista
 
 ## Proposed Changes
 
-### Milestone 1: Streamlined Initialization & Connectivity
+### Milestone 1: Streamlined Initialization & Connectivity ✅ DONE
 Remove the intermediate omnichannel selection slide-out.
-1. When the CTA is clicked, show the **Compliance popup** immediately.
-2. Upon agreement, play the pre-recorded "warm up" video.
+1. When the CTA is clicked, play the pre-recorded "warm up" intro video.
+2. Upon intro completion, show the **Compliance popup**.
 3. Establish the LiveKit connection in the background during the video.
-4. Transition seamlessly into the live Ailana engagement without any additional user clicks.
+4. Upon agreement, transition seamlessly into the live Ailana engagement without any additional user clicks.
+
+#### [MODIFY] src/components/floating-cta.tsx ✅
+- `flowPhase` logic routes `idle` -> `intro` (while connecting) -> compliance overlay -> `live`.
+- 6-button channel selection grid is dead code (will be cleaned up in M2).
+
+### Milestone 2: Unified "Google Meet" Style UI ✅ DONE
+Overhaul the live room UI to match the reference design (see UI reference image).
+1. **Top Header Bar**: Logo left, mode switcher center (Video/Voice/Chat pills), trust markers right.
+2. **Split Layout**: Avatar video (left ~65%) + Chat panel (right ~35%).
+3. **Avatar Controls**: Bottom-center overlay with Mute, Stop Video, End (red), Share, More.
+4. **Subtitle Overlay**: Speech bubble on avatar showing AI transcript.
+5. **Bottom Section**: "Prefer to talk instead?" with "Talk to me" CTA.
+6. **Trust Footer**: "Your information is secure and never shared." | "AI-Powered. Human-Focused. 24/7."
 
 #### [MODIFY] src/components/floating-cta.tsx
-- Remove the 6-button channel selection screen.
-- Adjust `flowPhase` logic to route `idle` -> `compliance` -> `intro` (while connecting) -> `live`.
+- Remove the 6-button channel selection grid (dead code cleanup).
+- Remove `SideButton` component and sidebar navigation.
+- Remove `flowPhase === 'chat'` as a separate phase (chat is now a side panel).
+- Add top mode switcher pills (Video/Voice/Chat) in header during live phase.
+- Add trust markers in header.
+- Add split layout: avatar area + chat panel.
+- Add "Prefer to talk instead?" section.
+- Add trust footer.
 
-### Milestone 2: Unified "Google Meet" Style UI
-Overhaul the live room UI to be clean and focused on the Avatar.
-1. **Bottom Control Bar**: Add buttons for Microphone, Speaker, Video (on/off), and Chat.
-2. **Top Switcher**: Add a "Prefer to talk instead?" toggle to switch between Video, Voice, and Chat modes.
-3. **Trust Markers**: Add subtle labels: "Available 24/7", "Secure & Private", "AI-powered, Human-focused".
+#### [MODIFY] src/components/video-stage.tsx
+- Add `hideControls` prop to suppress built-in footer/controls.
+- Parent (floating-cta) renders custom controls overlay instead.
 
-#### [MODIFY] src/components/floating-cta.tsx
-- Add bottom control bar overlay.
-- Add top mode switcher.
-- Add UI text overlays for trust markers.
+#### [CREATE] Custom RoomControls + InRoomChatPanel components (inline in floating-cta.tsx)
+- RoomControls: Custom Mic/Camera/End/Share/More buttons using LiveKit room context.
+- InRoomChatPanel: Chat panel using LiveKit `useChat()` hook, with timestamps and styling.
 
 ### Milestone 3: Integrated Chat Panel & "Empty State" Experience
 Create a seamless chat experience without leaving the avatar screen.
-1. **Side Panel**: Clicking "Chat" opens a panel on the right side of the avatar.
+1. **Side Panel**: Chat panel always visible alongside avatar in the split layout.
 2. **Empty State**: Display actionable chips (`[Connect to Slack]`, `[Schedule a Call]`, `[Email Summary]`) at the bottom of the chat to guide users.
-3. **Ghost Text**: Input placeholder will read "Ask me to 'Connect to [Channel]'...".
+3. **Ghost Text**: Input placeholder will read "Type a message...".
 
-#### [MODIFY] src/components/live-chat-panel.tsx (or floating-cta.tsx)
-- Integrate the chat panel as a side-drawer within the main window instead of replacing the entire view.
-- Add empty state chips and ghost text.
+#### [MODIFY] src/components/floating-cta.tsx
+- Integrated as part of M2's split layout (chat panel is always visible alongside avatar).
 
 ### Milestone 4: Enhanced Audio/Visual Cues & Subtitles
 Improve visual feedback for voice interactions.
@@ -55,4 +70,3 @@ Ensure the AI leads the interaction.
 
 #### [MODIFY] backend/src/agent.ts
 - Update the system prompt to reflect the new onboarding script and tool availability.
-
