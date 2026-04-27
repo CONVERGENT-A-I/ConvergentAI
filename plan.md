@@ -70,3 +70,15 @@ Ensure the AI leads the interaction.
 
 #### [MODIFY] backend/src/agent.ts
 - Update the system prompt to reflect the new onboarding script and tool availability.
+
+### Milestone 6: Stabilization & Premium Theming ✅ DONE
+Ensure flawless connectivity and align the UI with the brand's aesthetic.
+1. **Avatar Connection Stability**: Prevent `401 Unauthorized` token expiry and WebRTC autoplay blockages by removing destructive animation cycles and properly hiding the avatar container via `opacity` instead of `display: none` during background initialization.
+2. **Logo Color Theme Overhaul**: Replace the generic light/white theme with a premium dark mode using the brand's cyan (`#00b4d8`) and deep blue (`#023e8a`) gradients against a deep navy/black (`#0B0F19`) background.
+3. **Toggleable Chat Panel**: Ensure the chat panel slides in only when the user explicitly selects the "Chat" mode from the top header, maximizing the video stage area otherwise.
+
+#### [MODIFY] src/components/floating-cta.tsx
+- Remove `mode="wait"` from `AnimatePresence` to prevent premature LiveKit room unmounting.
+- Replace `hidden` classes with `opacity-0 pointer-events-none -z-10` for the background WebRTC connection container.
+- Update all UI components (wrappers, headers, chat panel, inputs, footers) to the new dark color palette.
+- Conditionally render the `InRoomChatPanel` based on `pendingMode === 'avatar-chat'`.
