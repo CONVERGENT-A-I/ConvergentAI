@@ -327,7 +327,7 @@ export default function FloatingCTA() {
     if (isVideoReady && flowPhase === 'intro') {
       const timer = setTimeout(() => {
         setIsIntroBlurring(false);
-      }, 2000);
+      }, 1650);
       return () => clearTimeout(timer);
     }
   }, [isVideoReady, flowPhase]);
@@ -509,7 +509,7 @@ export default function FloatingCTA() {
                             src="/ailana_intro.mp4"
                             autoPlay
                             playsInline
-                            className={`w-full h-full object-contain bg-black transition-all duration-1000 ${isIntroBlurring ? 'blur-2xl scale-110' : 'blur-0 scale-100'}`}
+                            className="w-full h-full object-contain bg-black"
                             onLoadedData={() => setIsVideoReady(true)}
                             onTimeUpdate={(e) => {
                               const video = e.currentTarget;
@@ -520,7 +520,24 @@ export default function FloatingCTA() {
                             onEnded={() => setIsIntroComplete(true)}
                           />
 
-                          {/* The connecting overlay over the video has been removed as requested */}
+                          <AnimatePresence>
+                            {isIntroBlurring && (
+                              <motion.div 
+                                key="intro-loader-logo"
+                                initial={{ opacity: 1 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0, transition: { duration: 0.5 } }}
+                                className="absolute inset-0 z-[160] flex flex-col items-center justify-center pointer-events-none bg-black/70"
+                              >
+                                <div
+                                  className="w-24 h-24 drop-shadow-[0_0_15px_rgba(0,180,216,0.5)] animate-spin"
+                                  style={{ animationDuration: '2s' }}
+                                >
+                                  <img src="/favicon.png" alt="Loading..." className="w-full h-full object-contain" />
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                           
                           <AnimatePresence>
                             {isIntroComplete && (
