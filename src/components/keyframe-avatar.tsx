@@ -66,9 +66,6 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
       .find((p) => p.source === Track.Source.Microphone && p.isSubscribed);
     
     const stream = (pub?.track as any)?.mediaStream as MediaStream | undefined;
-    if (stream) {
-      console.log(`[KeyframeAvatar] 🎤 Found audio stream from agent: ${agent.identity}`);
-    }
     return stream;
   })();
 

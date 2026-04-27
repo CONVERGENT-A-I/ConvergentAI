@@ -42,7 +42,7 @@ Overhaul the live room UI to match the reference design (see UI reference image)
 - RoomControls: Custom Mic/Camera/End/Share/More buttons using LiveKit room context.
 - InRoomChatPanel: Chat panel using LiveKit `useChat()` hook, with timestamps and styling.
 
-### Milestone 3: Integrated Chat Panel & "Empty State" Experience
+### Milestone 3: Integrated Chat Panel & "Empty State" Experience ✅ DONE
 Create a seamless chat experience without leaving the avatar screen.
 1. **Side Panel**: Chat panel always visible alongside avatar in the split layout.
 2. **Empty State**: Display actionable chips (`[Connect to Slack]`, `[Schedule a Call]`, `[Email Summary]`) at the bottom of the chat to guide users.
@@ -51,7 +51,7 @@ Create a seamless chat experience without leaving the avatar screen.
 #### [MODIFY] src/components/floating-cta.tsx
 - Integrated as part of M2's split layout (chat panel is always visible alongside avatar).
 
-### Milestone 4: Enhanced Audio/Visual Cues & Subtitles
+### Milestone 4: Enhanced Audio/Visual Cues & Subtitles ✅ DONE
 Improve visual feedback for voice interactions.
 1. **Subtitles Box**: Add a small, elegant text box at the bottom (above the control bar) showing real-time transcripts.
 2. **Waveform/Pulse Indicator**: Change the microphone icon to a glowing pulse or waveform when listening.
@@ -63,7 +63,7 @@ Improve visual feedback for voice interactions.
 - Add Framer Motion pulsing animations to the active mic icon.
 - Implement the tooltip and "?" overlay state.
 
-### Milestone 5: Dynamic Ailana Greeting & Omnichannel Routing
+### Milestone 5: Dynamic Ailana Greeting & Omnichannel Routing ✅ DONE
 Ensure the AI leads the interaction.
 1. **Pre-recorded Greeting Update**: The video/audio script needs to say: "Hi, I'm Ailana! I can help you here, or if you prefer, just ask me to move this conversation to Email or Phone."
 2. **Backend Tools**: Ensure Ailana's system prompt understands that it should use tools to transition the user to other channels (Slack, Email, Phone) rather than relying on UI buttons.
