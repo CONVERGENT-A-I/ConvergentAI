@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, Sparkles, X, Phone, Calendar, Video, Mic, MicOff, VideoOff, PhoneOff, Monitor, MoreHorizontal, Circle, Loader2, Send, Share2, Check, Shield, ArrowRight, Clock, Lock, Headphones } from "lucide-react";
+import { MessageCircle, Sparkles, X, Phone, Video, Mic, MicOff, VideoOff, PhoneOff, Monitor, MoreHorizontal, Circle, Loader2, Send, Check, ArrowRight, Clock, Lock } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import {
   LiveKitRoom,
@@ -31,7 +31,7 @@ if (typeof window !== 'undefined') {
 }
 
 type FlowPhase = 'idle' | 'connecting' | 'intro' | 'live';
-type PendingMode = 'intro-avatar' | 'video' | 'voice' | 'avatar-chat' | 'tts-avatar';
+type PendingMode = 'intro-avatar' | 'video' | 'voice' | 'avatar-chat';
 
 function AgentReadinessCheck({ onAgentReady }: { onAgentReady: (r: boolean) => void }) {
   const participants = useRemoteParticipants();
@@ -59,18 +59,15 @@ function MediaGuard({ mode }: { mode: string }) {
 
     // Explicitly handle all modes as the single source of truth
     const syncMedia = async () => {
-      if (mode === 'avatar-chat' || mode === 'intro-avatar' || mode === 'tts-avatar') {
+      if (mode === 'avatar-chat' || mode === 'intro-avatar') {
         try { await lp.setMicrophoneEnabled(false); } catch (e) { }
         try { await lp.setCameraEnabled(false); } catch (e) { }
         console.log('[MediaGuard] 🔇 Mic & camera OFF');
       } else if (mode === 'voice') {
-        try { await lp.setMicrophoneEnabled(true); } catch (e) { console.error("Mic error:", e); }
         try { await lp.setCameraEnabled(false); } catch (e) { }
-        console.log('[MediaGuard] 🎤 Mic ON, camera OFF');
+        console.log('[MediaGuard] 🔇 Camera OFF (voice mode)');
       } else if (mode === 'video') {
-        try { await lp.setMicrophoneEnabled(true); } catch (e) { console.error("Mic error:", e); }
-        try { await lp.setCameraEnabled(true); } catch (e) { console.error("Camera error:", e); }
-        console.log('[MediaGuard] 🎤📹 Mic & camera ON');
+        console.log('[MediaGuard] 🔇 Mic & camera OFF by default (waiting for user to enable)');
       }
     };
 
@@ -116,57 +113,26 @@ function ChannelStartTrigger({ isLivePhase, mode }: { isLivePhase: boolean; mode
   return null;
 }
 
-function TtsIntroTrigger({ isLivePhase, mode }: { isLivePhase: boolean; mode: string }) {
-  const room = useRoomContext();
-  const participants = useRemoteParticipants();
-  const agentReady = participants.length > 0;
-  const hasTriggered = useRef(false);
-
-  useEffect(() => {
-    if (isLivePhase && room.state === 'connected' && agentReady && mode === 'tts-avatar' && !hasTriggered.current) {
-      hasTriggered.current = true;
-      console.log(`[ui]: 🚀 Triggering TTS intro...`);
-      const payload = new TextEncoder().encode(JSON.stringify({ message: 'SYSTEM_INTRO_TRIGGER' }));
-      room.localParticipant.publishData(payload, { topic: "lk-chat", reliable: true }).catch(console.error);
-    }
-    if (!isLivePhase) {
-      hasTriggered.current = false;
-    }
-  }, [isLivePhase, room.state, agentReady, mode, room.localParticipant]);
-
-  return null;
-}
-
 /** Custom control bar for the Google Meet-style live UI */
 function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
-  const room = useRoomContext();
-  const [isMicOn, setIsMicOn] = useState(false);
-  const [isCamOn, setIsCamOn] = useState(false);
-
-  useEffect(() => {
-    if (room.state !== 'connected') return;
-    setIsMicOn(room.localParticipant?.isMicrophoneEnabled ?? false);
-    setIsCamOn(room.localParticipant?.isCameraEnabled ?? false);
-  }, [room, room.state]);
+  const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant();
 
   const toggleMic = async () => {
+    if (!localParticipant) return;
     try {
-      const next = !isMicOn;
-      await room.localParticipant.setMicrophoneEnabled(next);
-      setIsMicOn(next);
+      await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled);
     } catch (e) { console.error('Mic toggle error:', e); }
   };
   const toggleCam = async () => {
+    if (!localParticipant) return;
     try {
-      const next = !isCamOn;
-      await room.localParticipant.setCameraEnabled(next);
-      setIsCamOn(next);
+      await localParticipant.setCameraEnabled(!isCameraEnabled);
     } catch (e) { console.error('Cam toggle error:', e); }
   };
 
   const controls = [
-    { icon: isMicOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />, label: isMicOn ? 'Mute' : 'Unmute', onClick: toggleMic, danger: false, pulse: isMicOn },
-    { icon: isCamOn ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />, label: isCamOn ? 'Stop Video' : 'Start Video', onClick: toggleCam, danger: false, pulse: false },
+    { icon: isMicrophoneEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />, label: isMicrophoneEnabled ? 'Mute' : 'Unmute', onClick: toggleMic, danger: false, pulse: isMicrophoneEnabled },
+    { icon: isCameraEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />, label: isCameraEnabled ? 'Stop Video' : 'Start Video', onClick: toggleCam, danger: false, pulse: false },
     { icon: <PhoneOff className="h-5 w-5" />, label: 'End', onClick: onEnd, danger: true, pulse: false },
     { icon: <Monitor className="h-5 w-5" />, label: 'Share', onClick: () => { }, danger: false, pulse: false },
     { icon: <MoreHorizontal className="h-5 w-5" />, label: 'More', onClick: () => { }, danger: false, pulse: false },
@@ -179,8 +145,8 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
           key={c.label}
           onClick={c.onClick}
           className={`relative flex flex-col items-center gap-1 p-2.5 md:p-3 rounded-2xl transition-all cursor-pointer group ${c.danger
-              ? 'bg-red-500/90 hover:bg-red-600 text-white shadow-[0_4px_20px_rgba(239,68,68,0.4)]'
-              : 'bg-white/10 hover:bg-white/20 text-white/80 hover:text-white backdrop-blur-md'
+            ? 'bg-red-500/90 hover:bg-red-600 text-white shadow-[0_4px_20px_rgba(239,68,68,0.4)]'
+            : 'bg-white/10 hover:bg-white/20 text-white/80 hover:text-white backdrop-blur-md'
             }`}
         >
           {/* Mic pulse glow ring */}
@@ -356,14 +322,71 @@ function ContextualHelp() {
 /** In-room chat panel using LiveKit useChat(), displayed as side panel */
 function InRoomChatPanel() {
   const { chatMessages, send, isSending } = useChat();
+  const room = useRoomContext();
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // State for spoken transcriptions
+  const [transcripts, setTranscripts] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    if (!room) return;
+
+    const handleTranscription = (segments: any[], participant?: any) => {
+      setTranscripts(prev => {
+        const next = { ...prev };
+        for (const seg of segments) {
+          next[seg.id] = {
+            id: seg.id,
+            text: seg.text,
+            timestamp: seg.startTime || Date.now(),
+            isAgent: participant?.identity === 'agent' || participant?.identity?.startsWith('agent'),
+            final: seg.final,
+            type: 'transcript'
+          };
+        }
+        return next;
+      });
+    };
+
+    room.on('transcriptionReceived', handleTranscription);
+    return () => {
+      room.off('transcriptionReceived', handleTranscription);
+    };
+  }, [room]);
+
+  // Merge chat messages and transcripts
+  const displayMessages = useMemo(() => {
+    const combined: any[] = [];
+    
+    // Add manual chat messages
+    chatMessages.forEach(msg => {
+      combined.push({
+        id: msg.id || msg.timestamp.toString(),
+        text: msg.message,
+        timestamp: msg.timestamp,
+        isAgent: msg.from?.identity?.startsWith('agent') || msg.from?.identity === 'agent',
+        type: 'chat',
+        final: true
+      });
+    });
+
+    // Add transcript messages
+    Object.values(transcripts).forEach(tr => {
+      if (tr.text && tr.text.trim()) { // Don't show empty transcripts
+        combined.push(tr);
+      }
+    });
+
+    // Sort by timestamp
+    return combined.sort((a, b) => a.timestamp - b.timestamp);
+  }, [chatMessages, transcripts]);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [chatMessages]);
+  }, [displayMessages]);
 
   const handleSend = () => {
     const text = input.trim();
@@ -388,7 +411,7 @@ function InRoomChatPanel() {
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4" style={{ scrollbarWidth: 'thin' }}>
-        {chatMessages.length === 0 && (
+        {displayMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center px-4 gap-4">
             <div className="h-14 w-14 rounded-full bg-blue-500/10 flex items-center justify-center">
               <MessageCircle className="h-7 w-7 text-blue-500" />
@@ -408,23 +431,26 @@ function InRoomChatPanel() {
           </div>
         )}
 
-        {chatMessages.map((msg, i) => {
-          const isAgent = msg.from?.identity?.startsWith('agent') || msg.from?.identity === 'agent';
+        {displayMessages.map((msg, i) => {
           return (
-            <div key={i} className={`flex gap-2.5 max-w-[90%] ${isAgent ? 'mr-auto' : 'ml-auto flex-row-reverse'}`}>
-              {isAgent && (
+            <div key={msg.id || i} className={`flex gap-2.5 max-w-[90%] ${msg.isAgent ? 'mr-auto' : 'ml-auto flex-row-reverse'}`}>
+              {msg.isAgent && (
                 <div className="h-7 w-7 rounded-full bg-[#00b4d8] flex items-center justify-center shrink-0 mt-0.5">
                   <Sparkles className="h-3.5 w-3.5 text-white" />
                 </div>
               )}
               <div className="flex flex-col gap-0.5">
-                <div className={`px-3.5 py-2.5 text-[13px] leading-relaxed rounded-2xl ${isAgent
-                    ? 'bg-white/10 text-white rounded-tl-sm'
-                    : 'bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white rounded-tr-sm shadow-md'
-                  }`}>
-                  {msg.message}
+                <div className={`px-3.5 py-2.5 text-[13px] leading-relaxed rounded-2xl ${msg.isAgent
+                  ? 'bg-white/10 text-white rounded-tl-sm'
+                  : 'bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white rounded-tr-sm shadow-md'
+                  } ${!msg.final ? 'opacity-70 animate-pulse' : ''}`}>
+                  {msg.type === 'transcript' ? (
+                     <span className="italic">{msg.text}</span>
+                  ) : (
+                     <span>{msg.text}</span>
+                  )}
                 </div>
-                <span className={`text-[10px] text-gray-400 font-medium px-1 ${isAgent ? '' : 'text-right'}`}>
+                <span className={`text-[10px] text-gray-400 font-medium px-1 ${msg.isAgent ? '' : 'text-right'}`}>
                   {formatMsgTime(msg.timestamp)}
                 </span>
               </div>
@@ -466,13 +492,11 @@ export default function FloatingCTA() {
   const [token, setToken] = useState<string | null>(null);
   const [lkUrl, setLkUrl] = useState<string | null>(null);
   const [keyframeMetaData, setKeyframeMetaData] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
   const [isLkConnected, setIsLkConnected] = useState(false);
   const [isAgentReady, setIsAgentReady] = useState(false);
   const [pendingMode, setPendingMode] = useState<PendingMode>('video');
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [roomName, setRoomName] = useState<string>('');
-  const [isCopied, setIsCopied] = useState(false);
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [isIntroBlurring, setIsIntroBlurring] = useState(true);
   const [complianceChecked, setComplianceChecked] = useState(false);
@@ -494,7 +518,6 @@ export default function FloatingCTA() {
       }
 
       setIsIntroComplete(false);
-      setError(null);
       if (!isLkConnected) {
         setKeyframeMetaData(null);
       }
@@ -538,7 +561,6 @@ export default function FloatingCTA() {
       }
     } catch (err) {
       console.error('Error connecting to LiveKit:', err);
-      setError('Connection failed. Please try again.');
       setFlowPhase('idle');
       setIsIntroComplete(false);
     } finally {
@@ -563,33 +585,6 @@ export default function FloatingCTA() {
         return;
       }
       fetchToken(mode);
-    }
-  };
-
-  const handleAgree = () => {
-    setHasAgreed(true);
-
-    // Default to video mode when entering live if we were just in intro
-    const targetMode = pendingMode === 'intro-avatar' ? 'video' : pendingMode;
-    setPendingMode(targetMode);
-
-    if (!token) {
-      setFlowPhase('connecting');
-      fetchToken(targetMode);
-    } else {
-      setFlowPhase('live');
-    }
-  };
-
-  const handleShare = async () => {
-    if (!roomName) return;
-    const shareUrl = `${window.location.origin}${window.location.pathname}?room=${roomName}`;
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy link:', err);
     }
   };
 
@@ -620,7 +615,7 @@ export default function FloatingCTA() {
     if (isVideoReady && flowPhase === 'intro') {
       const timer = setTimeout(() => {
         setIsIntroBlurring(false);
-      }, 1650);
+      }, 1000);
       return () => clearTimeout(timer);
     }
   }, [isVideoReady, flowPhase]);
@@ -745,8 +740,8 @@ export default function FloatingCTA() {
                             key={m}
                             onClick={() => handleAIAction(m as 'video' | 'voice' | 'avatar-chat')}
                             className={`flex items-center gap-1.5 px-3 md:px-4 py-1.5 md:py-2 rounded-full text-xs md:text-sm font-semibold transition-all cursor-pointer ${pendingMode === m
-                                ? 'bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-md'
-                                : 'text-gray-400 hover:bg-white/10 hover:text-white'
+                              ? 'bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-md'
+                              : 'text-gray-400 hover:bg-white/10 hover:text-white'
                               }`}
                           >
                             {icon}
@@ -934,7 +929,6 @@ export default function FloatingCTA() {
                             <AgentReadinessCheck onAgentReady={setIsAgentReady} />
                             <MediaGuard mode={pendingMode} />
                             <ChannelStartTrigger isLivePhase={flowPhase === 'live'} mode={pendingMode} />
-                            <TtsIntroTrigger isLivePhase={flowPhase === 'live'} mode={pendingMode} />
 
 
                             {/* ── Google Meet Split Layout (always mounted so avatar connection doesn't drop, but hidden until live) ── */}
@@ -952,10 +946,10 @@ export default function FloatingCTA() {
                                   )}
 
                                   {/* Contextual help overlay */}
-                                  {isLkConnected && isAgentReady && pendingMode !== 'tts-avatar' && <ContextualHelp />}
+                                  {isLkConnected && isAgentReady && <ContextualHelp />}
 
                                   {/* Suggested commands cycling text */}
-                                  {isLkConnected && isAgentReady && pendingMode !== 'tts-avatar' && <SuggestedCommands />}
+                                  {isLkConnected && isAgentReady && <SuggestedCommands />}
 
                                   {/* Subtle connecting indicator (non-blocking) */}
                                   {(!isLkConnected || !isAgentReady) && (
@@ -981,11 +975,9 @@ export default function FloatingCTA() {
                                   )}
 
                                   {/* Custom Controls */}
-                                  {pendingMode !== 'tts-avatar' && (
-                                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-50">
-                                      <RoomControls onEnd={() => setIsOpen(false)} mode={pendingMode} />
-                                    </div>
-                                  )}
+                                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-50">
+                                    <RoomControls onEnd={() => setIsOpen(false)} mode={pendingMode} />
+                                  </div>
                                 </div>
 
                                 {/* Right: Chat Panel */}
@@ -1040,32 +1032,7 @@ export default function FloatingCTA() {
         )}
       </AnimatePresence>
 
-      <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end gap-4">
-        <motion.div
-          layout
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => {
-            setIsOpen(true);
-            setFlowPhase('live');
-            setPendingMode('tts-avatar');
-            fetchToken('tts-avatar');
-          }}
-          className="group relative flex items-center gap-2 md:gap-3 rounded-full bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-700 p-1.5 pr-4 md:p-2 md:pr-6 text-white shadow-[0_0_20px_rgba(16,185,129,0.4)] transition-all duration-300 hover:shadow-[0_0_40px_rgba(16,185,129,0.6)] hover:-translate-y-1 hover:scale-[1.02] active:scale-95 cursor-pointer"
-        >
-          <div className="relative h-8 w-8 md:h-10 md:w-10 rounded-full bg-white/20 flex items-center justify-center overflow-hidden border border-white/30 backdrop-blur-sm">
-            <Sparkles className="h-4 w-4 md:h-5 md:w-5 text-white" />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[9px] md:text-[10px] font-bold text-white/70 uppercase tracking-[0.2em] mb-0.5">Test Flow</span>
-            <span className="text-xs md:text-sm font-black tracking-tight text-white flex items-center gap-2">
-              Test TTS Avatar
-            </span>
-          </div>
-        </motion.div>
-
+      <div className="fixed bottom-6 right-6 z-[100]">
         <motion.div
           layout
           initial={{ scale: 0, opacity: 0 }}
