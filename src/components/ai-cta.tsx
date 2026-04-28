@@ -83,7 +83,7 @@ export default function AICTA() {
 
           <motion.div variants={buttonVariants}>
             <Link
-              href="https://warpme.neetocal.com/meeting-with-david-patten-19"
+              href="https://convergentai.neetocal.com/meeting-with-david-patten"
               target="_blank"
               rel="noopener noreferrer"
               className="group relative px-10 py-5 bg-brand-green hover:bg-[#00FF99] text-black font-black text-lg md:text-xl rounded-full transition-all duration-300 hover:scale-105 hover:shadow-[0_10px_40px_rgba(0,255,153,0.4)] active:scale-95 inline-block"

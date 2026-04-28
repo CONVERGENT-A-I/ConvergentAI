@@ -133,7 +133,7 @@ export default function ScheduleDemo() {
 
                 {/* Submit Button */}
                 <a
-                  href="https://warpme.neetocal.com/meeting-with-david-patten-19"
+                  href="https://convergentai.neetocal.com/meeting-with-david-patten"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="group relative mt-2 w-full bg-brand-green text-black px-6 py-4 rounded-2xl text-sm md:text-base font-black uppercase tracking-widest hover:shadow-[0_0_50px_rgba(0,255,153,0.5)] transition-all transform hover:-translate-y-1 active:scale-95 flex items-center justify-center"

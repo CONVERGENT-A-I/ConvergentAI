@@ -53,7 +53,7 @@ export default function Navbar() {
         {/* Schedule a Meeting Button */}
         <div className="hidden md:block">
           <Link
-            href="https://warpme.neetocal.com/meeting-with-david-patten-19"
+            href="https://convergentai.neetocal.com/meeting-with-david-patten"
             target="_blank"
             rel="noopener noreferrer"
             className="bg-brand-green text-black px-6 py-3 xl:px-9 xl:py-4 rounded-full text-xs xl:text-sm font-black uppercase tracking-widest hover:shadow-[0_0_30px_rgba(0,255,153,0.6)] transition-all transform hover:scale-105 active:scale-95"

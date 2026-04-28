@@ -82,7 +82,7 @@ export default function AIHero() {
           </p>
 
           <Link
-            href="https://warpme.neetocal.com/meeting-with-david-patten-19"
+            href="https://convergentai.neetocal.com/meeting-with-david-patten"
             target="_blank"
             rel="noopener noreferrer"
             className="group relative bg-brand-green text-black px-10 py-5 md:px-12 md:py-6 rounded-2xl text-sm md:text-base font-black uppercase tracking-[0.2em] hover:shadow-[0_0_50px_rgba(0,255,153,0.6)] transition-all transform hover:-translate-y-1 active:scale-95 shadow-xl"
