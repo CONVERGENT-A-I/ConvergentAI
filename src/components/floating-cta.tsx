@@ -116,6 +116,8 @@ function ChannelStartTrigger({ isLivePhase, mode }: { isLivePhase: boolean; mode
 /** Custom control bar for the Google Meet-style live UI */
 function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant();
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [isTogglingScreen, setIsTogglingScreen] = useState(false);
 
   const toggleMic = async () => {
     if (!localParticipant) return;
@@ -129,13 +131,46 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
       await localParticipant.setCameraEnabled(!isCameraEnabled);
     } catch (e) { console.error('Cam toggle error:', e); }
   };
+  const toggleScreenShare = async () => {
+    if (!localParticipant || isTogglingScreen) return;
+    setIsTogglingScreen(true);
+    try {
+      const next = !isScreenSharing;
+      await localParticipant.setScreenShareEnabled(next, {
+        audio: true,
+        selfBrowserSurface: 'include',
+        surfaceSwitching: 'include',
+      });
+      setIsScreenSharing(next);
+      // Listen for the user stopping share via the browser's native "Stop sharing" button
+      if (next) {
+        const screenTracks = localParticipant.getTrackPublications().filter(
+          (pub) => pub.source === 'screen_share' || pub.trackName?.includes('screen')
+        );
+        const firstTrack = screenTracks[0]?.track as any;
+        if (firstTrack?.mediaStreamTrack) {
+          firstTrack.mediaStreamTrack.addEventListener('ended', () => {
+            setIsScreenSharing(false);
+          }, { once: true });
+        }
+      }
+    } catch (e: any) {
+      // User cancelled the picker — not an error
+      if (e?.name !== 'NotAllowedError') {
+        console.error('Screen share toggle error:', e);
+      }
+      setIsScreenSharing(false);
+    } finally {
+      setIsTogglingScreen(false);
+    }
+  };
 
   const controls = [
-    { icon: isMicrophoneEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />, label: isMicrophoneEnabled ? 'Mute' : 'Unmute', onClick: toggleMic, danger: false, pulse: isMicrophoneEnabled },
-    { icon: isCameraEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />, label: isCameraEnabled ? 'Stop Video' : 'Start Video', onClick: toggleCam, danger: false, pulse: false },
-    { icon: <PhoneOff className="h-5 w-5" />, label: 'End', onClick: onEnd, danger: true, pulse: false },
-    { icon: <Monitor className="h-5 w-5" />, label: 'Share', onClick: () => { }, danger: false, pulse: false },
-    { icon: <MoreHorizontal className="h-5 w-5" />, label: 'More', onClick: () => { }, danger: false, pulse: false },
+    { icon: isMicrophoneEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />, label: isMicrophoneEnabled ? 'Mute' : 'Unmute', onClick: toggleMic, danger: false, pulse: isMicrophoneEnabled, active: false },
+    { icon: isCameraEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />, label: isCameraEnabled ? 'Stop Video' : 'Start Video', onClick: toggleCam, danger: false, pulse: false, active: false },
+    { icon: <PhoneOff className="h-5 w-5" />, label: 'End', onClick: onEnd, danger: true, pulse: false, active: false },
+    { icon: <Monitor className="h-5 w-5" />, label: isScreenSharing ? 'Stop Share' : 'Share', onClick: toggleScreenShare, danger: false, pulse: false, active: isScreenSharing },
+    { icon: <MoreHorizontal className="h-5 w-5" />, label: 'More', onClick: () => { }, danger: false, pulse: false, active: false },
   ];
 
   return (
@@ -144,9 +179,12 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
         <button
           key={c.label}
           onClick={c.onClick}
-          className={`relative flex flex-col items-center gap-1 p-2.5 md:p-3 rounded-2xl transition-all cursor-pointer group ${c.danger
+          disabled={c.label === 'Share' || c.label === 'Stop Share' ? isTogglingScreen : false}
+          className={`relative flex flex-col items-center gap-1 p-2.5 md:p-3 rounded-2xl transition-all cursor-pointer group disabled:opacity-60 disabled:cursor-wait ${c.danger
             ? 'bg-red-500/90 hover:bg-red-600 text-white shadow-[0_4px_20px_rgba(239,68,68,0.4)]'
-            : 'bg-white/10 hover:bg-white/20 text-white/80 hover:text-white backdrop-blur-md'
+            : c.active
+              ? 'bg-[#00b4d8]/20 border border-[#00b4d8]/50 text-[#00d4f5] hover:bg-[#00b4d8]/30 backdrop-blur-md shadow-[0_0_12px_rgba(0,180,216,0.3)]'
+              : 'bg-white/10 hover:bg-white/20 text-white/80 hover:text-white backdrop-blur-md'
             }`}
         >
           {/* Mic pulse glow ring */}
@@ -155,6 +193,14 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
               className="absolute inset-0 rounded-2xl border-2 border-green-400/60"
               animate={{ opacity: [0.4, 1, 0.4], scale: [1, 1.08, 1] }}
               transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+            />
+          )}
+          {/* Screen share active ring */}
+          {c.active && (
+            <motion.div
+              className="absolute inset-0 rounded-2xl border-2 border-[#00b4d8]/50"
+              animate={{ opacity: [0.3, 0.9, 0.3], scale: [1, 1.06, 1] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
             />
           )}
           <span className="group-hover:scale-110 transition-transform">{c.icon}</span>
@@ -715,12 +761,12 @@ export default function FloatingCTA() {
                 initial={{ scale: 1.05, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="relative w-[95vw] sm:w-[90vw] max-w-7xl h-[92vh] min-h-[500px] max-h-[960px] bg-[#0B0F19] rounded-3xl shadow-[0_8px_60px_rgba(0,180,216,0.15)] flex flex-col overflow-hidden border border-white/10"
+                className="relative w-[95vw] sm:w-[90vw] max-w-7xl h-[92vh] min-h-[500px] max-h-[960px] bg-[#0B0F19] rounded-3xl shadow-[0_8px_60px_rgba(0,180,216,0.25),0_0_0_1px_rgba(0,180,216,0.08)] flex flex-col overflow-hidden border border-white/20"
               >
 
                 <div className="absolute inset-0 flex flex-col overflow-hidden z-0">
                   {/* ── Top Header ── */}
-                  <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 relative z-10 shrink-0 bg-[#0a0a0a]/80 backdrop-blur-md border-b border-white/5">
+                  <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 relative z-10 shrink-0 bg-[#080c14]/95 backdrop-blur-md border-b border-white/15">
                     <div className="flex items-center gap-2.5">
                       <div className="relative h-7 w-7 md:h-8 md:w-8 flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-transparent">
                         <Image src={AppIcon} alt="ConvergentAI Logo" fill sizes="32px" className="object-contain" />
@@ -842,7 +888,7 @@ export default function FloatingCTA() {
                                 animate={{ opacity: 1, scale: 1 }}
                                 className="absolute inset-0 z-[130] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 sm:p-8"
                               >
-                                <div className="max-w-2xl w-full bg-[#0a0a0a]/90 border border-white/10 rounded-3xl p-6 md:p-10 shadow-[0_0_50px_rgba(0,180,216,0.2)] flex flex-col gap-6 overflow-hidden">
+                                <div className="max-w-2xl w-full bg-[#0d1220]/95 border border-white/20 rounded-3xl p-6 md:p-10 shadow-[0_0_60px_rgba(0,180,216,0.3),0_0_0_1px_rgba(0,180,216,0.08)] flex flex-col gap-6 overflow-hidden">
                                   <div className="text-center space-y-2">
                                     <h3 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Safety & Compliance</h3>
                                     <p className="text-gray-400 text-sm">Please review and accept our terms to get started.</p>
@@ -989,14 +1035,14 @@ export default function FloatingCTA() {
                               </div>
 
                               {/* Prefer to talk bar */}
-                              <div className="shrink-0 px-4 py-2.5 flex items-center justify-center gap-4 border-t border-white/5 bg-[#0a0a0a]">
+                              <div className="shrink-0 px-4 py-2.5 flex items-center justify-center gap-4 border-t border-white/15 bg-[#080c14]">
                                 <div className="text-center">
                                   <p className="text-white text-xs md:text-sm font-semibold">Prefer to talk instead?</p>
-                                  <p className="text-gray-400 text-[10px] md:text-xs">Switch to voice-only for a quick conversation.</p>
+                                  <p className="text-gray-300 text-[10px] md:text-xs">Switch to voice <span className="font-semibold text-[#00b4d8]">only</span> for a quick conversation.</p>
                                 </div>
                                 <button
                                   onClick={() => handleAIAction('voice')}
-                                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-white text-xs md:text-sm font-semibold hover:bg-[#00b4d8]/20 hover:border-[#00b4d8]/50 transition-all cursor-pointer shadow-sm"
+                                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#00b4d8]/10 border border-[#00b4d8]/30 text-white text-xs md:text-sm font-semibold hover:bg-[#00b4d8]/25 hover:border-[#00b4d8]/60 transition-all cursor-pointer shadow-sm"
                                 >
                                   <Phone className="h-3.5 w-3.5 text-[#00b4d8]" />
                                   Talk to me
@@ -1004,10 +1050,10 @@ export default function FloatingCTA() {
                               </div>
 
                               {/* Trust Footer */}
-                              <div className="shrink-0 px-4 py-2 flex items-center justify-center gap-6 text-[10px] md:text-xs text-gray-500 bg-[#0B0F19] border-t border-white/5">
-                                <span className="flex items-center gap-1.5"><Lock className="h-3 w-3" />Your information is secure and never shared.</span>
-                                <span className="h-3 w-px bg-white/10" />
-                                <span className="flex items-center gap-1.5"><Clock className="h-3 w-3" />AI-Powered. Human-Focused. 24/7.</span>
+                              <div className="shrink-0 px-4 py-2 flex items-center justify-center gap-6 text-[10px] md:text-xs text-gray-400 bg-[#07090f] border-t border-white/15">
+                                <span className="flex items-center gap-1.5"><Lock className="h-3 w-3 text-emerald-400" />Your information is secure and never shared.</span>
+                                <span className="h-3 w-px bg-white/20" />
+                                <span className="flex items-center gap-1.5"><Clock className="h-3 w-3 text-[#00b4d8]" />AI-Powered. Human-Focused. 24/7.</span>
                               </div>
                             </div>
 
@@ -1048,9 +1094,9 @@ export default function FloatingCTA() {
               fetchToken('intro-avatar');
             }
           }}
-          className="group relative flex items-center gap-2.5 md:gap-4 rounded-full bg-gradient-to-br from-[#00b4d8] via-[#023e8a] to-[#560bad] p-1.5 pr-5 md:p-2.5 md:pr-8 text-white shadow-[0_0_40px_rgba(0,180,216,0.5),0_0_20px_rgba(86,11,173,0.5)] transition-all duration-300 hover:shadow-[0_0_60px_rgba(0,180,216,0.7),0_0_30px_rgba(86,11,173,0.7)] hover:-translate-y-2 hover:scale-[1.02] active:scale-95 cursor-pointer"
+          className="group relative flex items-center gap-2.5 md:gap-4 rounded-full bg-gradient-to-br from-[#00d4f5] via-[#0252c4] to-[#7b2fff] p-1.5 pr-5 md:p-2.5 md:pr-8 text-white shadow-[0_0_50px_rgba(0,212,245,0.65),0_0_25px_rgba(123,47,255,0.55),0_4px_20px_rgba(0,0,0,0.6)] transition-all duration-300 hover:shadow-[0_0_70px_rgba(0,212,245,0.85),0_0_40px_rgba(123,47,255,0.75)] hover:-translate-y-2 hover:scale-[1.02] active:scale-95 cursor-pointer border border-white/25"
         >
-          <div className="relative h-10 w-10 md:h-14 md:w-14 rounded-full bg-white/20 flex items-center justify-center overflow-hidden border border-white/30 backdrop-blur-sm">
+          <div className="relative h-10 w-10 md:h-14 md:w-14 rounded-full bg-white/25 flex items-center justify-center overflow-hidden border-2 border-white/50 backdrop-blur-sm shadow-[0_0_12px_rgba(0,212,245,0.4)]">
             <Image
               src="/friendly_ai_avatar_v2.png"
               alt="Ailana"
@@ -1060,8 +1106,8 @@ export default function FloatingCTA() {
             />
           </div>
           <div className="flex flex-col">
-            <span className="text-[10px] md:text-xs font-bold text-white/70 uppercase tracking-[0.2em] mb-0.5">Live with Ailana</span>
-            <span className="text-sm md:text-lg font-black tracking-tight text-white flex items-center gap-2">
+            <span className="text-[10px] md:text-xs font-bold text-white/90 uppercase tracking-[0.2em] mb-0.5 drop-shadow-sm">Live with Ailana</span>
+            <span className="text-sm md:text-lg font-black tracking-tight text-white flex items-center gap-2 drop-shadow-sm">
               Start Conversation
               <Sparkles className="h-3.5 w-3.5 md:h-4 md:w-4 text-yellow-300 animate-pulse" />
             </span>
