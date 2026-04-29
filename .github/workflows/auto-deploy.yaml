@@ -33,7 +33,7 @@ jobs:
 
                 git config --global --add safe.directory /opt/convergent-ai/ConvergentAI
 
-                echo Pull latest code
+                echo "Pull latest code"
                 git fetch origin main
                 git reset --hard origin/main
 
@@ -41,13 +41,13 @@ jobs:
                 echo "Stop old containers"
                 docker-compose down --remove-orphans || true
 
-                echo Rebuild and recreate containers
+                echo "Rebuild and recreate containers"
                 docker-compose up -d --build --force-recreate --remove-orphans
 
-                echo Verify containers
+                echo "Verify containers"
                 docker ps | grep convergent
 
-                echo Clean unused images
-                docker image prune -f
+                echo "Clean unused images"
+                docker image prune -af
               '
             "
