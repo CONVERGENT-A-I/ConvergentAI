@@ -908,7 +908,7 @@ export default function FloatingCTA() {
                               >
                                 <div className="max-w-2xl w-full bg-[#0d1220]/95 border border-white/20 rounded-3xl p-6 md:p-10 shadow-[0_0_60px_rgba(0,180,216,0.3),0_0_0_1px_rgba(0,180,216,0.08)] flex flex-col gap-6 overflow-hidden">
                                   <div className="text-center space-y-2">
-                                    <h3 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Safety & Compliance</h3>
+                                    <h3 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Commitment to Transparency & AI Use</h3>
                                     <p className="text-gray-400 text-sm">Please review and accept our terms to get started.</p>
                                   </div>
 
