@@ -691,10 +691,10 @@ export default function FloatingCTA() {
         const voices = window.speechSynthesis.getVoices();
 
         const femaleVoice = voices.find(v =>
-          v.name.includes('Samantha') ||
-          v.name.includes('Female') ||
-          v.name.includes('Zira') ||
-          v.name.includes('Google UK English Female') ||
+          //v.name.includes('Samantha') ||
+          //v.name.includes('Female') ||
+          //v.name.includes('Zira') ||
+          //v.name.includes('Google UK English Female') ||
           v.name.includes('Google US English')
         );
 
