@@ -37,24 +37,16 @@ jobs:
                 git fetch origin main
                 git reset --hard origin/main
 
-                echo Build Docker image
-                docker build -t convergentai:latest .
-
                 #echo Remove old container
-                docker rm -f convergentai.tech || true
+                docker rmi $(docker images -q)
 
-                #echo Start new container
-                docker run -d \
-                  --env-file .env \
-                  --name convergentai.tech \
-                  --restart unless-stopped \
-                  -p 3000:3000 \
-                  convergentai:latest
+                #echo re-build docker container
+                docker-compose up -d --build
 
                 #echo Verify container
-                docker ps | grep convergentai.tech
+                docker ps | grep convergent
 
                 #echo Delete old unused images
-                #docker image prune -f
+                docker image prune -f
               '
             "
