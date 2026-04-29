@@ -11,7 +11,7 @@ Remove the intermediate omnichannel selection slide-out.
 3. Establish the LiveKit connection in the background during the video.
 4. Upon agreement, transition seamlessly into the live Ailana engagement without any additional user clicks.
 
-#### [MODIFY] src/components/floating-cta.tsx ✅
+#### [MODIFY] src/components/floating-cta.tsx
 - `flowPhase` logic routes `idle` -> `intro` (while connecting) -> compliance overlay -> `live`.
 - 6-button channel selection grid is dead code (will be cleaned up in M2).
 
@@ -66,10 +66,10 @@ Improve visual feedback for voice interactions.
 ### Milestone 5: Dynamic Ailana Greeting & Omnichannel Routing ✅ DONE
 Ensure the AI leads the interaction.
 1. **Pre-recorded Greeting Update**: The video/audio script needs to say: "Hi, I'm Ailana! I can help you here, or if you prefer, just ask me to move this conversation to Email or Phone."
-2. **Backend Tools**: Ensure Ailana's system prompt understands that it should use tools to transition the user to other channels (Slack, Email, Phone) rather than relying on UI buttons.
+2. **Backend Tools**: Ensure Ailana's system prompt understands that it should transition the user to other channels (Slack, Email, Phone) rather than relying on UI buttons. *(Implemented via conversational prompt engineering rather than explicit function calling tools).*
 
 #### [MODIFY] backend/src/agent.ts
-- Update the system prompt to reflect the new onboarding script and tool availability.
+- Update the system prompt to reflect the new onboarding script and channel routing instructions.
 
 ### Milestone 6: Stabilization & Premium Theming ✅ DONE
 Ensure flawless connectivity and align the UI with the brand's aesthetic.
@@ -82,3 +82,15 @@ Ensure flawless connectivity and align the UI with the brand's aesthetic.
 - Replace `hidden` classes with `opacity-0 pointer-events-none -z-10` for the background WebRTC connection container.
 - Update all UI components (wrappers, headers, chat panel, inputs, footers) to the new dark color palette.
 - Conditionally render the `InRoomChatPanel` based on `pendingMode === 'avatar-chat'`.
+
+### Milestone 7: Re-engagement & Copy Refinement ✅ DONE
+Ensure smooth state resets when reopening the CTA and refine copy for better user understanding.
+1. **State Reset**: Fix issue where compliance gate and flow state were not fully resetting when the CTA modal was closed and reopened.
+2. **Transparency Header**: Update the compliance modal header from "Safety & Compliance" to "Commitment to Transparency & AI Use".
+3. **Chat Terminology**: Remove mentions of "WhatsApp" from voice command hints and tooltips, replacing them with generic "chat" references.
+
+#### [MODIFY] src/components/floating-cta.tsx
+- Add a `useEffect` cleanup hook that fully resets `hasAgreed`, `isIntroComplete`, `complianceChecked`, `participantIdentityRef`, and `flowPhase` (via `flowPhaseRef`) when `isOpen` becomes false.
+- Introduce `flowPhaseRef` to prevent stale closure issues in async `fetchToken` calls.
+- Update header text to "Commitment to Transparency & AI Use".
+- Update `ContextualHelp` and `SuggestedCommands` texts to say "chat" instead of "WhatsApp".

@@ -464,7 +464,7 @@ function InRoomChatPanel() {
             </div>
             <p className="text-gray-400 text-sm">Send a message to start chatting with Ailana</p>
             <div className="flex flex-wrap gap-2 justify-center mt-2">
-              {['Schedule a Call', 'Email Summary', 'Help me decide'].map(chip => (
+              {['Connect to Slack', 'Schedule a Call', 'Email Summary'].map(chip => (
                 <button
                   key={chip}
                   onClick={() => { setInput(chip); }}
