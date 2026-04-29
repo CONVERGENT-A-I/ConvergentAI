@@ -266,7 +266,7 @@ function TranscriptOverlay() {
 /** Cycling suggested commands near the control bar */
 function SuggestedCommands() {
   const commands = [
-    "Try: 'Connect me to WhatsApp'",
+    "Try: 'Connect me to chat'",
     "Try: 'Call me'",
     "Try: 'Send an email summary'",
     "Try: 'Schedule a meeting'"
@@ -347,7 +347,7 @@ function ContextualHelp() {
             <ul className="text-white/70 text-xs space-y-2">
               <li className="flex items-start gap-2">
                 <span className="text-blue-400 mt-0.5">•</span>
-                <span>&quot;Connect me to WhatsApp&quot; to switch to chat</span>
+                <span>&quot;Connect me to chat&quot; to switch to chat</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-blue-400 mt-0.5">•</span>
