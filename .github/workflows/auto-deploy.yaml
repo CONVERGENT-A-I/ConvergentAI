@@ -25,29 +25,26 @@ jobs:
             --project ailana-488814 \
             --tunnel-through-iap \
             --quiet \
-            --command "
-              set -e
+            --command='sudo bash -s' <<'EOF'
+            set -e
 
-              sudo bash -lc '
-                cd /opt/convergent-ai/ConvergentAI
+            cd /opt/convergent-ai/ConvergentAI
 
-                git config --global --add safe.directory /opt/convergent-ai/ConvergentAI
+            git config --global --add safe.directory /opt/convergent-ai/ConvergentAI
 
-                echo "Pull latest code"
-                git fetch origin main
-                git reset --hard origin/main
+            echo "Pull latest code"
+            git fetch origin main
+            git reset --hard origin/main
 
+            echo "Stop old containers"
+            docker-compose down --remove-orphans || true
 
-                echo "Stop old containers"
-                docker-compose down --remove-orphans || true
+            echo "Rebuild and recreate containers"
+            docker-compose up -d --build --force-recreate --remove-orphans
 
-                echo "Rebuild and recreate containers"
-                docker-compose up -d --build --force-recreate --remove-orphans
+            echo "Verify containers"
+            docker ps | grep convergent
 
-                echo "Verify containers"
-                docker ps | grep convergent
-
-                echo "Clean unused images"
-                docker image prune -af
-              '
-            "
+            echo "Clean unused images"
+            docker image prune -af
+         EOF
