@@ -551,6 +551,8 @@ export default function FloatingCTA() {
 
   const isFetchingRef = useRef(false);
   const participantIdentityRef = useRef<string | null>(null);
+  // Track current phase in a ref so async callbacks (fetchToken) always read the latest value
+  const flowPhaseRef = useRef<FlowPhase>('idle');
 
   const fetchToken = async (mode?: string) => {
     // Prevent concurrent duplicate calls (e.g. compliance agree + mode button)
@@ -559,8 +561,10 @@ export default function FloatingCTA() {
     try {
       // Only show 'connecting' if we aren't already in a meaningful phase
       // Don't override intro phase — the CTA already set it to 'intro'
-      if (flowPhase === 'idle' && mode !== 'intro-avatar') {
+      const currentPhase = flowPhaseRef.current;
+      if (currentPhase === 'idle' && mode !== 'intro-avatar') {
         setFlowPhase('connecting');
+        flowPhaseRef.current = 'connecting';
       }
 
       setIsIntroComplete(false);
@@ -601,13 +605,16 @@ export default function FloatingCTA() {
       setLkUrl(data.serverUrl);
       setKeyframeMetaData(data.keyframe ?? null);
 
-      // If we are already in intro phase (playing video), don't jump to 'live'
-      if (flowPhase !== 'intro') {
-        setFlowPhase(mode === 'intro-avatar' ? 'intro' : 'live');
+      // Use the ref to read the phase at the time the async call resolves (avoids stale closure)
+      if (flowPhaseRef.current !== 'intro') {
+        const nextPhase = mode === 'intro-avatar' ? 'intro' : 'live';
+        setFlowPhase(nextPhase);
+        flowPhaseRef.current = nextPhase;
       }
     } catch (err) {
       console.error('Error connecting to LiveKit:', err);
       setFlowPhase('idle');
+      flowPhaseRef.current = 'idle';
       setIsIntroComplete(false);
     } finally {
       isFetchingRef.current = false;
@@ -642,17 +649,28 @@ export default function FloatingCTA() {
     }
   }, [searchParams]);
 
-  // Reset state when modal closes
+  // Reset ALL session state when modal closes so the full intro+compliance flow
+  // always plays from scratch on re-open
   useEffect(() => {
     if (!isOpen) {
       setFlowPhase('idle');
+      flowPhaseRef.current = 'idle';
       setToken(null);
       setLkUrl(null);
       setIsLkConnected(false);
+      setIsAgentReady(false);
       setRoomName('');
       setIsVideoReady(false);
       setIsIntroBlurring(true);
       setKeyframeMetaData(null);
+      // Reset agreement + compliance so the full intro → compliance → live flow
+      // always replays cleanly when the CTA is reopened
+      setHasAgreed(false);
+      setIsIntroComplete(false);
+      setComplianceChecked(false);
+      setPendingMode('video');
+      participantIdentityRef.current = null;
+      isFetchingRef.current = false;
     }
   }, [isOpen]);
 
@@ -1087,8 +1105,9 @@ export default function FloatingCTA() {
           whileTap={{ scale: 0.95 }}
           onClick={() => {
             setIsOpen(true);
-            if (flowPhase === 'idle') {
+            if (flowPhaseRef.current === 'idle') {
               setFlowPhase('intro');
+              flowPhaseRef.current = 'intro';
               setIsIntroComplete(false);
               setPendingMode('intro-avatar');
               fetchToken('intro-avatar');
