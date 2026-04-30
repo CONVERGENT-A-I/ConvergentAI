@@ -49,8 +49,9 @@ backend/.env
 backend/.env.example
 backend/.env.local
 backend/dist
-
+backend/.dockerignore
 
 # DevOps tools changes
 Dockerfile
 docker-compose.yaml
+.dockerignore
