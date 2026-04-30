@@ -309,6 +309,29 @@ export default function SecurityCenter() {
           </div>
         </motion.section>
 
+        {/* Try it out CTA */}
+        <motion.section 
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-100px" }}
+          variants={fadeUp}
+          className="mt-32 p-10 md:p-16 rounded-3xl bg-brand-green/10 border border-brand-green/20 relative overflow-hidden text-center"
+        >
+          <div className="relative z-10 max-w-3xl mx-auto">
+            <h2 className="text-2xl md:text-4xl font-bold tracking-tight mb-6 text-white">How do we try it?</h2>
+            <p className="text-lg text-brand-green/80 font-medium mb-10 leading-relaxed">
+              Ready to see ConvergentAI in action? Experience our secure, zero-leak environment firsthand.
+            </p>
+            <Link 
+              href="/pilot"
+              className="inline-flex items-center justify-center gap-3 bg-brand-green text-black px-8 py-4 rounded-2xl text-lg font-bold hover:shadow-[0_0_30px_rgba(0,255,153,0.6)] transition-all transform hover:-translate-y-1"
+            >
+              Explore the 90-Day Pilot Program
+              <ArrowRight className="w-5 h-5 transition-transform" />
+            </Link>
+          </div>
+        </motion.section>
+
       </main>
     </div>
   );
