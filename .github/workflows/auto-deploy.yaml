@@ -43,8 +43,7 @@ jobs:
           docker images -q | xargs -r docker rmi -f
 
           echo "Rebuild and recreate containers"
-          docker-compose build --no-cache
-          docker-compose up -d
+          docker-compose up -d --build
 
           echo "Verify containers"
           docker ps | grep convergent
