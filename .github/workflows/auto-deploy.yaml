@@ -37,14 +37,15 @@ jobs:
           git reset --hard origin/main
 
           echo "Stop old containers"
-          docker-compose down --remove-orphans || true
+          docker-compose down
+
+          echo "Remove Old images"
+          docker image rmi $(docker images)
 
           echo "Rebuild and recreate containers"
-          docker-compose up -d --build --force-recreate --remove-orphans
+          docker-compose build --no-cache
+          docker-compose up -d
 
           echo "Verify containers"
           docker ps | grep convergent
-
-          echo "Clean unused images"
-          docker image prune -af
           EOF
