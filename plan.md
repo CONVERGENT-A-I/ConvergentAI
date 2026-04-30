@@ -1,96 +1,48 @@
-# Simplification of Ailana CTA & UI Flow
+# ConvergentAI: Credit Union Compliance & Security Roadmap (2026)
 
-This document details the implementation plan to modernize the Ailana AI Assistant user experience based on the latest client feedback. The goal is to strip away the omnichannel clutter, adopt a minimalist "Google Meet" style interface, and lean heavily on the AI to dynamically route users. 
+This roadmap details the transition to a **Security-First Architecture** designed specifically for the financial sector. We are shifting from selling "Chatbots" to selling **"Secured, Orchestrated Voice Infrastructure for Credit Unions."**
 
-## Proposed Changes
+## Milestone 1: Site-Wide Trust Anchors & Navigation
+**Goal**: Signal to IT Auditors and CISOs that security is the foundation, not an afterthought.
+*   **Security Ribbon**: Implement a high-visibility bar at the very top of the Hero section: 
+    > 🛡️ SECURITY FIRST: Built on SOC 2 Type II Certified GCP & LiveKit Infrastructure | GLBA Aligned [Explore Our Security Roadmap →]
+*   **Primary Navigation**: Add "Security & Trust" as a top-level menu item or a prominent link within a "Platform" dropdown.
+*   **Hero Trust Anchor**: Add a secondary text link below the main "Watch Demo" CTA: *"Review our [Security & Compliance Standards]"*.
+*   **Global Footer**: Add a dedicated "Trust" or "Legal" column containing:
+    *   Security & Trust Center
+    *   Privacy Policy
+    *   Data Processing Agreement (DPA)
+    *   SOC 2 Roadmap
 
-### Milestone 1: Streamlined Initialization & Connectivity ✅ DONE
-Remove the intermediate omnichannel selection slide-out.
-1. When the CTA is clicked, play the pre-recorded "warm up" intro video.
-2. Upon intro completion, show the **Compliance popup**.
-3. Establish the LiveKit connection in the background during the video.
-4. Upon agreement, transition seamlessly into the live Ailana engagement without any additional user clicks.
+## Milestone 2: Page 1 — The "Security & Trust Center" (Technical Persona)
+**Goal**: Provide a documentation-heavy, transparent space for CISOs and NCUA auditors.
+*   **The Vibe**: Clean, structured, and authoritative (distinct from the visual marketing pages).
+*   **Key Content**:
+    *   **Inherited Compliance Table**: Detailed certifications for GCP, LiveKit, and Telnyx.
+    *   **Technical Deep-Dives**: Detailed specs on AES-256 encryption and TLS 1.3 signaling.
+    *   **AI Governance Framework**: Documentation on PII scrubbing (Google DLP) and hallucination guardrails.
+    *   **SOC 2 Roadmap**: Transparency regarding the current audit status and timeline.
 
-#### [MODIFY] src/components/floating-cta.tsx
-- `flowPhase` logic routes `idle` -> `intro` (while connecting) -> compliance overlay -> `live`.
-- 6-button channel selection grid is dead code (will be cleaned up in M2).
+## Milestone 3: Page 2 — The "90-Day Pilot Program" (Business Persona)
+**Goal**: Overcome the "Audit Friction" for CEOs and VPs of Member Experience.
+*   **The Vibe**: Low-risk, high-reward, and execution-focused.
+*   **Key Content**:
+    *   **The 90-Day Roadmap**: A step-by-step implementation guide from setup to results.
+    *   **The "Sandbox" Strategy**: Explanation of how the AI can be tested without touching live PII.
+    *   **Success Metrics**: Clear expectations for member engagement and ROI.
 
-### Milestone 2: Unified "Google Meet" Style UI ✅ DONE
-Overhaul the live room UI to match the reference design (see UI reference image).
-1. **Top Header Bar**: Logo left, mode switcher center (Video/Voice/Chat pills), trust markers right.
-2. **Split Layout**: Avatar video (left ~65%) + Chat panel (right ~35%).
-3. **Avatar Controls**: Bottom-center overlay with Mute, Stop Video, End (red), Share, More.
-4. **Subtitle Overlay**: Speech bubble on avatar showing AI transcript.
-5. **Bottom Section**: "Prefer to talk instead?" with "Talk to me" CTA.
-6. **Trust Footer**: "Your information is secure and never shared." | "AI-Powered. Human-Focused. 24/7."
+## Milestone 4: Governance Resources & Lead Magnets
+**Goal**: Capture technical leads via authority-building documentation.
+*   **Deliverables**:
+    *   **Security Whitepaper**: "ConvergentAI on GCP/LiveKit" (housed on the Security page).
+    *   **NCUA 2026 Checklist**: A compliance guide for AI vendors.
+    *   **DPA Template**: Ready-to-use legal documentation for the vetting phase.
 
-#### [MODIFY] src/components/floating-cta.tsx
-- Remove the 6-button channel selection grid (dead code cleanup).
-- Remove `SideButton` component and sidebar navigation.
-- Remove `flowPhase === 'chat'` as a separate phase (chat is now a side panel).
-- Add top mode switcher pills (Video/Voice/Chat) in header during live phase.
-- Add trust markers in header.
-- Add split layout: avatar area + chat panel.
-- Add "Prefer to talk instead?" section.
-- Add trust footer.
+## Milestone 5: Optimization & Regulatory Disclosures
+**Goal**: Finalize sitewide compliance signals.
+*   **Trust Badges**: Integration of SOC 2 compliant provider logos in the footer.
+*   **Footer Disclosure**: Add standard financial text: *"ConvergentAI is a technology provider and does not directly offer financial services. Our AI solutions are designed to comply with GLBA and NCUA data privacy standards."*
+*   **Inter-Page Linking**: Ensure the "Is it secure?" objection on the Pilot page links to the Security page, and the "How do we try it?" CTA on the Security page links to the Pilot page.
 
-#### [MODIFY] src/components/video-stage.tsx
-- Add `hideControls` prop to suppress built-in footer/controls.
-- Parent (floating-cta) renders custom controls overlay instead.
-
-#### [CREATE] Custom RoomControls + InRoomChatPanel components (inline in floating-cta.tsx)
-- RoomControls: Custom Mic/Camera/End/Share/More buttons using LiveKit room context.
-- InRoomChatPanel: Chat panel using LiveKit `useChat()` hook, with timestamps and styling.
-
-### Milestone 3: Integrated Chat Panel & "Empty State" Experience ✅ DONE
-Create a seamless chat experience without leaving the avatar screen.
-1. **Side Panel**: Chat panel always visible alongside avatar in the split layout.
-2. **Empty State**: Display actionable chips (`[Connect to Slack]`, `[Schedule a Call]`, `[Email Summary]`) at the bottom of the chat to guide users.
-3. **Ghost Text**: Input placeholder will read "Type a message...".
-
-#### [MODIFY] src/components/floating-cta.tsx
-- Integrated as part of M2's split layout (chat panel is always visible alongside avatar).
-
-### Milestone 4: Enhanced Audio/Visual Cues & Subtitles ✅ DONE
-Improve visual feedback for voice interactions.
-1. **Subtitles Box**: Add a small, elegant text box at the bottom (above the control bar) showing real-time transcripts.
-2. **Waveform/Pulse Indicator**: Change the microphone icon to a glowing pulse or waveform when listening.
-3. **Contextual Help**: Add a one-time tooltip ("Try saying, 'Connect me to WhatsApp'") and a "?" icon for an overlay of available commands.
-4. **Suggested Commands text**: Display a cycling text line near the control bar ("Try: 'Call me'").
-
-#### [MODIFY] src/components/floating-cta.tsx
-- Integrate transcript listener (via LiveKit room events or chat track) to display subtitles.
-- Add Framer Motion pulsing animations to the active mic icon.
-- Implement the tooltip and "?" overlay state.
-
-### Milestone 5: Dynamic Ailana Greeting & Omnichannel Routing ✅ DONE
-Ensure the AI leads the interaction.
-1. **Pre-recorded Greeting Update**: The video/audio script needs to say: "Hi, I'm Ailana! I can help you here, or if you prefer, just ask me to move this conversation to Email or Phone."
-2. **Backend Tools**: Ensure Ailana's system prompt understands that it should transition the user to other channels (Slack, Email, Phone) rather than relying on UI buttons. *(Implemented via conversational prompt engineering rather than explicit function calling tools).*
-
-#### [MODIFY] backend/src/agent.ts
-- Update the system prompt to reflect the new onboarding script and channel routing instructions.
-
-### Milestone 6: Stabilization & Premium Theming ✅ DONE
-Ensure flawless connectivity and align the UI with the brand's aesthetic.
-1. **Avatar Connection Stability**: Prevent `401 Unauthorized` token expiry and WebRTC autoplay blockages by removing destructive animation cycles and properly hiding the avatar container via `opacity` instead of `display: none` during background initialization.
-2. **Logo Color Theme Overhaul**: Replace the generic light/white theme with a premium dark mode using the brand's cyan (`#00b4d8`) and deep blue (`#023e8a`) gradients against a deep navy/black (`#0B0F19`) background.
-3. **Toggleable Chat Panel**: Ensure the chat panel slides in only when the user explicitly selects the "Chat" mode from the top header, maximizing the video stage area otherwise.
-
-#### [MODIFY] src/components/floating-cta.tsx
-- Remove `mode="wait"` from `AnimatePresence` to prevent premature LiveKit room unmounting.
-- Replace `hidden` classes with `opacity-0 pointer-events-none -z-10` for the background WebRTC connection container.
-- Update all UI components (wrappers, headers, chat panel, inputs, footers) to the new dark color palette.
-- Conditionally render the `InRoomChatPanel` based on `pendingMode === 'avatar-chat'`.
-
-### Milestone 7: Re-engagement & Copy Refinement ✅ DONE
-Ensure smooth state resets when reopening the CTA and refine copy for better user understanding.
-1. **State Reset**: Fix issue where compliance gate and flow state were not fully resetting when the CTA modal was closed and reopened.
-2. **Transparency Header**: Update the compliance modal header from "Safety & Compliance" to "Commitment to Transparency & AI Use".
-3. **Chat Terminology**: Remove mentions of "WhatsApp" from voice command hints and tooltips, replacing them with generic "chat" references.
-
-#### [MODIFY] src/components/floating-cta.tsx
-- Add a `useEffect` cleanup hook that fully resets `hasAgreed`, `isIntroComplete`, `complianceChecked`, `participantIdentityRef`, and `flowPhase` (via `flowPhaseRef`) when `isOpen` becomes false.
-- Introduce `flowPhaseRef` to prevent stale closure issues in async `fetchToken` calls.
-- Update header text to "Commitment to Transparency & AI Use".
-- Update `ContextualHelp` and `SuggestedCommands` texts to say "chat" instead of "WhatsApp".
+---
+**Golden Rule**: The Security Center is the **Shield** (protects the sales process); the Pilot Program is the **Bridge** (gets them to use the tech).
