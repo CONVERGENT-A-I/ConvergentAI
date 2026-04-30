@@ -63,6 +63,23 @@ export default function Footer() {
             </Link>
           </div>
 
+          {/* Middle: Trust & Legal */}
+          <div className="flex flex-col items-center md:items-start text-center md:text-left gap-3">
+            <span className="text-zinc-500 text-sm font-bold uppercase tracking-[0.2em] mb-1">Trust</span>
+            <Link href="/security" className="text-zinc-300 text-sm md:text-base font-medium hover:text-brand-green transition-colors">
+              Security & Trust Center
+            </Link>
+            <Link href="/privacy" className="text-zinc-300 text-sm md:text-base font-medium hover:text-brand-green transition-colors">
+              Privacy Policy
+            </Link>
+            <Link href="/dpa" className="text-zinc-300 text-sm md:text-base font-medium hover:text-brand-green transition-colors">
+              Data Processing Agreement
+            </Link>
+            <Link href="/security#soc2" className="text-zinc-300 text-sm md:text-base font-medium hover:text-brand-green transition-colors">
+              SOC 2 Roadmap
+            </Link>
+          </div>
+
           {/* Right: Copyright */}
           <div className="flex flex-col items-center md:items-end text-center md:text-right gap-1.5 shrink-0">
             <span className="text-zinc-300 text-base md:text-xl font-semibold tracking-wide">

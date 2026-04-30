@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { motion, Variants } from "framer-motion";
+import { ShieldCheck, ArrowRight } from "lucide-react";
 
 export default function Hero() {
   const containerVariants: Variants = {
@@ -53,7 +54,7 @@ export default function Hero() {
         </motion.p>
 
         {/* Call to Action Button */}
-        <motion.div variants={itemVariants}>
+        <motion.div variants={itemVariants} className="flex flex-col items-center gap-4">
           <Link
             href="https://convergentai.neetocal.com/meeting-with-david-patten"
             target="_blank"
@@ -62,6 +63,15 @@ export default function Hero() {
           >
             Schedule a Demo
             <div className="absolute inset-0 rounded-2xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </Link>
+          
+          {/* Hero Trust Anchor */}
+          <Link href="/security" className="group flex items-center justify-center gap-2 mt-2 px-5 py-2.5 rounded-full bg-white/[0.03] border border-white/10 hover:bg-white/[0.08] hover:border-brand-green/30 transition-all cursor-pointer backdrop-blur-sm">
+            <ShieldCheck className="w-4 h-4 text-brand-green opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all" />
+            <span className="text-xs md:text-sm text-zinc-400 group-hover:text-white transition-colors">
+              Review our <span className="font-semibold text-zinc-200 group-hover:text-brand-green transition-colors">Security & Compliance Standards</span>
+            </span>
+            <ArrowRight className="w-3.5 h-3.5 opacity-0 -ml-3 group-hover:opacity-100 group-hover:translate-x-1.5 transition-all text-brand-green" />
           </Link>
         </motion.div>
 

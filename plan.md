@@ -2,7 +2,7 @@
 
 This roadmap details the transition to a **Security-First Architecture** designed specifically for the financial sector. We are shifting from selling "Chatbots" to selling **"Secured, Orchestrated Voice Infrastructure for Credit Unions."**
 
-## Milestone 1: Site-Wide Trust Anchors & Navigation
+## Milestone 1: Site-Wide Trust Anchors & Navigation ✅ DONE
 **Goal**: Signal to IT Auditors and CISOs that security is the foundation, not an afterthought.
 *   **Security Ribbon**: Implement a high-visibility bar at the very top of the Hero section: 
     > 🛡️ SECURITY FIRST: Built on SOC 2 Type II Certified GCP & LiveKit Infrastructure | GLBA Aligned [Explore Our Security Roadmap →]
