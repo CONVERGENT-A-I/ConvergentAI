@@ -14,7 +14,7 @@ This roadmap details the transition to a **Security-First Architecture** designe
     *   Data Processing Agreement (DPA)
     *   SOC 2 Roadmap
 
-## Milestone 2: Page 1 — The "Security & Trust Center" (Technical Persona)
+## Milestone 2: Page 1 — The "Security & Trust Center" (Technical Persona) ✅ DONE
 **Goal**: Provide a documentation-heavy, transparent space for CISOs and NCUA auditors.
 *   **The Vibe**: Clean, structured, and authoritative (distinct from the visual marketing pages).
 *   **Key Content**:

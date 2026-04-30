@@ -72,7 +72,7 @@ body {
     font-size: clamp(2.5rem, 8vw, 6.5rem);
     line-height: 1.1;
   }
-  
+
   .text-fluid-p {
     font-size: clamp(1rem, 1.5vw, 1.25rem);
     line-height: 1.6;
@@ -84,6 +84,11 @@ body {
 }
 
 @keyframes marquee {
-  0% { transform: translateX(0%); }
-  100% { transform: translateX(-50%); }
+  0% {
+    transform: translateX(0%);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
 }
