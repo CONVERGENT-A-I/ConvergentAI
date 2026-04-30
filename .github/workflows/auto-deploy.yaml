@@ -40,7 +40,7 @@ jobs:
           docker-compose down
 
           echo "Remove Old images"
-          docker image rmi $(docker images)
+          docker images -q | xargs -r docker rmi -f
 
           echo "Rebuild and recreate containers"
           docker-compose build --no-cache
