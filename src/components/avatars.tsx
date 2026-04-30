@@ -93,7 +93,7 @@ export default function Avatars() {
         </div>
 
         {/* Bottom CTA Box - Increased size and font */}
-        <motion.div variants={itemVariants} className="flex justify-center md:justify-end">
+        <motion.div variants={itemVariants} className="flex justify-center">
           <a
             href="#schedule-demo"
             className="group relative inline-flex items-center justify-center border border-zinc-700 hover:border-brand-green px-8 md:px-16 py-4 md:py-8 rounded-2xl transition-all overflow-hidden"

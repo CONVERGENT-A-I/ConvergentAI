@@ -25,7 +25,7 @@ export default function Navbar() {
         </Link>
 
         {/* Navigation Links - Desktop */}
-        <div className="hidden lg:flex items-center gap-6 xl:gap-12">
+        <div className="hidden xl:flex items-center gap-6 xl:gap-12">
           {[
             { name: "Home", href: "/" },
             { name: "About Us", href: "/about" },
@@ -51,7 +51,7 @@ export default function Navbar() {
         </div>
 
         {/* Schedule a Meeting Button */}
-        <div className="hidden md:block">
+        <div className="hidden xl:block">
           <Link
             href="https://convergentai.neetocal.com/meeting-with-david-patten"
             target="_blank"
@@ -62,10 +62,10 @@ export default function Navbar() {
           </Link>
         </div>
 
-        {/* Mobile Menu Button - Bulletproof Standard Implementation */}
+        {/* Mobile/Tablet Menu Button */}
         <button
           type="button"
-          className="md:hidden relative z-[200] p-4 -mr-4 text-white hover:bg-white/10 active:bg-white/20 active:scale-95 rounded-full transition-all cursor-pointer"
+          className="xl:hidden relative z-[200] p-4 -mr-4 text-white hover:bg-white/10 active:bg-white/20 active:scale-95 rounded-full transition-all cursor-pointer"
           onClick={() => setIsMenuOpen(!isMenuOpen)}
           aria-label="Toggle Menu"
           aria-expanded={isMenuOpen}
@@ -85,9 +85,9 @@ export default function Navbar() {
         </button>
       </div>
 
-      {/* Mobile Menu Overlay */}
+      {/* Mobile/Tablet Menu Overlay */}
       {isMenuOpen && (
-        <div className="fixed inset-0 z-[150] md:hidden">
+        <div className="fixed inset-0 z-[150] xl:hidden">
           {/* Backdrop Blur Layer */}
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-lg animate-in fade-in duration-300"

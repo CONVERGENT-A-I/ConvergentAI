@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, Sparkles, X, Phone, Video, Mic, MicOff, VideoOff, PhoneOff, Monitor, MoreHorizontal, Circle, Loader2, Send, Check, ArrowRight, Clock, Lock } from "lucide-react";
+import { MessageCircle, Sparkles, X, Phone, Video, Mic, MicOff, VideoOff, PhoneOff, Monitor, MoreHorizontal, Circle, Loader2, Send, Check, ArrowRight, Clock, Lock, ArrowUp } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import {
   LiveKitRoom,
@@ -532,6 +532,7 @@ function InRoomChatPanel() {
 
 export default function FloatingCTA() {
   const [isOpen, setIsOpen] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const [hasAgreed, setHasAgreed] = useState(false);
   const [flowPhase, setFlowPhase] = useState<FlowPhase>('idle');
   const [isIntroComplete, setIsIntroComplete] = useState(false);
@@ -694,6 +695,19 @@ export default function FloatingCTA() {
     }
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 300);
+    };
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
 
   const hasAnnouncedRef = useRef(false);
 
@@ -1096,7 +1110,25 @@ export default function FloatingCTA() {
         )}
       </AnimatePresence>
 
-      <div className="fixed bottom-6 right-6 z-[100]">
+      <div className="fixed bottom-6 right-6 z-[100] flex items-end gap-3">
+        <AnimatePresence>
+          {showScrollTop && (
+            <motion.button
+              type="button"
+              initial={{ opacity: 0, y: 12, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.9 }}
+              whileHover={{ scale: 1.06 }}
+              whileTap={{ scale: 0.94 }}
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+              aria-label="Scroll to top"
+              className="h-12 w-12 md:h-14 md:w-14 rounded-full bg-black/75 border border-white/25 backdrop-blur-md text-white/90 flex items-center justify-center shadow-[0_8px_20px_rgba(0,0,0,0.45),0_0_20px_rgba(0,212,245,0.2)] hover:text-white hover:border-[#00d4f5]/70 hover:bg-black/90 transition-all cursor-pointer"
+            >
+              <ArrowUp className="h-5 w-5 md:h-6 md:w-6" />
+            </motion.button>
+          )}
+        </AnimatePresence>
+
         <motion.div
           layout
           initial={{ scale: 0, opacity: 0 }}
