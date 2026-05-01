@@ -31,7 +31,7 @@ This roadmap details the transition to a **Security-First Architecture** designe
     *   **The "Sandbox" Strategy**: Explanation of how the AI can be tested without touching live PII.
     *   **Success Metrics**: Clear expectations for member engagement and ROI.
 
-## Milestone 4: Governance Resources & Lead Magnets
+## Milestone 4: Governance Resources & Lead Magnets ✅ DONE
 **Goal**: Capture technical leads via authority-building documentation.
 *   **Deliverables**:
     *   **Security Whitepaper**: "ConvergentAI on GCP/LiveKit" (housed on the Security page).

@@ -285,27 +285,57 @@ export default function SecurityCenter() {
           </div>
         </motion.section>
 
-        {/* CTA Lead Magnet */}
+        {/* Milestone 4: Governance Resources */}
         <motion.section 
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: "-100px" }}
           variants={fadeUp}
-          className="text-center"
+          className="mb-32"
         >
-          <div className="inline-flex flex-col items-center">
-            <FileText className="w-12 h-12 text-zinc-500 mb-6" />
-            <h2 className="text-3xl md:text-5xl font-black tracking-tight mb-6">Require Full Documentation?</h2>
-            <p className="text-xl text-zinc-400 font-medium mb-10 max-w-2xl mx-auto">
-              Download our comprehensive Security Architecture Whitepaper and the NCUA 2026 Compliance Checklist for AI Vendors.
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-5xl font-black tracking-tight mb-6">Governance & Compliance Resources</h2>
+            <p className="text-xl text-zinc-400 font-medium max-w-3xl mx-auto">
+              Authority-building documentation designed to streamline the vetting process for Risk Officers and IT Auditors.
             </p>
-            <Link 
-              href="mailto:security@convergentai.tech?subject=Requesting Security Packet"
-              className="group relative inline-flex items-center justify-center gap-3 bg-white text-black px-8 py-4 rounded-2xl text-lg font-bold hover:bg-zinc-200 transition-colors"
-            >
-              Request Full Security Packet
-              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Whitepaper */}
+            <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/10 flex flex-col items-start gap-6 hover:border-brand-green/30 transition-colors group">
+              <FileText className="w-10 h-10 text-brand-green" />
+              <div>
+                <h3 className="text-xl font-bold mb-2">Security Whitepaper</h3>
+                <p className="text-zinc-400 text-sm">A deep dive into &quot;ConvergentAI on GCP/LiveKit&quot; architecture and data flows.</p>
+              </div>
+              <Link href="mailto:security@convergentai.tech?subject=Request: Security Whitepaper" className="mt-auto flex items-center gap-2 text-brand-green font-bold text-sm hover:underline">
+                Request Access <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </Link>
+            </div>
+
+            {/* NCUA Checklist */}
+            <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/10 flex flex-col items-start gap-6 hover:border-brand-green/30 transition-colors group">
+              <CheckCircle2 className="w-10 h-10 text-brand-green" />
+              <div>
+                <h3 className="text-xl font-bold mb-2">NCUA 2026 Checklist</h3>
+                <p className="text-zinc-400 text-sm">A comprehensive compliance guide for Credit Unions vetting AI voice vendors.</p>
+              </div>
+              <Link href="mailto:security@convergentai.tech?subject=Request: NCUA Checklist" className="mt-auto flex items-center gap-2 text-brand-green font-bold text-sm hover:underline">
+                Request Access <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </Link>
+            </div>
+
+            {/* DPA Template */}
+            <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/10 flex flex-col items-start gap-6 hover:border-brand-green/30 transition-colors group">
+              <Layers className="w-10 h-10 text-brand-green" />
+              <div>
+                <h3 className="text-xl font-bold mb-2">DPA Template</h3>
+                <p className="text-zinc-400 text-sm">Ready-to-use legal documentation to accelerate the vetting and contracting phase.</p>
+              </div>
+              <Link href="mailto:security@convergentai.tech?subject=Request: DPA Template" className="mt-auto flex items-center gap-2 text-brand-green font-bold text-sm hover:underline">
+                Request Access <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </Link>
+            </div>
           </div>
         </motion.section>
 
