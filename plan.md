@@ -38,7 +38,7 @@ This roadmap details the transition to a **Security-First Architecture** designe
     *   **NCUA 2026 Checklist**: A compliance guide for AI vendors.
     *   **DPA Template**: Ready-to-use legal documentation for the vetting phase.
 
-## Milestone 5: Optimization & Regulatory Disclosures
+## Milestone 5: Optimization & Regulatory Disclosures ✅ DONE
 **Goal**: Finalize sitewide compliance signals.
 *   **Trust Badges**: Integration of SOC 2 compliant provider logos in the footer.
 *   **Footer Disclosure**: Add standard financial text: *"ConvergentAI is a technology provider and does not directly offer financial services. Our AI solutions are designed to comply with GLBA and NCUA data privacy standards."*

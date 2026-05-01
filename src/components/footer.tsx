@@ -138,6 +138,32 @@ export default function Footer() {
             </span>
           </div>
         </div>
+
+        {/* Milestone 5: Trust Badges and Regulatory Disclosure */}
+        <div className="mt-16 pt-12 border-t border-white/10 flex flex-col gap-10">
+          {/* Trust Badges */}
+          <div className="flex flex-wrap justify-center md:justify-start items-center gap-8 opacity-40 hover:opacity-70 transition-opacity grayscale">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-white/10 rounded flex items-center justify-center font-bold text-[8px]">GCP</div>
+              <span className="text-[10px] font-bold tracking-widest uppercase text-white/60">SOC 2 TYPE II</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-white/10 rounded flex items-center justify-center font-bold text-[8px]">LIVEKIT</div>
+              <span className="text-[10px] font-bold tracking-widest uppercase text-white/60">SOC 2 TYPE II</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-white/10 rounded flex items-center justify-center font-bold text-[8px]">TELNYX</div>
+              <span className="text-[10px] font-bold tracking-widest uppercase text-white/60">ISO 27001</span>
+            </div>
+          </div>
+
+          {/* Disclosure Text */}
+          <div className="max-w-4xl">
+            <p className="text-zinc-500 text-[11px] md:text-xs leading-relaxed text-center md:text-left italic">
+              ConvergentAI is a technology provider and does not directly offer financial services. Our AI solutions are designed to comply with GLBA and NCUA data privacy standards. All infrastructure is hosted on SOC 2 Type II certified data centers with military-grade AES-256 encryption.
+            </p>
+          </div>
+        </div>
       </div>
     </footer>
   );
