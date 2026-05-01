@@ -266,10 +266,10 @@ function TranscriptOverlay() {
 /** Cycling suggested commands near the control bar */
 function SuggestedCommands() {
   const commands = [
-    "Try: 'Connect me to chat'",
-    "Try: 'Call me'",
-    "Try: 'Send an email summary'",
-    "Try: 'Schedule a meeting'"
+    "Try: 'Switch to Voice mode'",
+    "Try: 'Let's chat via text'",
+    "Try: 'Enable your camera'",
+    "Try: 'Help me with mortgage'"
   ];
   const [index, setIndex] = useState(0);
 
@@ -347,15 +347,15 @@ function ContextualHelp() {
             <ul className="text-white/70 text-xs space-y-2">
               <li className="flex items-start gap-2">
                 <span className="text-blue-400 mt-0.5">•</span>
-                <span>&quot;Connect me to chat&quot; to switch to chat</span>
+                <span>&quot;Switch to chat&quot; to use text only</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-blue-400 mt-0.5">•</span>
-                <span>&quot;Call me&quot; to switch to a phone call</span>
+                <span>&quot;Go to voice&quot; for audio only</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-blue-400 mt-0.5">•</span>
-                <span>&quot;Email me a summary&quot; for a written record</span>
+                <span>&quot;Start video&quot; for full face-to-face</span>
               </li>
             </ul>
           </motion.div>
@@ -464,7 +464,7 @@ function InRoomChatPanel() {
             </div>
             <p className="text-gray-400 text-sm">Send a message to start chatting with Ailana</p>
             <div className="flex flex-wrap gap-2 justify-center mt-2">
-              {['Connect to Slack', 'Schedule a Call', 'Email Summary'].map(chip => (
+              {['Switch to Chat', 'Voice Only', 'Video Meet'].map(chip => (
                 <button
                   key={chip}
                   onClick={() => { setInput(chip); }}
