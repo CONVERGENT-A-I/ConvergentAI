@@ -165,8 +165,30 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
     }
   };
 
+  const [showMicTooltip, setShowMicTooltip] = useState(false);
+  const hasShownTooltipRef = useRef(false);
+
+  useEffect(() => {
+    // Show tooltip if muted in voice/video mode, and hasn't been shown yet
+    if (!isMicrophoneEnabled && (mode === 'voice' || mode === 'video') && !hasShownTooltipRef.current) {
+      const timer = setTimeout(() => {
+        setShowMicTooltip(true);
+        hasShownTooltipRef.current = true;
+      }, 1500); // Small delay after connecting
+      return () => clearTimeout(timer);
+    }
+  }, [isMicrophoneEnabled, mode]);
+
   const controls = [
-    { icon: isMicrophoneEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />, label: isMicrophoneEnabled ? 'Mute' : 'Unmute', onClick: toggleMic, danger: false, pulse: isMicrophoneEnabled, active: false },
+    { 
+      icon: isMicrophoneEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />, 
+      label: isMicrophoneEnabled ? 'Mute' : 'Unmute', 
+      onClick: () => { toggleMic(); setShowMicTooltip(false); }, 
+      danger: false, 
+      pulse: isMicrophoneEnabled, 
+      alertPulse: !isMicrophoneEnabled && (mode === 'voice' || mode === 'video'),
+      active: false 
+    },
     { icon: isCameraEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />, label: isCameraEnabled ? 'Stop Video' : 'Start Video', onClick: toggleCam, danger: false, pulse: false, active: false },
     { icon: <PhoneOff className="h-5 w-5" />, label: 'End', onClick: onEnd, danger: true, pulse: false, active: false },
     { icon: <Monitor className="h-5 w-5" />, label: isScreenSharing ? 'Stop Share' : 'Share', onClick: toggleScreenShare, danger: false, pulse: false, active: isScreenSharing },
@@ -195,6 +217,14 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
               transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
             />
           )}
+          {/* Mic alert pulse (when muted in voice/video) */}
+          {(c as any).alertPulse && (
+            <motion.div
+              className="absolute inset-0 rounded-2xl border-2 border-[#00b4d8]/80"
+              animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.15, 1] }}
+              transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+            />
+          )}
           {/* Screen share active ring */}
           {c.active && (
             <motion.div
@@ -203,6 +233,21 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
               transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
             />
           )}
+          
+          <AnimatePresence>
+            {c.label === 'Unmute' && showMicTooltip && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="absolute -top-14 left-1/2 -translate-x-1/2 z-[100] px-3 py-2 bg-[#00b4d8] text-white text-[10px] font-bold rounded-xl shadow-xl whitespace-nowrap"
+              >
+                Click to speak
+                <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-2 h-2 bg-[#00b4d8] rotate-45" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <span className="group-hover:scale-110 transition-transform">{c.icon}</span>
           <span className="text-[9px] md:text-[10px] font-semibold tracking-wide">{c.label}</span>
         </button>
