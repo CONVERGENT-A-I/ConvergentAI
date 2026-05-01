@@ -51,7 +51,7 @@ export default function StrategicImpact() {
           className="font-black text-white mb-6 tracking-tight leading-[1.1] w-full"
           style={{ fontSize: "clamp(2rem, 5.5vw, 5.5rem)" }}
         >
-          Strategic Impact for Credit Unions
+          Strategic Impact for Financial Institutions
         </motion.h2>
 
         {/* Wider Subtitle */}

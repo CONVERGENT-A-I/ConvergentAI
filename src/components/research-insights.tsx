@@ -77,9 +77,14 @@ export default function ResearchInsights() {
         viewport={{ once: true, margin: "-50px" }}
       >
         {/* Main Headline */}
-        <motion.h2 variants={itemVariants} className="text-fluid-h1 font-black text-white mb-20 tracking-tight leading-[1.1] text-balance">
-          Why Your Members Research Mortgages With You—And <span className="text-brand-green">Finish Elsewhere</span>
+        <motion.h2 variants={itemVariants} className="text-fluid-h1 font-black text-white mb-8 tracking-tight leading-[1.1] text-balance">
+          Stop Losing Mortgage Opportunities to <span className="text-brand-green">Faster Competitors</span>
         </motion.h2>
+
+        {/* Subheader */}
+        <motion.p variants={itemVariants} className="text-zinc-400 text-lg md:text-xl font-medium max-w-4xl mb-20 md:mb-24 text-balance opacity-80">
+          Whether you are a Credit Union, Community Bank, or Lender, your applicants expect an instant response. Capture their intent 24/7 before they click away.
+        </motion.p>
 
         {/* Insights Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-12 mb-24 border-b border-white/10 pb-20">

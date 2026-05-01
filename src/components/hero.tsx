@@ -43,7 +43,7 @@ export default function Hero() {
         <motion.h1 variants={itemVariants} className="text-fluid-h1 font-black text-white mb-8 tracking-tight">
           Stop Mortgage Leakage <br />
           <span className="text-brand-green">with 24/7 Phygital</span> <br />
-          <span className="inline-block">Member Engagement</span>
+          <span className="inline-block">Engagement</span>
         </motion.h1>
 
         {/* Subheadline / Description */}

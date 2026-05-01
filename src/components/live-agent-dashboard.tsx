@@ -6,7 +6,7 @@ import { CheckCircle2 } from "lucide-react";
 const features = [
   {
     title: "Unified Member Timeline",
-    description: "View every digital touchpoint and AI interaction across all channels in one chronological member journey.",
+    description: "View every digital touchpoint and AI interaction across all channels in one chronological mortgage journey.",
   },
   {
     title: "Real-time Co-browsing & E-sign Support",

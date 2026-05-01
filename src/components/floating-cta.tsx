@@ -850,7 +850,7 @@ export default function FloatingCTA() {
                       <div className="relative h-7 w-7 md:h-8 md:w-8 flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-transparent">
                         <Image src={AppIcon} alt="ConvergentAI Logo" fill sizes="32px" className="object-contain" />
                       </div>
-                      <span className="font-extrabold text-white text-sm md:text-lg tracking-tight">Convergent AI</span>
+                      <span className="font-extrabold text-white text-sm md:text-lg tracking-tight">ConvergentAI</span>
                     </div>
 
                     {/* Center: Mode Switcher (live phase only) */}
@@ -1190,9 +1190,10 @@ export default function FloatingCTA() {
             />
           </div>
           <div className="flex flex-col">
-            <span className="text-[10px] md:text-xs font-bold text-white/90 uppercase tracking-[0.2em] mb-0.5 drop-shadow-sm">Live with Ailana</span>
+            <span className="text-[10px] md:text-xs font-bold text-white/90 uppercase tracking-[0.2em] mb-0.5 drop-shadow-sm">Live</span>
+            <span className="text-[10px] md:text-xs font-bold text-white/90 uppercase tracking-[0.2em] mb-0.5 drop-shadow-sm">Mortgage Assistance</span>
             <span className="text-sm md:text-lg font-black tracking-tight text-white flex items-center gap-2 drop-shadow-sm">
-              Start Conversation
+              WITH AILANA (24/7)
               <Sparkles className="h-3.5 w-3.5 md:h-4 md:w-4 text-yellow-300 animate-pulse" />
             </span>
           </div>

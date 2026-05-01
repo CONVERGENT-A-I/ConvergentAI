@@ -51,13 +51,13 @@ export default function Outcomes() {
         {/* Section Headline */}
         <motion.h2 variants={itemVariants} className="text-white text-5xl md:text-6xl lg:text-7xl font-black leading-tight tracking-tighter mb-8 text-balance">
           Driving Measurable Outcomes <br />
-          for CUSOs and Credit Unions
+          for Financial Institutions
         </motion.h2>
 
         {/* Subheader */}
         <motion.p variants={itemVariants} className="text-zinc-400 text-lg md:text-xl lg:text-2xl font-medium max-w-4xl mx-auto mb-20 md:mb-24 balance opacity-80">
           The ConvergentAI platform delivers quantifiable performance lifts across
-          every stage of the member journey.
+          every stage of the mortgage journey.
         </motion.p>
 
         {/* Metrics Box */}

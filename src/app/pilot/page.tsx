@@ -213,8 +213,8 @@ export default function PilotProgram() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
              {[
                { value: "24/7", label: "Availability", desc: "Instant answers outside business hours." },
-               { value: "< 2s", label: "Response Time", desc: "Human-like latency in voice and video." },
-               { value: "30%", label: "Lead Capture", desc: "Expected increase in mortgage leads." },
+               { value: "< 1s", label: "Response Time", desc: "Human-like latency in voice and video." },
+               { value: "15% - 30%", label: "Lead Capture", desc: "Expected increase in mortgage leads." },
                { value: "100%", label: "Compliance", desc: "Adherence to configured guardrails." }
              ].map((metric, i) => (
                <div key={i} className="p-8 rounded-3xl bg-gradient-to-b from-white/[0.05] to-transparent border border-white/10 text-center">
