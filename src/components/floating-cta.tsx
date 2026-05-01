@@ -77,7 +77,7 @@ function MediaGuard({ mode }: { mode: string }) {
   return null;
 }
 
-function ChannelStartTrigger({ isLivePhase, mode }: { isLivePhase: boolean; mode: string }) {
+function ChannelStartTrigger({ isLivePhase, mode, isAnnouncementComplete }: { isLivePhase: boolean; mode: string; isAnnouncementComplete: boolean }) {
   const { send } = useChat();
   const room = useRoomContext();
   const participants = useRemoteParticipants();
@@ -85,7 +85,7 @@ function ChannelStartTrigger({ isLivePhase, mode }: { isLivePhase: boolean; mode
   const lastTriggeredMode = useRef<string | null>(null);
 
   useEffect(() => {
-    if (isLivePhase && room.state === 'connected' && agentReady && lastTriggeredMode.current !== mode) {
+    if (isLivePhase && isAnnouncementComplete && room.state === 'connected' && agentReady && lastTriggeredMode.current !== mode) {
       const trySend = async (retries = 3) => {
         try {
           lastTriggeredMode.current = mode;
@@ -108,7 +108,7 @@ function ChannelStartTrigger({ isLivePhase, mode }: { isLivePhase: boolean; mode
     if (!isLivePhase) {
       lastTriggeredMode.current = null;
     }
-  }, [isLivePhase, mode, send, room.state, agentReady]);
+  }, [isLivePhase, mode, send, room.state, agentReady, isAnnouncementComplete]);
 
   return null;
 }
@@ -546,6 +546,8 @@ export default function FloatingCTA() {
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [isIntroBlurring, setIsIntroBlurring] = useState(true);
   const [complianceChecked, setComplianceChecked] = useState(false);
+  const [isAnnouncementStarted, setIsAnnouncementStarted] = useState(false);
+  const [isAnnouncementComplete, setIsAnnouncementComplete] = useState(false);
   const introVideoRef = useRef<HTMLVideoElement>(null);
   const searchParams = useSearchParams();
 
@@ -669,6 +671,8 @@ export default function FloatingCTA() {
       setIsIntroComplete(false);
       setComplianceChecked(false);
       setPendingMode('video');
+      setIsAnnouncementStarted(false);
+      setIsAnnouncementComplete(false);
       participantIdentityRef.current = null;
       isFetchingRef.current = false;
     }
@@ -722,6 +726,16 @@ export default function FloatingCTA() {
         announcement.rate = 1.0;
         announcement.pitch = 1.15;
         announcement.volume = 0.9;
+
+        announcement.onstart = () => {
+          setIsAnnouncementStarted(true);
+        };
+        announcement.onend = () => {
+          setIsAnnouncementComplete(true);
+        };
+        announcement.onerror = () => {
+          setIsAnnouncementComplete(true); // fallback so session isn't stuck
+        };
 
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(announcement);
@@ -994,7 +1008,11 @@ export default function FloatingCTA() {
                           >
                             <AgentReadinessCheck onAgentReady={setIsAgentReady} />
                             <MediaGuard mode={pendingMode} />
-                            <ChannelStartTrigger isLivePhase={flowPhase === 'live'} mode={pendingMode} />
+                            <ChannelStartTrigger 
+                              isLivePhase={flowPhase === 'live'} 
+                              mode={pendingMode} 
+                              isAnnouncementComplete={isAnnouncementComplete} 
+                            />
 
 
                             {/* ── Google Meet Split Layout (always mounted so avatar connection doesn't drop, but hidden until live) ── */}
@@ -1002,8 +1020,8 @@ export default function FloatingCTA() {
                               <div className="flex-1 flex min-h-0 p-2 md:p-3 gap-3">
                                 {/* Left: Avatar Area */}
                                 <div className="flex-1 relative rounded-2xl overflow-hidden bg-black shadow-xl">
-                                  {/* REC badge - only when connected */}
-                                  {isLkConnected && isAgentReady && (
+                                  {/* REC badge - only when connected and announcement started */}
+                                  {isLkConnected && isAgentReady && isAnnouncementStarted && (
                                     <div className="absolute top-3 left-3 z-50 flex items-center gap-2 bg-black/50 backdrop-blur-md px-2.5 py-1 rounded-full border border-red-500/30">
                                       <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}><Circle className="h-2.5 w-2.5 fill-red-500 text-red-500" /></motion.div>
                                       <span className="text-[9px] font-black text-white uppercase tracking-widest">Rec</span>

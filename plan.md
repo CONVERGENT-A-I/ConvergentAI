@@ -11,7 +11,7 @@ This roadmap focuses on refining the AI interaction experience, ensuring channel
 *   **Update Contextual Help**: Revise the "Voice Commands" help overlay to match actual system capabilities.
 *   **Refine Chat Onboarding Chips**: Update the quick-action chips in the `InRoomChatPanel` to remove unsupported integrations like Slack.
 
-## Milestone 2: Audio Orchestration & Regulatory Clarity
+## Milestone 2: Audio Orchestration & Regulatory Clarity ✅ DONE
 **Goal**: Eliminate audio collisions between the system's regulatory announcement and the AI's opening greeting.
 *   **Announcement Callback**: Modify the `SpeechSynthesis` logic to use the `onend` event handler.
 *   **Delayed Agent Trigger**: Prevent the `SYSTEM_CHANNEL_START` message from being sent until the "This session is being recorded..." notification has fully completed.
