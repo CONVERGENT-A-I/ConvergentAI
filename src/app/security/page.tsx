@@ -387,39 +387,48 @@ export default function SecurityCenter() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Whitepaper */}
+            {/* Card 1: Technical Architecture & Security */}
             <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/10 flex flex-col items-start gap-6 hover:border-brand-green/30 transition-colors group">
               <FileText className="w-10 h-10 text-brand-green" />
               <div>
-                <h3 className="text-xl font-bold mb-2">Security Whitepaper</h3>
-                <p className="text-zinc-400 text-sm">A deep dive into &quot;ConvergentAI on GCP/LiveKit&quot; architecture and data flows.</p>
+                <h3 className="text-xl font-bold mb-2">Security Architecture & Data Sovereignty</h3>
+                <p className="text-zinc-400 text-sm mb-4">A deep dive into our bank-grade infrastructure. Learn how we utilize logical tenant isolation, AES-256 encryption, and inherited SOC 2 Type II controls to protect your institution’s data.</p>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-[10px] font-bold text-brand-green uppercase tracking-widest bg-brand-green/10 px-2 py-1 rounded">Target: CIOs & CISOs</span>
+                </div>
               </div>
-              <Link href="mailto:security@convergentai.tech?subject=Request: Security Whitepaper" className="mt-auto flex items-center gap-2 text-brand-green font-bold text-sm hover:underline">
+              <Link href="mailto:security@convergentai.tech?subject=Request: Security Architecture Whitepaper" className="mt-auto flex items-center gap-2 text-brand-green font-bold text-sm hover:underline">
                 Request Access <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
 
-            {/* Regulatory Compliance Guide */}
+            {/* Card 2: AI Governance & Compliance */}
             <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/10 flex flex-col items-start gap-6 hover:border-brand-green/30 transition-colors group">
               <CheckCircle2 className="w-10 h-10 text-brand-green" />
               <div>
-                <h3 className="text-xl font-bold mb-2">Compliance Guide (FFIEC/NCUA)</h3>
-                <p className="text-zinc-400 text-sm">A comprehensive compliance guide for financial institutions vetting AI voice vendors.</p>
+                <h3 className="text-xl font-bold mb-2">Responsible AI Governance Framework</h3>
+                <p className="text-zinc-400 text-sm mb-4">Explore our proactive approach to regulatory compliance. This whitepaper outlines our automated PII redaction (DLP), hallucination guardrails, and alignment with NCUA and FFIEC standards.</p>
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  <span className="text-[10px] font-bold text-brand-green uppercase tracking-widest bg-brand-green/10 px-2 py-1 rounded">Target: Compliance Officers & Legal</span>
+                </div>
               </div>
-              <Link href="mailto:security@convergentai.tech?subject=Request: Regulatory Compliance Guide" className="mt-auto flex items-center gap-2 text-brand-green font-bold text-sm hover:underline">
+              <Link href="mailto:security@convergentai.tech?subject=Request: AI Governance Whitepaper" className="mt-auto flex items-center gap-2 text-brand-green font-bold text-sm hover:underline">
                 Request Access <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
 
-            {/* DPA Template */}
+            {/* Card 3: Implementation Roadmap */}
             <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/10 flex flex-col items-start gap-6 hover:border-brand-green/30 transition-colors group">
               <Layers className="w-10 h-10 text-brand-green" />
               <div>
-                <h3 className="text-xl font-bold mb-2">DPA Template</h3>
-                <p className="text-zinc-400 text-sm">Ready-to-use legal documentation to accelerate the vetting and contracting phase.</p>
+                <h3 className="text-xl font-bold mb-2">The 90-Day AI Pilot Blueprint</h3>
+                <p className="text-zinc-400 text-sm mb-4">Innovation without the friction. Review our phased roadmap for deploying human-like avatars in a secure sandbox environment, designed to prove ROI while minimizing operational risk.</p>
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  <span className="text-[10px] font-bold text-brand-green uppercase tracking-widest bg-brand-green/10 px-2 py-1 rounded">Target: CEOs & VPs of AX</span>
+                </div>
               </div>
-              <Link href="mailto:security@convergentai.tech?subject=Request: DPA Template" className="mt-auto flex items-center gap-2 text-brand-green font-bold text-sm hover:underline">
-                Request Access <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              <Link href="/pilot" className="mt-auto flex items-center gap-2 text-brand-green font-bold text-sm hover:underline">
+                Explore Blueprint <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
           </div>
