@@ -27,7 +27,7 @@ export default function SecurityCenter() {
         >
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-green/10 border border-brand-green/20 text-brand-green text-xs font-bold tracking-widest uppercase mb-6">
             <Shield className="w-3.5 h-3.5" />
-            Security & Trust Center
+            Designed for Regulatory Compliance (FFIEC/NCUA/FDIC)
           </div>
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-black tracking-tight mb-8">
             Engineered for <span className="text-brand-green">Financial Integrity.</span><br />
@@ -313,14 +313,14 @@ export default function SecurityCenter() {
               </Link>
             </div>
 
-            {/* NCUA Checklist */}
+            {/* Regulatory Compliance Guide */}
             <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/10 flex flex-col items-start gap-6 hover:border-brand-green/30 transition-colors group">
               <CheckCircle2 className="w-10 h-10 text-brand-green" />
               <div>
-                <h3 className="text-xl font-bold mb-2">NCUA 2026 Checklist</h3>
-                <p className="text-zinc-400 text-sm">A comprehensive compliance guide for Credit Unions vetting AI voice vendors.</p>
+                <h3 className="text-xl font-bold mb-2">Compliance Guide (FFIEC/NCUA)</h3>
+                <p className="text-zinc-400 text-sm">A comprehensive compliance guide for financial institutions vetting AI voice vendors.</p>
               </div>
-              <Link href="mailto:security@convergentai.tech?subject=Request: NCUA Checklist" className="mt-auto flex items-center gap-2 text-brand-green font-bold text-sm hover:underline">
+              <Link href="mailto:security@convergentai.tech?subject=Request: Regulatory Compliance Guide" className="mt-auto flex items-center gap-2 text-brand-green font-bold text-sm hover:underline">
                 Request Access <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>

@@ -10,11 +10,11 @@ This roadmap focuses on broadening the market appeal of ConvergentAI to include 
     *   `src/components/floating-cta.tsx` [DONE]
 *   **Persona Refinement**: Audit the "Pilot Program" and "Security Center" pages to ensure they address both Credit Union VPs and Community Bank Executives. [DONE]
 
-## Milestone 2: Compliance Framework Expansion
+## Milestone 2: Compliance Framework Expansion [DONE] ✅
 **Goal**: Explicitly document support for FFIEC and Community Banking regulations.
-*   **FFIEC Integration**: Update the **Security & Trust Center** to mention the **FFIEC framework** alongside the current NCUA mentions.
-*   **Regulatory Header**: Update the trust anchors to state: *"Designed for Regulatory Compliance (FFIEC/NCUA/FDIC)."*
-*   **Compliance Documentation**: Update the description of the "NCUA Checklist" to be a "Regulatory Compliance Guide (FFIEC/NCUA)" to appeal to bank auditors.
+*   **FFIEC Integration**: Update the **Security & Trust Center** to mention the **FFIEC framework** alongside the current NCUA mentions. [DONE]
+*   **Regulatory Header**: Update the trust anchors to state: *"Designed for Regulatory Compliance (FFIEC/NCUA/FDIC)."* [DONE]
+*   **Compliance Documentation**: Update the description of the "NCUA Checklist" to be a "Regulatory Compliance Guide (FFIEC/NCUA)" to appeal to bank auditors. [DONE]
 
 ## Milestone 3: Visual Regulatory Assets
 **Goal**: Create high-trust visual cues for auditors and risk officers.
