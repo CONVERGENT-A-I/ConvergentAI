@@ -74,7 +74,7 @@ export default function CaseStudies() {
         {/* Centered Header */}
         <motion.div variants={textVariants} className="flex flex-col items-center text-center gap-6 mb-20 md:mb-24">
           <h2 className="text-4xl md:text-6xl font-black text-white tracking-tighter uppercase max-w-4xl">
-            Real Impact for <br className="hidden md:block" /> Credit Unions & CUSOs
+            Real Impact for <br className="hidden md:block" /> Financial Institutions
           </h2>
         </motion.div>
 

@@ -107,7 +107,7 @@ export default function AIRealism() {
 
              <motion.p variants={textItemVariants} className="text-zinc-400 font-medium leading-relaxed mb-12 opacity-90"
                 style={{ fontSize: "clamp(1rem, 1.2vw, 1.2rem)" }}>
-                Empower your credit union to deliver human-like interactions at digital scale. 
+                Empower your institution to deliver human-like interactions at digital scale. 
                 Configure your video agents' appearance, voice, and behavior to match 
                 your institution's unique culture and account holder needs.
              </motion.p>

@@ -123,7 +123,7 @@ export default function ScheduleDemo() {
                   <input
                     type="text"
                     name="creditUnion"
-                    placeholder="Credit Union / CUSO Name"
+                    placeholder="Financial Institution Name"
                     value={formData.creditUnion}
                     onChange={handleChange}
                     className="w-full bg-black/60 border border-white/10 group-hover:border-white/20 focus:border-brand-green/60 text-white placeholder-zinc-500 font-medium rounded-xl px-5 py-4 outline-none transition-colors duration-200"

@@ -134,7 +134,7 @@ export default function Footer() {
               © 2026 ConvergentAI · All Rights Reserved.
             </span>
             <span className="text-zinc-500 text-sm md:text-base xl:text-lg font-medium">
-              Built for the Modern Credit Union.
+              Built for Modern Financial Institutions.
             </span>
           </div>
         </div>
@@ -160,7 +160,7 @@ export default function Footer() {
           {/* Disclosure Text */}
           <div className="max-w-4xl">
             <p className="text-zinc-500 text-[11px] md:text-xs leading-relaxed text-center md:text-left italic">
-              ConvergentAI is a technology provider and does not directly offer financial services. Our AI solutions are designed to comply with GLBA and NCUA data privacy standards. All infrastructure is hosted on SOC 2 Type II certified data centers with military-grade AES-256 encryption.
+              ConvergentAI is a technology provider and does not directly offer financial services. Our AI solutions are designed to comply with FFIEC, FDIC, and NCUA regulatory standards. All infrastructure is hosted on SOC 2 Type II certified data centers with military-grade AES-256 encryption.
             </p>
           </div>
         </div>

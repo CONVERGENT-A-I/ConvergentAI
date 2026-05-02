@@ -74,31 +74,51 @@ export default function SecurityCenter() {
               </ul>
             </div>
 
-            {/* Connection */}
+            {/* Connection / Data Tunnel */}
             <div className="hidden lg:flex items-center justify-center">
-              <div className="flex items-center gap-2 text-brand-green/50">
-                <div className="w-2 h-2 rounded-full bg-brand-green/50 animate-pulse" />
-                <div className="w-16 h-px bg-brand-green/30" />
-                <Lock className="w-5 h-5" />
-                <div className="w-16 h-px bg-brand-green/30" />
-                <div className="w-2 h-2 rounded-full bg-brand-green/50 animate-pulse" />
+              <div className="flex flex-col items-center gap-2">
+                <span className="text-[10px] font-bold text-brand-green/40 uppercase tracking-[0.3em]">Secure Data Tunnel</span>
+                <div className="flex items-center gap-0 text-brand-green/50 relative">
+                  {/* Moving Particle 1 */}
+                  <motion.div 
+                    className="absolute w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_10px_#00FF99]"
+                    animate={{ x: [-80, 80], opacity: [0, 1, 0] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                  />
+                  {/* Moving Particle 2 */}
+                  <motion.div 
+                    className="absolute w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_10px_#00FF99]"
+                    animate={{ x: [-80, 80], opacity: [0, 1, 0] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "linear", delay: 1 }}
+                  />
+                  
+                  <div className="w-20 h-[2px] bg-gradient-to-r from-transparent via-brand-green/30 to-transparent" />
+                  <div className="w-10 h-10 rounded-full border border-brand-green/30 flex items-center justify-center bg-brand-green/5 backdrop-blur-sm">
+                    <Lock className="w-4 h-4 text-brand-green" />
+                  </div>
+                  <div className="w-20 h-[2px] bg-gradient-to-r from-transparent via-brand-green/30 to-transparent" />
+                </div>
+                <div className="flex items-center gap-4 mt-2">
+                  <div className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[9px] font-bold text-zinc-500">TLS 1.3</div>
+                  <div className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[9px] font-bold text-zinc-500">mTLS</div>
+                </div>
               </div>
             </div>
 
             {/* ConvergentAI Layer */}
-            <div className="p-8 rounded-3xl bg-brand-green/5 border border-brand-green/20 flex flex-col items-center text-center relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-8 opacity-5">
+            <div className="p-8 rounded-3xl bg-brand-green/5 border border-brand-green/20 flex flex-col items-center text-center relative overflow-hidden group hover:bg-brand-green/[0.08] transition-all duration-500">
+              <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
                 <Shield className="w-32 h-32 text-brand-green" />
               </div>
-              <div className="w-16 h-16 rounded-2xl bg-brand-green/10 flex items-center justify-center mb-6 relative z-10">
+              <div className="w-16 h-16 rounded-2xl bg-brand-green/10 flex items-center justify-center mb-6 relative z-10 shadow-[0_0_20px_rgba(0,255,153,0.1)] group-hover:shadow-[0_0_30px_rgba(0,255,153,0.2)] transition-all">
                 <Server className="w-8 h-8 text-brand-green" />
               </div>
               <h3 className="text-xl font-bold text-white mb-2 relative z-10">ConvergentAI Platform</h3>
-              <p className="text-sm font-medium text-brand-green uppercase tracking-widest mb-4 relative z-10">Tier-1 Security</p>
-              <ul className="text-sm text-zinc-400 space-y-2 relative z-10">
-                <li>PII Redaction (DLP Engine)</li>
-                <li>AES-256 Data Encryption</li>
-                <li>Ephemeral Processing</li>
+              <p className="text-sm font-medium text-brand-green uppercase tracking-widest mb-4 relative z-10">Tier-1 Security Engine</p>
+              <ul className="text-sm text-zinc-400 space-y-3 relative z-10 text-left w-full max-w-[200px] mx-auto">
+                <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-brand-green" /> PII Redaction (DLP)</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-brand-green" /> AES-256 Encryption</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-brand-green" /> Ephemeral Data Ops</li>
               </ul>
             </div>
           </div>

@@ -47,14 +47,14 @@ export default function AboutHero() {
         {/* Main Headline - High-impact, black-weight typography */}
         <motion.h1 variants={itemVariants} className="font-black text-white mb-10 tracking-tighter text-balance w-full"
             style={{ fontSize: "clamp(2.75rem, 6.5vw, 6.5rem)", lineHeight: "1.05" }}>
-          Empowering CUSOs & <br className="hidden md:block" /> Credit Unions <br className="hidden md:block" />
+          Empowering Modern <br className="hidden md:block" /> Financial Institutions <br className="hidden md:block" />
           <span className="text-brand-green">Through AI Innovation</span>
         </motion.h1>
         
         {/* Refined Subtitle */}
         <motion.p variants={itemVariants} className="text-zinc-400 font-medium max-w-[900px] mx-auto text-balance leading-relaxed opacity-90"
            style={{ fontSize: "clamp(1.1rem, 1.35vw, 1.45rem)" }}>
-          We leverage conversational intelligence to help mortgage lenders and credit unions 
+          We leverage conversational intelligence to help mortgage lenders and financial institutions 
           scale personalized engagement to millions, acting as one unified phygital experience 
           that builds trust and drives conversion.
         </motion.p>

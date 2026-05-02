@@ -87,7 +87,7 @@ export default function AIUseCases() {
             </h2>
             <p className="text-zinc-400 font-medium leading-relaxed max-w-md opacity-90 text-pretty"
               style={{ fontSize: "clamp(1.1rem, 1.4vw, 1.3rem)" }}>
-              Driving tangible ROI for credit unions through immersive phygital
+              Driving tangible ROI for financial institutions through immersive phygital
               engagement and AI automation.
             </p>
           </motion.div>

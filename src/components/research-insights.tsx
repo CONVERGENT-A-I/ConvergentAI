@@ -30,7 +30,7 @@ export default function ResearchInsights() {
   const values = [
     {
       label: "Scalable Deployment",
-      text: "Built for credit unions and CUSOs of all sizes.",
+      text: "Built for financial institutions of all sizes.",
       icon: Layers,
     },
     {
