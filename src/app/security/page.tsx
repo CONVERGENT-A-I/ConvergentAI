@@ -5,12 +5,16 @@ import Navbar from "@/components/navbar";
 import { motion } from "framer-motion";
 import { Shield, Lock, Server, CheckCircle2, FileText, ArrowRight, EyeOff, Cpu, Layers, Activity, Landmark, Building2 } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
+import WhitepaperModal, { WhitepaperType } from "@/components/whitepaper-modal";
 
 export default function SecurityCenter() {
   const fadeUp = {
     hidden: { opacity: 0, y: 20 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.6 } }
   };
+
+  const [activeWhitepaper, setActiveWhitepaper] = useState<WhitepaperType>(null);
 
   return (
     <div className="min-h-screen bg-[#050505] text-white selection:bg-brand-green/30">
@@ -397,9 +401,9 @@ export default function SecurityCenter() {
                   <span className="text-[10px] font-bold text-brand-green uppercase tracking-widest bg-brand-green/10 px-2 py-1 rounded">Target: CIOs & CISOs</span>
                 </div>
               </div>
-              <Link href="mailto:security@convergentai.tech?subject=Request: Security Architecture Whitepaper" className="mt-auto flex items-center gap-2 text-brand-green font-bold text-sm hover:underline">
-                Request Access <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </Link>
+              <button onClick={() => setActiveWhitepaper('security-architecture')} className="mt-auto flex items-center gap-2 text-brand-green font-bold text-sm hover:underline">
+                Read Whitepaper <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </button>
             </div>
 
             {/* Card 2: AI Governance & Compliance */}
@@ -412,9 +416,9 @@ export default function SecurityCenter() {
                   <span className="text-[10px] font-bold text-brand-green uppercase tracking-widest bg-brand-green/10 px-2 py-1 rounded">Target: Compliance Officers & Legal</span>
                 </div>
               </div>
-              <Link href="mailto:security@convergentai.tech?subject=Request: AI Governance Whitepaper" className="mt-auto flex items-center gap-2 text-brand-green font-bold text-sm hover:underline">
-                Request Access <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </Link>
+              <button onClick={() => setActiveWhitepaper('ai-governance')} className="mt-auto flex items-center gap-2 text-brand-green font-bold text-sm hover:underline">
+                Read Framework <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </button>
             </div>
 
             {/* Card 3: Implementation Roadmap */}
@@ -458,6 +462,9 @@ export default function SecurityCenter() {
         </motion.section>
 
       </main>
+
+      {/* Render the Whitepaper Modal globally for this page */}
+      <WhitepaperModal type={activeWhitepaper} onClose={() => setActiveWhitepaper(null)} />
     </div>
   );
 }
