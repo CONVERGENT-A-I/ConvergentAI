@@ -3,7 +3,7 @@
 import React from "react";
 import Navbar from "@/components/navbar";
 import { motion } from "framer-motion";
-import { Shield, Lock, Server, CheckCircle2, FileText, ArrowRight, EyeOff, Cpu, Layers, Activity } from "lucide-react";
+import { Shield, Lock, Server, CheckCircle2, FileText, ArrowRight, EyeOff, Cpu, Layers, Activity, Landmark, Building2 } from "lucide-react";
 import Link from "next/link";
 
 export default function SecurityCenter() {
@@ -36,6 +36,72 @@ export default function SecurityCenter() {
           <p className="text-lg md:text-xl text-zinc-400 font-medium leading-relaxed max-w-3xl">
             ConvergentAI operates on a strictly audited, Security-First Architecture. We leverage the rigorous controls of our Tier-1 infrastructure partners while maintaining our own custom safeguards built for Credit Unions, Community Banks, and Regulatory Frameworks (NCUA/FFIEC).
           </p>
+        </motion.section>
+
+        {/* Shared Responsibility Diagram */}
+        <motion.section 
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-100px" }}
+          variants={fadeUp}
+          className="mb-32"
+        >
+          <div className="flex items-center gap-4 mb-8">
+            <Shield className="w-8 h-8 text-brand-green" />
+            <h2 className="text-2xl md:text-4xl font-bold tracking-tight">Designed for Regulatory Compliance</h2>
+          </div>
+          <p className="text-lg text-zinc-400 font-medium mb-12 max-w-3xl leading-relaxed">
+            Our Shared Responsibility model ensures that while ConvergentAI secures the AI intelligence layer, you maintain full control over your data governance, fully supported by our compliance-ready infrastructure.
+          </p>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Institution Layer */}
+            <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/10 flex flex-col items-center text-center">
+              <div className="flex gap-4 mb-6">
+                <div className="w-16 h-16 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                  <Landmark className="w-8 h-8 text-blue-500" />
+                </div>
+                <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                  <Building2 className="w-8 h-8 text-emerald-500" />
+                </div>
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Financial Institution</h3>
+              <p className="text-sm font-medium text-blue-400 uppercase tracking-widest mb-4">FDIC & NCUA Insured</p>
+              <ul className="text-sm text-zinc-400 space-y-2">
+                <li>Account Holder Data Governance</li>
+                <li>Access Control Policies</li>
+                <li>Audit Log Review</li>
+              </ul>
+            </div>
+
+            {/* Connection */}
+            <div className="hidden lg:flex items-center justify-center">
+              <div className="flex items-center gap-2 text-brand-green/50">
+                <div className="w-2 h-2 rounded-full bg-brand-green/50 animate-pulse" />
+                <div className="w-16 h-px bg-brand-green/30" />
+                <Lock className="w-5 h-5" />
+                <div className="w-16 h-px bg-brand-green/30" />
+                <div className="w-2 h-2 rounded-full bg-brand-green/50 animate-pulse" />
+              </div>
+            </div>
+
+            {/* ConvergentAI Layer */}
+            <div className="p-8 rounded-3xl bg-brand-green/5 border border-brand-green/20 flex flex-col items-center text-center relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-8 opacity-5">
+                <Shield className="w-32 h-32 text-brand-green" />
+              </div>
+              <div className="w-16 h-16 rounded-2xl bg-brand-green/10 flex items-center justify-center mb-6 relative z-10">
+                <Server className="w-8 h-8 text-brand-green" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2 relative z-10">ConvergentAI Platform</h3>
+              <p className="text-sm font-medium text-brand-green uppercase tracking-widest mb-4 relative z-10">Tier-1 Security</p>
+              <ul className="text-sm text-zinc-400 space-y-2 relative z-10">
+                <li>PII Redaction (DLP Engine)</li>
+                <li>AES-256 Data Encryption</li>
+                <li>Ephemeral Processing</li>
+              </ul>
+            </div>
+          </div>
         </motion.section>
 
         {/* Inherited Compliance Table */}
@@ -144,7 +210,7 @@ export default function SecurityCenter() {
               </div>
               <h3 className="text-xl font-bold mb-4 text-white">Military-Grade Encryption</h3>
               <p className="text-zinc-400 font-medium leading-relaxed">
-                Data in transit is secured via TLS 1.3 for SIP signaling and SRTP for voice media. Data at rest is encrypted using AES-256 bit encryption with Google-managed cryptographic keys.
+                Data in transit is secured via TLS 1.3 for SIP signaling and SRTP for voice media. Data at rest is encrypted using AES-256 bit encryption with Google-managed cryptographic keys, adhering strictly to FFIEC and FDIC data protection standards.
               </p>
             </div>
           </div>
@@ -172,7 +238,7 @@ export default function SecurityCenter() {
                 <CheckCircle2 className="w-6 h-6 text-brand-green shrink-0 mt-1" />
                 <div>
                   <h4 className="text-lg font-bold text-white mb-2">Real-Time PII Redaction</h4>
-                  <p className="text-zinc-400">Deep integration with Google Cloud DLP automatically scrubs SSNs, account numbers, and sensitive entities from transcripts before they are stored or processed.</p>
+                  <p className="text-zinc-400">Deep integration with Google Cloud DLP automatically scrubs SSNs, account numbers, and sensitive entities from transcripts before they are stored or processed, ensuring compliance with GLBA and bank-specific privacy rules.</p>
                 </div>
               </li>
               <li className="flex gap-4">
