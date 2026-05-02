@@ -197,20 +197,7 @@ export default function VideoStage({ mode = 'video', keyframeMetadata, hideContr
             {/* AI Avatar Participant */}
             <div className={`overflow-hidden transition-all duration-500 ${isAvatarOnly || gridTracks.length === 0 ? 'absolute inset-0' : 'relative w-full h-full'} ${isAvatarOnly ? 'rounded-none border-none shadow-none bg-transparent' : 'rounded-2xl bg-[#050505] border border-white/5 shadow-2xl group hover:border-[#00b4d8]/40'}`}>
               
-              {/* System Status Indicators */}
-              <div className="absolute top-4 left-4 z-30 flex flex-col gap-2 pointer-events-none">
-                <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10">
-                  <div className={`h-1.5 w-1.5 rounded-full ${keyframeMetadata ? 'bg-brand-green animate-pulse' : 'bg-amber-500'}`} />
-                  <span className="text-[10px] font-bold text-white uppercase tracking-widest">
-                    {keyframeMetadata ? 'Avatar Online' : 'System Ready'}
-                  </span>
-                </div>
-                {!keyframeMetadata && !isVoiceOnly && (
-                  <div className="flex items-center gap-2 bg-amber-500/10 backdrop-blur-md px-2.5 py-1 rounded-full border border-amber-500/20">
-                    <span className="text-[9px] font-bold text-amber-500 uppercase tracking-tight">Initializing Vision Engine...</span>
-                  </div>
-                )}
-              </div>
+
 
               {keyframeMetadata ? (
                 <KeyframeAvatar 
