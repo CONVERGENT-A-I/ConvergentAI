@@ -275,7 +275,7 @@ export default function SecurityCenter() {
           <div className="relative z-10 max-w-3xl">
             <h2 className="text-2xl md:text-4xl font-bold tracking-tight mb-6">Our SOC 2 Journey</h2>
             <p className="text-lg text-zinc-400 font-medium mb-10 leading-relaxed">
-              Transparency is our core value. While we fully inherit the SOC 2 Type II compliance of our infrastructure partners, ConvergentAI is actively undergoing its own native SOC 2 Type II audit to provide you with an independent, verified report of our internal operational controls.
+              We are actively pursuing our SOC 2 Type 1 attestation and are currently in the readiness assessment stage. We have dedicated internal resources to ensure our security controls meet the AICPA’s standards, with a target completion date of Q3 2026.
             </p>
             
             <div className="flex items-center gap-4">
