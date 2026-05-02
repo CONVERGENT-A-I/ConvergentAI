@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AccessToken } from "livekit-server-sdk";
+import { validateServerEnv, env } from "@/lib/env";
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,15 +10,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "roomName and participantName are required" }, { status: 400 });
     }
 
-    const apiKey = process.env.LIVEKIT_API_KEY;
-    const apiSecret = process.env.LIVEKIT_API_SECRET;
-    const wsUrl = process.env.LIVEKIT_URL;
-
-    if (!apiKey || !apiSecret || !wsUrl) {
-      return NextResponse.json({ error: "LiveKit server side configuration missing" }, { status: 500 });
+    const { isValid, missing } = validateServerEnv();
+    if (!isValid) {
+      return NextResponse.json({ 
+        error: "Server configuration missing", 
+        details: missing 
+      }, { status: 503 });
     }
 
-    const at = new AccessToken(apiKey, apiSecret, {
+    const at = new AccessToken(env.LIVEKIT_API_KEY!, env.LIVEKIT_API_SECRET!, {
       identity: participantName,
       metadata: metadata,
     });
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
       }
     // ─────────────────────────────────────────────────────────────────────
 
-    return NextResponse.json({ token, serverUrl: wsUrl, keyframe });
+    return NextResponse.json({ token, serverUrl: env.LIVEKIT_URL, keyframe });
   } catch (error) {
     console.error("Error generating token:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

@@ -196,15 +196,51 @@ export default function VideoStage({ mode = 'video', keyframeMetadata, hideContr
             
             {/* AI Avatar Participant */}
             <div className={`overflow-hidden transition-all duration-500 ${isAvatarOnly || gridTracks.length === 0 ? 'absolute inset-0' : 'relative w-full h-full'} ${isAvatarOnly ? 'rounded-none border-none shadow-none bg-transparent' : 'rounded-2xl bg-[#050505] border border-white/5 shadow-2xl group hover:border-[#00b4d8]/40'}`}>
+              
+              {/* System Status Indicators */}
+              <div className="absolute top-4 left-4 z-30 flex flex-col gap-2 pointer-events-none">
+                <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10">
+                  <div className={`h-1.5 w-1.5 rounded-full ${keyframeMetadata ? 'bg-brand-green animate-pulse' : 'bg-amber-500'}`} />
+                  <span className="text-[10px] font-bold text-white uppercase tracking-widest">
+                    {keyframeMetadata ? 'Avatar Online' : 'System Ready'}
+                  </span>
+                </div>
+                {!keyframeMetadata && !isVoiceOnly && (
+                  <div className="flex items-center gap-2 bg-amber-500/10 backdrop-blur-md px-2.5 py-1 rounded-full border border-amber-500/20">
+                    <span className="text-[9px] font-bold text-amber-500 uppercase tracking-tight">Initializing Vision Engine...</span>
+                  </div>
+                )}
+              </div>
+
               {keyframeMetadata ? (
                 <KeyframeAvatar 
                   keyframeMetadata={keyframeMetadata} 
                   className={`w-full h-full ${!isAvatarOnly ? 'rounded-2xl' : ''}`} 
                 />
               ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center gap-4 text-gray-500 bg-black/20">
-                  <Loader2 className="h-8 w-8 animate-spin text-[#00b4d8]" />
-                  <p className="text-xs tracking-widest uppercase">Connecting Ailana...</p>
+                <div className="w-full h-full flex flex-col items-center justify-center gap-6 text-gray-500 bg-[#050505] relative overflow-hidden">
+                  {/* Subtle Background Animation for Loading */}
+                  <div className="absolute inset-0 overflow-hidden">
+                    <motion.div 
+                      animate={{ 
+                        scale: [1, 1.2, 1],
+                        opacity: [0.03, 0.08, 0.03] 
+                      }}
+                      transition={{ duration: 4, repeat: Infinity }}
+                      className="absolute inset-0 bg-[#00b4d8] blur-[100px] rounded-full translate-y-1/2"
+                    />
+                  </div>
+
+                  <div className="relative z-10 flex flex-col items-center gap-4">
+                    <div className="relative">
+                      <Loader2 className="h-10 w-10 animate-spin text-[#00b4d8]" />
+                      <div className="absolute inset-0 blur-md bg-[#00b4d8]/20 animate-pulse" />
+                    </div>
+                    <div className="flex flex-col items-center gap-1">
+                      <p className="text-[11px] font-black tracking-[0.3em] text-white uppercase">Connecting Ailana</p>
+                      <p className="text-[9px] text-zinc-500 font-medium">Securing Bank-Grade Tunnel...</p>
+                    </div>
+                  </div>
                 </div>
               )}
               

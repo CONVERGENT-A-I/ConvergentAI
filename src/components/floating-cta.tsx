@@ -593,7 +593,10 @@ export default function FloatingCTA() {
   const [complianceChecked, setComplianceChecked] = useState(false);
   const [isAnnouncementStarted, setIsAnnouncementStarted] = useState(false);
   const [isAnnouncementComplete, setIsAnnouncementComplete] = useState(false);
+  const [isFallbackMode, setIsFallbackMode] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<string>('');
   const introVideoRef = useRef<HTMLVideoElement>(null);
+  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const searchParams = useSearchParams();
 
   const isFetchingRef = useRef(false);
@@ -644,13 +647,36 @@ export default function FloatingCTA() {
       });
 
       if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 503) {
+           console.error("[fetchToken]: Server configuration error:", errorData.details);
+           setConnectionStatus("Server Error: Missing Config");
+        }
         throw new Error('Failed to fetch LiveKit token');
       }
 
       const data = await response.json();
+      
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+        connectionTimeoutRef.current = null;
+      }
+
       setToken(data.token);
       setLkUrl(data.serverUrl);
-      setKeyframeMetaData(data.keyframe ?? null);
+      
+      // Provider Fallback Logic:
+      // If user requested video/avatar but service returned no metadata, downgrade to voice
+      if (!data.keyframe && activeMode !== 'voice') {
+        console.warn("[fetchToken]: Avatar service unavailable. Falling back to Voice.");
+        setIsFallbackMode(true);
+        setPendingMode('voice');
+        setConnectionStatus("Avatar unavailable. Switching to Voice...");
+      } else {
+        setKeyframeMetaData(data.keyframe ?? null);
+        setIsFallbackMode(false);
+        setConnectionStatus("");
+      }
 
       // Use the ref to read the phase at the time the async call resolves (avoids stale closure)
       if (flowPhaseRef.current !== 'intro') {
@@ -663,6 +689,7 @@ export default function FloatingCTA() {
       setFlowPhase('idle');
       flowPhaseRef.current = 'idle';
       setIsIntroComplete(false);
+      setIsFallbackMode(false);
     } finally {
       isFetchingRef.current = false;
     }
@@ -1059,6 +1086,21 @@ export default function FloatingCTA() {
                               isAnnouncementComplete={isAnnouncementComplete} 
                             />
 
+                            {/* Fallback Notification Overlay */}
+                            <AnimatePresence>
+                              {isFallbackMode && (
+                                <motion.div 
+                                  initial={{ opacity: 0, y: -20 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, y: -20 }}
+                                  className="absolute top-16 left-1/2 -translate-x-1/2 z-[100] w-full max-w-[280px]"
+                                >
+                                  <div className="bg-amber-500 text-black px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-center shadow-[0_0_30px_rgba(245,158,11,0.3)] border border-white/20">
+                                    {connectionStatus || "Avatar Unavailable - Using Voice"}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
 
                             {/* ── Google Meet Split Layout (always mounted so avatar connection doesn't drop, but hidden until live) ── */}
                             <div className={flowPhase === 'live' ? "flex-1 flex flex-col min-h-0 absolute inset-0 z-10" : "opacity-0 pointer-events-none absolute inset-0 -z-10"}>

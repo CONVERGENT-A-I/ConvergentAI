@@ -6,6 +6,8 @@ import Footer from "@/components/footer";
 import FloatingCTA from "@/components/floating-cta";
 import BackendConnectionTest from "@/components/backend-connection-test";
 
+import ErrorBoundary from "@/components/error-boundary";
+
 const manrope = Manrope({
   variable: "--font-manrope",
   subsets: ["latin"],
@@ -35,7 +37,9 @@ export default function RootLayout({
         <BackendConnectionTest />
         {children}
         <Suspense fallback={null}>
-          <FloatingCTA />
+          <ErrorBoundary>
+            <FloatingCTA />
+          </ErrorBoundary>
         </Suspense>
         <Footer />
       </body>
