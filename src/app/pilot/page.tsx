@@ -34,7 +34,7 @@ export default function PilotProgram() {
             Execution-Focused.
           </h1>
           <p className="text-lg md:text-xl text-zinc-400 font-medium leading-relaxed max-w-3xl">
-            Overcome &quot;Audit Friction&quot; with our structured 90-day implementation roadmap. We prove the ROI of 24/7 Phygital Member Engagement without compromising your Credit Union&apos;s security posture.
+            Overcome &quot;Audit Friction&quot; with our structured 90-day implementation roadmap. We prove the ROI of 24/7 Phygital Account Holder Engagement without compromising your institution&apos;s security posture.
           </p>
         </motion.section>
 
@@ -62,13 +62,13 @@ export default function PilotProgram() {
               {
                 phase: "Phase 2: Deployment (Days 31-60)",
                 title: "The Sandbox Strategy",
-                desc: "Soft launch the AI assistant in a controlled environment. Members can ask general mortgage questions, run scenarios, and interact with the AI without any live PII exposure or backend system integration.",
+                desc: "Soft launch the AI assistant in a controlled environment. Account holders can ask general mortgage questions, run scenarios, and interact with the AI without any live PII exposure or backend system integration.",
                 items: ["Controlled Traffic", "No Live PII Exposed", "Initial Analytics"]
               },
               {
                 phase: "Phase 3: Expansion (Days 61-90)",
                 title: "Measurement & ROI",
-                desc: "Scale the deployment based on Phase 2 data. We measure lead capture rates, call deflection, and member satisfaction, presenting a clear ROI case for long-term integration.",
+                desc: "Scale the deployment based on Phase 2 data. We measure lead capture rates, call deflection, and account holder satisfaction, presenting a clear ROI case for long-term integration.",
                 items: ["Volume Scaling", "Performance Review", "ROI Reporting"]
               }
             ].map((step, idx) => (
@@ -117,14 +117,14 @@ export default function PilotProgram() {
                 <ShieldCheck className="w-6 h-6 text-brand-green shrink-0 mt-1" />
                 <div>
                   <h4 className="text-lg font-bold text-white mb-2">No PII Required</h4>
-                  <p className="text-zinc-400">The AI handles top-of-funnel inquiries—rates, eligibility, and process questions—without ever asking for or needing sensitive member data.</p>
+                  <p className="text-zinc-400">The AI handles top-of-funnel inquiries—rates, eligibility, and process questions—without ever asking for or needing sensitive account holder data.</p>
                 </div>
               </li>
               <li className="flex gap-4">
                 <ShieldCheck className="w-6 h-6 text-brand-green shrink-0 mt-1" />
                 <div>
                   <h4 className="text-lg font-bold text-white mb-2">Zero Core Integration</h4>
-                  <p className="text-zinc-400">The pilot runs independently of your banking core. No API access to member accounts is needed to prove the engagement value.</p>
+                  <p className="text-zinc-400">The pilot runs independently of your institutional core. No API access to account holder data is needed to prove the engagement value.</p>
                 </div>
               </li>
             </ul>
@@ -180,7 +180,7 @@ export default function PilotProgram() {
                          </div>
                          <div className="text-left">
                             <h4 className="text-blue-400 font-bold tracking-wider text-sm">SECURE BANKING CORE</h4>
-                            <p className="text-[10px] text-blue-400/60 font-mono uppercase">Member PII & Account Data</p>
+                            <p className="text-[10px] text-blue-400/60 font-mono uppercase">PII & Account Data</p>
                          </div>
                       </div>
                       <div className="hidden sm:block px-3 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-[10px] font-bold text-blue-400 tracking-widest">
@@ -237,7 +237,7 @@ export default function PilotProgram() {
           <div className="relative z-10 max-w-3xl mx-auto">
             <h2 className="text-2xl md:text-4xl font-bold tracking-tight mb-6">Is it secure?</h2>
             <p className="text-lg text-zinc-400 font-medium mb-10 leading-relaxed">
-              We understand that deploying AI in a financial institution requires absolute certainty. Review our comprehensive security architecture designed specifically for Credit Unions.
+              We understand that deploying AI in a financial institution requires absolute certainty. Review our comprehensive security architecture designed for Credit Unions and Community Banks.
             </p>
             <Link 
               href="/security"

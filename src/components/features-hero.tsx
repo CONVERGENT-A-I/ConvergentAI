@@ -53,14 +53,14 @@ export default function FeaturesHero() {
         {/* Impactful Centered Headline */}
         <motion.h1 variants={itemVariants} className="text-fluid-h1 font-black text-white mb-10 tracking-tight leading-[1.05]">
           The Future of <br className="hidden md:block" />
-          <span className="text-brand-green">Phygital Member Services</span>
+          <span className="text-brand-green">Phygital Account Holder Services</span>
         </motion.h1>
 
         {/* Subheadline / Description */}
         <motion.div variants={itemVariants} className="max-w-3xl space-y-8">
           <p className="text-fluid-p text-zinc-400 font-medium balance">
             ConvergentAI orchestrates enterprise-grade omnichannel experiences, 
-            merging physical branch presence with digital speed to serve the modern member 24/7.
+            merging physical branch presence with digital speed to serve the modern account holder 24/7.
           </p>
           
           <div className="flex flex-col md:flex-row items-center justify-center gap-8 pt-8 opacity-60">

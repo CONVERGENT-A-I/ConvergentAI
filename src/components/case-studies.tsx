@@ -20,7 +20,7 @@ export default function CaseStudies() {
     },
     {
       image: f5,
-      title: "Regional CUSO Member Growth",
+      title: "Regional Account Holder Growth",
       stat: "+20% cross-sell conversion rate"
     }
   ];

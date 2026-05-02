@@ -11,13 +11,13 @@ export default function Features() {
       icon: Home,
     },
     {
-      title: "Elevated MX Scores",
-      description: "Boost Member Experience (MX) scores by providing seamless, friction-free transitions between digital and in-branch touchpoints.",
+      title: "Elevated AX Scores",
+      description: "Boost Account Holder Experience (AX) scores by providing seamless, friction-free transitions between digital and in-branch touchpoints.",
       icon: UserPlus,
     },
     {
       title: "Cross-Sell Growth",
-      description: "Identify and capture cross-sell opportunities in real-time with AI monitors that analyze member engagement across channels.",
+      description: "Identify and capture cross-sell opportunities in real-time with AI monitors that analyze account holder engagement across channels.",
       icon: Target,
     },
     {

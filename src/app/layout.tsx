@@ -14,7 +14,7 @@ const manrope = Manrope({
 
 export const metadata: Metadata = {
   title: "ConvergentAI",
-  description: "Stop Mortgage Leakage with 24/7 Phygital Member Engagement",
+  description: "Stop Mortgage Leakage with 24/7 Phygital Account Holder Engagement",
   icons: {
     icon: "/favicon.png",
   },

@@ -7,7 +7,7 @@ export default function ResearchInsights() {
   const insights = [
     {
       label: "90% Drop-off Rate",
-      text: "Most members leave your site without completing a single mortgage application.",
+      text: "Most account holders leave your site without completing a single mortgage application.",
       icon: TrendingDown,
     },
     {
@@ -22,7 +22,7 @@ export default function ResearchInsights() {
     },
     {
       label: "Delayed Connections",
-      text: "Members only successfully reach a loan officer 10% of the time during business hours.",
+      text: "Account holders only successfully reach a loan officer 10% of the time during business hours.",
       icon: PhoneOff,
     },
   ];
@@ -122,9 +122,9 @@ export default function ResearchInsights() {
           <div className="absolute top-0 left-0 w-32 h-full bg-brand-green/5 blur-3xl -z-10" />
           
           <p className="text-white text-lg md:text-xl lg:text-2xl font-bold leading-relaxed tracking-tight text-balance">
-            ConvergentAI eliminates mortgage leakage by capturing member intent 24/7 directly on your website. 
-            Our AI assistant guides members through complex next steps and instantly routes hot opportunities to your MLOs and branches. 
-            By ensuring your credit union is always the first to respond, we secure member loyalty and keep mortgage production inside your institution.
+            ConvergentAI eliminates mortgage leakage by capturing account holder intent 24/7 directly on your website. 
+            Our AI assistant guides account holders through complex next steps and instantly routes hot opportunities to your MLOs and branches. 
+            By ensuring your institution is always the first to respond, we secure account holder loyalty and keep mortgage production inside your institution.
           </p>
         </motion.div>
       </motion.div>

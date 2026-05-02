@@ -49,7 +49,7 @@ export default function Hero() {
         {/* Subheadline / Description */}
         <motion.p variants={itemVariants} className="text-fluid-p text-zinc-400 max-w-3xl mb-12 font-medium balance">
           Recover lost opportunities with AI voice and human-like avatars trained
-          to answer member mortgage questions accurately using Fannie Mae,
+          to answer account holder mortgage questions accurately using Fannie Mae,
           Freddie Mac, and HUD guidelines.
         </motion.p>
 

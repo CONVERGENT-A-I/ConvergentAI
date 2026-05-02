@@ -6,7 +6,7 @@ export default function AICapabilities() {
   const capabilities = [
     {
       title: "Fast Response Times",
-      description: "AI that thinks as fast as your members. Ensure no-lag interactions during critical mortgage queries and member service requests.",
+      description: "AI that thinks as fast as your account holders. Ensure no-lag interactions during critical mortgage queries and account holder service requests.",
     },
     {
       title: "Precise Lip Sync",
@@ -14,11 +14,11 @@ export default function AICapabilities() {
     },
     {
       title: "Low Latency",
-      description: "Natural flow, no awkward pauses. Conversational speed that matches human expectations for frictionless member engagement.",
+      description: "Natural flow, no awkward pauses. Conversational speed that matches human expectations for frictionless account holder engagement.",
     },
     {
       title: "Unmatched Realism",
-      description: "Choose the face and voice that resonate with your brand. Build video agents with unmatched realism that members can speak with instantly.",
+      description: "Choose the face and voice that resonate with your brand. Build video agents with unmatched realism that account holders can speak with instantly.",
     },
   ];
 

@@ -76,7 +76,7 @@ export default function AIHero() {
 
           <p className="text-zinc-400 max-w-xl font-medium leading-relaxed opacity-90"
             style={{ fontSize: "clamp(1rem, 1.25vw, 1.25rem)" }}>
-            Elevate member engagement with realistic video agents and
+            Elevate account holder engagement with realistic video agents and
             interactions for mortgage and beyond. Boost conversions with human-like
             conversational intelligence.
           </p>

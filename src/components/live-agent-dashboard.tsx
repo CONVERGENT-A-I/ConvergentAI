@@ -5,12 +5,12 @@ import { CheckCircle2 } from "lucide-react";
 
 const features = [
   {
-    title: "Unified Member Timeline",
+    title: "Unified Account Holder Timeline",
     description: "View every digital touchpoint and AI interaction across all channels in one chronological mortgage journey.",
   },
   {
     title: "Real-time Co-browsing & E-sign Support",
-    description: "Instantly join member sessions to guide them through complex e-sign workflows and document uploads.",
+    description: "Instantly join account holder sessions to guide them through complex e-sign workflows and document uploads.",
   },
   {
     title: "Integrated Multimodal Dashboard",
@@ -22,7 +22,7 @@ const features = [
   },
   {
     title: "Instant AI-to-Human Handoff",
-    description: "Seamlessly transition high-intent members from AI assistants to expert MLOs at the critical moment.",
+    description: "Seamlessly transition high-intent account holders from AI assistants to expert MLOs at the critical moment.",
   },
 ];
 
@@ -73,7 +73,7 @@ export default function LiveAgentDashboard() {
               className="text-zinc-400 font-medium leading-relaxed mb-12"
               style={{ fontSize: "clamp(1rem, 1.2vw, 1.2rem)" }}
             >
-              The Unified LiveAgent Dashboard provides MLOs with deep member context and real-time
+              The Unified LiveAgent Dashboard provides MLOs with deep account holder context and real-time
               collaboration tools to drive loan production and ensure successful eMortgage closings.
             </motion.p>
 

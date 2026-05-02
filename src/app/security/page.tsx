@@ -34,7 +34,7 @@ export default function SecurityCenter() {
             Compliant by Design.
           </h1>
           <p className="text-lg md:text-xl text-zinc-400 font-medium leading-relaxed max-w-3xl">
-            ConvergentAI operates on a strictly audited, Security-First Architecture. We leverage the rigorous controls of our Tier-1 infrastructure partners while maintaining our own custom safeguards built exclusively for Credit Unions and the NCUA framework.
+            ConvergentAI operates on a strictly audited, Security-First Architecture. We leverage the rigorous controls of our Tier-1 infrastructure partners while maintaining our own custom safeguards built for Credit Unions, Community Banks, and Regulatory Frameworks (NCUA/FFIEC).
           </p>
         </motion.section>
 
@@ -122,7 +122,7 @@ export default function SecurityCenter() {
               </div>
               <h3 className="text-xl font-bold mb-4 text-white">Logical Tenant Isolation</h3>
               <p className="text-zinc-400 font-medium leading-relaxed">
-                Known as "The Vault," every Credit Union's deployment exists in a logically isolated environment within secure GCP VPCs, ensuring absolute "Zero-Leak" boundaries between organizations.
+                Known as "The Vault," every institution's deployment exists in a logically isolated environment within secure GCP VPCs, ensuring absolute "Zero-Leak" boundaries between organizations.
               </p>
             </div>
 
@@ -133,7 +133,7 @@ export default function SecurityCenter() {
               </div>
               <h3 className="text-xl font-bold mb-4 text-white">Zero-Training Policy</h3>
               <p className="text-zinc-400 font-medium leading-relaxed">
-                Member voice recordings, PII, and transcripts are <strong className="text-white">never</strong> used to train global LLM models. All data processing is strictly ephemeral or stays localized within your private tenant.
+                Account holder voice recordings, PII, and transcripts are <strong className="text-white">never</strong> used to train global LLM models. All data processing is strictly ephemeral or stays localized within your private tenant.
               </p>
             </div>
 

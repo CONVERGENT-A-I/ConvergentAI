@@ -13,7 +13,7 @@ export default function AIRealism() {
     },
     {
       title: "Familiar Representation",
-      description: "Create branded digital twins of your experts so members feel like they're interacting with a familiar, trusted representative—anytime, on any device.",
+      description: "Create branded digital twins of your experts so account holders feel like they're interacting with a familiar, trusted representative—anytime, on any device.",
     },
     {
       title: "Behavioral Controls",
@@ -21,7 +21,7 @@ export default function AIRealism() {
     },
     {
       title: "Compliant & Consistent",
-      description: "Ensure every member interaction adheres to CUSO standards and institutional guidelines across all channels.",
+      description: "Ensure every account holder interaction adheres to institutional standards and guidelines across all channels.",
     },
   ];
 
@@ -109,7 +109,7 @@ export default function AIRealism() {
                 style={{ fontSize: "clamp(1rem, 1.2vw, 1.2rem)" }}>
                 Empower your credit union to deliver human-like interactions at digital scale. 
                 Configure your video agents' appearance, voice, and behavior to match 
-                your institution's unique culture and member needs.
+                your institution's unique culture and account holder needs.
              </motion.p>
 
              {/* Bullet Points */}
