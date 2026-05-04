@@ -116,7 +116,7 @@ export default function Navbar() {
           />
 
           {/* Menu Card */}
-          <div className="absolute top-28 left-6 right-6 bg-zinc-900 border border-white/10 rounded-[2rem] p-8 flex flex-col gap-8 shadow-2xl animate-in slide-in-from-top-4 fade-in duration-300">
+          <div className="absolute top-36 md:top-50 left-6 right-6 bg-zinc-900 border border-white/10 rounded-[2rem] p-8 pt-12 flex flex-col gap-8 shadow-2xl animate-in slide-in-from-top-4 fade-in duration-300">
             {[
               { name: "Home", href: "/" },
               { name: "About Us", href: "/about" },

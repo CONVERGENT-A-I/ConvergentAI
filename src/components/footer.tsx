@@ -8,11 +8,11 @@ export default function Footer() {
         {/* Separation line at the top */}
         <div className="w-full h-px bg-white/15 mb-12" />
 
-        {/* Footer content: tablet = full-width brand row + 3 balanced cols; xl+ = 4-up */}
+        {/* Footer content: big brand mark + balanced columns across breakpoints */}
         <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-y-10 gap-x-6 md:gap-x-8 md:gap-y-12 xl:gap-x-10 xl:gap-y-10 items-start">
-          {/* Brand and Headquarters */}
-          <div className="flex flex-col items-center md:col-span-3 xl:col-span-1 md:max-w-2xl md:mx-auto xl:max-w-none xl:mx-0 text-center xl:text-left xl:items-start gap-5 md:gap-6">
-            {/* Logo — scale to match headquarters line (text-base / md:text-xl) */}
+          {/* Brand (logo only) */}
+          <div className="flex flex-col items-center md:col-span-3 xl:col-span-1 md:max-w-3xl md:mx-auto xl:max-w-none xl:mx-0 text-center xl:text-left xl:items-start gap-5 md:gap-6">
+            {/* Logo — primary element */}
             <Link
               href="/"
               className="hover:opacity-80 transition-opacity shrink-0 w-full flex justify-center xl:justify-start"
@@ -20,27 +20,11 @@ export default function Footer() {
               <Image
                 src="/footer_logo.png"
                 alt="ConvergentAI"
-                width={900}
-                height={300}
-                className="h-36 w-auto sm:h-40 md:h-48 lg:h-52 xl:h-48 max-w-[min(100%,28rem)] xl:max-w-none object-contain object-center xl:object-left"
+                width={1200}
+                height={400}
+                className="h-44 w-auto sm:h-48 md:h-56 lg:h-60 xl:h-56 max-w-[min(100%,34rem)] xl:max-w-none object-contain object-center xl:object-left"
               />
             </Link>
-
-            {/* Headquarters */}
-            <div className="flex flex-col items-center xl:items-start gap-1.5">
-              <span className="text-zinc-500 text-sm font-bold uppercase tracking-[0.2em] mb-1">
-                Headquarters:
-              </span>
-              <span className="text-white text-base md:text-xl font-semibold">
-                Chattanooga, Tennessee
-              </span>
-              <Link
-                href="mailto:info@convergentai.tech"
-                className="text-zinc-400 text-base md:text-lg font-medium hover:text-brand-green transition-colors duration-200"
-              >
-                info@convergentai.tech
-              </Link>
-            </div>
           </div>
 
           {/* Social Icons */}
@@ -130,6 +114,22 @@ export default function Footer() {
             <span className="text-zinc-500 text-sm md:text-base xl:text-lg font-medium">
               Built for Modern Financial Institutions.
             </span>
+
+            {/* Headquarters (moved here per client feedback) */}
+            <div className="mt-5 flex flex-col items-center xl:items-end gap-1">
+              <span className="text-zinc-500 text-xs font-bold uppercase tracking-[0.2em]">
+                Headquarters
+              </span>
+              <span className="text-white text-sm md:text-base font-semibold">
+                Chattanooga, Tennessee
+              </span>
+              <Link
+                href="mailto:info@convergentai.tech"
+                className="text-zinc-400 text-sm md:text-base font-medium hover:text-brand-green transition-colors duration-200"
+              >
+                info@convergentai.tech
+              </Link>
+            </div>
           </div>
         </div>
 

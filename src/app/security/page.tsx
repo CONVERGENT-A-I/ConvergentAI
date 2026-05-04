@@ -204,7 +204,8 @@ export default function SecurityCenter() {
           className="mb-32"
         >
           <h2 className="text-2xl md:text-4xl font-bold tracking-tight mb-12">Core Security Pillars</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+          {/* Tablet should behave like mobile (stacked), expand on large screens */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
             {/* Pillar 1 */}
             <div className="p-8 rounded-3xl bg-gradient-to-b from-white/[0.05] to-transparent border border-white/10 hover:border-brand-green/30 transition-colors group">
               <div className="w-14 h-14 rounded-2xl bg-brand-green/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">

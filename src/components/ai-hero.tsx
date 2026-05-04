@@ -45,7 +45,7 @@ export default function AIHero() {
   };
 
   return (
-    <section id="ai-hero" className="relative min-h-[90svh] flex items-center pt-40 md:pt-52 lg:pt-56 pb-24 md:pb-32 px-6 md:px-10 lg:px-24 overflow-hidden">
+    <section id="ai-hero" className="relative min-h-[90svh] flex items-center pt-44 md:pt-56 lg:pt-60 pb-24 md:pb-32 px-6 md:px-10 lg:px-24 overflow-hidden">
       {/* Background radial gradient */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#111111_0%,_#000000_100%)] -z-10" />
 
