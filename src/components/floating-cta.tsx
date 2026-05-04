@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, Sparkles, X, Phone, Video, Mic, MicOff, VideoOff, PhoneOff, Monitor, MoreHorizontal, Circle, Loader2, Send, Check, ArrowRight, Clock, Lock } from "lucide-react";
+import { MessageCircle, Sparkles, X, Phone, Video, Mic, MicOff, VideoOff, PhoneOff, Monitor, MoreHorizontal, Circle, Loader2, Send, Check, ArrowRight, Clock, Lock, ShieldAlert, RefreshCw } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import {
   LiveKitRoom,
@@ -30,7 +30,7 @@ if (typeof window !== 'undefined') {
   };
 }
 
-type FlowPhase = 'idle' | 'connecting' | 'intro' | 'live';
+type FlowPhase = 'idle' | 'connecting' | 'intro' | 'live' | 'error';
 type PendingMode = 'intro-avatar' | 'video' | 'voice' | 'avatar-chat';
 
 function AgentReadinessCheck({ onAgentReady }: { onAgentReady: (r: boolean) => void }) {
@@ -595,6 +595,7 @@ export default function FloatingCTA() {
   const [isAnnouncementComplete, setIsAnnouncementComplete] = useState(false);
   const [isFallbackMode, setIsFallbackMode] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const introVideoRef = useRef<HTMLVideoElement>(null);
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const searchParams = useSearchParams();
@@ -686,8 +687,8 @@ export default function FloatingCTA() {
       }
     } catch (err) {
       console.error('Error connecting to LiveKit:', err);
-      setFlowPhase('idle');
-      flowPhaseRef.current = 'idle';
+      setFlowPhase('error');
+      flowPhaseRef.current = 'error';
       setIsIntroComplete(false);
       setIsFallbackMode(false);
     } finally {
@@ -747,6 +748,7 @@ export default function FloatingCTA() {
       setIsAnnouncementComplete(false);
       participantIdentityRef.current = null;
       isFetchingRef.current = false;
+      setIsSubmitting(false);
     }
   }, [isOpen]);
 
@@ -1033,16 +1035,23 @@ export default function FloatingCTA() {
                                         Cancel
                                       </button>
                                       <button
-                                        disabled={!complianceChecked}
+                                        disabled={!complianceChecked || isSubmitting}
                                         onClick={() => {
+                                          setIsSubmitting(true);
                                           setPendingMode('video');
                                           setHasAgreed(true);
                                           setFlowPhase('live');
                                         }}
-                                        className={`flex-1 py-3 px-6 rounded-xl font-bold transition-all flex items-center justify-center gap-2 group cursor-pointer ${complianceChecked ? 'bg-white text-black hover:bg-[#00b4d8] hover:text-white shadow-[0_10px_20px_rgba(0,180,216,0.2)]' : 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/5'}`}
+                                        className={`flex-1 py-3 px-6 rounded-xl font-bold transition-all flex items-center justify-center gap-2 group cursor-pointer ${complianceChecked && !isSubmitting ? 'bg-white text-black hover:bg-[#00b4d8] hover:text-white shadow-[0_10px_20px_rgba(0,180,216,0.2)]' : 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/5'}`}
                                       >
-                                        Get started
-                                        <ArrowRight className={`h-4 w-4 transition-transform ${complianceChecked ? 'group-hover:translate-x-1' : ''}`} />
+                                        {isSubmitting ? (
+                                          <Loader2 className="h-5 w-5 animate-spin" />
+                                        ) : (
+                                          <>
+                                            Get started
+                                            <ArrowRight className={`h-4 w-4 transition-transform ${complianceChecked ? 'group-hover:translate-x-1' : ''}`} />
+                                          </>
+                                        )}
                                       </button>
                                     </div>
                                   </div>
@@ -1188,13 +1197,29 @@ export default function FloatingCTA() {
                       )}
                     </AnimatePresence>
 
-                    {flowPhase !== 'live' && flowPhase !== 'intro' && (
-                      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-xs md:text-sm text-blue-400/60 font-medium tracking-wide">
-                        {flowPhase === 'connecting' ? 'Verifying Compliance Token...' : ''}
-                      </div>
-                    )}
+                      {flowPhase === 'error' && (
+                        <motion.div key="error-view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center text-center px-6">
+                          <div className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center mb-6">
+                            <ShieldAlert className="w-8 h-8 text-red-500" />
+                          </div>
+                          <h3 className="text-xl font-bold text-white mb-2 tracking-tight">Connection Failed</h3>
+                          <p className="text-gray-400 text-sm max-w-[280px] mb-8">
+                            We're having trouble reaching our AI services. Please check your connection and try again.
+                          </p>
+                          <button
+                            onClick={() => {
+                              setFlowPhase('idle');
+                              fetchToken('video');
+                            }}
+                            className="flex items-center gap-2 bg-white text-black px-8 py-3 rounded-xl font-bold hover:bg-[#00b4d8] hover:text-white transition-all cursor-pointer"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                            Retry Connection
+                          </button>
+                        </motion.div>
+                      )}
+                    </div>
                   </div>
-                </div>
 
 
               </motion.div>

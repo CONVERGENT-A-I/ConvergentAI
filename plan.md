@@ -2,24 +2,29 @@
 
 This roadmap focuses on finalizing the production readiness of ConvergentAI, enforcing strict AI compliance, and integrating with operational telephony systems (FusionPBX).
 
-## Milestone 1: Production Hardening & CTA Finalization
-**Goal**: Finalize production readiness for the user interface and core application stability.
-*   **Production UI**: Prepare CTA for full production deployment (remove mock loaders, finalize states).
-*   **System Resilience**: Complete code hardening and finalize Provider Fallback logic (Avatar -> Voice-Only).
+## ✅ DONE — Milestone 1: Production UI & Experience Hardening
+**Goal**: Finalize the user interface and stabilize the core application.
+*   **Current CTA Optimization**: Refine and harden the existing CTA flow (Intro → Compliance → Live) to ensure maximum reliability.
+*   **Mock Loaders Integration**: Maintain and optimize mock loaders to provide visual feedback during backend processing.
+*   **System Resilience**: Implement global error boundaries and rigorous code hardening to prevent UI crashes in production environments.
 
-## Milestone 2: AI Guardrails & Accuracy Testing
-**Goal**: Ensure the AI adheres to strict financial compliance and performs optimally.
-*   **Compliance Guardrails**: Eliminate hallucinations and establish strict guardrails to adhere to financial regulations and institutional standards.
-*   **Latency & RAG Testing**: Test Avatar and voice latency specifically with mortgage guidelines using RAG.
+## Milestone 2: AI Integrity & Compliance Guardrails
+**Goal**: Ensure the AI operates with bank-grade accuracy and regulatory adherence.
+*   **Eliminate Hallucinations**: Implement strict system prompts and verification layers to ensure the AI only provides verified mortgage information.
+*   **Regulatory Guardrails**: Establish programmatic guardrails to adhere to financial compliance, mortgage regulations, and institutional standards.
+*   **RAG & Latency Testing**: Integrate mortgage guidelines (Fannie Mae, Freddie Mac, HUD) via RAG and optimize Avatar/Voice response latency for real-time engagement.
 
-## Milestone 3: Telephony & SIP Integration
-**Goal**: Connect the digital interface with operational call queues.
-*   **Queue Wiring**: Wire CTA channels to queues. Generate a function call directing the session to the operational FusionPBX SIP Queue.
-*   **Alerts & Notifications**: Trigger an SMS alert to the SIP Queue when a web user clicks the CTA button.
+## Milestone 3: Infrastructure & Reliability
+**Goal**: Build a resilient backend capable of handling production-scale interactions.
+*   **Provider Fallback**: Finalize the logic to automatically downgrade to Voice-Only mode if Avatar services encounter latency or connection failures.
+*   **Audit Trail**: Implement persistent, verifiable logging of all user-AI interactions and transcripts for compliance and regulatory purposes.
+*   **Latency Validation**: Conduct comprehensive stress testing to verify response times across different network conditions.
 
-## Milestone 4: Compliance Audit Trail
-**Goal**: Maintain verifiable records of all AI interactions for regulatory purposes.
-*   **Persistent Logging**: Implement an audit trail mechanism that persistently logs the interaction and transcripts between the user and AI.
+## Milestone 4: Telephony & SIP Integration
+**Goal**: Connect the digital interface with operational human specialist queues.
+*   **FusionPBX Wiring**: Wire CTA channels to operational queues by generating function calls that direct sessions to the FusionPBX SIP Queue.
+*   **Real-time Alerts**: Trigger SMS notifications to the SIP Queue immediately when a web user initiates a CTA session.
+*   **Final Certification**: Complete end-to-end validation of the "Phygital" engagement stack for full production deployment.
 
 ---
 **Success Metric**: The system operates flawlessly in a production environment with verified latency, strict hallucination guardrails, and seamless routing to the FusionPBX SIP Queue.

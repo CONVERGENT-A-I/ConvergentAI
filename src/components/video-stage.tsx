@@ -18,6 +18,25 @@ import AppIcon from "../app/icon.png";
 import KeyframeAvatar from "./keyframe-avatar";
 
 import { useMotionValue, useSpring, useTransform } from "framer-motion";
+import { useParticipants as useLkParticipants } from "@livekit/components-react";
+
+/**
+ * Dynamic connection status messages
+ */
+function ConnectionProgress() {
+  const [status, setStatus] = useState("Securing Bank-Grade Tunnel...");
+  
+  useEffect(() => {
+    const timers = [
+      setTimeout(() => setStatus("Establishing WebRTC Bridge..."), 3000),
+      setTimeout(() => setStatus("Synchronizing Audio & Video Streams..."), 6000),
+      setTimeout(() => setStatus("Finalizing Secure Connection..."), 9000),
+    ];
+    return () => timers.forEach(t => clearTimeout(t));
+  }, []);
+
+  return <p className="text-[9px] text-zinc-500 font-medium animate-pulse">{status}</p>;
+}
 
 /**
  * High-End Reactive Audio Visualizer
@@ -225,7 +244,7 @@ export default function VideoStage({ mode = 'video', keyframeMetadata, hideContr
                     </div>
                     <div className="flex flex-col items-center gap-1">
                       <p className="text-[11px] font-black tracking-[0.3em] text-white uppercase">Connecting Ailana</p>
-                      <p className="text-[9px] text-zinc-500 font-medium">Securing Bank-Grade Tunnel...</p>
+                      <ConnectionProgress />
                     </div>
                   </div>
                 </div>
