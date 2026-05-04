@@ -45,7 +45,7 @@ export default function AIHero() {
   };
 
   return (
-    <section id="ai-hero" className="relative min-h-[90svh] flex items-center pt-32 md:pt-44 pb-24 md:pb-32 px-6 md:px-10 lg:px-24 overflow-hidden">
+    <section id="ai-hero" className="relative min-h-[90svh] flex items-center pt-40 md:pt-52 lg:pt-56 pb-24 md:pb-32 px-6 md:px-10 lg:px-24 overflow-hidden">
       {/* Background radial gradient */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#111111_0%,_#000000_100%)] -z-10" />
 
@@ -61,12 +61,6 @@ export default function AIHero() {
       >
         {/* Left Side: Content */}
         <motion.div variants={leftVariants} className="flex flex-col items-start text-left space-y-10">
-
-          {/* Badge - Consistent Styling */}
-          <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm">
-
-          </div>
-
 
           <h1 className="font-black text-white leading-[1.05] tracking-tight text-balance"
             style={{ fontSize: "clamp(2.5rem, 5vw, 4.5rem)" }}>
