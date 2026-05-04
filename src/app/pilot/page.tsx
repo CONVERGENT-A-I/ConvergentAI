@@ -51,7 +51,8 @@ export default function PilotProgram() {
             <h2 className="text-2xl md:text-4xl font-bold tracking-tight">The 90-Day Roadmap</h2>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {/* Tablet should behave like mobile (stacked), expand on large screens */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-10">
             {[
               {
                 phase: "Phase 1: Setup (Days 1-30)",
