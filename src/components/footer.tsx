@@ -120,12 +120,6 @@ export default function Footer() {
             >
               Data Processing Agreement
             </Link>
-            <Link
-              href="/security#soc2"
-              className="text-zinc-300 text-sm md:text-base font-medium hover:text-brand-green transition-colors"
-            >
-              SOC 2 Roadmap
-            </Link>
           </div>
 
           {/* Right: Copyright */}
