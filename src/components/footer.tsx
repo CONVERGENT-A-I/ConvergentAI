@@ -8,26 +8,26 @@ export default function Footer() {
         {/* Separation line at the top */}
         <div className="w-full h-px bg-white/15 mb-12" />
 
-        {/* Footer content */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-10 md:gap-12 xl:gap-8 items-start">
+        {/* Footer content: tablet = full-width brand row + 3 balanced cols; xl+ = 4-up */}
+        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-y-10 gap-x-6 md:gap-x-8 md:gap-y-12 xl:gap-x-10 xl:gap-y-10 items-start">
           {/* Brand and Headquarters */}
-          <div className="flex flex-col items-center md:items-start text-center md:text-left gap-5">
-            {/* Logo */}
+          <div className="flex flex-col items-center md:col-span-3 xl:col-span-1 md:max-w-2xl md:mx-auto xl:max-w-none xl:mx-0 text-center xl:text-left xl:items-start gap-5 md:gap-6">
+            {/* Logo — scale to match headquarters line (text-base / md:text-xl) */}
             <Link
               href="/"
-              className="hover:opacity-80 transition-opacity shrink-0"
+              className="hover:opacity-80 transition-opacity shrink-0 w-full flex justify-center xl:justify-start"
             >
               <Image
                 src="/footer_logo.png"
                 alt="ConvergentAI"
-                width={600}
-                height={200}
-                className="h-28 md:h-32 w-auto object-contain"
+                width={900}
+                height={300}
+                className="h-36 w-auto sm:h-40 md:h-48 lg:h-52 xl:h-48 max-w-[min(100%,28rem)] xl:max-w-none object-contain object-center xl:object-left"
               />
             </Link>
 
             {/* Headquarters */}
-            <div className="flex flex-col items-center md:items-start gap-1.5">
+            <div className="flex flex-col items-center xl:items-start gap-1.5">
               <span className="text-zinc-500 text-sm font-bold uppercase tracking-[0.2em] mb-1">
                 Headquarters:
               </span>
@@ -44,7 +44,7 @@ export default function Footer() {
           </div>
 
           {/* Social Icons */}
-          <div className="flex flex-col items-center md:items-start text-center md:text-left gap-4">
+          <div className="flex flex-col items-center md:items-center xl:items-start text-center xl:text-left gap-4">
             <span className="text-zinc-500 text-sm font-bold uppercase tracking-[0.2em]">
               Follow
             </span>
@@ -98,7 +98,7 @@ export default function Footer() {
           </div>
 
           {/* Trust & Legal */}
-          <div className="flex flex-col items-center md:items-start text-center md:text-left gap-3">
+          <div className="flex flex-col items-center md:items-center xl:items-start text-center xl:text-left gap-3">
             <span className="text-zinc-500 text-sm font-bold uppercase tracking-[0.2em] mb-1">
               Trust
             </span>
@@ -129,7 +129,7 @@ export default function Footer() {
           </div>
 
           {/* Right: Copyright */}
-          <div className="flex flex-col items-center xl:items-end text-center xl:text-right gap-1.5 xl:justify-self-end">
+          <div className="flex flex-col items-center md:items-center xl:items-end text-center xl:text-right gap-1.5 xl:justify-self-end">
             <span className="text-zinc-300 text-base md:text-lg xl:text-xl font-semibold tracking-wide">
               © 2026 ConvergentAI · All Rights Reserved.
             </span>
@@ -144,23 +144,39 @@ export default function Footer() {
           {/* Trust Badges */}
           <div className="flex flex-wrap justify-center md:justify-start items-center gap-8 opacity-40 hover:opacity-70 transition-opacity grayscale">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-white/10 rounded flex items-center justify-center font-bold text-[8px]">GCP</div>
-              <span className="text-[10px] font-bold tracking-widest uppercase text-white/60">SOC 2 TYPE II</span>
+              <div className="w-8 h-8 bg-white/10 rounded flex items-center justify-center font-bold text-[8px]">
+                GCP
+              </div>
+              <span className="text-[10px] font-bold tracking-widest uppercase text-white/60">
+                SOC 2 TYPE II
+              </span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-white/10 rounded flex items-center justify-center font-bold text-[8px]">LIVEKIT</div>
-              <span className="text-[10px] font-bold tracking-widest uppercase text-white/60">SOC 2 TYPE II</span>
+              <div className="w-8 h-8 bg-white/10 rounded flex items-center justify-center font-bold text-[8px]">
+                LIVEKIT
+              </div>
+              <span className="text-[10px] font-bold tracking-widest uppercase text-white/60">
+                SOC 2 TYPE II
+              </span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-white/10 rounded flex items-center justify-center font-bold text-[8px]">TELNYX</div>
-              <span className="text-[10px] font-bold tracking-widest uppercase text-white/60">ISO 27001</span>
+              <div className="w-8 h-8 bg-white/10 rounded flex items-center justify-center font-bold text-[8px]">
+                TELNYX
+              </div>
+              <span className="text-[10px] font-bold tracking-widest uppercase text-white/60">
+                ISO 27001
+              </span>
             </div>
           </div>
 
           {/* Disclosure Text */}
           <div className="max-w-4xl">
             <p className="text-zinc-500 text-[11px] md:text-xs leading-relaxed text-center md:text-left italic">
-              ConvergentAI is a technology provider and does not directly offer financial services. Our AI solutions are designed to comply with FFIEC, FDIC, and NCUA regulatory standards. All infrastructure is hosted on SOC 2 Type II certified data centers with military-grade AES-256 encryption.
+              ConvergentAI is a technology provider and does not directly offer
+              financial services. Our AI solutions are designed to comply with
+              FFIEC, FDIC, and NCUA regulatory standards. All infrastructure is
+              hosted on SOC 2 Type II certified data centers with military-grade
+              AES-256 encryption.
             </p>
           </div>
         </div>
