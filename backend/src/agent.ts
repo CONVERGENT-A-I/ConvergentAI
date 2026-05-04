@@ -229,7 +229,7 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
 
           // Proactively initiate conversation so the user isn't met with silence
           session.generateReply({
-            userInput: "Please say your exact greeting: 'Hi, I'm Ailana! I can help you here, or if you prefer, just ask me to move this conversation to Email or Phone.' Then wait for my response."
+            userInput: "Please say your exact greeting: 'Hi, I'm Ailana! I can help you here, or if you prefer, just ask me to move this conversation to Voice or Phone.' Then wait for my response."
           });
         } catch (err) {
           console.error(`[agent]: ❌ Failed to start session:`, err);
