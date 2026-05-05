@@ -801,12 +801,11 @@ export default function FloatingCTA() {
       return;
     }
 
-    const INACTIVITY_MS = 10_000;
+    const INACTIVITY_MS = 180_000; // 3 minutes
 
     const markActivity = () => {
       lastActivityAtRef.current = Date.now();
       setConnectionStatus('');
-      setShowInactivityPrompt(false);
     };
 
     const armTimeout = () => {
@@ -820,16 +819,22 @@ export default function FloatingCTA() {
 
     const activityEvents: Array<keyof WindowEventMap> = ['pointerdown', 'pointermove', 'mousemove', 'keydown', 'touchstart', 'wheel'];
     const onActivity = () => {
+      // Once the inactivity prompt is visible, ignore activity events so the
+      // user can actually click the popup buttons without it vanishing.
+      if (showInactivityPrompt) return;
       markActivity();
       armTimeout();
     };
 
     activityEvents.forEach((evt) => window.addEventListener(evt, onActivity));
-    markActivity();
-    armTimeout();
+    if (!showInactivityPrompt) {
+      markActivity();
+      armTimeout();
+    }
 
     // Extra watchdog so prompt still appears even if a timeout gets interrupted/reset unexpectedly.
     inactivityWatchdogRef.current = setInterval(() => {
+      if (showInactivityPrompt) return; // already showing, don't re-trigger
       const idleFor = Date.now() - lastActivityAtRef.current;
       if (idleFor >= INACTIVITY_MS) {
         setShowInactivityPrompt(true);
@@ -847,7 +852,7 @@ export default function FloatingCTA() {
         inactivityWatchdogRef.current = null;
       }
     };
-  }, [isOpen, flowPhase, isLkConnected]);
+  }, [isOpen, flowPhase, isLkConnected, showInactivityPrompt]);
 
   useEffect(() => {
     if (!showInactivityPrompt) {
@@ -1033,7 +1038,10 @@ export default function FloatingCTA() {
                       </p>
                       <div className="mt-5 flex items-center justify-center gap-3">
                       <button
-                        onClick={() => setShowInactivityPrompt(false)}
+                        onClick={() => {
+                          lastActivityAtRef.current = Date.now();
+                          setShowInactivityPrompt(false);
+                        }}
                         className="px-4 py-2 rounded-lg border border-white/20 text-gray-200 text-xs md:text-sm font-semibold hover:bg-white/10 transition-colors cursor-pointer"
                       >
                         Continue Session
