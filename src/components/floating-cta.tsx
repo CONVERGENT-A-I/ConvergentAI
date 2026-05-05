@@ -508,17 +508,6 @@ function InRoomChatPanel() {
               <MessageCircle className="h-7 w-7 text-blue-500" />
             </div>
             <p className="text-gray-400 text-sm">Send a message to start chatting with Ailana</p>
-            <div className="flex flex-wrap gap-2 justify-center mt-2">
-              {['Switch to Chat', 'Voice Only', 'Video Meet'].map(chip => (
-                <button
-                  key={chip}
-                  onClick={() => { setInput(chip); }}
-                  className="px-3 py-1.5 rounded-full bg-[#00b4d8]/10 text-[#00b4d8] text-xs font-medium hover:bg-[#00b4d8]/20 transition-colors cursor-pointer border border-[#00b4d8]/20"
-                >
-                  {chip}
-                </button>
-              ))}
-            </div>
           </div>
         )}
 
