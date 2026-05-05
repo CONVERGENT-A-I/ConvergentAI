@@ -602,7 +602,7 @@ export default function FloatingCTA() {
   // Track current phase in a ref so async callbacks (fetchToken) always read the latest value
   const flowPhaseRef = useRef<FlowPhase>('idle');
 
-  const fetchToken = async (mode?: string) => {
+  const fetchToken = async (mode?: string, forceNewRoom?: boolean) => {
     // Prevent concurrent duplicate calls (e.g. compliance agree + mode button)
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
@@ -615,13 +615,17 @@ export default function FloatingCTA() {
         flowPhaseRef.current = 'connecting';
       }
 
-      setIsIntroComplete(false);
+      // Only reset intro state when actually starting an intro flow,
+      // not on reconnections that skip straight to live.
+      if (mode === 'intro-avatar') {
+        setIsIntroComplete(false);
+      }
       if (!isLkConnected) {
         setKeyframeMetaData(null);
       }
 
       const urlRoom = searchParams.get('room');
-      const generatedRoomName = urlRoom || roomName || `room-${Math.random().toString(36).substring(2, 11)}`;
+      const generatedRoomName = urlRoom || (!forceNewRoom && roomName ? roomName : `room-${Math.random().toString(36).substring(2, 11)}`);
 
       if (!roomName || roomName !== generatedRoomName) {
         setRoomName(generatedRoomName);
@@ -721,35 +725,81 @@ export default function FloatingCTA() {
     }
   }, [searchParams]);
 
-  // Reset ALL session state when modal closes so the full intro+compliance flow
-  // always plays from scratch on re-open
+  // Centralised session reset — nukes all LiveKit / flow state so the
+  // intro → compliance → live flow can replay cleanly.
+  const resetSession = () => {
+    setFlowPhase('idle');
+    flowPhaseRef.current = 'idle';
+    setToken(null);
+    setLkUrl(null);
+    setIsLkConnected(false);
+    setIsAgentReady(false);
+    setRoomName('');
+    setIsVideoReady(false);
+    setIsIntroBlurring(true);
+    setKeyframeMetaData(null);
+    setHasAgreed(false);
+    setIsIntroComplete(false);
+    setComplianceChecked(false);
+    setPendingMode('video');
+    setIsAnnouncementStarted(false);
+    setIsAnnouncementComplete(false);
+    setConnectionStatus('');
+    setIsOffline(false);
+    setShowEndCallConfirm(false);
+    setShowInactivityPrompt(false);
+    participantIdentityRef.current = null;
+    isFetchingRef.current = false;
+    setIsSubmitting(false);
+    hasAnnouncedRef.current = false;
+  };
+
+  // Full restart: tear down the broken connection and establish a fresh one.
+  // Skips intro + compliance since the user already completed those.
+  const restartSession = () => {
+    const mode = pendingMode === 'intro-avatar' ? 'video' : (pendingMode || 'video');
+
+    // Reset connection state
+    setToken(null);
+    setLkUrl(null);
+    setIsLkConnected(false);
+    setIsAgentReady(false);
+    setRoomName('');
+    setKeyframeMetaData(null);
+    setIsVideoReady(false);
+    setConnectionStatus('');
+    setIsOffline(false);
+    setShowEndCallConfirm(false);
+    setShowInactivityPrompt(false);
+    // Skip the recording announcement on reconnect — user already heard it.
+    // This is critical: ChannelStartTrigger won't fire until isAnnouncementComplete is true.
+    setIsAnnouncementStarted(true);
+    setIsAnnouncementComplete(true);
+    hasAnnouncedRef.current = true;
+    participantIdentityRef.current = null;
+    isFetchingRef.current = false;
+
+    // Explicitly force-skip intro + compliance (user already did these)
+    setHasAgreed(true);
+    setIsIntroComplete(true);
+    setComplianceChecked(true);
+    setIsIntroBlurring(false);
+
+    // Set connecting phase and fetch fresh token
+    setFlowPhase('connecting');
+    flowPhaseRef.current = 'connecting';
+
+    setTimeout(() => {
+      setIsOpen(true);
+      setPendingMode(mode);
+      fetchToken(mode, true); // Force a completely new room
+    }, 0);
+  };
+
+  // Reset ALL session state when modal closes
   useEffect(() => {
     if (!isOpen) {
-      setFlowPhase('idle');
-      flowPhaseRef.current = 'idle';
-      setToken(null);
-      setLkUrl(null);
-      setIsLkConnected(false);
-      setIsAgentReady(false);
-      setRoomName('');
-      setIsVideoReady(false);
-      setIsIntroBlurring(true);
-      setKeyframeMetaData(null);
-      // Reset agreement + compliance so the full intro → compliance → live flow
-      // always replays cleanly when the CTA is reopened
-      setHasAgreed(false);
-      setIsIntroComplete(false);
-      setComplianceChecked(false);
-      setPendingMode('video');
-      setIsAnnouncementStarted(false);
-      setIsAnnouncementComplete(false);
-      setConnectionStatus('');
-      setIsOffline(false);
-      setShowEndCallConfirm(false);
-      setShowInactivityPrompt(false);
-      participantIdentityRef.current = null;
-      isFetchingRef.current = false;
-      setIsSubmitting(false);
+      resetSession();
     }
   }, [isOpen]);
 
@@ -769,7 +819,13 @@ export default function FloatingCTA() {
     const handleOnline = () => {
       setIsOffline(false);
       if (flowPhaseRef.current === 'error') {
-        setConnectionStatus('You are back online. Tap Retry Connection to continue.');
+        // Connection was lost and is now back — auto-restart the session
+        // since the old LiveKit room / agent is dead anyway.
+        setConnectionStatus('Connection restored. Restarting session…');
+        // Small delay so the user sees the "restored" message briefly
+        setTimeout(() => {
+          restartSession();
+        }, 1200);
       }
     };
 
@@ -1292,7 +1348,7 @@ export default function FloatingCTA() {
                           <LiveKitRoom
                             key={roomName}
                             video={false}
-                            audio={false}
+                            audio={true}
                             token={token || ""}
                             serverUrl={lkUrl || ""}
                             connect={true}
@@ -1300,6 +1356,8 @@ export default function FloatingCTA() {
                             className="w-full h-full"
                             onConnected={() => setIsLkConnected(true)}
                             onDisconnected={() => {
+                              // Only transition to error if we're not already restarting
+                              if (flowPhaseRef.current === 'connecting') return;
                               setConnectionStatus(
                                 typeof window !== 'undefined' && !window.navigator.onLine
                                   ? 'Internet connection lost. Reconnect to continue with Ailana.'
@@ -1314,7 +1372,6 @@ export default function FloatingCTA() {
                               setRecordingSeconds(0);
                               setRoomName('');
                               setIsVideoReady(false);
-                              setIsIntroBlurring(true);
                             }}
                           >
                             <AgentReadinessCheck onAgentReady={setIsAgentReady} />
@@ -1422,15 +1479,12 @@ export default function FloatingCTA() {
                             {connectionStatus || "We're having trouble reaching our AI services. Please check your connection and try again."}
                           </p>
                           <button
-                            onClick={() => {
-                              setFlowPhase('idle');
-                              fetchToken('video');
-                            }}
+                            onClick={restartSession}
                             disabled={isOffline}
                             className="flex items-center gap-2 bg-white text-black px-8 py-3 rounded-xl font-bold hover:bg-[#00b4d8] hover:text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <RefreshCw className="h-4 w-4" />
-                            {isOffline ? 'Waiting for Internet...' : 'Retry Connection'}
+                            {isOffline ? 'Waiting for Internet...' : 'Start New Session'}
                           </button>
                         </motion.div>
                       )}
