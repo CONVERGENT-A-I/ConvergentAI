@@ -1168,21 +1168,6 @@ export default function FloatingCTA() {
                                 )}
                               </div>
 
-                              {/* Prefer to talk bar */}
-                              <div className="shrink-0 px-4 py-2.5 flex items-center justify-center gap-4 border-t border-white/15 bg-[#080c14]">
-                                <div className="text-center">
-                                  <p className="text-white text-xs md:text-sm font-semibold">Prefer to talk instead?</p>
-                                  <p className="text-gray-300 text-[10px] md:text-xs">Switch to voice <span className="font-semibold text-[#00b4d8]">only</span> for a quick conversation.</p>
-                                </div>
-                                <button
-                                  onClick={() => handleAIAction('voice')}
-                                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#00b4d8]/10 border border-[#00b4d8]/30 text-white text-xs md:text-sm font-semibold hover:bg-[#00b4d8]/25 hover:border-[#00b4d8]/60 transition-all cursor-pointer shadow-sm"
-                                >
-                                  <Phone className="h-3.5 w-3.5 text-[#00b4d8]" />
-                                  Talk to me
-                                </button>
-                              </div>
-
                               {/* Trust Footer */}
                               <div className="shrink-0 px-4 py-2 flex items-center justify-center gap-6 text-[10px] md:text-xs text-gray-400 bg-[#07090f] border-t border-white/15">
                                 <span className="flex items-center gap-1.5"><Lock className="h-3 w-3 text-emerald-400" />Your information is secure and never shared.</span>
