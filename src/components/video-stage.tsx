@@ -38,6 +38,20 @@ function ConnectionProgress() {
   return <p className="text-[9px] text-zinc-500 font-medium animate-pulse">{status}</p>;
 }
 
+function FrequencyBar({ smoothLevel, index }: { smoothLevel: any, index: number }) {
+  // Stable pseudo-random variation based on index
+  const randomFactor = (index * 0.17) % 0.5;
+  const scaleY = useTransform(smoothLevel, [0, 1], [1, 1.5 + randomFactor]);
+  const opacity = useTransform(smoothLevel, [0, 1], [0.3, 1]);
+  
+  return (
+    <motion.div
+      style={{ height: 8, scaleY, opacity }}
+      className="w-1.5 rounded-full bg-gradient-to-t from-[#00b4d8] to-white origin-bottom"
+    />
+  );
+}
+
 /**
  * High-End Reactive Audio Visualizer
  */
@@ -132,15 +146,7 @@ function VoiceVisualizer() {
       {/* Frequency Bar Visualizer - Subtle and Smoothed */}
       <div className="absolute -bottom-16 flex items-center gap-1.5 h-10">
         {[...Array(9)].map((_, i) => (
-          <motion.div
-            key={i}
-            style={{
-              height: 8,
-              scaleY: useTransform(smoothLevel, [0, 1], [1, 1.5 + Math.random()]),
-              opacity: useTransform(smoothLevel, [0, 1], [0.3, 1])
-            }}
-            className="w-1.5 rounded-full bg-gradient-to-t from-[#00b4d8] to-white origin-bottom"
-          />
+          <FrequencyBar key={i} smoothLevel={smoothLevel} index={i} />
         ))}
       </div>
     </div>
