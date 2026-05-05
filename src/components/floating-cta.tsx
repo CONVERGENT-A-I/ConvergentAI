@@ -416,6 +416,8 @@ function InRoomChatPanel() {
   const room = useRoomContext();
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   // State for spoken transcriptions
   const [transcripts, setTranscripts] = useState<Record<string, any>>({});
@@ -474,9 +476,25 @@ function InRoomChatPanel() {
   }, [chatMessages, transcripts]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    const el = scrollRef.current;
+    if (!el) return;
+
+    // Only auto-scroll when the user is already near the bottom (within 150px).
+    // This prevents the view from snapping back when the user has scrolled up.
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+    if (!isNearBottom) return;
+
+    // Debounce: rapid transcript word-updates fire this effect constantly.
+    // Cancel the previous pending scroll before scheduling a new one so the
+    // animation never gets interrupted mid-flight.
+    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    scrollTimerRef.current = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }, 60);
+
+    return () => {
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    };
   }, [displayMessages]);
 
   const handleSend = () => {
@@ -537,6 +555,8 @@ function InRoomChatPanel() {
             </div>
           );
         })}
+        {/* Scroll anchor — scrollIntoView targets this so the animation always lands at the very bottom */}
+        <div ref={messagesEndRef} className="h-px shrink-0" />
       </div>
 
       {/* Input */}
@@ -1447,12 +1467,14 @@ export default function FloatingCTA() {
                                   </div>
                                 </div>
 
-                                {/* Right: Chat Panel */}
-                                {pendingMode === 'avatar-chat' && (
-                                  <div className="hidden md:flex w-[320px] lg:w-[360px] shrink-0 flex-col rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_30px_rgba(0,180,216,0.1)] bg-[#050505] transition-all duration-300">
-                                    <InRoomChatPanel />
-                                  </div>
-                                )}
+                                {/* Right: Chat Panel — always mounted so useChat() & transcripts survive channel switches.
+                                     Hidden via inline style (not conditional render) so messages persist. */}
+                                <div
+                                  className="md:flex w-[320px] lg:w-[360px] shrink-0 flex-col rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_30px_rgba(0,180,216,0.1)] bg-[#050505] transition-all duration-300"
+                                  style={{ display: pendingMode === 'avatar-chat' ? 'flex' : 'none' }}
+                                >
+                                  <InRoomChatPanel />
+                                </div>
                               </div>
 
                               {/* Trust Footer */}
