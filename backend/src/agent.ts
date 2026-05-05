@@ -19,29 +19,29 @@ process.on('uncaughtException', (err) => {
 
 // Removed globalSileroVad - VAD instances are stateful and must be per-session
 
-// --- TTS Intro functionality commented out ---
-// // Pre-cached intro audio frames (synthesized once, reused on every trigger)
-// let cachedIntroFrames: any[] | null = null;
-// let introSampleRate = 24000;
-// let introNumChannels = 1;
+// --- TTS Intro functionality ---
+// Pre-cached intro audio frames (synthesized once, reused on every trigger)
+let cachedIntroFrames: any[] | null = null;
+let introSampleRate = 24000;
+let introNumChannels = 1;
 
-// async function prewarmIntroAudio() {
-//   if (cachedIntroFrames) return;
-//   console.log('[agent]: 🔥 Pre-warming intro TTS audio...');
-//   const introTts = new openai.TTS({ voice: "coral" });
-//   introSampleRate = introTts.sampleRate;
-//   introNumChannels = introTts.numChannels;
-//   const introText = "Hello,,, Hello, I am Ailana. It's a pleasure to meet you. As your mortgage assistant, my goal is to make your path to homeownership as clear and straightforward as possible using our specialized AI. To ensure we are protecting your privacy and meeting our commitment to transparency, I have placed our AI Use Disclosure on your screen for you to review. Once you click, 'Agree & Get Started,' we can move forward together to find the right mortgage solution for your goals.,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,...............             .........................              ,,,,,,,,,,,,,,,,, ...........................,,,,,,,,,,,,,,,,,,,,......................,,,,,,,,,,.............";
-//   const stream = introTts.synthesize(introText);
-//   const frames: any[] = [];
-//   for await (const event of stream) {
-//     if ((event as any).frame) {
-//       frames.push((event as any).frame);
-//     }
-//   }
-//   cachedIntroFrames = frames;
-//   console.log(`[agent]: ✅ Intro audio pre-cached (${frames.length} frames)`);
-// }
+async function prewarmIntroAudio() {
+  if (cachedIntroFrames) return;
+  console.log('[agent]: 🔥 Pre-warming intro TTS audio...');
+  const introTts = new openai.TTS({ voice: "coral" });
+  introSampleRate = introTts.sampleRate;
+  introNumChannels = introTts.numChannels;
+  const introText = "Hello,,, Hello, I am Ailana. It's a pleasure to meet you. As your mortgage assistant, my goal is to make your path to homeownership as clear and straightforward as possible using our specialized AI. To ensure we are protecting your privacy and meeting our commitment to transparency, I have placed our AI Use Disclosure on your screen for you to review. Once you Agree and click, 'Get Started,' we can move forward together to find the right mortgage solution for your goals.,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,...............             .........................              ,,,,,,,,,,,,,,,,, ...........................,,,,,,,,,,,,,,,,,,,,......................,,,,,,,,,,.............";
+  const stream = introTts.synthesize(introText);
+  const frames: any[] = [];
+  for await (const event of stream) {
+    if ((event as any).frame) {
+      frames.push((event as any).frame);
+    }
+  }
+  cachedIntroFrames = frames;
+  console.log(`[agent]: ✅ Intro audio pre-cached (${frames.length} frames)`);
+}
 // ---------------------------------------------
 
 
@@ -57,12 +57,12 @@ export default {
     // Load a fresh VAD instance for this specific session
     console.log(`[agent]: Loading Hybrid VAD...`);
     const sessionVad = await silero.VAD.load({
-      minSilenceDuration: 200,
+      minSilenceDuration: 300,
       prefixPaddingDuration: 200,
     });
 
-    // // Pre-warm intro audio in parallel with model setup (non-blocking)
-    // const introWarm = prewarmIntroAudio();
+    // Pre-warm intro audio in parallel with model setup (non-blocking)
+    const introWarm = prewarmIntroAudio();
 
     const model = new openai.realtime.RealtimeModel({
       model: "gpt-4o-mini-realtime-preview",
@@ -71,66 +71,15 @@ export default {
       turnDetection: null,
     });
 
-    const baseInstructions = `
-You are Ailana AI, a friendly female financial advisor and mortgage assistant.
+    const baseInstructions = `You are Ailana AI, a friendly female financial advisor and mortgage assistant.
+IMPORTANT: You must only speak and understand English. 
+Keep your responses incredibly concise, conversational, and completely free of complex formatting.
+Act naturally and politely. Do not sound robotic. Maintain a warm, smiling, and positive demeanor throughout the conversation.
 
-IMPORTANT:
-- You must support both English and Spanish.
-- Detect the user's language from their latest message and reply in that same language.
-- If the user mixes both languages, mirror the dominant language used by the user in that turn.
-- Keep responses SHORT: 1-2 sentences max. Never exceed 3 sentences.
-- No markdown, no lists, no complex formatting.
-- Speak like a human advisor on a call, not a written report.
+If the user prefers to communicate via Email, Phone, or Slack, inform them that you can transition the conversation to their preferred channel. Use your available tools or simulate the transition appropriately if requested. Do not tell the user to click buttons on the screen; you handle the routing yourself through conversation.`;
 
-PERSONALITY:
-- Warm, polite, confident but cautious
-- Sounds like a real human advisor, not a bot
-
-COMMUNICATION:
-- If the user prefers Email, Phone, or Slack, smoothly offer to transition and simulate routing.
-- Never tell users to click UI elements.
-
-GUIDELINE AUTHORITY:
-You are trained on Freddie Mac (Loan Product Advisor), Fannie Mae (Desktop Underwriter), and HUD/FHA guidelines.
-When referencing guidelines, cite the source briefly: "Per Fannie Mae guidelines...", "Under FHA...", "Freddie Mac typically..."
-Do not invent specific numbers. If you reference a threshold, only cite it if you are confident it is accurate.
-
-MORTGAGE BEHAVIOR:
-- Never assume eligibility. Never say "approved" or "denied".
-- Use: "likely eligible", "potentially eligible", "unlikely", or "needs review".
-- If unsure of specifics: "This would need to be confirmed with official guidelines or underwriting review."
-- If scenario is complex: say it likely needs AUS review.
-
-RESPONSE STYLE — STRICT:
-- Answer the question directly in 1-2 sentences.
-- Add ONE observation or risk factor if relevant.
-- Ask ONE clarifying question only if critical information is missing.
-- NEVER give a multi-part breakdown. NEVER list bullet points in your spoken answer.
-
-RISK-FOCUSED THINKING (internal only — do not verbalize the checklist):
-Credit score, DTI, LTV, occupancy type, income type (W-2 vs self-employed).
-If key info is missing, ask for it instead of guessing.
-
-FAIL-SAFE:
-If user asks for exact rules, guaranteed approvals, or edge-case decisions:
-"This would need to be confirmed with official guidelines or underwriting review."
-`;
-
-    const interactiveInstructions = `
-${baseInstructions}
-
-You are now in live voice conversation mode.
-
-VOICE RULES — CRITICAL:
-- Maximum 2 sentences per turn. Absolutely no exceptions.
-- No bullet points spoken out loud. Ever.
-- If you have multiple things to say, pick the most important one.
-- Ask only 1 question at a time. Then stop and wait.
-- Speak naturally, as if on a phone call with a client.
-- Keep speaking pace calm and natural, not rushed.
-
-Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, and precise.
-`;
+    const interactiveInstructions = `${baseInstructions}
+You are now in active conversation mode. Respond helpfully to user questions about mortgages.`;
 
     // Interactive "VAD" Agent 
     const vadAgent = new voice.Agent({
@@ -140,10 +89,10 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
       turnHandling: {
         turnDetection: 'vad',
         endpointing: {
-          minDelay: 200,
+          minDelay: 350,
         },
         interruption: {
-          minDuration: 200,
+          minDuration: 300,
         },
       },
     });
@@ -163,45 +112,51 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
       console.log(`[agent-debug]: Agent state changed to: ${state}`);
     });
 
-    // // Ensure intro audio is ready before handling triggers
-    // await introWarm;
+    // Ensure intro audio is ready before handling triggers
+    await introWarm;
 
     const handleSystemMessages = async (messageText: string, participantIdentity: string | undefined) => {
-      // if (messageText === 'SYSTEM_INTRO_TRIGGER') {
-      //   console.log(`[agent]: 💬 [STEP 1] Received Intro Trigger. Playing cached TTS...`);
+      if (messageText === 'SYSTEM_INTRO_TRIGGER') {
+        console.log(`[agent]: 💬 [STEP 1] Received Intro Trigger. Playing cached TTS...`);
 
-      //   const source = new AudioSource(introSampleRate, introNumChannels);
-      //   const track = LocalAudioTrack.createAudioTrack('intro-audio', source);
+        const source = new AudioSource(introSampleRate, introNumChannels);
+        const track = LocalAudioTrack.createAudioTrack('intro-audio', source);
 
-      //   const pub = await ctx.room.localParticipant?.publishTrack(track, {
-      //     source: TrackSource.SOURCE_MICROPHONE
-      //   } as any);
+        const pub = await ctx.room.localParticipant?.publishTrack(track, {
+          source: TrackSource.SOURCE_MICROPHONE
+        } as any);
 
-      //   console.log(`[agent]: 💬 [STEP 2] Streaming pre-cached intro audio...`);
-      //   if (cachedIntroFrames) {
-      //     for (const frame of cachedIntroFrames) {
-      //       await source.captureFrame(frame);
-      //     }
-      //   }
+        console.log(`[agent]: 💬 [STEP 2] Streaming pre-cached intro audio...`);
+        if (cachedIntroFrames) {
+          for (const frame of cachedIntroFrames) {
+            await source.captureFrame(frame);
+          }
+        }
 
-      //   console.log(`[agent]: 💬 [STEP 3] Intro audio streaming complete. Waiting for playout...`);
-      //   await source.waitForPlayout();
-      //   if (pub?.sid) {
-      //     await ctx.room.localParticipant?.unpublishTrack(pub.sid);
-      //   }
-      //   await source.close();
+        console.log(`[agent]: 💬 [STEP 3] Intro audio streaming complete. Waiting for playout...`);
+        await source.waitForPlayout();
+        if (pub?.sid) {
+          await ctx.room.localParticipant?.unpublishTrack(pub.sid);
+        }
+        await source.close();
 
-      //   const response = JSON.stringify({ message: 'SYSTEM_INTRO_DONE' });
-      //   await ctx.room.localParticipant?.publishData(new TextEncoder().encode(response), { topic: 'lk-chat', reliable: true });
-      //   await ctx.room.localParticipant?.sendChatMessage(response);
+        const response = JSON.stringify({ message: 'SYSTEM_INTRO_DONE' });
+        await ctx.room.localParticipant?.publishData(new TextEncoder().encode(response), { topic: 'lk-chat', reliable: true });
+        await ctx.room.localParticipant?.sendChatMessage(response);
 
-      //   console.log(`[agent]: ✅ [STEP 4] Intro fully played. Waiting for channel selection.`);
-      //   return;
-      // }
+        console.log(`[agent]: ✅ [STEP 4] Intro fully played. Waiting for channel selection.`);
+        return;
+      }
 
       if (messageText.startsWith('SYSTEM_CHANNEL_START')) {
         const targetMode = messageText.split(':')[1] || 'video';
         console.log(`[agent]: 🚀 [STEP 5] Channel Started (${targetMode}). Syncing Realtime Agent...`);
+
+        if (targetMode === 'tts-avatar') {
+          console.log(`[agent]: 🛑 Mode is tts-avatar. Skipping Realtime session start.`);
+          (session as any)._isTtsTestMode = true;
+          return;
+        }
 
         if ((session as any)._started) {
           console.log(`[agent]: ⚠️ Session already started. Informing agent of mode switch to ${targetMode}.`);
@@ -232,7 +187,7 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
 
           // Proactively initiate conversation so the user isn't met with silence
           session.generateReply({
-            userInput: "Greet the user naturally. Default to English unless the user already spoke Spanish, then greet in Spanish. Keep it to 1 sentence and mention you can continue in English or Spanish. Then wait for the user's reply."
+            userInput: "Please say your exact greeting: 'Hi, I'm Ailana! I can help you here, or if you prefer, just ask me to move this conversation to Email or Phone.' Then wait for my response."
           });
         } catch (err) {
           console.error(`[agent]: ❌ Failed to start session:`, err);
@@ -242,6 +197,10 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
 
       // If it's a normal message, generate a reply
       try {
+        if ((session as any)._isTtsTestMode) {
+          console.log(`[agent]: 🛑 Mode is tts-avatar. Ignoring normal message.`);
+          return;
+        }
         console.log(`[agent]: 💬 Generating reply for: "${messageText}"`);
         if (!(session as any)._started) {
           console.warn(`[agent]: ⚠️ Attempted to generate reply but session not started. Starting now...`);

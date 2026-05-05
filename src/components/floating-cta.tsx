@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, Sparkles, X, Phone, Video, Mic, MicOff, VideoOff, PhoneOff, Monitor, MoreHorizontal, Circle, Loader2, Send, Check, ArrowRight, Clock, Lock, ShieldAlert, RefreshCw } from "lucide-react";
+import { MessageCircle, Sparkles, X, Phone, Calendar, Video, Mic, MicOff, VideoOff, PhoneOff, Monitor, MoreHorizontal, Circle, Loader2, Send, Share2, Check, Shield, ArrowRight, Clock, Lock, Headphones } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import {
   LiveKitRoom,
@@ -30,8 +30,8 @@ if (typeof window !== 'undefined') {
   };
 }
 
-type FlowPhase = 'idle' | 'connecting' | 'intro' | 'live' | 'error';
-type PendingMode = 'intro-avatar' | 'video' | 'voice' | 'avatar-chat';
+type FlowPhase = 'idle' | 'connecting' | 'intro' | 'live';
+type PendingMode = 'intro-avatar' | 'video' | 'voice' | 'avatar-chat' | 'tts-avatar';
 
 function AgentReadinessCheck({ onAgentReady }: { onAgentReady: (r: boolean) => void }) {
   const participants = useRemoteParticipants();
@@ -59,15 +59,18 @@ function MediaGuard({ mode }: { mode: string }) {
 
     // Explicitly handle all modes as the single source of truth
     const syncMedia = async () => {
-      if (mode === 'avatar-chat' || mode === 'intro-avatar') {
+      if (mode === 'avatar-chat' || mode === 'intro-avatar' || mode === 'tts-avatar') {
         try { await lp.setMicrophoneEnabled(false); } catch (e) { }
         try { await lp.setCameraEnabled(false); } catch (e) { }
         console.log('[MediaGuard] 🔇 Mic & camera OFF');
       } else if (mode === 'voice') {
+        try { await lp.setMicrophoneEnabled(true); } catch (e) { console.error("Mic error:", e); }
         try { await lp.setCameraEnabled(false); } catch (e) { }
-        console.log('[MediaGuard] 🔇 Camera OFF (voice mode)');
+        console.log('[MediaGuard] 🎤 Mic ON, camera OFF');
       } else if (mode === 'video') {
-        console.log('[MediaGuard] 🔇 Mic & camera OFF by default (waiting for user to enable)');
+        try { await lp.setMicrophoneEnabled(true); } catch (e) { console.error("Mic error:", e); }
+        try { await lp.setCameraEnabled(true); } catch (e) { console.error("Camera error:", e); }
+        console.log('[MediaGuard] 🎤📹 Mic & camera ON');
       }
     };
 
@@ -77,7 +80,7 @@ function MediaGuard({ mode }: { mode: string }) {
   return null;
 }
 
-function ChannelStartTrigger({ isLivePhase, mode, isAnnouncementComplete }: { isLivePhase: boolean; mode: string; isAnnouncementComplete: boolean }) {
+function ChannelStartTrigger({ isLivePhase, mode }: { isLivePhase: boolean; mode: string }) {
   const { send } = useChat();
   const room = useRoomContext();
   const participants = useRemoteParticipants();
@@ -85,7 +88,7 @@ function ChannelStartTrigger({ isLivePhase, mode, isAnnouncementComplete }: { is
   const lastTriggeredMode = useRef<string | null>(null);
 
   useEffect(() => {
-    if (isLivePhase && isAnnouncementComplete && room.state === 'connected' && agentReady && lastTriggeredMode.current !== mode) {
+    if (isLivePhase && room.state === 'connected' && agentReady && lastTriggeredMode.current !== mode) {
       const trySend = async (retries = 3) => {
         try {
           lastTriggeredMode.current = mode;
@@ -108,91 +111,65 @@ function ChannelStartTrigger({ isLivePhase, mode, isAnnouncementComplete }: { is
     if (!isLivePhase) {
       lastTriggeredMode.current = null;
     }
-  }, [isLivePhase, mode, send, room.state, agentReady, isAnnouncementComplete]);
+  }, [isLivePhase, mode, send, room.state, agentReady]);
+
+  return null;
+}
+
+function TtsIntroTrigger({ isLivePhase, mode }: { isLivePhase: boolean; mode: string }) {
+  const room = useRoomContext();
+  const participants = useRemoteParticipants();
+  const agentReady = participants.length > 0;
+  const hasTriggered = useRef(false);
+
+  useEffect(() => {
+    if (isLivePhase && room.state === 'connected' && agentReady && mode === 'tts-avatar' && !hasTriggered.current) {
+      hasTriggered.current = true;
+      console.log(`[ui]: 🚀 Triggering TTS intro...`);
+      const payload = new TextEncoder().encode(JSON.stringify({ message: 'SYSTEM_INTRO_TRIGGER' }));
+      room.localParticipant.publishData(payload, { topic: "lk-chat", reliable: true }).catch(console.error);
+    }
+    if (!isLivePhase) {
+      hasTriggered.current = false;
+    }
+  }, [isLivePhase, room.state, agentReady, mode, room.localParticipant]);
 
   return null;
 }
 
 /** Custom control bar for the Google Meet-style live UI */
 function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
-  const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant();
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [isTogglingScreen, setIsTogglingScreen] = useState(false);
+  const room = useRoomContext();
+  const [isMicOn, setIsMicOn] = useState(false);
+  const [isCamOn, setIsCamOn] = useState(false);
+
+  useEffect(() => {
+    if (room.state !== 'connected') return;
+    setIsMicOn(room.localParticipant?.isMicrophoneEnabled ?? false);
+    setIsCamOn(room.localParticipant?.isCameraEnabled ?? false);
+  }, [room, room.state]);
 
   const toggleMic = async () => {
-    if (!localParticipant) return;
     try {
-      await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled);
+      const next = !isMicOn;
+      await room.localParticipant.setMicrophoneEnabled(next);
+      setIsMicOn(next);
     } catch (e) { console.error('Mic toggle error:', e); }
   };
   const toggleCam = async () => {
-    if (!localParticipant) return;
     try {
-      await localParticipant.setCameraEnabled(!isCameraEnabled);
+      const next = !isCamOn;
+      await room.localParticipant.setCameraEnabled(next);
+      setIsCamOn(next);
     } catch (e) { console.error('Cam toggle error:', e); }
   };
-  const toggleScreenShare = async () => {
-    if (!localParticipant || isTogglingScreen) return;
-    setIsTogglingScreen(true);
-    try {
-      const next = !isScreenSharing;
-      await localParticipant.setScreenShareEnabled(next, {
-        audio: true,
-        selfBrowserSurface: 'include',
-        surfaceSwitching: 'include',
-      });
-      setIsScreenSharing(next);
-      // Listen for the user stopping share via the browser's native "Stop sharing" button
-      if (next) {
-        const screenTracks = localParticipant.getTrackPublications().filter(
-          (pub) => pub.source === 'screen_share' || pub.trackName?.includes('screen')
-        );
-        const firstTrack = screenTracks[0]?.track as any;
-        if (firstTrack?.mediaStreamTrack) {
-          firstTrack.mediaStreamTrack.addEventListener('ended', () => {
-            setIsScreenSharing(false);
-          }, { once: true });
-        }
-      }
-    } catch (e: any) {
-      // User cancelled the picker — not an error
-      if (e?.name !== 'NotAllowedError') {
-        console.error('Screen share toggle error:', e);
-      }
-      setIsScreenSharing(false);
-    } finally {
-      setIsTogglingScreen(false);
-    }
-  };
-
-  const [showMicTooltip, setShowMicTooltip] = useState(false);
-  const hasShownTooltipRef = useRef(false);
-
-  useEffect(() => {
-    // Show tooltip if muted in voice/video mode, and hasn't been shown yet
-    if (!isMicrophoneEnabled && (mode === 'voice' || mode === 'video') && !hasShownTooltipRef.current) {
-      const timer = setTimeout(() => {
-        setShowMicTooltip(true);
-        hasShownTooltipRef.current = true;
-      }, 1500); // Small delay after connecting
-      return () => clearTimeout(timer);
-    }
-  }, [isMicrophoneEnabled, mode]);
 
   const controls = [
-    { 
-      icon: isMicrophoneEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />, 
-      label: isMicrophoneEnabled ? 'Mute' : 'Unmute', 
-      onClick: () => { toggleMic(); setShowMicTooltip(false); }, 
-      danger: false, 
-      pulse: isMicrophoneEnabled, 
-      alertPulse: !isMicrophoneEnabled && (mode === 'voice' || mode === 'video'),
-      active: false 
-    },
-    { icon: isCameraEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />, label: isCameraEnabled ? 'Stop Video' : 'Start Video', onClick: toggleCam, danger: false, pulse: false, active: false },
-    { icon: <PhoneOff className="h-5 w-5" />, label: 'End', onClick: onEnd, danger: true, pulse: false, active: false },
-    { icon: <Monitor className="h-5 w-5" />, label: isScreenSharing ? 'Stop Share' : 'Share', onClick: toggleScreenShare, danger: false, pulse: false, active: isScreenSharing },
-    { icon: <MoreHorizontal className="h-5 w-5" />, label: 'More', onClick: () => { }, danger: false, pulse: false, active: false },
+    { icon: isMicOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />, label: isMicOn ? 'Mute' : 'Unmute', onClick: toggleMic, danger: false, pulse: isMicOn },
+    { icon: isCamOn ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />, label: isCamOn ? 'Stop Video' : 'Start Video', onClick: toggleCam, danger: false, pulse: false },
+    { icon: <PhoneOff className="h-5 w-5" />, label: 'End', onClick: onEnd, danger: true, pulse: false },
+    { icon: <Monitor className="h-5 w-5" />, label: 'Share', onClick: () => { }, danger: false, pulse: false },
+    { icon: <MoreHorizontal className="h-5 w-5" />, label: 'More', onClick: () => { }, danger: false, pulse: false },
   ];
 
   return (
@@ -201,12 +178,9 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
         <button
           key={c.label}
           onClick={c.onClick}
-          disabled={c.label === 'Share' || c.label === 'Stop Share' ? isTogglingScreen : false}
-          className={`relative flex flex-col items-center gap-1 p-2.5 md:p-3 rounded-2xl transition-all cursor-pointer group disabled:opacity-60 disabled:cursor-wait ${c.danger
+          className={`relative flex flex-col items-center gap-1 p-2.5 md:p-3 rounded-2xl transition-all cursor-pointer group ${c.danger
             ? 'bg-red-500/90 hover:bg-red-600 text-white shadow-[0_4px_20px_rgba(239,68,68,0.4)]'
-            : c.active
-              ? 'bg-[#00b4d8]/20 border border-[#00b4d8]/50 text-[#00d4f5] hover:bg-[#00b4d8]/30 backdrop-blur-md shadow-[0_0_12px_rgba(0,180,216,0.3)]'
-              : 'bg-white/10 hover:bg-white/20 text-white/80 hover:text-white backdrop-blur-md'
+            : 'bg-white/10 hover:bg-white/20 text-white/80 hover:text-white backdrop-blur-md'
             }`}
         >
           {/* Mic pulse glow ring */}
@@ -217,37 +191,6 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
               transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
             />
           )}
-          {/* Mic alert pulse (when muted in voice/video) */}
-          {(c as any).alertPulse && (
-            <motion.div
-              className="absolute inset-0 rounded-2xl border-2 border-[#00b4d8]/80"
-              animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.15, 1] }}
-              transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
-            />
-          )}
-          {/* Screen share active ring */}
-          {c.active && (
-            <motion.div
-              className="absolute inset-0 rounded-2xl border-2 border-[#00b4d8]/50"
-              animate={{ opacity: [0.3, 0.9, 0.3], scale: [1, 1.06, 1] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            />
-          )}
-          
-          <AnimatePresence>
-            {c.label === 'Unmute' && showMicTooltip && (
-              <motion.div
-                initial={{ opacity: 0, y: 10, scale: 0.9 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="absolute -top-14 left-1/2 -translate-x-1/2 z-[100] px-3 py-2 bg-[#00b4d8] text-white text-[10px] font-bold rounded-xl shadow-xl whitespace-nowrap"
-              >
-                Click to speak
-                <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-2 h-2 bg-[#00b4d8] rotate-45" />
-              </motion.div>
-            )}
-          </AnimatePresence>
-
           <span className="group-hover:scale-110 transition-transform">{c.icon}</span>
           <span className="text-[9px] md:text-[10px] font-semibold tracking-wide">{c.label}</span>
         </button>
@@ -311,10 +254,10 @@ function TranscriptOverlay() {
 /** Cycling suggested commands near the control bar */
 function SuggestedCommands() {
   const commands = [
-    "Try: 'Switch to Voice mode'",
-    "Try: 'Let's chat via text'",
-    "Try: 'Enable your camera'",
-    "Try: 'Help me with mortgage'"
+    "Try: 'Connect me to WhatsApp'",
+    "Try: 'Call me'",
+    "Try: 'Send an email summary'",
+    "Try: 'Schedule a meeting'"
   ];
   const [index, setIndex] = useState(0);
 
@@ -392,15 +335,15 @@ function ContextualHelp() {
             <ul className="text-white/70 text-xs space-y-2">
               <li className="flex items-start gap-2">
                 <span className="text-blue-400 mt-0.5">•</span>
-                <span>&quot;Switch to chat&quot; to use text only</span>
+                <span>&quot;Connect me to WhatsApp&quot; to switch to chat</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-blue-400 mt-0.5">•</span>
-                <span>&quot;Go to voice&quot; for audio only</span>
+                <span>&quot;Call me&quot; to switch to a phone call</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-blue-400 mt-0.5">•</span>
-                <span>&quot;Start video&quot; for full face-to-face</span>
+                <span>&quot;Email me a summary&quot; for a written record</span>
               </li>
             </ul>
           </motion.div>
@@ -413,89 +356,14 @@ function ContextualHelp() {
 /** In-room chat panel using LiveKit useChat(), displayed as side panel */
 function InRoomChatPanel() {
   const { chatMessages, send, isSending } = useChat();
-  const room = useRoomContext();
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const scrollTimerRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // State for spoken transcriptions
-  const [transcripts, setTranscripts] = useState<Record<string, any>>({});
 
   useEffect(() => {
-    if (!room) return;
-
-    const handleTranscription = (segments: any[], participant?: any) => {
-      setTranscripts(prev => {
-        const next = { ...prev };
-        for (const seg of segments) {
-          next[seg.id] = {
-            id: seg.id,
-            text: seg.text,
-            timestamp: seg.startTime || Date.now(),
-            isAgent: participant?.identity === 'agent' || participant?.identity?.startsWith('agent'),
-            final: seg.final,
-            type: 'transcript'
-          };
-        }
-        return next;
-      });
-    };
-
-    room.on('transcriptionReceived', handleTranscription);
-    return () => {
-      room.off('transcriptionReceived', handleTranscription);
-    };
-  }, [room]);
-
-  // Merge chat messages and transcripts
-  const displayMessages = useMemo(() => {
-    const combined: any[] = [];
-    
-    // Add manual chat messages
-    chatMessages.forEach(msg => {
-      combined.push({
-        id: msg.id || msg.timestamp.toString(),
-        text: msg.message,
-        timestamp: msg.timestamp,
-        isAgent: msg.from?.identity?.startsWith('agent') || msg.from?.identity === 'agent',
-        type: 'chat',
-        final: true
-      });
-    });
-
-    // Add transcript messages
-    Object.values(transcripts).forEach(tr => {
-      if (tr.text && tr.text.trim()) { // Don't show empty transcripts
-        combined.push(tr);
-      }
-    });
-
-    // Sort by timestamp
-    return combined.sort((a, b) => a.timestamp - b.timestamp);
-  }, [chatMessages, transcripts]);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-
-    // Only auto-scroll when the user is already near the bottom (within 150px).
-    // This prevents the view from snapping back when the user has scrolled up.
-    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
-    if (!isNearBottom) return;
-
-    // Debounce: rapid transcript word-updates fire this effect constantly.
-    // Cancel the previous pending scroll before scheduling a new one so the
-    // animation never gets interrupted mid-flight.
-    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
-    scrollTimerRef.current = setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }, 60);
-
-    return () => {
-      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
-    };
-  }, [displayMessages]);
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
 
   const handleSend = () => {
     const text = input.trim();
@@ -520,43 +388,49 @@ function InRoomChatPanel() {
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4" style={{ scrollbarWidth: 'thin' }}>
-        {displayMessages.length === 0 && (
+        {chatMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center px-4 gap-4">
             <div className="h-14 w-14 rounded-full bg-blue-500/10 flex items-center justify-center">
               <MessageCircle className="h-7 w-7 text-blue-500" />
             </div>
             <p className="text-gray-400 text-sm">Send a message to start chatting with Ailana</p>
+            <div className="flex flex-wrap gap-2 justify-center mt-2">
+              {['Schedule a Call', 'Email Summary', 'Help me decide'].map(chip => (
+                <button
+                  key={chip}
+                  onClick={() => { setInput(chip); }}
+                  className="px-3 py-1.5 rounded-full bg-[#00b4d8]/10 text-[#00b4d8] text-xs font-medium hover:bg-[#00b4d8]/20 transition-colors cursor-pointer border border-[#00b4d8]/20"
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
-        {displayMessages.map((msg, i) => {
+        {chatMessages.map((msg, i) => {
+          const isAgent = msg.from?.identity?.startsWith('agent') || msg.from?.identity === 'agent';
           return (
-            <div key={msg.id || i} className={`flex gap-2.5 max-w-[90%] ${msg.isAgent ? 'mr-auto' : 'ml-auto flex-row-reverse'}`}>
-              {msg.isAgent && (
+            <div key={i} className={`flex gap-2.5 max-w-[90%] ${isAgent ? 'mr-auto' : 'ml-auto flex-row-reverse'}`}>
+              {isAgent && (
                 <div className="h-7 w-7 rounded-full bg-[#00b4d8] flex items-center justify-center shrink-0 mt-0.5">
                   <Sparkles className="h-3.5 w-3.5 text-white" />
                 </div>
               )}
               <div className="flex flex-col gap-0.5">
-                <div className={`px-3.5 py-2.5 text-[13px] leading-relaxed rounded-2xl ${msg.isAgent
+                <div className={`px-3.5 py-2.5 text-[13px] leading-relaxed rounded-2xl ${isAgent
                   ? 'bg-white/10 text-white rounded-tl-sm'
                   : 'bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white rounded-tr-sm shadow-md'
-                  } ${!msg.final ? 'opacity-70 animate-pulse' : ''}`}>
-                  {msg.type === 'transcript' ? (
-                     <span className="italic">{msg.text}</span>
-                  ) : (
-                     <span>{msg.text}</span>
-                  )}
+                  }`}>
+                  {msg.message}
                 </div>
-                <span className={`text-[10px] text-gray-400 font-medium px-1 ${msg.isAgent ? '' : 'text-right'}`}>
+                <span className={`text-[10px] text-gray-400 font-medium px-1 ${isAgent ? '' : 'text-right'}`}>
                   {formatMsgTime(msg.timestamp)}
                 </span>
               </div>
             </div>
           );
         })}
-        {/* Scroll anchor — scrollIntoView targets this so the animation always lands at the very bottom */}
-        <div ref={messagesEndRef} className="h-px shrink-0" />
       </div>
 
       {/* Input */}
@@ -592,60 +466,41 @@ export default function FloatingCTA() {
   const [token, setToken] = useState<string | null>(null);
   const [lkUrl, setLkUrl] = useState<string | null>(null);
   const [keyframeMetaData, setKeyframeMetaData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
   const [isLkConnected, setIsLkConnected] = useState(false);
   const [isAgentReady, setIsAgentReady] = useState(false);
   const [pendingMode, setPendingMode] = useState<PendingMode>('video');
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [roomName, setRoomName] = useState<string>('');
+  const [isCopied, setIsCopied] = useState(false);
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [isIntroBlurring, setIsIntroBlurring] = useState(true);
   const [complianceChecked, setComplianceChecked] = useState(false);
-  const [isAnnouncementStarted, setIsAnnouncementStarted] = useState(false);
-  const [isAnnouncementComplete, setIsAnnouncementComplete] = useState(false);
-  const [isFallbackMode, setIsFallbackMode] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<string>('');
-  const [isOffline, setIsOffline] = useState(false);
-  const [showEndCallConfirm, setShowEndCallConfirm] = useState(false);
-  const [showInactivityPrompt, setShowInactivityPrompt] = useState(false);
-  const [inactivityCountdown, setInactivityCountdown] = useState(10);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const introVideoRef = useRef<HTMLVideoElement>(null);
-  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const inactivityWatchdogRef = useRef<NodeJS.Timeout | null>(null);
-  const inactivityCountdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const lastActivityAtRef = useRef<number>(Date.now());
   const searchParams = useSearchParams();
 
   const isFetchingRef = useRef(false);
   const participantIdentityRef = useRef<string | null>(null);
-  // Track current phase in a ref so async callbacks (fetchToken) always read the latest value
-  const flowPhaseRef = useRef<FlowPhase>('idle');
 
-  const fetchToken = async (mode?: string, forceNewRoom?: boolean) => {
+  const fetchToken = async (mode?: string) => {
     // Prevent concurrent duplicate calls (e.g. compliance agree + mode button)
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     try {
       // Only show 'connecting' if we aren't already in a meaningful phase
       // Don't override intro phase — the CTA already set it to 'intro'
-      const currentPhase = flowPhaseRef.current;
-      if (currentPhase === 'idle' && mode !== 'intro-avatar') {
+      if (flowPhase === 'idle' && mode !== 'intro-avatar') {
         setFlowPhase('connecting');
-        flowPhaseRef.current = 'connecting';
       }
 
-      // Only reset intro state when actually starting an intro flow,
-      // not on reconnections that skip straight to live.
-      if (mode === 'intro-avatar') {
-        setIsIntroComplete(false);
-      }
+      setIsIntroComplete(false);
+      setError(null);
       if (!isLkConnected) {
         setKeyframeMetaData(null);
       }
 
       const urlRoom = searchParams.get('room');
-      const generatedRoomName = urlRoom || (!forceNewRoom && roomName ? roomName : `room-${Math.random().toString(36).substring(2, 11)}`);
+      const generatedRoomName = urlRoom || roomName || `room-${Math.random().toString(36).substring(2, 11)}`;
 
       if (!roomName || roomName !== generatedRoomName) {
         setRoomName(generatedRoomName);
@@ -669,49 +524,23 @@ export default function FloatingCTA() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        if (response.status === 503) {
-           console.error("[fetchToken]: Server configuration error:", errorData.details);
-           setConnectionStatus("Server Error: Missing Config");
-        }
         throw new Error('Failed to fetch LiveKit token');
       }
 
       const data = await response.json();
-      
-      if (connectionTimeoutRef.current) {
-        clearTimeout(connectionTimeoutRef.current);
-        connectionTimeoutRef.current = null;
-      }
-
       setToken(data.token);
       setLkUrl(data.serverUrl);
-      
-      // Provider Fallback Logic:
-      // If user requested video/avatar but service returned no metadata, downgrade to voice
-      if (!data.keyframe && activeMode !== 'voice') {
-        console.warn("[fetchToken]: Avatar service unavailable. Falling back to Voice.");
-        setIsFallbackMode(true);
-        setPendingMode('voice');
-        setConnectionStatus("Avatar unavailable. Switching to Voice...");
-      } else {
-        setKeyframeMetaData(data.keyframe ?? null);
-        setIsFallbackMode(false);
-        setConnectionStatus("");
-      }
+      setKeyframeMetaData(data.keyframe ?? null);
 
-      // Use the ref to read the phase at the time the async call resolves (avoids stale closure)
-      if (flowPhaseRef.current !== 'intro') {
-        const nextPhase = mode === 'intro-avatar' ? 'intro' : 'live';
-        setFlowPhase(nextPhase);
-        flowPhaseRef.current = nextPhase;
+      // If we are already in intro phase (playing video), don't jump to 'live'
+      if (flowPhase !== 'intro') {
+        setFlowPhase(mode === 'intro-avatar' ? 'intro' : 'live');
       }
     } catch (err) {
       console.error('Error connecting to LiveKit:', err);
-      setFlowPhase('error');
-      flowPhaseRef.current = 'error';
+      setError('Connection failed. Please try again.');
+      setFlowPhase('idle');
       setIsIntroComplete(false);
-      setIsFallbackMode(false);
     } finally {
       isFetchingRef.current = false;
     }
@@ -737,6 +566,33 @@ export default function FloatingCTA() {
     }
   };
 
+  const handleAgree = () => {
+    setHasAgreed(true);
+
+    // Default to video mode when entering live if we were just in intro
+    const targetMode = pendingMode === 'intro-avatar' ? 'video' : pendingMode;
+    setPendingMode(targetMode);
+
+    if (!token) {
+      setFlowPhase('connecting');
+      fetchToken(targetMode);
+    } else {
+      setFlowPhase('live');
+    }
+  };
+
+  const handleShare = async () => {
+    if (!roomName) return;
+    const shareUrl = `${window.location.origin}${window.location.pathname}?room=${roomName}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy link:', err);
+    }
+  };
+
   useEffect(() => {
     const sharedRoom = searchParams.get('room');
     if (sharedRoom) {
@@ -745,246 +601,26 @@ export default function FloatingCTA() {
     }
   }, [searchParams]);
 
-  // Centralised session reset — nukes all LiveKit / flow state so the
-  // intro → compliance → live flow can replay cleanly.
-  const resetSession = () => {
-    setFlowPhase('idle');
-    flowPhaseRef.current = 'idle';
-    setToken(null);
-    setLkUrl(null);
-    setIsLkConnected(false);
-    setIsAgentReady(false);
-    setRoomName('');
-    setIsVideoReady(false);
-    setIsIntroBlurring(true);
-    setKeyframeMetaData(null);
-    setHasAgreed(false);
-    setIsIntroComplete(false);
-    setComplianceChecked(false);
-    setPendingMode('video');
-    setIsAnnouncementStarted(false);
-    setIsAnnouncementComplete(false);
-    setConnectionStatus('');
-    setIsOffline(false);
-    setShowEndCallConfirm(false);
-    setShowInactivityPrompt(false);
-    participantIdentityRef.current = null;
-    isFetchingRef.current = false;
-    setIsSubmitting(false);
-    hasAnnouncedRef.current = false;
-  };
-
-  // Full restart: tear down the broken connection and establish a fresh one.
-  // Skips intro + compliance since the user already completed those.
-  const restartSession = () => {
-    const mode = pendingMode === 'intro-avatar' ? 'video' : (pendingMode || 'video');
-
-    // Reset connection state
-    setToken(null);
-    setLkUrl(null);
-    setIsLkConnected(false);
-    setIsAgentReady(false);
-    setRoomName('');
-    setKeyframeMetaData(null);
-    setIsVideoReady(false);
-    setConnectionStatus('');
-    setIsOffline(false);
-    setShowEndCallConfirm(false);
-    setShowInactivityPrompt(false);
-    // Skip the recording announcement on reconnect — user already heard it.
-    // This is critical: ChannelStartTrigger won't fire until isAnnouncementComplete is true.
-    setIsAnnouncementStarted(true);
-    setIsAnnouncementComplete(true);
-    hasAnnouncedRef.current = true;
-    participantIdentityRef.current = null;
-    isFetchingRef.current = false;
-
-    // Explicitly force-skip intro + compliance (user already did these)
-    setHasAgreed(true);
-    setIsIntroComplete(true);
-    setComplianceChecked(true);
-    setIsIntroBlurring(false);
-
-    // Set connecting phase and fetch fresh token
-    setFlowPhase('connecting');
-    flowPhaseRef.current = 'connecting';
-
-    setTimeout(() => {
-      setIsOpen(true);
-      setPendingMode(mode);
-      fetchToken(mode, true); // Force a completely new room
-    }, 0);
-  };
-
-  // Reset ALL session state when modal closes
+  // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
-      resetSession();
-    }
-  }, [isOpen]);
-
-  // Browser network state guard: show a clear alert when connectivity drops.
-  useEffect(() => {
-    if (!isOpen || typeof window === 'undefined') return;
-
-    const handleOffline = () => {
-      setIsOffline(true);
-      setConnectionStatus('Internet connection lost. Reconnect to continue with Ailana.');
-      setFlowPhase('error');
-      flowPhaseRef.current = 'error';
+      setFlowPhase('idle');
+      setToken(null);
+      setLkUrl(null);
       setIsLkConnected(false);
-      setIsAgentReady(false);
-    };
-
-    const handleOnline = () => {
-      setIsOffline(false);
-      if (flowPhaseRef.current === 'error') {
-        // Connection was lost and is now back — auto-restart the session
-        // since the old LiveKit room / agent is dead anyway.
-        setConnectionStatus('Connection restored. Restarting session…');
-        // Small delay so the user sees the "restored" message briefly
-        setTimeout(() => {
-          restartSession();
-        }, 1200);
-      }
-    };
-
-    setIsOffline(!window.navigator.onLine);
-    window.addEventListener('offline', handleOffline);
-    window.addEventListener('online', handleOnline);
-
-    return () => {
-      window.removeEventListener('offline', handleOffline);
-      window.removeEventListener('online', handleOnline);
-    };
+      setRoomName('');
+      setIsVideoReady(false);
+      setIsIntroBlurring(true);
+      setKeyframeMetaData(null);
+    }
   }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen || flowPhase !== 'live' || !isLkConnected) {
-      if (inactivityTimerRef.current) {
-        clearTimeout(inactivityTimerRef.current);
-        inactivityTimerRef.current = null;
-      }
-      if (inactivityWatchdogRef.current) {
-        clearInterval(inactivityWatchdogRef.current);
-        inactivityWatchdogRef.current = null;
-      }
-      setShowInactivityPrompt(false);
-      if (inactivityCountdownIntervalRef.current) {
-        clearInterval(inactivityCountdownIntervalRef.current);
-        inactivityCountdownIntervalRef.current = null;
-      }
-      return;
-    }
-
-    const INACTIVITY_MS = 180_000; // 3 minutes
-
-    const markActivity = () => {
-      lastActivityAtRef.current = Date.now();
-      setConnectionStatus('');
-    };
-
-    const armTimeout = () => {
-      if (inactivityTimerRef.current) {
-        clearTimeout(inactivityTimerRef.current);
-      }
-      inactivityTimerRef.current = setTimeout(() => {
-        setShowInactivityPrompt(true);
-      }, INACTIVITY_MS);
-    };
-
-    const activityEvents: Array<keyof WindowEventMap> = ['pointerdown', 'pointermove', 'mousemove', 'keydown', 'touchstart', 'wheel'];
-    const onActivity = () => {
-      // Once the inactivity prompt is visible, ignore activity events so the
-      // user can actually click the popup buttons without it vanishing.
-      if (showInactivityPrompt) return;
-      markActivity();
-      armTimeout();
-    };
-
-    activityEvents.forEach((evt) => window.addEventListener(evt, onActivity));
-    if (!showInactivityPrompt) {
-      markActivity();
-      armTimeout();
-    }
-
-    // Extra watchdog so prompt still appears even if a timeout gets interrupted/reset unexpectedly.
-    inactivityWatchdogRef.current = setInterval(() => {
-      if (showInactivityPrompt) return; // already showing, don't re-trigger
-      const idleFor = Date.now() - lastActivityAtRef.current;
-      if (idleFor >= INACTIVITY_MS) {
-        setShowInactivityPrompt(true);
-      }
-    }, 5000);
-
-    return () => {
-      activityEvents.forEach((evt) => window.removeEventListener(evt, onActivity));
-      if (inactivityTimerRef.current) {
-        clearTimeout(inactivityTimerRef.current);
-        inactivityTimerRef.current = null;
-      }
-      if (inactivityWatchdogRef.current) {
-        clearInterval(inactivityWatchdogRef.current);
-        inactivityWatchdogRef.current = null;
-      }
-    };
-  }, [isOpen, flowPhase, isLkConnected, showInactivityPrompt]);
-
-  useEffect(() => {
-    if (!showInactivityPrompt) {
-      if (inactivityCountdownIntervalRef.current) {
-        clearInterval(inactivityCountdownIntervalRef.current);
-        inactivityCountdownIntervalRef.current = null;
-      }
-      setInactivityCountdown(10);
-      return;
-    }
-
-    setInactivityCountdown(10);
-    inactivityCountdownIntervalRef.current = setInterval(() => {
-      setInactivityCountdown((prev) => {
-        if (prev <= 1) {
-          if (inactivityCountdownIntervalRef.current) {
-            clearInterval(inactivityCountdownIntervalRef.current);
-            inactivityCountdownIntervalRef.current = null;
-          }
-          setShowInactivityPrompt(false);
-          setShowEndCallConfirm(false);
-          setIsOpen(false);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => {
-      if (inactivityCountdownIntervalRef.current) {
-        clearInterval(inactivityCountdownIntervalRef.current);
-        inactivityCountdownIntervalRef.current = null;
-      }
-    };
-  }, [showInactivityPrompt]);
-
-  const requestEndCall = () => {
-    if (flowPhase === 'live' && isLkConnected) {
-      setShowEndCallConfirm(true);
-      return;
-    }
-    setIsOpen(false);
-  };
-
-  const confirmEndCall = () => {
-    setShowEndCallConfirm(false);
-    setShowInactivityPrompt(false);
-    setIsOpen(false);
-  };
 
   // Handle the 2-second blur transition once video is ready
   useEffect(() => {
     if (isVideoReady && flowPhase === 'intro') {
       const timer = setTimeout(() => {
         setIsIntroBlurring(false);
-      }, 1000);
+      }, 1650);
       return () => clearTimeout(timer);
     }
   }, [isVideoReady, flowPhase]);
@@ -1000,8 +636,6 @@ export default function FloatingCTA() {
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
 
-
-
   const hasAnnouncedRef = useRef(false);
 
   useEffect(() => {
@@ -1016,10 +650,10 @@ export default function FloatingCTA() {
         const voices = window.speechSynthesis.getVoices();
 
         const femaleVoice = voices.find(v =>
-          //v.name.includes('Samantha') ||
-          //v.name.includes('Female') ||
-          //v.name.includes('Zira') ||
-          //v.name.includes('Google UK English Female') ||
+          v.name.includes('Samantha') ||
+          v.name.includes('Female') ||
+          v.name.includes('Zira') ||
+          v.name.includes('Google UK English Female') ||
           v.name.includes('Google US English')
         );
 
@@ -1027,16 +661,6 @@ export default function FloatingCTA() {
         announcement.rate = 1.0;
         announcement.pitch = 1.15;
         announcement.volume = 0.9;
-
-        announcement.onstart = () => {
-          setIsAnnouncementStarted(true);
-        };
-        announcement.onend = () => {
-          setIsAnnouncementComplete(true);
-        };
-        announcement.onerror = () => {
-          setIsAnnouncementComplete(true); // fallback so session isn't stuck
-        };
 
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(announcement);
@@ -1096,80 +720,17 @@ export default function FloatingCTA() {
                 initial={{ scale: 1.05, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="relative w-[95vw] sm:w-[90vw] max-w-7xl h-[92vh] min-h-[500px] max-h-[960px] bg-[#0B0F19] rounded-3xl shadow-[0_8px_60px_rgba(0,180,216,0.25),0_0_0_1px_rgba(0,180,216,0.08)] flex flex-col overflow-hidden border border-white/20"
+                className="relative w-[95vw] sm:w-[90vw] max-w-7xl h-[92vh] min-h-[500px] max-h-[960px] bg-[#0B0F19] rounded-3xl shadow-[0_8px_60px_rgba(0,180,216,0.15)] flex flex-col overflow-hidden border border-white/10"
               >
-                {isOffline && (
-                  <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[220] px-4 py-2 rounded-full bg-red-500/90 text-white text-xs font-bold tracking-wide border border-white/20 shadow-[0_8px_25px_rgba(239,68,68,0.35)]">
-                    Internet connection lost
-                  </div>
-                )}
-                {showInactivityPrompt && (
-                  <div className="absolute inset-0 z-[230] flex items-center justify-center bg-black/35 backdrop-blur-[2px] p-4">
-                    <div className="w-[92%] max-w-xl bg-[#0d1220]/95 border border-white/20 rounded-2xl p-5 md:p-6 shadow-[0_0_40px_rgba(0,180,216,0.2)] backdrop-blur-xl">
-                      <p className="text-white text-sm md:text-base font-semibold text-center">
-                        Due to prolonged inactivity, this call with Ailana will close automatically.
-                      </p>
-                      <p className="text-gray-300 text-xs md:text-sm mt-2 text-center">
-                        Your session will end in the next <span className="text-white font-bold">{inactivityCountdown} second{inactivityCountdown === 1 ? '' : 's'}</span>. Select <span className="text-white font-semibold">Continue Session</span> to stay connected.
-                      </p>
-                      <div className="mt-5 flex items-center justify-center gap-3">
-                      <button
-                        onClick={() => {
-                          lastActivityAtRef.current = Date.now();
-                          setShowInactivityPrompt(false);
-                        }}
-                        className="px-4 py-2 rounded-lg border border-white/20 text-gray-200 text-xs md:text-sm font-semibold hover:bg-white/10 transition-colors cursor-pointer"
-                      >
-                        Continue Session
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowInactivityPrompt(false);
-                          setShowEndCallConfirm(true);
-                        }}
-                        className="px-4 py-2 rounded-lg bg-red-500 text-white text-xs md:text-sm font-semibold hover:bg-red-600 transition-colors cursor-pointer"
-                      >
-                        End Call
-                      </button>
-                    </div>
-                    </div>
-                  </div>
-                )}
-                {showEndCallConfirm && (
-                  <div className="absolute inset-0 z-[240] flex items-center justify-center bg-black/55 backdrop-blur-sm p-4">
-                    <div className="w-full max-w-md rounded-2xl border border-white/20 bg-[#0d1220] p-6 shadow-2xl">
-                      <h4 className="text-white text-lg font-bold tracking-tight text-center">
-                        End this call?
-                      </h4>
-                      <p className="text-gray-300 text-sm mt-2 text-center">
-                        Are you sure you want to end your session with Ailana? You can continue anytime if you still need assistance.
-                      </p>
-                      <div className="mt-5 flex items-center justify-center gap-3">
-                        <button
-                          onClick={() => setShowEndCallConfirm(false)}
-                          className="px-4 py-2 rounded-lg border border-white/20 text-gray-200 text-sm font-semibold hover:bg-white/10 transition-colors cursor-pointer"
-                        >
-                          Continue Call
-                        </button>
-                        <button
-                          onClick={confirmEndCall}
-                          className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors cursor-pointer"
-                        >
-                          Yes, End Call
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 <div className="absolute inset-0 flex flex-col overflow-hidden z-0">
                   {/* ── Top Header ── */}
-                  <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 relative z-10 shrink-0 bg-[#080c14]/95 backdrop-blur-md border-b border-white/15">
+                  <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 relative z-10 shrink-0 bg-[#0a0a0a]/80 backdrop-blur-md border-b border-white/5">
                     <div className="flex items-center gap-2.5">
                       <div className="relative h-7 w-7 md:h-8 md:w-8 flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-transparent">
                         <Image src={AppIcon} alt="ConvergentAI Logo" fill sizes="32px" className="object-contain" />
                       </div>
-                      <span className="font-extrabold text-white text-sm md:text-lg tracking-tight">ConvergentAI</span>
+                      <span className="font-extrabold text-white text-sm md:text-lg tracking-tight">Convergent AI</span>
                     </div>
 
                     {/* Center: Mode Switcher (live phase only) */}
@@ -1210,7 +771,7 @@ export default function FloatingCTA() {
                         </>
                       )}
                       <button
-                        onClick={requestEndCall}
+                        onClick={() => setIsOpen(false)}
                         className="p-2 rounded-full bg-white/5 text-gray-400 hover:bg-red-500 hover:text-white transition-all cursor-pointer shrink-0"
                       >
                         <X className="h-4 w-4" />
@@ -1286,9 +847,9 @@ export default function FloatingCTA() {
                                 animate={{ opacity: 1, scale: 1 }}
                                 className="absolute inset-0 z-[130] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 sm:p-8"
                               >
-                                <div className="max-w-2xl w-full bg-[#0d1220]/95 border border-white/20 rounded-3xl p-6 md:p-10 shadow-[0_0_60px_rgba(0,180,216,0.3),0_0_0_1px_rgba(0,180,216,0.08)] flex flex-col gap-6 overflow-hidden">
+                                <div className="max-w-2xl w-full bg-[#0a0a0a]/90 border border-white/10 rounded-3xl p-6 md:p-10 shadow-[0_0_50px_rgba(0,180,216,0.2)] flex flex-col gap-6 overflow-hidden">
                                   <div className="text-center space-y-2">
-                                    <h3 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Commitment to Transparency & AI Use</h3>
+                                    <h3 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Safety & Compliance</h3>
                                     <p className="text-gray-400 text-sm">Please review and accept our terms to get started.</p>
                                   </div>
 
@@ -1325,23 +886,16 @@ export default function FloatingCTA() {
                                         Cancel
                                       </button>
                                       <button
-                                        disabled={!complianceChecked || isSubmitting}
+                                        disabled={!complianceChecked}
                                         onClick={() => {
-                                          setIsSubmitting(true);
                                           setPendingMode('video');
                                           setHasAgreed(true);
                                           setFlowPhase('live');
                                         }}
-                                        className={`flex-1 py-3 px-6 rounded-xl font-bold transition-all flex items-center justify-center gap-2 group cursor-pointer ${complianceChecked && !isSubmitting ? 'bg-white text-black hover:bg-[#00b4d8] hover:text-white shadow-[0_10px_20px_rgba(0,180,216,0.2)]' : 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/5'}`}
+                                        className={`flex-1 py-3 px-6 rounded-xl font-bold transition-all flex items-center justify-center gap-2 group cursor-pointer ${complianceChecked ? 'bg-white text-black hover:bg-[#00b4d8] hover:text-white shadow-[0_10px_20px_rgba(0,180,216,0.2)]' : 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/5'}`}
                                       >
-                                        {isSubmitting ? (
-                                          <Loader2 className="h-5 w-5 animate-spin" />
-                                        ) : (
-                                          <>
-                                            Get started
-                                            <ArrowRight className={`h-4 w-4 transition-transform ${complianceChecked ? 'group-hover:translate-x-1' : ''}`} />
-                                          </>
-                                        )}
+                                        Get started
+                                        <ArrowRight className={`h-4 w-4 transition-transform ${complianceChecked ? 'group-hover:translate-x-1' : ''}`} />
                                       </button>
                                     </div>
                                   </div>
@@ -1368,63 +922,28 @@ export default function FloatingCTA() {
                           <LiveKitRoom
                             key={roomName}
                             video={false}
-                            audio={true}
+                            audio={false}
                             token={token || ""}
                             serverUrl={lkUrl || ""}
                             connect={true}
                             data-lk-theme="default"
                             className="w-full h-full"
                             onConnected={() => setIsLkConnected(true)}
-                            onDisconnected={() => {
-                              // Only transition to error if we're not already restarting
-                              if (flowPhaseRef.current === 'connecting') return;
-                              setConnectionStatus(
-                                typeof window !== 'undefined' && !window.navigator.onLine
-                                  ? 'Internet connection lost. Reconnect to continue with Ailana.'
-                                  : 'Connection with Ailana was interrupted. Please retry.'
-                              );
-                              setFlowPhase('error');
-                              flowPhaseRef.current = 'error';
-                              setToken(null);
-                              setLkUrl(null);
-                              setIsLkConnected(false);
-                              setIsAgentReady(false);
-                              setRecordingSeconds(0);
-                              setRoomName('');
-                              setIsVideoReady(false);
-                            }}
+                            onDisconnected={() => { setFlowPhase('idle'); setToken(null); setLkUrl(null); setIsLkConnected(false); setIsAgentReady(false); setRecordingSeconds(0); setRoomName(''); setIsVideoReady(false); setIsIntroBlurring(true); }}
                           >
                             <AgentReadinessCheck onAgentReady={setIsAgentReady} />
                             <MediaGuard mode={pendingMode} />
-                            <ChannelStartTrigger 
-                              isLivePhase={flowPhase === 'live'} 
-                              mode={pendingMode} 
-                              isAnnouncementComplete={isAnnouncementComplete} 
-                            />
+                            <ChannelStartTrigger isLivePhase={flowPhase === 'live'} mode={pendingMode} />
+                            <TtsIntroTrigger isLivePhase={flowPhase === 'live'} mode={pendingMode} />
 
-                            {/* Fallback Notification Overlay */}
-                            <AnimatePresence>
-                              {isFallbackMode && (
-                                <motion.div 
-                                  initial={{ opacity: 0, y: -20 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  exit={{ opacity: 0, y: -20 }}
-                                  className="absolute top-16 left-1/2 -translate-x-1/2 z-[100] w-full max-w-[280px]"
-                                >
-                                  <div className="bg-amber-500 text-black px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-center shadow-[0_0_30px_rgba(245,158,11,0.3)] border border-white/20">
-                                    {connectionStatus || "Avatar Unavailable - Using Voice"}
-                                  </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
 
                             {/* ── Google Meet Split Layout (always mounted so avatar connection doesn't drop, but hidden until live) ── */}
                             <div className={flowPhase === 'live' ? "flex-1 flex flex-col min-h-0 absolute inset-0 z-10" : "opacity-0 pointer-events-none absolute inset-0 -z-10"}>
                               <div className="flex-1 flex min-h-0 p-2 md:p-3 gap-3">
                                 {/* Left: Avatar Area */}
                                 <div className="flex-1 relative rounded-2xl overflow-hidden bg-black shadow-xl">
-                                  {/* REC badge - only when connected and announcement started */}
-                                  {isLkConnected && isAgentReady && isAnnouncementStarted && (
+                                  {/* REC badge - only when connected */}
+                                  {isLkConnected && isAgentReady && (
                                     <div className="absolute top-3 left-3 z-50 flex items-center gap-2 bg-black/50 backdrop-blur-md px-2.5 py-1 rounded-full border border-red-500/30">
                                       <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}><Circle className="h-2.5 w-2.5 fill-red-500 text-red-500" /></motion.div>
                                       <span className="text-[9px] font-black text-white uppercase tracking-widest">Rec</span>
@@ -1433,10 +952,10 @@ export default function FloatingCTA() {
                                   )}
 
                                   {/* Contextual help overlay */}
-                                  {isLkConnected && isAgentReady && <ContextualHelp />}
+                                  {isLkConnected && isAgentReady && pendingMode !== 'tts-avatar' && <ContextualHelp />}
 
                                   {/* Suggested commands cycling text */}
-                                  {isLkConnected && isAgentReady && <SuggestedCommands />}
+                                  {isLkConnected && isAgentReady && pendingMode !== 'tts-avatar' && <SuggestedCommands />}
 
                                   {/* Subtle connecting indicator (non-blocking) */}
                                   {(!isLkConnected || !isAgentReady) && (
@@ -1462,26 +981,41 @@ export default function FloatingCTA() {
                                   )}
 
                                   {/* Custom Controls */}
-                                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-50">
-                                    <RoomControls onEnd={requestEndCall} mode={pendingMode} />
-                                  </div>
+                                  {pendingMode !== 'tts-avatar' && (
+                                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-50">
+                                      <RoomControls onEnd={() => setIsOpen(false)} mode={pendingMode} />
+                                    </div>
+                                  )}
                                 </div>
 
-                                {/* Right: Chat Panel — always mounted so useChat() & transcripts survive channel switches.
-                                     Hidden via inline style (not conditional render) so messages persist. */}
-                                <div
-                                  className="md:flex w-[320px] lg:w-[360px] shrink-0 flex-col rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_30px_rgba(0,180,216,0.1)] bg-[#050505] transition-all duration-300"
-                                  style={{ display: pendingMode === 'avatar-chat' ? 'flex' : 'none' }}
-                                >
-                                  <InRoomChatPanel />
+                                {/* Right: Chat Panel */}
+                                {pendingMode === 'avatar-chat' && (
+                                  <div className="hidden md:flex w-[320px] lg:w-[360px] shrink-0 flex-col rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_30px_rgba(0,180,216,0.1)] bg-[#050505] transition-all duration-300">
+                                    <InRoomChatPanel />
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Prefer to talk bar */}
+                              <div className="shrink-0 px-4 py-2.5 flex items-center justify-center gap-4 border-t border-white/5 bg-[#0a0a0a]">
+                                <div className="text-center">
+                                  <p className="text-white text-xs md:text-sm font-semibold">Prefer to talk instead?</p>
+                                  <p className="text-gray-400 text-[10px] md:text-xs">Switch to voice-only for a quick conversation.</p>
                                 </div>
+                                <button
+                                  onClick={() => handleAIAction('voice')}
+                                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-white text-xs md:text-sm font-semibold hover:bg-[#00b4d8]/20 hover:border-[#00b4d8]/50 transition-all cursor-pointer shadow-sm"
+                                >
+                                  <Phone className="h-3.5 w-3.5 text-[#00b4d8]" />
+                                  Talk to me
+                                </button>
                               </div>
 
                               {/* Trust Footer */}
-                              <div className="shrink-0 px-4 py-2 flex items-center justify-center gap-6 text-[10px] md:text-xs text-gray-400 bg-[#07090f] border-t border-white/15">
-                                <span className="flex items-center gap-1.5"><Lock className="h-3 w-3 text-emerald-400" />Your information is secure and never shared.</span>
-                                <span className="h-3 w-px bg-white/20" />
-                                <span className="flex items-center gap-1.5"><Clock className="h-3 w-3 text-[#00b4d8]" />AI-Powered. Human-Focused. 24/7.</span>
+                              <div className="shrink-0 px-4 py-2 flex items-center justify-center gap-6 text-[10px] md:text-xs text-gray-500 bg-[#0B0F19] border-t border-white/5">
+                                <span className="flex items-center gap-1.5"><Lock className="h-3 w-3" />Your information is secure and never shared.</span>
+                                <span className="h-3 w-px bg-white/10" />
+                                <span className="flex items-center gap-1.5"><Clock className="h-3 w-3" />AI-Powered. Human-Focused. 24/7.</span>
                               </div>
                             </div>
 
@@ -1491,27 +1025,13 @@ export default function FloatingCTA() {
                       )}
                     </AnimatePresence>
 
-                      {flowPhase === 'error' && (
-                        <motion.div key="error-view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center text-center px-6">
-                          <div className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center mb-6">
-                            <ShieldAlert className="w-8 h-8 text-red-500" />
-                          </div>
-                          <h3 className="text-xl font-bold text-white mb-2 tracking-tight">Connection Failed</h3>
-                          <p className="text-gray-400 text-sm max-w-[280px] mb-8">
-                            {connectionStatus || "We're having trouble reaching our AI services. Please check your connection and try again."}
-                          </p>
-                          <button
-                            onClick={restartSession}
-                            disabled={isOffline}
-                            className="flex items-center gap-2 bg-white text-black px-8 py-3 rounded-xl font-bold hover:bg-[#00b4d8] hover:text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                            {isOffline ? 'Waiting for Internet...' : 'Start New Session'}
-                          </button>
-                        </motion.div>
-                      )}
-                    </div>
+                    {flowPhase !== 'live' && flowPhase !== 'intro' && (
+                      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-xs md:text-sm text-blue-400/60 font-medium tracking-wide">
+                        {flowPhase === 'connecting' ? 'Verifying Compliance Token...' : ''}
+                      </div>
+                    )}
                   </div>
+                </div>
 
 
               </motion.div>
@@ -1520,7 +1040,7 @@ export default function FloatingCTA() {
         )}
       </AnimatePresence>
 
-      <div className="fixed bottom-6 right-6 z-[100]">
+      <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end gap-4">
         <motion.div
           layout
           initial={{ scale: 0, opacity: 0 }}
@@ -1529,17 +1049,41 @@ export default function FloatingCTA() {
           whileTap={{ scale: 0.95 }}
           onClick={() => {
             setIsOpen(true);
-            if (flowPhaseRef.current === 'idle') {
+            setFlowPhase('live');
+            setPendingMode('tts-avatar');
+            fetchToken('tts-avatar');
+          }}
+          className="group relative flex items-center gap-2 md:gap-3 rounded-full bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-700 p-1.5 pr-4 md:p-2 md:pr-6 text-white shadow-[0_0_20px_rgba(16,185,129,0.4)] transition-all duration-300 hover:shadow-[0_0_40px_rgba(16,185,129,0.6)] hover:-translate-y-1 hover:scale-[1.02] active:scale-95 cursor-pointer"
+        >
+          <div className="relative h-8 w-8 md:h-10 md:w-10 rounded-full bg-white/20 flex items-center justify-center overflow-hidden border border-white/30 backdrop-blur-sm">
+            <Sparkles className="h-4 w-4 md:h-5 md:w-5 text-white" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[9px] md:text-[10px] font-bold text-white/70 uppercase tracking-[0.2em] mb-0.5">Test Flow</span>
+            <span className="text-xs md:text-sm font-black tracking-tight text-white flex items-center gap-2">
+              Test TTS Avatar
+            </span>
+          </div>
+        </motion.div>
+
+        <motion.div
+          layout
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => {
+            setIsOpen(true);
+            if (flowPhase === 'idle') {
               setFlowPhase('intro');
-              flowPhaseRef.current = 'intro';
               setIsIntroComplete(false);
               setPendingMode('intro-avatar');
               fetchToken('intro-avatar');
             }
           }}
-          className="group relative flex items-center gap-2.5 md:gap-4 rounded-full bg-gradient-to-br from-[#00d4f5] via-[#0252c4] to-[#7b2fff] p-1.5 pr-5 md:p-2.5 md:pr-8 text-white shadow-[0_0_50px_rgba(0,212,245,0.65),0_0_25px_rgba(123,47,255,0.55),0_4px_20px_rgba(0,0,0,0.6)] transition-all duration-300 hover:shadow-[0_0_70px_rgba(0,212,245,0.85),0_0_40px_rgba(123,47,255,0.75)] hover:-translate-y-2 hover:scale-[1.02] active:scale-95 cursor-pointer border border-white/25"
+          className="group relative flex items-center gap-2.5 md:gap-4 rounded-full bg-gradient-to-br from-[#00b4d8] via-[#023e8a] to-[#560bad] p-1.5 pr-5 md:p-2.5 md:pr-8 text-white shadow-[0_0_40px_rgba(0,180,216,0.5),0_0_20px_rgba(86,11,173,0.5)] transition-all duration-300 hover:shadow-[0_0_60px_rgba(0,180,216,0.7),0_0_30px_rgba(86,11,173,0.7)] hover:-translate-y-2 hover:scale-[1.02] active:scale-95 cursor-pointer"
         >
-          <div className="relative h-10 w-10 md:h-14 md:w-14 rounded-full bg-white/25 flex items-center justify-center overflow-hidden border-2 border-white/50 backdrop-blur-sm shadow-[0_0_12px_rgba(0,212,245,0.4)]">
+          <div className="relative h-10 w-10 md:h-14 md:w-14 rounded-full bg-white/20 flex items-center justify-center overflow-hidden border border-white/30 backdrop-blur-sm">
             <Image
               src="/friendly_ai_avatar_v2.png"
               alt="Ailana"
@@ -1549,10 +1093,9 @@ export default function FloatingCTA() {
             />
           </div>
           <div className="flex flex-col">
-            <span className="text-[10px] md:text-xs font-bold text-white/90 uppercase tracking-[0.2em] mb-0.5 drop-shadow-sm">Live</span>
-            <span className="text-[10px] md:text-xs font-bold text-white/90 uppercase tracking-[0.2em] mb-0.5 drop-shadow-sm">Mortgage Assistance</span>
-            <span className="text-sm md:text-lg font-black tracking-tight text-white flex items-center gap-2 drop-shadow-sm">
-              WITH AILANA (24/7)
+            <span className="text-[10px] md:text-xs font-bold text-white/70 uppercase tracking-[0.2em] mb-0.5">Live with Ailana</span>
+            <span className="text-sm md:text-lg font-black tracking-tight text-white flex items-center gap-2">
+              Start Conversation
               <Sparkles className="h-3.5 w-3.5 md:h-4 md:w-4 text-yellow-300 animate-pulse" />
             </span>
           </div>
