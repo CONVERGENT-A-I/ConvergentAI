@@ -584,6 +584,7 @@ export default function FloatingCTA() {
   const [isAnnouncementComplete, setIsAnnouncementComplete] = useState(false);
   const [isFallbackMode, setIsFallbackMode] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string>('');
+  const [isOffline, setIsOffline] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const introVideoRef = useRef<HTMLVideoElement>(null);
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -735,10 +736,42 @@ export default function FloatingCTA() {
       setPendingMode('video');
       setIsAnnouncementStarted(false);
       setIsAnnouncementComplete(false);
+      setConnectionStatus('');
+      setIsOffline(false);
       participantIdentityRef.current = null;
       isFetchingRef.current = false;
       setIsSubmitting(false);
     }
+  }, [isOpen]);
+
+  // Browser network state guard: show a clear alert when connectivity drops.
+  useEffect(() => {
+    if (!isOpen || typeof window === 'undefined') return;
+
+    const handleOffline = () => {
+      setIsOffline(true);
+      setConnectionStatus('Internet connection lost. Reconnect to continue with Ailana.');
+      setFlowPhase('error');
+      flowPhaseRef.current = 'error';
+      setIsLkConnected(false);
+      setIsAgentReady(false);
+    };
+
+    const handleOnline = () => {
+      setIsOffline(false);
+      if (flowPhaseRef.current === 'error') {
+        setConnectionStatus('You are back online. Tap Retry Connection to continue.');
+      }
+    };
+
+    setIsOffline(!window.navigator.onLine);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
   }, [isOpen]);
 
   // Handle the 2-second blur transition once video is ready
@@ -860,6 +893,11 @@ export default function FloatingCTA() {
                 exit={{ scale: 0.95, opacity: 0 }}
                 className="relative w-[95vw] sm:w-[90vw] max-w-7xl h-[92vh] min-h-[500px] max-h-[960px] bg-[#0B0F19] rounded-3xl shadow-[0_8px_60px_rgba(0,180,216,0.25),0_0_0_1px_rgba(0,180,216,0.08)] flex flex-col overflow-hidden border border-white/20"
               >
+                {isOffline && (
+                  <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[220] px-4 py-2 rounded-full bg-red-500/90 text-white text-xs font-bold tracking-wide border border-white/20 shadow-[0_8px_25px_rgba(239,68,68,0.35)]">
+                    Internet connection lost
+                  </div>
+                )}
 
                 <div className="absolute inset-0 flex flex-col overflow-hidden z-0">
                   {/* ── Top Header ── */}
@@ -1074,7 +1112,23 @@ export default function FloatingCTA() {
                             data-lk-theme="default"
                             className="w-full h-full"
                             onConnected={() => setIsLkConnected(true)}
-                            onDisconnected={() => { setFlowPhase('idle'); setToken(null); setLkUrl(null); setIsLkConnected(false); setIsAgentReady(false); setRecordingSeconds(0); setRoomName(''); setIsVideoReady(false); setIsIntroBlurring(true); }}
+                            onDisconnected={() => {
+                              setConnectionStatus(
+                                typeof window !== 'undefined' && !window.navigator.onLine
+                                  ? 'Internet connection lost. Reconnect to continue with Ailana.'
+                                  : 'Connection with Ailana was interrupted. Please retry.'
+                              );
+                              setFlowPhase('error');
+                              flowPhaseRef.current = 'error';
+                              setToken(null);
+                              setLkUrl(null);
+                              setIsLkConnected(false);
+                              setIsAgentReady(false);
+                              setRecordingSeconds(0);
+                              setRoomName('');
+                              setIsVideoReady(false);
+                              setIsIntroBlurring(true);
+                            }}
                           >
                             <AgentReadinessCheck onAgentReady={setIsAgentReady} />
                             <MediaGuard mode={pendingMode} />
@@ -1178,17 +1232,18 @@ export default function FloatingCTA() {
                           </div>
                           <h3 className="text-xl font-bold text-white mb-2 tracking-tight">Connection Failed</h3>
                           <p className="text-gray-400 text-sm max-w-[280px] mb-8">
-                            We're having trouble reaching our AI services. Please check your connection and try again.
+                            {connectionStatus || "We're having trouble reaching our AI services. Please check your connection and try again."}
                           </p>
                           <button
                             onClick={() => {
                               setFlowPhase('idle');
                               fetchToken('video');
                             }}
-                            className="flex items-center gap-2 bg-white text-black px-8 py-3 rounded-xl font-bold hover:bg-[#00b4d8] hover:text-white transition-all cursor-pointer"
+                            disabled={isOffline}
+                            className="flex items-center gap-2 bg-white text-black px-8 py-3 rounded-xl font-bold hover:bg-[#00b4d8] hover:text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <RefreshCw className="h-4 w-4" />
-                            Retry Connection
+                            {isOffline ? 'Waiting for Internet...' : 'Retry Connection'}
                           </button>
                         </motion.div>
                       )}
