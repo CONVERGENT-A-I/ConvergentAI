@@ -585,9 +585,16 @@ export default function FloatingCTA() {
   const [isFallbackMode, setIsFallbackMode] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string>('');
   const [isOffline, setIsOffline] = useState(false);
+  const [showEndCallConfirm, setShowEndCallConfirm] = useState(false);
+  const [showInactivityPrompt, setShowInactivityPrompt] = useState(false);
+  const [inactivityCountdown, setInactivityCountdown] = useState(10);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const introVideoRef = useRef<HTMLVideoElement>(null);
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const inactivityWatchdogRef = useRef<NodeJS.Timeout | null>(null);
+  const inactivityCountdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastActivityAtRef = useRef<number>(Date.now());
   const searchParams = useSearchParams();
 
   const isFetchingRef = useRef(false);
@@ -738,6 +745,8 @@ export default function FloatingCTA() {
       setIsAnnouncementComplete(false);
       setConnectionStatus('');
       setIsOffline(false);
+      setShowEndCallConfirm(false);
+      setShowInactivityPrompt(false);
       participantIdentityRef.current = null;
       isFetchingRef.current = false;
       setIsSubmitting(false);
@@ -773,6 +782,121 @@ export default function FloatingCTA() {
       window.removeEventListener('online', handleOnline);
     };
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || flowPhase !== 'live' || !isLkConnected) {
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+        inactivityTimerRef.current = null;
+      }
+      if (inactivityWatchdogRef.current) {
+        clearInterval(inactivityWatchdogRef.current);
+        inactivityWatchdogRef.current = null;
+      }
+      setShowInactivityPrompt(false);
+      if (inactivityCountdownIntervalRef.current) {
+        clearInterval(inactivityCountdownIntervalRef.current);
+        inactivityCountdownIntervalRef.current = null;
+      }
+      return;
+    }
+
+    const INACTIVITY_MS = 10_000;
+
+    const markActivity = () => {
+      lastActivityAtRef.current = Date.now();
+      setConnectionStatus('');
+      setShowInactivityPrompt(false);
+    };
+
+    const armTimeout = () => {
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+      }
+      inactivityTimerRef.current = setTimeout(() => {
+        setShowInactivityPrompt(true);
+      }, INACTIVITY_MS);
+    };
+
+    const activityEvents: Array<keyof WindowEventMap> = ['pointerdown', 'pointermove', 'mousemove', 'keydown', 'touchstart', 'wheel'];
+    const onActivity = () => {
+      markActivity();
+      armTimeout();
+    };
+
+    activityEvents.forEach((evt) => window.addEventListener(evt, onActivity));
+    markActivity();
+    armTimeout();
+
+    // Extra watchdog so prompt still appears even if a timeout gets interrupted/reset unexpectedly.
+    inactivityWatchdogRef.current = setInterval(() => {
+      const idleFor = Date.now() - lastActivityAtRef.current;
+      if (idleFor >= INACTIVITY_MS) {
+        setShowInactivityPrompt(true);
+      }
+    }, 5000);
+
+    return () => {
+      activityEvents.forEach((evt) => window.removeEventListener(evt, onActivity));
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+        inactivityTimerRef.current = null;
+      }
+      if (inactivityWatchdogRef.current) {
+        clearInterval(inactivityWatchdogRef.current);
+        inactivityWatchdogRef.current = null;
+      }
+    };
+  }, [isOpen, flowPhase, isLkConnected]);
+
+  useEffect(() => {
+    if (!showInactivityPrompt) {
+      if (inactivityCountdownIntervalRef.current) {
+        clearInterval(inactivityCountdownIntervalRef.current);
+        inactivityCountdownIntervalRef.current = null;
+      }
+      setInactivityCountdown(10);
+      return;
+    }
+
+    setInactivityCountdown(10);
+    inactivityCountdownIntervalRef.current = setInterval(() => {
+      setInactivityCountdown((prev) => {
+        if (prev <= 1) {
+          if (inactivityCountdownIntervalRef.current) {
+            clearInterval(inactivityCountdownIntervalRef.current);
+            inactivityCountdownIntervalRef.current = null;
+          }
+          setShowInactivityPrompt(false);
+          setShowEndCallConfirm(false);
+          setIsOpen(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (inactivityCountdownIntervalRef.current) {
+        clearInterval(inactivityCountdownIntervalRef.current);
+        inactivityCountdownIntervalRef.current = null;
+      }
+    };
+  }, [showInactivityPrompt]);
+
+  const requestEndCall = () => {
+    if (flowPhase === 'live' && isLkConnected) {
+      setShowEndCallConfirm(true);
+      return;
+    }
+    setIsOpen(false);
+  };
+
+  const confirmEndCall = () => {
+    setShowEndCallConfirm(false);
+    setShowInactivityPrompt(false);
+    setIsOpen(false);
+  };
 
   // Handle the 2-second blur transition once video is ready
   useEffect(() => {
@@ -898,6 +1022,61 @@ export default function FloatingCTA() {
                     Internet connection lost
                   </div>
                 )}
+                {showInactivityPrompt && (
+                  <div className="absolute inset-0 z-[230] flex items-center justify-center bg-black/35 backdrop-blur-[2px] p-4">
+                    <div className="w-[92%] max-w-xl bg-[#0d1220]/95 border border-white/20 rounded-2xl p-5 md:p-6 shadow-[0_0_40px_rgba(0,180,216,0.2)] backdrop-blur-xl">
+                      <p className="text-white text-sm md:text-base font-semibold text-center">
+                        Due to prolonged inactivity, this call with Ailana will close automatically.
+                      </p>
+                      <p className="text-gray-300 text-xs md:text-sm mt-2 text-center">
+                        Your session will end in the next <span className="text-white font-bold">{inactivityCountdown} second{inactivityCountdown === 1 ? '' : 's'}</span>. Select <span className="text-white font-semibold">Continue Session</span> to stay connected.
+                      </p>
+                      <div className="mt-5 flex items-center justify-center gap-3">
+                      <button
+                        onClick={() => setShowInactivityPrompt(false)}
+                        className="px-4 py-2 rounded-lg border border-white/20 text-gray-200 text-xs md:text-sm font-semibold hover:bg-white/10 transition-colors cursor-pointer"
+                      >
+                        Continue Session
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowInactivityPrompt(false);
+                          setShowEndCallConfirm(true);
+                        }}
+                        className="px-4 py-2 rounded-lg bg-red-500 text-white text-xs md:text-sm font-semibold hover:bg-red-600 transition-colors cursor-pointer"
+                      >
+                        End Call
+                      </button>
+                    </div>
+                    </div>
+                  </div>
+                )}
+                {showEndCallConfirm && (
+                  <div className="absolute inset-0 z-[240] flex items-center justify-center bg-black/55 backdrop-blur-sm p-4">
+                    <div className="w-full max-w-md rounded-2xl border border-white/20 bg-[#0d1220] p-6 shadow-2xl">
+                      <h4 className="text-white text-lg font-bold tracking-tight text-center">
+                        End this call?
+                      </h4>
+                      <p className="text-gray-300 text-sm mt-2 text-center">
+                        Are you sure you want to end your session with Ailana? You can continue anytime if you still need assistance.
+                      </p>
+                      <div className="mt-5 flex items-center justify-center gap-3">
+                        <button
+                          onClick={() => setShowEndCallConfirm(false)}
+                          className="px-4 py-2 rounded-lg border border-white/20 text-gray-200 text-sm font-semibold hover:bg-white/10 transition-colors cursor-pointer"
+                        >
+                          Continue Call
+                        </button>
+                        <button
+                          onClick={confirmEndCall}
+                          className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors cursor-pointer"
+                        >
+                          Yes, End Call
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="absolute inset-0 flex flex-col overflow-hidden z-0">
                   {/* ── Top Header ── */}
@@ -947,7 +1126,7 @@ export default function FloatingCTA() {
                         </>
                       )}
                       <button
-                        onClick={() => setIsOpen(false)}
+                        onClick={requestEndCall}
                         className="p-2 rounded-full bg-white/5 text-gray-400 hover:bg-red-500 hover:text-white transition-all cursor-pointer shrink-0"
                       >
                         <X className="h-4 w-4" />
@@ -1199,7 +1378,7 @@ export default function FloatingCTA() {
 
                                   {/* Custom Controls */}
                                   <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-50">
-                                    <RoomControls onEnd={() => setIsOpen(false)} mode={pendingMode} />
+                                    <RoomControls onEnd={requestEndCall} mode={pendingMode} />
                                   </div>
                                 </div>
 
