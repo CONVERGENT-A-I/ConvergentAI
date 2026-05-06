@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React from "react";
 import Navbar from "@/components/navbar";
@@ -34,7 +34,7 @@ export default function PilotProgram() {
             Execution-Focused.
           </h1>
           <p className="text-lg md:text-xl text-zinc-400 font-medium leading-relaxed max-w-3xl">
-            Overcome &quot;Audit Friction&quot; with our structured 90-day implementation roadmap. We prove the ROI of 24/7 Phygital Account Holder Engagement without compromising your institution&apos;s security posture.
+            Overcome &quot;Audit Friction&quot; with our structured 90-day implementation roadmap. We prove the ROI of 24/7 Phygital Applicant Engagement without compromising your institution&apos;s security posture.
           </p>
         </motion.section>
 
@@ -63,13 +63,13 @@ export default function PilotProgram() {
               {
                 phase: "Phase 2: Deployment (Days 31-60)",
                 title: "The Sandbox Strategy",
-                desc: "Soft launch the AI assistant in a controlled environment. Account holders can ask general mortgage questions, run scenarios, and interact with the AI without any live PII exposure or backend system integration.",
+                desc: "Soft launch the AI assistant in a controlled environment. Applicants can ask general mortgage questions, run scenarios, and interact with the AI without any live PII exposure or backend system integration.",
                 items: ["Controlled Traffic", "No Live PII Exposed", "Initial Analytics"]
               },
               {
                 phase: "Phase 3: Expansion (Days 61-90)",
                 title: "Measurement & ROI",
-                desc: "Scale the deployment based on Phase 2 data. We measure lead capture rates, call deflection, and account holder satisfaction, presenting a clear ROI case for long-term integration.",
+                desc: "Scale the deployment based on Phase 2 data. We measure lead capture rates, call deflection, and Applicant satisfaction, presenting a clear ROI case for long-term integration.",
                 items: ["Volume Scaling", "Performance Review", "ROI Reporting"]
               }
             ].map((step, idx) => (
@@ -118,14 +118,14 @@ export default function PilotProgram() {
                 <ShieldCheck className="w-6 h-6 text-brand-green shrink-0 mt-1" />
                 <div>
                   <h4 className="text-lg font-bold text-white mb-2">No PII Required</h4>
-                  <p className="text-zinc-400">The AI handles top-of-funnel inquiries—rates, eligibility, and process questions—without ever asking for or needing sensitive account holder data.</p>
+                  <p className="text-zinc-400">The AI handles top-of-funnel inquiries—rates, eligibility, and process questions—without ever asking for or needing sensitive Applicant data.</p>
                 </div>
               </li>
               <li className="flex gap-4">
                 <ShieldCheck className="w-6 h-6 text-brand-green shrink-0 mt-1" />
                 <div>
                   <h4 className="text-lg font-bold text-white mb-2">Zero Core Integration</h4>
-                  <p className="text-zinc-400">The pilot runs independently of your institutional core. No API access to account holder data is needed to prove the engagement value.</p>
+                  <p className="text-zinc-400">The pilot runs independently of your institutional core. No API access to Applicant data is needed to prove the engagement value.</p>
                 </div>
               </li>
             </ul>

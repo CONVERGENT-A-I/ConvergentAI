@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -86,7 +86,7 @@ export default function WhitepaperModal({ type, onClose }: WhitepaperModalProps)
                     </li>
                     <li>
                       <strong className="text-white block mb-1">Zero-Training Policy:</strong> 
-                      We guarantee that account holder voice recordings and transcripts are never used to train global AI models. All machine learning is confined to the institution’s private, secure environment.
+                      We guarantee that Applicant voice recordings and transcripts are never used to train global AI models. All machine learning is confined to the institution’s private, secure environment.
                     </li>
                   </ul>
                 </section>
@@ -119,7 +119,7 @@ export default function WhitepaperModal({ type, onClose }: WhitepaperModalProps)
                     </li>
                     <li>
                       <strong className="text-white block mb-1">Audit-Ready Logging:</strong>
-                      We maintain a tamper-evident audit trail of AI interactions, allowing compliance officers to review logs without exposing sensitive account holder data.
+                      We maintain a tamper-evident audit trail of AI interactions, allowing compliance officers to review logs without exposing sensitive Applicant data.
                     </li>
                   </ul>
                 </section>

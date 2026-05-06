@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import { motion, Variants } from "framer-motion";
@@ -76,7 +76,7 @@ export default function BranchSegment() {
           <p className="max-w-4xl text-zinc-400 font-medium leading-[1.6] [font-size:clamp(1rem,1.35vw,1.45rem)]">
             ConvergentAI's BranchPortal brings AI-powered avatars and guidance
             into the branch, while SEG programs extend personalized mortgage and
-            account holder education tools to select employer groups. These
+            Applicant education tools to select employer groups. These
             solutions drive measurable value for financial institutions by
             bridging the gap between digital efficiency and physical account
             holder service.

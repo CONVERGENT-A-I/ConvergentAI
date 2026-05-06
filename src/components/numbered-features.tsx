@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { motion, Variants } from "framer-motion";
 
@@ -7,12 +7,12 @@ export default function NumberedFeatures() {
     {
       number: "01",
       title: "Unified Hybrid Journeys",
-      description: "Effortlessly bridge digital research with branch engagement. ConvergentAI preserves account holder context, creating friction-free paths from screen to person."
+      description: "Effortlessly bridge digital research with branch engagement. ConvergentAI preserves Applicant context, creating friction-free paths from screen to person."
     },
     {
       number: "02",
       title: "AI-Powered 24/7 Support",
-      description: "Scale account holder services without increasing staffing overhead. Our lifelike AI avatars handle discovery and routing around the clock with consistent empathy."
+      description: "Scale Applicant services without increasing staffing overhead. Our lifelike AI avatars handle discovery and routing around the clock with consistent empathy."
     },
     {
       number: "03",
@@ -22,7 +22,7 @@ export default function NumberedFeatures() {
     {
       number: "04",
       title: "Enterprise Banking Security",
-      description: "Built for the highest stakes, our platform adheres to Fannie Mae and Freddie Mac requirements, ensuring total data compliance and account holder safety."
+      description: "Built for the highest stakes, our platform adheres to Fannie Mae and Freddie Mac requirements, ensuring total data compliance and Applicant safety."
     }
   ];
 

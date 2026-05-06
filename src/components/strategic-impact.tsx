@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { motion, Variants } from "framer-motion";
 
@@ -14,7 +14,7 @@ export default function StrategicImpact() {
     },
     {
       title: "Lasting Loyalty",
-      description: "Build trust by instantly connecting account holders to human experts when they need it most.",
+      description: "Build trust by instantly connecting Applicants to human experts when they need it most.",
     },
   ];
 
@@ -61,7 +61,7 @@ export default function StrategicImpact() {
           style={{ fontSize: "clamp(1rem, 1.5vw, 1.5rem)" }}
         >
           ConvergentAI unifies digital and physical touchpoints to eliminate drop-off rates and
-          secure account holder loyalty across every banking product line.
+          secure Applicant loyalty across every banking product line.
         </motion.p>
 
         {/* Prominent Divider */}

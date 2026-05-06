@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import Image from "next/image";
@@ -70,7 +70,7 @@ export default function AIHero() {
 
           <p className="text-zinc-400 max-w-xl font-medium leading-relaxed opacity-90"
             style={{ fontSize: "clamp(1rem, 1.25vw, 1.25rem)" }}>
-            Elevate account holder engagement with realistic video agents and
+            Elevate Applicant engagement with realistic video agents and
             interactions for mortgage and beyond. Boost conversions with human-like
             conversational intelligence.
           </p>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { CheckCircle2 } from "lucide-react";
 import Image from "next/image";
@@ -15,7 +15,7 @@ export default function AIRealism() {
     {
       title: "Familiar Representation",
       description:
-        "Create branded digital twins of your experts so account holders feel like they're interacting with a familiar, trusted representative—anytime, on any device.",
+        "Create branded digital twins of your experts so Applicants feel like they're interacting with a familiar, trusted representative—anytime, on any device.",
     },
     {
       title: "Behavioral Controls",
@@ -25,7 +25,7 @@ export default function AIRealism() {
     {
       title: "Compliant & Consistent",
       description:
-        "Ensure every account holder interaction adheres to institutional standards and guidelines across all channels.",
+        "Ensure every Applicant interaction adheres to institutional standards and guidelines across all channels.",
     },
   ];
 

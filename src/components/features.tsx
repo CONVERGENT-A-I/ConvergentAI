@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { motion, Variants } from "framer-motion";
 import { Home, UserPlus, Target, ShieldCheck } from "lucide-react";
@@ -12,12 +12,12 @@ export default function Features() {
     },
     {
       title: "Elevated AX Scores",
-      description: "Boost Account Holder Experience (AX) scores by providing seamless, friction-free transitions between digital and in-branch touchpoints.",
+      description: "Boost Applicant Experience (AX) scores by providing seamless, friction-free transitions between digital and in-branch touchpoints.",
       icon: UserPlus,
     },
     {
       title: "Cross-Sell Growth",
-      description: "Identify and capture cross-sell opportunities in real-time with AI monitors that analyze account holder engagement across channels.",
+      description: "Identify and capture cross-sell opportunities in real-time with AI monitors that analyze Applicant engagement across channels.",
       icon: Target,
     },
     {

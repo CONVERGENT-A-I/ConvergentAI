@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+﻿import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
 import "./globals.css";
@@ -16,7 +16,7 @@ const manrope = Manrope({
 
 export const metadata: Metadata = {
   title: "ConvergentAI",
-  description: "Stop Mortgage Leakage with 24/7 Phygital Account Holder Engagement",
+  description: "Stop Mortgage Leakage with 24/7 Phygital Applicant Engagement",
   icons: {
     icon: "/favicon.png",
   },

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import { motion, Variants } from "framer-motion";
@@ -20,7 +20,7 @@ export default function CaseStudies() {
     },
     {
       image: f5,
-      title: "Regional Account Holder Growth",
+      title: "Regional Applicant Growth",
       stat: "+20% cross-sell conversion rate"
     }
   ];

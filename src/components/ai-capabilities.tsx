@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { motion, Variants } from "framer-motion";
 
@@ -6,7 +6,7 @@ export default function AICapabilities() {
   const capabilities = [
     {
       title: "Fast Response Times",
-      description: "AI that thinks as fast as your account holders. Ensure no-lag interactions during critical mortgage queries and account holder service requests.",
+      description: "AI that thinks as fast as your Applicants. Ensure no-lag interactions during critical mortgage queries and Applicant service requests.",
     },
     {
       title: "Precise Lip Sync",
@@ -14,11 +14,11 @@ export default function AICapabilities() {
     },
     {
       title: "Low Latency",
-      description: "Natural flow, no awkward pauses. Conversational speed that matches human expectations for frictionless account holder engagement.",
+      description: "Natural flow, no awkward pauses. Conversational speed that matches human expectations for frictionless Applicant engagement.",
     },
     {
       title: "Unmatched Realism",
-      description: "Choose the face and voice that resonate with your brand. Build video agents with unmatched realism that account holders can speak with instantly.",
+      description: "Choose the face and voice that resonate with your brand. Build video agents with unmatched realism that Applicants can speak with instantly.",
     },
   ];
 

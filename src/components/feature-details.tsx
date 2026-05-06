@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { motion, Variants } from "framer-motion";
 
@@ -14,7 +14,7 @@ export default function FeatureDetails() {
       ),
       description: (
         <>
-          The core intelligence layer of <span className="text-white font-bold">ConvergentAI</span>, featuring AI-powered voice and lifelike avatars that deliver natural, <span className="text-brand-green font-bold text-base md:text-lg">24/7</span> account holder service. Our engine facilitates virtual receptionist duties, intelligent call routing, and automated scheduling for callbacks and meetings, alongside proactive outbound calls to promote refinancing or provide loan status updates. It ensures consistent, empathetic guidance across every phygital touchpoint, reducing wait times while maintaining a human feel that keeps account holders engaged during high-stakes banking journeys. Responses to mortgage account holder questions are grounded in <span className="text-brand-green font-bold">Freddie Mac and Fannie Mae</span> guidelines and operate under strict guardrails, regulations, and <span className="text-brand-green font-bold">S.A.F.E.</span> requirements.
+          The core intelligence layer of <span className="text-white font-bold">ConvergentAI</span>, featuring AI-powered voice and lifelike avatars that deliver natural, <span className="text-brand-green font-bold text-base md:text-lg">24/7</span> Applicant service. Our engine facilitates virtual receptionist duties, intelligent call routing, and automated scheduling for callbacks and meetings, alongside proactive outbound calls to promote refinancing or provide loan status updates. It ensures consistent, empathetic guidance across every phygital touchpoint, reducing wait times while maintaining a human feel that keeps Applicants engaged during high-stakes banking journeys. Responses to mortgage Applicant questions are grounded in <span className="text-brand-green font-bold">Freddie Mac and Fannie Mae</span> guidelines and operate under strict guardrails, regulations, and <span className="text-brand-green font-bold">S.A.F.E.</span> requirements.
         </>
       )
     },
@@ -27,7 +27,7 @@ export default function FeatureDetails() {
       ),
       description: (
         <>
-          A unified orchestration layer that bridges the gap between digital research and physical branch engagement. By automating the hand-off between <span className="text-white font-bold">AI avatars and human loan officers</span>, we eliminate the friction points where <span className="text-brand-green font-bold">institutional</span> account holders typically drop off, maximizing application completion rates through intelligent routing.
+          A unified orchestration layer that bridges the gap between digital research and physical branch engagement. By automating the hand-off between <span className="text-white font-bold">AI avatars and human loan officers</span>, we eliminate the friction points where <span className="text-brand-green font-bold">institutional</span> Applicants typically drop off, maximizing application completion rates through intelligent routing.
         </>
       )
     },
@@ -40,7 +40,7 @@ export default function FeatureDetails() {
       ),
       description: (
         <>
-          Our platform integrates seamlessly with existing <span className="text-brand-green font-bold">core systems and CRMs</span> to perform adaptive security checks and soft credit pulls. Designed at the enterprise grade, this architecture ensures every omnichannel message and account holder document is handled with total data integrity and regulatory compliance.
+          Our platform integrates seamlessly with existing <span className="text-brand-green font-bold">core systems and CRMs</span> to perform adaptive security checks and soft credit pulls. Designed at the enterprise grade, this architecture ensures every omnichannel message and Applicant document is handled with total data integrity and regulatory compliance.
         </>
       )
     },
@@ -53,7 +53,7 @@ export default function FeatureDetails() {
       ),
       description: (
         <>
-          Equip <span className="text-brand-green font-bold italic">MLOs</span> with tools that elevate every account holder interaction and drive online conversions — including <span className="text-white font-bold uppercase tracking-widest text-xs md:text-sm">digital eSign, secure co-browse,</span> seamless mortgage application integration into your LOS and multiperson HD quality video communication.
+          Equip <span className="text-brand-green font-bold italic">MLOs</span> with tools that elevate every Applicant interaction and drive online conversions — including <span className="text-white font-bold uppercase tracking-widest text-xs md:text-sm">digital eSign, secure co-browse,</span> seamless mortgage application integration into your LOS and multiperson HD quality video communication.
         </>
       )
     }

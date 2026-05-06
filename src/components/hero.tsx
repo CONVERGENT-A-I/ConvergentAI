@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { motion, Variants } from "framer-motion";
@@ -49,7 +49,7 @@ export default function Hero() {
         {/* Subheadline / Description */}
         <motion.p variants={itemVariants} className="text-fluid-p text-zinc-400 max-w-3xl mb-12 font-medium balance">
           Recover lost opportunities with AI voice and human-like avatars trained
-          to answer account holder mortgage questions accurately using Fannie Mae,
+          to answer Applicant mortgage questions accurately using Fannie Mae,
           Freddie Mac, and HUD guidelines.
         </motion.p>
 

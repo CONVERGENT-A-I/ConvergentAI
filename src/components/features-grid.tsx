@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { LucideIcon, Zap, Shield, MessageSquare, Cpu, Users, Smartphone } from "lucide-react";
 import { motion, Variants } from "framer-motion";
@@ -37,8 +37,8 @@ function FeatureCard({ title, description, icon: Icon }: FeatureCardProps) {
 export default function FeaturesGrid() {
   const features = [
     {
-      title: "Phygital Account Holder Journeys",
-      description: "Seamlessly transition account holders from digital research to in-branch completion with unified data and context.",
+      title: "Phygital Applicant Journeys",
+      description: "Seamlessly transition Applicants from digital research to in-branch completion with unified data and context.",
       icon: Smartphone,
     },
     {
@@ -48,17 +48,17 @@ export default function FeaturesGrid() {
     },
     {
       title: "eMortgage Acceleration",
-      description: "Boost online completions by over 25% and provide account holders with exceptional experiences.",
+      description: "Boost online completions by over 25% and provide Applicants with exceptional experiences.",
       icon: Zap,
     },
     {
       title: "Secure Omnichannel Messaging",
-      description: "Enterprise-grade protection across all channels, ensuring account holder data remains private and compliant with institutional standards.",
+      description: "Enterprise-grade protection across all channels, ensuring Applicant data remains private and compliant with institutional standards.",
       icon: Shield,
     },
     {
       title: "AI Voice & Human-Like Avatars",
-      description: "Deliver natural, 24/7 account holder service with AI-powered voice and lifelike avatars that feel human, reduce wait times, and keep account holders engaged across channels.",
+      description: "Deliver natural, 24/7 Applicant service with AI-powered voice and lifelike avatars that feel human, reduce wait times, and keep Applicants engaged across channels.",
       icon: MessageSquare,
     },
     {

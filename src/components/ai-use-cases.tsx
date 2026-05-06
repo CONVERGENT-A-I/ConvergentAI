@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { motion, Variants } from "framer-motion";
 
@@ -9,7 +9,7 @@ export default function AIUseCases() {
       benefit: "Benefit: Reduce application abandonment by providing instant, compliant answers to complex borrower questions 24/7.",
     },
     {
-      title: "Automated Account Holder Onboarding",
+      title: "Automated Applicant Onboarding",
       benefit: "Benefit: Higher conversion rates for new accounts with phygital guidance that replicates a face-to-face branch experience.",
     },
     {
@@ -18,7 +18,7 @@ export default function AIUseCases() {
     },
     {
       title: "Intelligent Cross-Sell Conversations",
-      benefit: "Benefit: Improve account holder lifetime value by identifying cross-sell opportunities through natural AI voice interactions across all banking lines.",
+      benefit: "Benefit: Improve Applicant lifetime value by identifying cross-sell opportunities through natural AI voice interactions across all banking lines.",
     },
   ];
 

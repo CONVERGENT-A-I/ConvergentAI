@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React from "react";
 import Navbar from "@/components/navbar";
@@ -72,7 +72,7 @@ export default function SecurityCenter() {
               <h3 className="text-xl font-bold text-white mb-2">Financial Institution</h3>
               <p className="text-sm font-medium text-blue-400 uppercase tracking-widest mb-4">FDIC & NCUA Insured</p>
               <ul className="text-sm text-zinc-400 space-y-2">
-                <li>Account Holder Data Governance</li>
+                <li>Applicant Data Governance</li>
                 <li>Access Control Policies</li>
                 <li>Audit Log Review</li>
               </ul>
@@ -224,7 +224,7 @@ export default function SecurityCenter() {
               </div>
               <h3 className="text-xl font-bold mb-4 text-white">Zero-Training Policy</h3>
               <p className="text-zinc-400 font-medium leading-relaxed">
-                Account holder voice recordings, PII, and transcripts are <strong className="text-white">never</strong> used to train global LLM models. All data processing is strictly ephemeral or stays localized within your private tenant.
+                Applicant voice recordings, PII, and transcripts are <strong className="text-white">never</strong> used to train global LLM models. All data processing is strictly ephemeral or stays localized within your private tenant.
               </p>
             </div>
 

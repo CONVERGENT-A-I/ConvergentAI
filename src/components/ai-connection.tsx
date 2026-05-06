@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import { motion, Variants } from "framer-motion";
@@ -85,19 +85,19 @@ export default function AIConnection() {
             <p className="text-zinc-400 font-medium leading-[1.8] [font-size:clamp(1.1rem,1.3vw,1.35rem)] text-pretty">
               At ConvergentAI, we believe that true communication is about more than words—it is the
               nuanced signals of tone, timing, and facial expressions that build lasting trust.
-              Your account holders read these visual contexts instinctively, looking for connection
+              Your Applicants read these visual contexts instinctively, looking for connection
               where a standard script often fails to reach. Our AI voice technology and lifelike
-              avatars are specifically engineered to carry these markers, ensuring your account holders
+              avatars are specifically engineered to carry these markers, ensuring your Applicants
               feel deeply understood, not just responded to.
             </p>
 
             <p className="text-zinc-400 font-medium leading-[1.8] [font-size:clamp(1.1rem,1.3vw,1.35rem)] text-pretty">
-              When account holders feel genuinely heard—through clear explanations, natural back-and-forth,
+              When Applicants feel genuinely heard—through clear explanations, natural back-and-forth,
               and human-like signals such as tone and expression—they move forward with confidence
               in their mortgage decisions and are far less likely to abandon applications. This direct
               connection fosters a level of trust that only human-like interaction can provide.
               ConvergentAI enables your institution to deliver this caliber of communication at scale,
-              ensuring every account holder feels truly understood.
+              ensuring every Applicant feels truly understood.
             </p>
           </motion.div>
 
@@ -126,7 +126,7 @@ export default function AIConnection() {
                 FEELS HUMAN
               </h3>
               <p className="text-zinc-400 font-medium leading-relaxed [font-size:clamp(0.95rem,1.15vw,1.15rem)] opacity-90">
-                Account holders don&apos;t just want quick answers—they want to feel like someone is actually with
+                Applicants don&apos;t just want quick answers—they want to feel like someone is actually with
                 them in the moment. ConvergentAI&apos;s voice and human-like avatars mirror natural pacing,
                 tone, and expression so conversations feel less like talking to a script and more like
                 sitting with a knowledgeable mortgage guide.
