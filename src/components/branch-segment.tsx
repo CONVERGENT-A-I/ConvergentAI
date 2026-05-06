@@ -10,13 +10,13 @@ export default function BranchSegment() {
     {
       src: f1,
       alt: "In-Branch AI Avatar Powered Wall System",
-      caption: "IN-BRANCH AI AVATAR POWERED WALL SYSTEM"
+      caption: "IN-BRANCH AI AVATAR POWERED WALL SYSTEM",
     },
     {
       src: f2,
       alt: "Select Employee Group (SEG) Smartbanking Platform",
-      caption: "SELECT EMPLOYEE GROUP (SEG) SMARTBANKING PLATFORM"
-    }
+      caption: "SELECT EMPLOYEE GROUP (SEG) SMARTBANKING PLATFORM",
+    },
   ];
 
   const containerVariants: Variants = {
@@ -29,36 +29,36 @@ export default function BranchSegment() {
 
   const textVariants: Variants = {
     hidden: { opacity: 0, y: -30 },
-    show: { 
-      opacity: 1, 
-      y: 0, 
-      transition: { 
+    show: {
+      opacity: 1,
+      y: 0,
+      transition: {
         type: "spring",
         stiffness: 60,
         damping: 15,
-        duration: 0.8
-      } 
+        duration: 0.8,
+      },
     },
   };
 
   const imageVariants: Variants = {
     hidden: { opacity: 0, scale: 0.8, y: 50 },
-    show: { 
-      opacity: 1, 
-      scale: 1, 
-      y: 0, 
-      transition: { 
+    show: {
+      opacity: 1,
+      scale: 1,
+      y: 0,
+      transition: {
         type: "spring",
         stiffness: 50,
         damping: 15,
-        duration: 1
-      } 
+        duration: 1,
+      },
     },
   };
 
   return (
     <section className="bg-black py-24 md:py-32 px-8 md:px-12 lg:px-24 overflow-hidden">
-      <motion.div 
+      <motion.div
         className="max-w-[1400px] mx-auto"
         variants={containerVariants}
         initial="hidden"
@@ -66,12 +66,20 @@ export default function BranchSegment() {
         viewport={{ once: true, margin: "-100px" }}
       >
         {/* Centered Header Section */}
-        <motion.div variants={textVariants} className="flex flex-col items-center text-center gap-6 mb-20 md:mb-24">
+        <motion.div
+          variants={textVariants}
+          className="flex flex-col items-center text-center gap-6 mb-20 md:mb-24"
+        >
           <h2 className="text-4xl md:text-6xl font-black text-white tracking-tighter uppercase">
             BranchPortal & SEG Programs
           </h2>
           <p className="max-w-4xl text-zinc-400 font-medium leading-[1.6] [font-size:clamp(1rem,1.35vw,1.45rem)]">
-            ConvergentAI's BranchPortal brings AI-powered avatars and guidance into the branch, while SEG programs extend personalized mortgage and account holder education tools to select employer groups. These solutions drive measurable value for financial institutions by bridging the gap between digital efficiency and physical account holder service.
+            ConvergentAI's BranchPortal brings AI-powered avatars and guidance
+            into the branch, while SEG programs extend personalized mortgage and
+            account holder education tools to select employer groups. These
+            solutions drive measurable value for financial institutions by
+            bridging the gap between digital efficiency and physical account
+            holder service.
           </p>
         </motion.div>
 
