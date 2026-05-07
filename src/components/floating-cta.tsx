@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, Sparkles, X, Phone, Video, Mic, MicOff, VideoOff, PhoneOff, Monitor, Circle, Loader2, Send, Check, ArrowRight, Clock, Lock, ShieldAlert, RefreshCw, Volume2, VolumeX, Headset } from "lucide-react";
+import { MessageCircle, Sparkles, X, Phone, Video, Mic, MicOff, VideoOff, PhoneOff, Monitor, Circle, Loader2, Send, Check, ArrowRight, Clock, Lock, ShieldAlert, RefreshCw, Volume2, VolumeX, Headset, Bot } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import {
   LiveKitRoom,
@@ -194,7 +194,7 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
     { icon: isCameraEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />, label: isCameraEnabled ? 'Stop Video' : 'Start Video', onClick: toggleCam, danger: false, pulse: false, active: false, hideInChat: true },
     { icon: <PhoneOff className="h-5 w-5" />, label: 'End', onClick: onEnd, danger: true, pulse: false, active: false, hideInChat: false },
     { icon: <Monitor className="h-5 w-5" />, label: isScreenSharing ? 'Stop Share' : 'Share', onClick: toggleScreenShare, danger: false, pulse: false, active: isScreenSharing, hideInChat: false },
-    { icon: <Headset className="h-5 w-5" />, label: 'Loan Officer', onClick: () => { setShowComingSoon(true); setTimeout(() => setShowComingSoon(false), 2500); }, danger: false, pulse: false, active: false, hideInChat: false },
+    { icon: <Headset className="h-5 w-5" />, label: 'Loan Officer', onClick: () => { setShowComingSoon(true); setTimeout(() => setShowComingSoon(false), 4000); }, danger: false, pulse: false, active: false, hideInChat: false },
   ];
 
   // In chat mode, mic and camera are shown but disabled (greyed out)
@@ -211,7 +211,7 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
           onClick={disabledInChat ? undefined : c.onClick}
           disabled={disabledInChat || (c.label === 'Share' || c.label === 'Stop Share' ? isTogglingScreen : false)}
           className={`relative flex flex-col items-center gap-1 p-2.5 md:p-3 rounded-2xl transition-all group ${disabledInChat
-            ? 'opacity-30 cursor-not-allowed bg-white/5 text-white/30'
+            ? 'opacity-60 cursor-not-allowed bg-white/5 text-white/30'
             : `cursor-pointer disabled:opacity-60 disabled:cursor-wait ${c.danger
               ? 'bg-red-500/90 hover:bg-red-600 text-white shadow-[0_4px_20px_rgba(239,68,68,0.4)]'
               : c.active
@@ -246,7 +246,7 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
           )}
 
           <AnimatePresence>
-            {c.label === 'Unmute' && showMicTooltip && (
+            {c.label === 'Unmute' && showMicTooltip && !disabledInChat && (
               <motion.div
                 initial={{ opacity: 0, y: 10, scale: 0.9 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -259,18 +259,58 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
             )}
           </AnimatePresence>
 
-          {/* Coming Soon tooltip — Loan Officer button only */}
+          {/* Feature Teaser Card — Loan Officer button only */}
           <AnimatePresence>
             {c.label === 'Loan Officer' && showComingSoon && (
               <motion.div
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 4 }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="absolute -top-12 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 bg-white text-gray-900 text-[11px] font-semibold rounded-lg shadow-[0_4px_20px_rgba(255,255,255,0.15)] whitespace-nowrap tracking-wide"
+                initial={{ opacity: 0, y: 15, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                className="absolute -top-[220px] left-1/2 -translate-x-1/2 z-[100] w-72 bg-gradient-to-br from-[#00b4d8]/95 to-[#023e8a]/95 backdrop-blur-xl border border-white/30 p-5 rounded-3xl shadow-[0_20px_40px_rgba(0,180,216,0.4)] overflow-hidden"
               >
-                Coming Soon
-                <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-2 h-2 bg-white rotate-45" />
+                {/* Premium shimmer sweep animation */}
+                <motion.div 
+                  className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12"
+                  initial={{ x: "-150%" }}
+                  animate={{ x: "150%" }}
+                  transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 1.5, ease: "easeInOut" }}
+                />
+                
+                {/* Ambient glow inside */}
+                <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 blur-3xl rounded-full pointer-events-none" />
+                
+                <div className="relative flex flex-col gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-11 w-11 rounded-2xl bg-white/20 flex items-center justify-center border border-white/30 shadow-[inset_0_2px_10px_rgba(255,255,255,0.3)] backdrop-blur-md">
+                      <Headset className="h-6 w-6 text-white" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-white text-[15px] font-extrabold tracking-tight drop-shadow-md">Specialist Handoff</span>
+                      <span className="text-[#80e5ff] text-[10px] font-black uppercase tracking-[0.2em] drop-shadow-sm mt-0.5">Coming Soon</span>
+                    </div>
+                  </div>
+                  
+                  <p className="text-white/95 text-[11.5px] leading-relaxed font-medium drop-shadow-sm">
+                    Our human-to-AI bridge is in final staging. Seamless escalation to institutional specialists is launching shortly.
+                  </p>
+
+                  <div className="space-y-1.5 mt-1">
+                    <div className="h-2 w-full bg-black/25 rounded-full overflow-hidden border border-black/20 shadow-inner">
+                      <motion.div 
+                        className="h-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.9)]"
+                        initial={{ width: "0%" }}
+                        animate={{ width: "85%" }}
+                        transition={{ duration: 2, ease: "easeOut", delay: 0.2 }}
+                      />
+                    </div>
+                    <div className="flex justify-between items-center pt-0.5">
+                      <span className="text-[9px] text-white/70 font-bold uppercase tracking-wider">Development Progress</span>
+                      <span className="text-[10px] text-white font-black drop-shadow-md">85% Complete</span>
+                    </div>
+                  </div>
+                </div>
+                {/* Arrow pointing down — matches the bottom of the gradient (#023e8a) */}
+                <div className="absolute bottom-[-6px] left-1/2 -translate-x-1/2 w-4 h-4 bg-[#023e8a] border-r border-b border-white/30 rotate-45" />
               </motion.div>
             )}
           </AnimatePresence>
@@ -590,25 +630,51 @@ function InRoomChatPanel() {
           {/* Avatar Voice Toggle — prominent pill switch */}
           <button
             onClick={toggleAvatarVoice}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-300 cursor-pointer border ${
+            className={`group relative flex items-center gap-3 px-4 py-2 rounded-xl transition-all duration-500 cursor-pointer border overflow-hidden ${
               avatarVoiceEnabled
-                ? 'bg-[#00b4d8]/15 border-[#00b4d8]/40 text-[#00d4f5] hover:bg-[#00b4d8]/25'
-                : 'bg-white/5 border-white/10 text-gray-500 hover:bg-white/10'
+                ? 'bg-[#00b4d8]/10 border-[#00b4d8]/40 shadow-[0_0_25px_rgba(0,180,216,0.2)]'
+                : 'bg-white/[0.03] border-white/10 opacity-80 hover:opacity-100 hover:border-white/20'
             }`}
           >
-            {avatarVoiceEnabled ? (
-              <Volume2 className="h-3.5 w-3.5" />
-            ) : (
-              <VolumeX className="h-3.5 w-3.5" />
+            {/* Animated subtle glow */}
+            {avatarVoiceEnabled && (
+              <motion.div 
+                layoutId="avatarGlow"
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-[#00b4d8]/15 to-transparent"
+                animate={{ x: ['-100%', '100%'] }}
+                transition={{ duration: 2.8, repeat: Infinity, ease: "linear" }}
+              />
             )}
-            <span>{avatarVoiceEnabled ? 'Voice On' : 'Voice Off'}</span>
-            {/* Toggle dot */}
-            <div className={`relative w-7 h-4 rounded-full transition-colors duration-300 ${
-              avatarVoiceEnabled ? 'bg-[#00b4d8]' : 'bg-gray-600'
+
+            <div className="relative flex items-center gap-3">
+              <div className={`p-1.5 rounded-lg transition-all duration-500 ${
+                avatarVoiceEnabled ? 'bg-[#00b4d8]/20 text-[#00d4f5] shadow-[0_0_15px_rgba(0,180,216,0.5)]' : 'bg-white/10 text-gray-500'
+              }`}>
+                {avatarVoiceEnabled ? <Bot className="h-4 w-4 animate-pulse" /> : <VolumeX className="h-4 w-4" />}
+              </div>
+              <div className="flex flex-col items-start">
+                <span className={`text-[9px] uppercase tracking-[0.15em] font-black leading-none ${
+                  avatarVoiceEnabled ? 'text-[#00d4f5]' : 'text-gray-500'
+                }`}>
+                  {avatarVoiceEnabled ? 'Avatar Active' : 'Text Only'}
+                </span>
+                <span className="text-[11px] font-bold text-white mt-1 whitespace-nowrap">
+                  {avatarVoiceEnabled ? 'Ailana Speaking' : 'Discrete Mode'}
+                </span>
+              </div>
+            </div>
+
+            {/* Compact minimalist switch */}
+            <div className={`relative w-8 h-4 rounded-full border transition-all duration-500 ${
+              avatarVoiceEnabled ? 'bg-[#00b4d8]/40 border-[#00b4d8]/50' : 'bg-white/5 border-white/20'
             }`}>
-              <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-300 ${
-                avatarVoiceEnabled ? 'translate-x-3.5' : 'translate-x-0.5'
-              }`} />
+              <motion.div 
+                className={`absolute top-0.5 h-2.5 w-2.5 rounded-full ${
+                  avatarVoiceEnabled ? 'bg-white shadow-[0_0_10px_rgba(255,255,255,1)]' : 'bg-gray-600'
+                }`}
+                animate={{ x: avatarVoiceEnabled ? 18 : 2 }}
+                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+              />
             </div>
           </button>
         </div>
