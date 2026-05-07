@@ -263,14 +263,17 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
           <AnimatePresence>
             {c.label === 'Loan Officer' && showComingSoon && (
               <motion.div
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 4 }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="absolute -top-12 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 bg-white text-gray-900 text-[11px] font-semibold rounded-lg shadow-[0_4px_20px_rgba(255,255,255,0.15)] whitespace-nowrap tracking-wide"
+                initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 4, scale: 0.95 }}
+                transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                className="absolute -top-14 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2.5 px-4 py-2 bg-[#1a1a1a] border border-white/10 text-white rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.6)] whitespace-nowrap pointer-events-none"
               >
-                Coming Soon
-                <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-2 h-2 bg-white rotate-45" />
+                <div className="flex items-center justify-center w-5 h-5 rounded-full bg-white/10 text-gray-300">
+                  <Clock className="w-3 h-3" />
+                </div>
+                <span className="text-[11px] font-medium tracking-wide text-gray-100">Coming Soon</span>
+                <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#1a1a1a] border-b border-r border-white/10 rotate-45 rounded-sm" />
               </motion.div>
             )}
           </AnimatePresence>
