@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, Sparkles, X, Phone, Video, Mic, MicOff, VideoOff, PhoneOff, Monitor, MoreHorizontal, Circle, Loader2, Send, Check, ArrowRight, Clock, Lock, ShieldAlert, RefreshCw } from "lucide-react";
+import { MessageCircle, Sparkles, X, Phone, Video, Mic, MicOff, VideoOff, PhoneOff, Monitor, Circle, Loader2, Send, Check, ArrowRight, Clock, Lock, ShieldAlert, RefreshCw, Volume2, VolumeX, Headset } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import {
   LiveKitRoom,
@@ -118,6 +118,7 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant();
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isTogglingScreen, setIsTogglingScreen] = useState(false);
+  const [showComingSoon, setShowComingSoon] = useState(false);
 
   const toggleMic = async () => {
     if (!localParticipant) return;
@@ -179,7 +180,7 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
     }
   }, [isMicrophoneEnabled, mode]);
 
-  const controls = [
+  const allControls = [
     {
       icon: isMicrophoneEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />,
       label: isMicrophoneEnabled ? 'Mute' : 'Unmute',
@@ -187,30 +188,40 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
       danger: false,
       pulse: isMicrophoneEnabled,
       alertPulse: !isMicrophoneEnabled && (mode === 'voice' || mode === 'video'),
-      active: false
+      active: false,
+      hideInChat: true,
     },
-    { icon: isCameraEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />, label: isCameraEnabled ? 'Stop Video' : 'Start Video', onClick: toggleCam, danger: false, pulse: false, active: false },
-    { icon: <PhoneOff className="h-5 w-5" />, label: 'End', onClick: onEnd, danger: true, pulse: false, active: false },
-    { icon: <Monitor className="h-5 w-5" />, label: isScreenSharing ? 'Stop Share' : 'Share', onClick: toggleScreenShare, danger: false, pulse: false, active: isScreenSharing },
-    { icon: <MoreHorizontal className="h-5 w-5" />, label: 'More', onClick: () => { }, danger: false, pulse: false, active: false },
+    { icon: isCameraEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />, label: isCameraEnabled ? 'Stop Video' : 'Start Video', onClick: toggleCam, danger: false, pulse: false, active: false, hideInChat: true },
+    { icon: <PhoneOff className="h-5 w-5" />, label: 'End', onClick: onEnd, danger: true, pulse: false, active: false, hideInChat: false },
+    { icon: <Monitor className="h-5 w-5" />, label: isScreenSharing ? 'Stop Share' : 'Share', onClick: toggleScreenShare, danger: false, pulse: false, active: isScreenSharing, hideInChat: false },
+    { icon: <Headset className="h-5 w-5" />, label: 'Loan Officer', onClick: () => { setShowComingSoon(true); setTimeout(() => setShowComingSoon(false), 2500); }, danger: false, pulse: false, active: false, hideInChat: false },
   ];
+
+  // In chat mode, mic and camera are shown but disabled (greyed out)
+  const isChat = mode === 'avatar-chat';
+  const controls = allControls;
 
   return (
     <div className="flex items-center justify-center gap-2 md:gap-4">
-      {controls.map((c) => (
+      {controls.map((c) => {
+        const disabledInChat = isChat && c.hideInChat;
+        return (
         <button
           key={c.label}
-          onClick={c.onClick}
-          disabled={c.label === 'Share' || c.label === 'Stop Share' ? isTogglingScreen : false}
-          className={`relative flex flex-col items-center gap-1 p-2.5 md:p-3 rounded-2xl transition-all cursor-pointer group disabled:opacity-60 disabled:cursor-wait ${c.danger
-            ? 'bg-red-500/90 hover:bg-red-600 text-white shadow-[0_4px_20px_rgba(239,68,68,0.4)]'
-            : c.active
-              ? 'bg-[#00b4d8]/20 border border-[#00b4d8]/50 text-[#00d4f5] hover:bg-[#00b4d8]/30 backdrop-blur-md shadow-[0_0_12px_rgba(0,180,216,0.3)]'
-              : 'bg-white/10 hover:bg-white/20 text-white/80 hover:text-white backdrop-blur-md'
-            }`}
+          onClick={disabledInChat ? undefined : c.onClick}
+          disabled={disabledInChat || (c.label === 'Share' || c.label === 'Stop Share' ? isTogglingScreen : false)}
+          className={`relative flex flex-col items-center gap-1 p-2.5 md:p-3 rounded-2xl transition-all group ${disabledInChat
+            ? 'opacity-30 cursor-not-allowed bg-white/5 text-white/30'
+            : `cursor-pointer disabled:opacity-60 disabled:cursor-wait ${c.danger
+              ? 'bg-red-500/90 hover:bg-red-600 text-white shadow-[0_4px_20px_rgba(239,68,68,0.4)]'
+              : c.active
+                ? 'bg-[#00b4d8]/20 border border-[#00b4d8]/50 text-[#00d4f5] hover:bg-[#00b4d8]/30 backdrop-blur-md shadow-[0_0_12px_rgba(0,180,216,0.3)]'
+                : 'bg-white/10 hover:bg-white/20 text-white/80 hover:text-white backdrop-blur-md'
+            }`
+          }`}
         >
           {/* Mic pulse glow ring */}
-          {c.pulse && (
+          {!disabledInChat && c.pulse && (
             <motion.div
               className="absolute inset-0 rounded-2xl border-2 border-green-400/60"
               animate={{ opacity: [0.4, 1, 0.4], scale: [1, 1.08, 1] }}
@@ -218,7 +229,7 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
             />
           )}
           {/* Mic alert pulse (when muted in voice/video) */}
-          {(c as any).alertPulse && (
+          {!disabledInChat && (c as any).alertPulse && (
             <motion.div
               className="absolute inset-0 rounded-2xl border-2 border-[#00b4d8]/80"
               animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.15, 1] }}
@@ -248,10 +259,27 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
             )}
           </AnimatePresence>
 
+          {/* Coming Soon tooltip — Loan Officer button only */}
+          <AnimatePresence>
+            {c.label === 'Loan Officer' && showComingSoon && (
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 4 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="absolute -top-12 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 bg-white text-gray-900 text-[11px] font-semibold rounded-lg shadow-[0_4px_20px_rgba(255,255,255,0.15)] whitespace-nowrap tracking-wide"
+              >
+                Coming Soon
+                <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-2 h-2 bg-white rotate-45" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <span className="group-hover:scale-110 transition-transform">{c.icon}</span>
           <span className="text-[9px] md:text-[10px] font-semibold tracking-wide">{c.label}</span>
         </button>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -418,6 +446,51 @@ function InRoomChatPanel() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [avatarVoiceEnabled, setAvatarVoiceEnabled] = useState(true);
+
+  // Toggle avatar voice on/off: mutes client-side audio AND tells the backend
+  // to switch between voice (Realtime API) and text-only (Chat Completions API)
+  const toggleAvatarVoice = async () => {
+    const nextState = !avatarVoiceEnabled;
+    setAvatarVoiceEnabled(nextState);
+
+    // 1. Client-side: mute/unmute remote audio tracks immediately
+    try {
+      for (const participant of room.remoteParticipants.values()) {
+        for (const pub of participant.trackPublications.values()) {
+          if (pub.track && pub.track.kind === 'audio') {
+            (pub.track as any).setVolume?.(nextState ? 1 : 0);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[ui]: Failed to toggle avatar audio volume:', err);
+    }
+
+    // 2. Backend: tell the agent to switch response mode
+    try {
+      const signal = nextState ? 'SYSTEM_VOICE_UNMUTED' : 'SYSTEM_VOICE_MUTED';
+      const encoder = new TextEncoder();
+      const payload = encoder.encode(JSON.stringify({ message: signal }));
+      await room.localParticipant.publishData(payload, { topic: 'lk-chat', reliable: true });
+      console.log(`[ui]: 🔊 Avatar voice ${nextState ? 'ENABLED (voice mode)' : 'DISABLED (text-only mode)'}`);
+    } catch (err) {
+      console.warn('[ui]: Failed to send voice toggle signal:', err);
+    }
+  };
+
+  // When voice is toggled off, also apply to newly subscribed remote audio tracks
+  useEffect(() => {
+    if (!room) return;
+    const applyVolume = (track: any) => {
+      if (track?.kind === 'audio' && typeof track.setVolume === 'function') {
+        track.setVolume(avatarVoiceEnabled ? 1 : 0);
+      }
+    };
+    const onTrackSubscribed = (track: any) => applyVolume(track);
+    room.on(RoomEvent.TrackSubscribed, onTrackSubscribed);
+    return () => { room.off(RoomEvent.TrackSubscribed, onTrackSubscribed); };
+  }, [room, avatarVoiceEnabled]);
 
   // State for spoken transcriptions
   const [transcripts, setTranscripts] = useState<Record<string, any>>({});
@@ -513,9 +586,32 @@ function InRoomChatPanel() {
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10">
         <h3 className="font-bold text-white text-base">Chat</h3>
-        <button className="p-1 rounded-lg hover:bg-white/10 text-gray-400 transition-colors cursor-pointer">
-          <MoreHorizontal className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Avatar Voice Toggle — prominent pill switch */}
+          <button
+            onClick={toggleAvatarVoice}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-300 cursor-pointer border ${
+              avatarVoiceEnabled
+                ? 'bg-[#00b4d8]/15 border-[#00b4d8]/40 text-[#00d4f5] hover:bg-[#00b4d8]/25'
+                : 'bg-white/5 border-white/10 text-gray-500 hover:bg-white/10'
+            }`}
+          >
+            {avatarVoiceEnabled ? (
+              <Volume2 className="h-3.5 w-3.5" />
+            ) : (
+              <VolumeX className="h-3.5 w-3.5" />
+            )}
+            <span>{avatarVoiceEnabled ? 'Voice On' : 'Voice Off'}</span>
+            {/* Toggle dot */}
+            <div className={`relative w-7 h-4 rounded-full transition-colors duration-300 ${
+              avatarVoiceEnabled ? 'bg-[#00b4d8]' : 'bg-gray-600'
+            }`}>
+              <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-300 ${
+                avatarVoiceEnabled ? 'translate-x-3.5' : 'translate-x-0.5'
+              }`} />
+            </div>
+          </button>
+        </div>
       </div>
 
       {/* Messages */}

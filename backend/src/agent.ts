@@ -166,7 +166,87 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
     // // Ensure intro audio is ready before handling triggers
     // await introWarm;
 
+    // When true, the agent responds via text-only chat (no voice/audio output)
+    let voiceMuted = false;
+
+    // Conversation history for text-only mode (so context is preserved)
+    const chatHistory: Array<{ role: string; content: string }> = [
+      { role: 'system', content: baseInstructions }
+    ];
+
+    // Generate a text-only reply using the standard OpenAI Chat Completions API
+    const generateTextOnlyReply = async (userMessage: string) => {
+      chatHistory.push({ role: 'user', content: userMessage });
+      console.log(`[agent]: 📝 Text-only mode: generating reply for "${userMessage}"...`);
+
+      try {
+        const apiKey = process.env.OPENAI_API_KEY;
+        if (!apiKey) {
+          console.error('[agent]: ❌ No OPENAI_API_KEY for text-only reply');
+          return;
+        }
+
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: chatHistory.slice(-20),
+            max_tokens: 200,
+            temperature: 0.7,
+          }),
+        });
+
+        if (!res.ok) {
+          const errBody = await res.text().catch(() => '');
+          console.error(`[agent]: ❌ Text-only API error: ${res.status} — ${errBody}`);
+          return;
+        }
+
+        const data = await res.json();
+        const reply = data.choices?.[0]?.message?.content?.trim();
+
+        if (reply) {
+          chatHistory.push({ role: 'assistant', content: reply });
+          console.log(`[agent]: 💬 Text-only reply: "${reply}"`);
+
+          // Send via text stream on 'lk.chat' topic so the frontend useChat() hook picks it up
+          try {
+            await ctx.room.localParticipant?.sendText(reply, { topic: 'lk.chat' });
+            console.log(`[agent]: ✅ Text-only chat reply sent via sendText`);
+          } catch (chatErr) {
+            console.error('[agent]: ❌ sendText failed, trying sendChatMessage fallback:', chatErr);
+            try {
+              await ctx.room.localParticipant?.sendChatMessage(reply);
+              console.log(`[agent]: ✅ Fallback sendChatMessage sent`);
+            } catch (fbErr) {
+              console.error('[agent]: ❌ Fallback sendChatMessage also failed:', fbErr);
+            }
+          }
+        } else {
+          console.warn('[agent]: ⚠️ Text-only API returned empty reply');
+        }
+      } catch (err) {
+        console.error('[agent]: ❌ Text-only reply failed:', err);
+      }
+    };
+
     const handleSystemMessages = async (messageText: string, participantIdentity: string | undefined) => {
+      // Handle avatar voice toggle from the UI
+      if (messageText === 'SYSTEM_VOICE_MUTED') {
+        voiceMuted = true;
+        console.log(`[agent]: 🔇 Avatar voice DISABLED — switching to text-only replies.`);
+        return;
+      }
+      if (messageText === 'SYSTEM_VOICE_UNMUTED') {
+        voiceMuted = false;
+        console.log(`[agent]: 🔊 Avatar voice ENABLED — resuming voice replies.`);
+        return;
+      }
+
       // if (messageText === 'SYSTEM_INTRO_TRIGGER') {
       //   console.log(`[agent]: 💬 [STEP 1] Received Intro Trigger. Playing cached TTS...`);
 
@@ -248,7 +328,14 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
           await session.start({ agent: vadAgent, room: ctx.room });
           (session as any)._started = true;
         }
-        session.generateReply({ userInput: messageText });
+
+        if (voiceMuted) {
+          // Voice is disabled — respond text-only (no audio/avatar speech)
+          await generateTextOnlyReply(messageText);
+        } else {
+          // Normal voice mode — full audio response via Realtime API
+          session.generateReply({ userInput: messageText });
+        }
       } catch (err) {
         console.warn(`[agent]: ⚠️ Could not generate reply:`, err);
       }
