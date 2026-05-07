@@ -194,7 +194,7 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
     { icon: isCameraEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />, label: isCameraEnabled ? 'Stop Video' : 'Start Video', onClick: toggleCam, danger: false, pulse: false, active: false, hideInChat: true },
     { icon: <PhoneOff className="h-5 w-5" />, label: 'End', onClick: onEnd, danger: true, pulse: false, active: false, hideInChat: false },
     { icon: <Monitor className="h-5 w-5" />, label: isScreenSharing ? 'Stop Share' : 'Share', onClick: toggleScreenShare, danger: false, pulse: false, active: isScreenSharing, hideInChat: false },
-    { icon: <Headset className="h-5 w-5" />, label: 'Loan Officer', onClick: () => { setShowComingSoon(true); setTimeout(() => setShowComingSoon(false), 4000); }, danger: false, pulse: false, active: false, hideInChat: false },
+    { icon: <Headset className="h-5 w-5" />, label: 'Loan Officer', onClick: () => { setShowComingSoon(true); setTimeout(() => setShowComingSoon(false), 2500); }, danger: false, pulse: false, active: false, hideInChat: false },
   ];
 
   // In chat mode, mic and camera are shown but disabled (greyed out)
@@ -259,58 +259,18 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
             )}
           </AnimatePresence>
 
-          {/* Feature Teaser Card — Loan Officer button only */}
+          {/* Coming Soon tooltip — Loan Officer button only */}
           <AnimatePresence>
             {c.label === 'Loan Officer' && showComingSoon && (
               <motion.div
-                initial={{ opacity: 0, y: 15, scale: 0.9 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9, y: 10 }}
-                className="absolute -top-[220px] left-1/2 -translate-x-1/2 z-[100] w-72 bg-gradient-to-br from-[#00b4d8]/95 to-[#023e8a]/95 backdrop-blur-xl border border-white/30 p-5 rounded-3xl shadow-[0_20px_40px_rgba(0,180,216,0.4)] overflow-hidden"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 4 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="absolute -top-12 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 bg-white text-gray-900 text-[11px] font-semibold rounded-lg shadow-[0_4px_20px_rgba(255,255,255,0.15)] whitespace-nowrap tracking-wide"
               >
-                {/* Premium shimmer sweep animation */}
-                <motion.div 
-                  className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12"
-                  initial={{ x: "-150%" }}
-                  animate={{ x: "150%" }}
-                  transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 1.5, ease: "easeInOut" }}
-                />
-                
-                {/* Ambient glow inside */}
-                <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 blur-3xl rounded-full pointer-events-none" />
-                
-                <div className="relative flex flex-col gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-11 w-11 rounded-2xl bg-white/20 flex items-center justify-center border border-white/30 shadow-[inset_0_2px_10px_rgba(255,255,255,0.3)] backdrop-blur-md">
-                      <Headset className="h-6 w-6 text-white" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-white text-[15px] font-extrabold tracking-tight drop-shadow-md">Specialist Handoff</span>
-                      <span className="text-[#80e5ff] text-[10px] font-black uppercase tracking-[0.2em] drop-shadow-sm mt-0.5">Coming Soon</span>
-                    </div>
-                  </div>
-                  
-                  <p className="text-white/95 text-[11.5px] leading-relaxed font-medium drop-shadow-sm">
-                    Our human-to-AI bridge is in final staging. Seamless escalation to institutional specialists is launching shortly.
-                  </p>
-
-                  <div className="space-y-1.5 mt-1">
-                    <div className="h-2 w-full bg-black/25 rounded-full overflow-hidden border border-black/20 shadow-inner">
-                      <motion.div 
-                        className="h-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.9)]"
-                        initial={{ width: "0%" }}
-                        animate={{ width: "85%" }}
-                        transition={{ duration: 2, ease: "easeOut", delay: 0.2 }}
-                      />
-                    </div>
-                    <div className="flex justify-between items-center pt-0.5">
-                      <span className="text-[9px] text-white/70 font-bold uppercase tracking-wider">Development Progress</span>
-                      <span className="text-[10px] text-white font-black drop-shadow-md">85% Complete</span>
-                    </div>
-                  </div>
-                </div>
-                {/* Arrow pointing down — matches the bottom of the gradient (#023e8a) */}
-                <div className="absolute bottom-[-6px] left-1/2 -translate-x-1/2 w-4 h-4 bg-[#023e8a] border-r border-b border-white/30 rotate-45" />
+                Coming Soon
+                <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-2 h-2 bg-white rotate-45" />
               </motion.div>
             )}
           </AnimatePresence>
