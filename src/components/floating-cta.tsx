@@ -209,81 +209,81 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
       {controls.map((c) => {
         const disabledInChat = isChat && c.hideInChat;
         return (
-        <button
-          key={c.label}
-          onClick={disabledInChat ? undefined : c.onClick}
-          disabled={disabledInChat || (c.label === 'Share' || c.label === 'Stop Share' ? isTogglingScreen : false)}
-          className={`relative flex flex-col items-center gap-0.5 sm:gap-1 p-2 sm:p-2.5 md:p-3 rounded-xl sm:rounded-2xl transition-all group min-w-[44px] sm:min-w-0 ${disabledInChat
-            ? 'opacity-60 cursor-not-allowed bg-white/5 text-white/30'
-            : `cursor-pointer disabled:opacity-60 disabled:cursor-wait ${c.danger
-              ? 'bg-red-500/90 hover:bg-red-600 text-white shadow-[0_4px_20px_rgba(239,68,68,0.4)]'
-              : c.active
-                ? 'bg-[#00b4d8]/20 border border-[#00b4d8]/50 text-[#00d4f5] hover:bg-[#00b4d8]/30 backdrop-blur-md shadow-[0_0_12px_rgba(0,180,216,0.3)]'
-                : 'bg-white/10 hover:bg-white/20 text-white/80 hover:text-white backdrop-blur-md'
-            }`
-          }`}
-        >
-          {/* Mic pulse glow ring */}
-          {!disabledInChat && c.pulse && (
-            <motion.div
-              className="absolute inset-0 rounded-2xl border-2 border-green-400/60"
-              animate={{ opacity: [0.4, 1, 0.4], scale: [1, 1.08, 1] }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-            />
-          )}
-          {/* Mic alert pulse (when muted in voice/video) */}
-          {!disabledInChat && (c as any).alertPulse && (
-            <motion.div
-              className="absolute inset-0 rounded-2xl border-2 border-[#00b4d8]/80"
-              animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.15, 1] }}
-              transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
-            />
-          )}
-          {/* Screen share active ring */}
-          {c.active && (
-            <motion.div
-              className="absolute inset-0 rounded-2xl border-2 border-[#00b4d8]/50"
-              animate={{ opacity: [0.3, 0.9, 0.3], scale: [1, 1.06, 1] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            />
-          )}
-
-          <AnimatePresence>
-            {c.label === 'Unmute' && showMicTooltip && !disabledInChat && (
+          <button
+            key={c.label}
+            onClick={disabledInChat ? undefined : c.onClick}
+            disabled={disabledInChat || (c.label === 'Share' || c.label === 'Stop Share' ? isTogglingScreen : false)}
+            className={`relative flex flex-col items-center gap-0.5 sm:gap-1 p-2 sm:p-2.5 md:p-3 rounded-xl sm:rounded-2xl transition-all group min-w-[44px] sm:min-w-0 ${disabledInChat
+              ? 'opacity-60 cursor-not-allowed bg-white/5 text-white/30'
+              : `cursor-pointer disabled:opacity-60 disabled:cursor-wait ${c.danger
+                ? 'bg-red-500/90 hover:bg-red-600 text-white shadow-[0_4px_20px_rgba(239,68,68,0.4)]'
+                : c.active
+                  ? 'bg-[#00b4d8]/20 border border-[#00b4d8]/50 text-[#00d4f5] hover:bg-[#00b4d8]/30 backdrop-blur-md shadow-[0_0_12px_rgba(0,180,216,0.3)]'
+                  : 'bg-white/10 hover:bg-white/20 text-white/80 hover:text-white backdrop-blur-md'
+              }`
+              }`}
+          >
+            {/* Mic pulse glow ring */}
+            {!disabledInChat && c.pulse && (
               <motion.div
-                initial={{ opacity: 0, y: 10, scale: 0.9 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="absolute -top-14 left-1/2 -translate-x-1/2 z-[100] px-3 py-2 bg-[#00b4d8] text-white text-[10px] font-bold rounded-xl shadow-xl whitespace-nowrap"
-              >
-                Click to speak
-                <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-2 h-2 bg-[#00b4d8] rotate-45" />
-              </motion.div>
+                className="absolute inset-0 rounded-2xl border-2 border-green-400/60"
+                animate={{ opacity: [0.4, 1, 0.4], scale: [1, 1.08, 1] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+              />
             )}
-          </AnimatePresence>
-
-          {/* Coming Soon tooltip — Loan Officer button only */}
-          <AnimatePresence>
-            {c.label === 'Loan Officer' && showComingSoon && (
+            {/* Mic alert pulse (when muted in voice/video) */}
+            {!disabledInChat && (c as any).alertPulse && (
               <motion.div
-                initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 4, scale: 0.95 }}
-                transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                className="absolute -top-14 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2.5 px-4 py-2 bg-[#1a1a1a] border border-white/10 text-white rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.6)] whitespace-nowrap pointer-events-none"
-              >
-                <div className="flex items-center justify-center w-5 h-5 rounded-full bg-white/10 text-gray-300">
-                  <Clock className="w-3 h-3" />
-                </div>
-                <span className="text-[11px] font-medium tracking-wide text-gray-100">Coming Soon</span>
-                <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#1a1a1a] border-b border-r border-white/10 rotate-45 rounded-sm" />
-              </motion.div>
+                className="absolute inset-0 rounded-2xl border-2 border-[#00b4d8]/80"
+                animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.15, 1] }}
+                transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+              />
             )}
-          </AnimatePresence>
+            {/* Screen share active ring */}
+            {c.active && (
+              <motion.div
+                className="absolute inset-0 rounded-2xl border-2 border-[#00b4d8]/50"
+                animate={{ opacity: [0.3, 0.9, 0.3], scale: [1, 1.06, 1] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              />
+            )}
 
-          <span className="group-hover:scale-110 transition-transform">{c.icon}</span>
-          <span className="text-[8px] sm:text-[9px] md:text-[10px] font-semibold tracking-wide">{c.label}</span>
-        </button>
+            <AnimatePresence>
+              {c.label === 'Unmute' && showMicTooltip && !disabledInChat && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="absolute -top-14 left-1/2 -translate-x-1/2 z-[100] px-3 py-2 bg-[#00b4d8] text-white text-[10px] font-bold rounded-xl shadow-xl whitespace-nowrap"
+                >
+                  Click to speak
+                  <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-2 h-2 bg-[#00b4d8] rotate-45" />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Coming Soon tooltip — Loan Officer button only */}
+            <AnimatePresence>
+              {c.label === 'Loan Officer' && showComingSoon && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.95 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                  className="absolute -top-14 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2.5 px-4 py-2 bg-[#1a1a1a] border border-white/10 text-white rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.6)] whitespace-nowrap pointer-events-none"
+                >
+                  <div className="flex items-center justify-center w-5 h-5 rounded-full bg-white/10 text-gray-300">
+                    <Clock className="w-3 h-3" />
+                  </div>
+                  <span className="text-[11px] font-medium tracking-wide text-gray-100">Coming Soon</span>
+                  <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#1a1a1a] border-b border-r border-white/10 rotate-45 rounded-sm" />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <span className="group-hover:scale-110 transition-transform">{c.icon}</span>
+            <span className="text-[8px] sm:text-[9px] md:text-[10px] font-semibold tracking-wide">{c.label}</span>
+          </button>
         );
       })}
     </div>
@@ -596,15 +596,14 @@ function InRoomChatPanel() {
           {/* Avatar Voice Toggle — prominent pill switch */}
           <button
             onClick={toggleAvatarVoice}
-            className={`group relative flex items-center gap-3 px-4 py-2 rounded-xl transition-all duration-500 cursor-pointer border overflow-hidden ${
-              avatarVoiceEnabled
+            className={`group relative flex items-center gap-3 px-4 py-2 rounded-xl transition-all duration-500 cursor-pointer border overflow-hidden ${avatarVoiceEnabled
                 ? 'bg-[#00b4d8]/10 border-[#00b4d8]/40 shadow-[0_0_25px_rgba(0,180,216,0.2)]'
                 : 'bg-white/[0.03] border-white/10 opacity-80 hover:opacity-100 hover:border-white/20'
-            }`}
+              }`}
           >
             {/* Animated subtle glow */}
             {avatarVoiceEnabled && (
-              <motion.div 
+              <motion.div
                 layoutId="avatarGlow"
                 className="absolute inset-0 bg-gradient-to-r from-transparent via-[#00b4d8]/15 to-transparent"
                 animate={{ x: ['-100%', '100%'] }}
@@ -613,15 +612,13 @@ function InRoomChatPanel() {
             )}
 
             <div className="relative flex items-center gap-3">
-              <div className={`p-1.5 rounded-lg transition-all duration-500 ${
-                avatarVoiceEnabled ? 'bg-[#00b4d8]/20 text-[#00d4f5] shadow-[0_0_15px_rgba(0,180,216,0.5)]' : 'bg-white/10 text-gray-500'
-              }`}>
+              <div className={`p-1.5 rounded-lg transition-all duration-500 ${avatarVoiceEnabled ? 'bg-[#00b4d8]/20 text-[#00d4f5] shadow-[0_0_15px_rgba(0,180,216,0.5)]' : 'bg-white/10 text-gray-500'
+                }`}>
                 {avatarVoiceEnabled ? <Bot className="h-4 w-4 animate-pulse" /> : <VolumeX className="h-4 w-4" />}
               </div>
               <div className="flex flex-col items-start">
-                <span className={`text-[9px] uppercase tracking-[0.15em] font-black leading-none ${
-                  avatarVoiceEnabled ? 'text-[#00d4f5]' : 'text-gray-500'
-                }`}>
+                <span className={`text-[9px] uppercase tracking-[0.15em] font-black leading-none ${avatarVoiceEnabled ? 'text-[#00d4f5]' : 'text-gray-500'
+                  }`}>
                   {avatarVoiceEnabled ? 'Avatar Active' : 'Text Only'}
                 </span>
                 <span className="text-[11px] font-bold text-white mt-1 whitespace-nowrap">
@@ -631,13 +628,11 @@ function InRoomChatPanel() {
             </div>
 
             {/* Compact minimalist switch */}
-            <div className={`relative w-8 h-4 rounded-full border transition-all duration-500 ${
-              avatarVoiceEnabled ? 'bg-[#00b4d8]/40 border-[#00b4d8]/50' : 'bg-white/5 border-white/20'
-            }`}>
-              <motion.div 
-                className={`absolute top-0.5 h-2.5 w-2.5 rounded-full ${
-                  avatarVoiceEnabled ? 'bg-white shadow-[0_0_10px_rgba(255,255,255,1)]' : 'bg-gray-600'
-                }`}
+            <div className={`relative w-8 h-4 rounded-full border transition-all duration-500 ${avatarVoiceEnabled ? 'bg-[#00b4d8]/40 border-[#00b4d8]/50' : 'bg-white/5 border-white/20'
+              }`}>
+              <motion.div
+                className={`absolute top-0.5 h-2.5 w-2.5 rounded-full ${avatarVoiceEnabled ? 'bg-white shadow-[0_0_10px_rgba(255,255,255,1)]' : 'bg-gray-600'
+                  }`}
                 animate={{ x: avatarVoiceEnabled ? 18 : 2 }}
                 transition={{ type: "spring", stiffness: 500, damping: 30 }}
               />
@@ -1160,7 +1155,7 @@ export default function FloatingCTA() {
           setIsAnnouncementStarted(true);
           // Pre-trigger the backend channel start so network latency 
           // overlaps with the end of the TTS audio.
-          setTimeout(() => setIsAnnouncementComplete(true), 1000);
+          setTimeout(() => setIsAnnouncementComplete(true), 990);
         };
         announcement.onend = () => {
           setIsAnnouncementComplete(true);
