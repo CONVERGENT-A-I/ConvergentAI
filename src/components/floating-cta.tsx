@@ -23,7 +23,10 @@ import VideoStage from "./video-stage";
 if (typeof window !== 'undefined') {
   const originalError = console.error;
   console.error = (...args) => {
-    if (typeof args[0] === 'string' && args[0].includes("Tried to add a track for a participant, that's not present")) {
+    if (typeof args[0] === 'string' && (
+      args[0].includes("Tried to add a track for a participant, that's not present") ||
+      args[0].includes("Unknown DataChannel error")
+    )) {
       return; // Ignore
     }
     originalError.apply(console, args);
@@ -1002,7 +1005,7 @@ export default function FloatingCTA() {
       return;
     }
 
-    const INACTIVITY_MS = 180_000; // 3 minutes
+    const INACTIVITY_MS = 90_000; // 1.5 minutes
 
     const markActivity = () => {
       lastActivityAtRef.current = Date.now();
