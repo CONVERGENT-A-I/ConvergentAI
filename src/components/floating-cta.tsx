@@ -201,19 +201,23 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
   ];
 
   // In chat mode, mic and camera are shown but disabled (greyed out)
+  // In voice mode, video is also disabled
   const isChat = mode === 'avatar-chat';
+  const isVoice = mode === 'voice';
   const controls = allControls;
 
   return (
     <div className="flex items-center justify-center gap-1 sm:gap-2 md:gap-4 px-1">
       {controls.map((c) => {
-        const disabledInChat = isChat && c.hideInChat;
+        const isVideoButton = c.label === 'Video' || c.label === 'Stop Video';
+        const isEffectivelyDisabled = (isChat && c.hideInChat) || (isVoice && isVideoButton);
+
         return (
           <button
             key={c.label}
-            onClick={disabledInChat ? undefined : c.onClick}
-            disabled={disabledInChat || (c.label === 'Share' || c.label === 'Stop Share' ? isTogglingScreen : false)}
-            className={`relative flex flex-col items-center gap-0.5 sm:gap-1 p-2 sm:p-2.5 md:p-3 rounded-xl sm:rounded-2xl transition-all group min-w-[44px] sm:min-w-0 ${disabledInChat
+            onClick={isEffectivelyDisabled ? undefined : c.onClick}
+            disabled={isEffectivelyDisabled || (c.label === 'Share' || c.label === 'Stop Share' ? isTogglingScreen : false)}
+            className={`relative flex flex-col items-center gap-0.5 sm:gap-1 p-2 sm:p-2.5 md:p-3 rounded-xl sm:rounded-2xl transition-all group min-w-[44px] sm:min-w-0 ${isEffectivelyDisabled
               ? 'opacity-60 cursor-not-allowed bg-white/5 text-white/30'
               : `cursor-pointer disabled:opacity-60 disabled:cursor-wait ${c.danger
                 ? 'bg-red-500/90 hover:bg-red-600 text-white shadow-[0_4px_20px_rgba(239,68,68,0.4)]'
@@ -224,7 +228,7 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
               }`}
           >
             {/* Mic pulse glow ring */}
-            {!disabledInChat && c.pulse && (
+            {!isEffectivelyDisabled && c.pulse && (
               <motion.div
                 className="absolute inset-0 rounded-2xl border-2 border-green-400/60"
                 animate={{ opacity: [0.4, 1, 0.4], scale: [1, 1.08, 1] }}
@@ -232,7 +236,7 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
               />
             )}
             {/* Mic alert pulse (when muted in voice/video) */}
-            {!disabledInChat && (c as any).alertPulse && (
+            {!isEffectivelyDisabled && (c as any).alertPulse && (
               <motion.div
                 className="absolute inset-0 rounded-2xl border-2 border-[#00b4d8]/80"
                 animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.15, 1] }}
@@ -249,7 +253,7 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
             )}
 
             <AnimatePresence>
-              {c.label === 'Unmute' && showMicTooltip && !disabledInChat && (
+              {c.label === 'Unmute' && showMicTooltip && !isEffectivelyDisabled && (
                 <motion.div
                   initial={{ opacity: 0, y: 10, scale: 0.9 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
