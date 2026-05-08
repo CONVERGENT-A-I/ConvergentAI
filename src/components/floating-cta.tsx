@@ -185,7 +185,7 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
 
   const allControls = [
     {
-      icon: isMicrophoneEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />,
+      icon: isMicrophoneEnabled ? <Mic className="h-4 w-4 sm:h-5 sm:w-5" /> : <MicOff className="h-4 w-4 sm:h-5 sm:w-5" />,
       label: isMicrophoneEnabled ? 'Mute' : 'Unmute',
       onClick: () => { toggleMic(); setShowMicTooltip(false); },
       danger: false,
@@ -194,10 +194,10 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
       active: false,
       hideInChat: true,
     },
-    { icon: isCameraEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />, label: isCameraEnabled ? 'Stop Video' : 'Start Video', onClick: toggleCam, danger: false, pulse: false, active: false, hideInChat: true },
-    { icon: <PhoneOff className="h-5 w-5" />, label: 'End', onClick: onEnd, danger: true, pulse: false, active: false, hideInChat: false },
-    { icon: <Monitor className="h-5 w-5" />, label: isScreenSharing ? 'Stop Share' : 'Share', onClick: toggleScreenShare, danger: false, pulse: false, active: isScreenSharing, hideInChat: false },
-    { icon: <Headset className="h-5 w-5" />, label: 'Loan Officer', onClick: () => { setShowComingSoon(true); setTimeout(() => setShowComingSoon(false), 2500); }, danger: false, pulse: false, active: false, hideInChat: false },
+    { icon: isCameraEnabled ? <Video className="h-4 w-4 sm:h-5 sm:w-5" /> : <VideoOff className="h-4 w-4 sm:h-5 sm:w-5" />, label: isCameraEnabled ? 'Stop Video' : 'Video', onClick: toggleCam, danger: false, pulse: false, active: false, hideInChat: true },
+    { icon: <PhoneOff className="h-4 w-4 sm:h-5 sm:w-5" />, label: 'End', onClick: onEnd, danger: true, pulse: false, active: false, hideInChat: false },
+    { icon: <Monitor className="h-4 w-4 sm:h-5 sm:w-5" />, label: isScreenSharing ? 'Stop Share' : 'Share', onClick: toggleScreenShare, danger: false, pulse: false, active: isScreenSharing, hideInChat: false },
+    { icon: <Headset className="h-4 w-4 sm:h-5 sm:w-5" />, label: 'Loan Officer', onClick: () => { setShowComingSoon(true); setTimeout(() => setShowComingSoon(false), 2500); }, danger: false, pulse: false, active: false, hideInChat: false },
   ];
 
   // In chat mode, mic and camera are shown but disabled (greyed out)
@@ -205,7 +205,7 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
   const controls = allControls;
 
   return (
-    <div className="flex items-center justify-center gap-2 md:gap-4">
+    <div className="flex items-center justify-center gap-1 sm:gap-2 md:gap-4 px-1">
       {controls.map((c) => {
         const disabledInChat = isChat && c.hideInChat;
         return (
@@ -213,7 +213,7 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
           key={c.label}
           onClick={disabledInChat ? undefined : c.onClick}
           disabled={disabledInChat || (c.label === 'Share' || c.label === 'Stop Share' ? isTogglingScreen : false)}
-          className={`relative flex flex-col items-center gap-1 p-2.5 md:p-3 rounded-2xl transition-all group ${disabledInChat
+          className={`relative flex flex-col items-center gap-0.5 sm:gap-1 p-2 sm:p-2.5 md:p-3 rounded-xl sm:rounded-2xl transition-all group min-w-[44px] sm:min-w-0 ${disabledInChat
             ? 'opacity-60 cursor-not-allowed bg-white/5 text-white/30'
             : `cursor-pointer disabled:opacity-60 disabled:cursor-wait ${c.danger
               ? 'bg-red-500/90 hover:bg-red-600 text-white shadow-[0_4px_20px_rgba(239,68,68,0.4)]'
@@ -282,7 +282,7 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
           </AnimatePresence>
 
           <span className="group-hover:scale-110 transition-transform">{c.icon}</span>
-          <span className="text-[9px] md:text-[10px] font-semibold tracking-wide">{c.label}</span>
+          <span className="text-[8px] sm:text-[9px] md:text-[10px] font-semibold tracking-wide">{c.label}</span>
         </button>
         );
       })}
@@ -1219,7 +1219,7 @@ export default function FloatingCTA() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-md font-sans"
+            className="fixed inset-0 z-[200] flex items-center justify-center p-0 sm:p-4 md:p-6 bg-black/50 backdrop-blur-md font-sans"
           >
             <AnimatePresence mode="wait">
               <motion.div
@@ -1227,7 +1227,7 @@ export default function FloatingCTA() {
                 initial={{ scale: 1.05, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="relative w-[95vw] sm:w-[90vw] max-w-7xl h-[92vh] min-h-[500px] max-h-[960px] bg-[#0B0F19] rounded-3xl shadow-[0_8px_60px_rgba(0,180,216,0.25),0_0_0_1px_rgba(0,180,216,0.08)] flex flex-col overflow-hidden border border-white/20"
+                className="relative w-full sm:w-[90vw] max-w-7xl h-[100dvh] sm:h-[92vh] min-h-0 sm:min-h-[500px] max-h-none sm:max-h-[960px] bg-[#0B0F19] rounded-none sm:rounded-3xl shadow-[0_8px_60px_rgba(0,180,216,0.25),0_0_0_1px_rgba(0,180,216,0.08)] flex flex-col overflow-hidden border-0 sm:border border-white/20"
               >
                 {isOffline && (
                   <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[220] px-4 py-2 rounded-full bg-red-500/90 text-white text-xs font-bold tracking-wide border border-white/20 shadow-[0_8px_25px_rgba(239,68,68,0.35)]">
@@ -1295,56 +1295,68 @@ export default function FloatingCTA() {
 
                 <div className="absolute inset-0 flex flex-col overflow-hidden z-0">
                   {/* ── Top Header ── */}
-                  <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 relative z-10 shrink-0 bg-[#080c14]/95 backdrop-blur-md border-b border-white/15">
-                    <div className="flex items-center gap-2.5">
-                      <div className="relative h-7 w-7 md:h-8 md:w-8 flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-transparent">
+                  <div className="flex items-center justify-between px-3 sm:px-4 md:px-6 py-2.5 md:py-4 relative z-10 shrink-0 bg-[#080c14]/95 backdrop-blur-md border-b border-white/15 gap-2">
+                    {/* Logo */}
+                    <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+                      <div className="relative h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-transparent">
                         <Image src={AppIcon} alt="ConvergentAI Logo" fill sizes="32px" className="object-contain" />
                       </div>
-                      <span className="font-extrabold text-white text-sm md:text-lg tracking-tight">ConvergentAI</span>
+                      <span className="font-extrabold text-white text-xs sm:text-sm md:text-lg tracking-tight">ConvergentAI</span>
                     </div>
 
                     {/* Center: Mode Switcher (live phase only) */}
                     {flowPhase === 'live' && isLkConnected && isAgentReady && (
-                      <div className="absolute left-1/2 -translate-x-1/2 flex items-center bg-white/5 rounded-full p-1 border border-white/10 shadow-sm backdrop-blur-md">
+                      <div className="flex items-center bg-white/5 rounded-full p-0.5 sm:p-1 border border-white/10 shadow-sm backdrop-blur-md">
                         {([
-                          { m: 'video' as PendingMode, icon: <Video className="h-3.5 w-3.5" />, label: 'Video' },
-                          { m: 'voice' as PendingMode, icon: <Phone className="h-3.5 w-3.5" />, label: 'Voice' },
-                          { m: 'avatar-chat' as PendingMode, icon: <MessageCircle className="h-3.5 w-3.5" />, label: 'Chat' },
+                          { m: 'video' as PendingMode, icon: <Video className="h-3 w-3 sm:h-3.5 sm:w-3.5" />, label: 'Video' },
+                          { m: 'voice' as PendingMode, icon: <Phone className="h-3 w-3 sm:h-3.5 sm:w-3.5" />, label: 'Voice' },
+                          { m: 'avatar-chat' as PendingMode, icon: <MessageCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5" />, label: 'Chat' },
                         ]).map(({ m, icon, label }) => (
                           <button
                             key={m}
                             onClick={() => handleAIAction(m as 'video' | 'voice' | 'avatar-chat')}
-                            className={`flex items-center gap-1.5 px-3 md:px-4 py-1.5 md:py-2 rounded-full text-xs md:text-sm font-semibold transition-all cursor-pointer ${pendingMode === m
+                            className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 rounded-full text-[9px] sm:text-xs md:text-sm font-semibold transition-all cursor-pointer ${pendingMode === m
                               ? 'bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-md'
                               : 'text-gray-400 hover:bg-white/10 hover:text-white'
                               }`}
                           >
                             {icon}
-                            <span className="hidden sm:inline">{label}</span>
+                            <span>{label}</span>
                           </button>
                         ))}
                       </div>
                     )}
 
-                    {/* Right: Trust + Close */}
-                    <div className="flex items-center gap-2 md:gap-4">
+                    {/* Right: Trust indicators + Close */}
+                    <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 shrink-0">
                       {flowPhase === 'live' && isLkConnected && (
                         <>
-                          <div className="hidden md:flex items-center gap-1.5 text-gray-400 text-xs font-medium">
-                            <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
-                            <span>Available 24/7</span>
+                          {/* Mobile: icon-only trust badges */}
+                          <div className="flex sm:hidden items-center gap-1.5">
+                            <div className="flex items-center gap-0.5" title="Available 24/7">
+                              <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.8)]" />
+                              <span className="text-[8px] text-emerald-400 font-bold">24/7</span>
+                            </div>
+                            <div className="flex items-center gap-0.5" title="Secure & Private">
+                              <Lock className="h-2.5 w-2.5 text-gray-400" />
+                            </div>
                           </div>
-                          <div className="hidden md:flex items-center gap-1.5 text-gray-400 text-xs font-medium">
+                          {/* sm+: text labels */}
+                          <div className="hidden sm:flex items-center gap-1.5 text-gray-400 text-xs font-medium">
+                            <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
+                            <span className="hidden md:inline">Available </span>24/7
+                          </div>
+                          <div className="hidden sm:flex items-center gap-1.5 text-gray-400 text-xs font-medium">
                             <Lock className="h-3 w-3" />
-                            <span>Secure &amp; Private</span>
+                            <span className="hidden lg:inline">Secure &amp; Private</span>
                           </div>
                         </>
                       )}
                       <button
                         onClick={requestEndCall}
-                        className="p-2 rounded-full bg-white/5 text-gray-400 hover:bg-red-500 hover:text-white transition-all cursor-pointer shrink-0"
+                        className="p-1.5 sm:p-2 rounded-full bg-white/5 text-gray-400 hover:bg-red-500 hover:text-white transition-all cursor-pointer shrink-0"
                       >
-                        <X className="h-4 w-4" />
+                        <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                       </button>
                     </div>
                   </div>
@@ -1551,9 +1563,9 @@ export default function FloatingCTA() {
 
                             {/* ── Google Meet Split Layout (always mounted so avatar connection doesn't drop, but hidden until live) ── */}
                             <div className={flowPhase === 'live' ? "flex-1 flex flex-col min-h-0 absolute inset-0 z-10" : "opacity-0 pointer-events-none absolute inset-0 -z-10"}>
-                              <div className="flex-1 flex min-h-0 p-2 md:p-3 gap-3">
+                              <div className={`flex-1 flex min-h-0 p-2 md:p-3 gap-2 md:gap-3 ${pendingMode === 'avatar-chat' ? 'flex-col md:flex-row' : 'flex-row'}`}>
                                 {/* Left: Avatar Area */}
-                                <div className="flex-1 relative rounded-2xl overflow-hidden bg-black shadow-xl">
+                                <div className={`relative rounded-2xl overflow-hidden bg-black shadow-xl ${pendingMode === 'avatar-chat' ? 'h-[42%] md:h-auto md:flex-1' : 'flex-1'}`}>
                                   {/* REC badge - only when connected and announcement started */}
                                   {isLkConnected && isAgentReady && isAnnouncementStarted && (
                                     <div className="absolute top-3 left-3 z-50 flex items-center gap-2 bg-black/50 backdrop-blur-md px-2.5 py-1 rounded-full border border-red-500/30">
@@ -1601,7 +1613,7 @@ export default function FloatingCTA() {
                                 {/* Right: Chat Panel — always mounted so useChat() & transcripts survive channel switches.
                                      Hidden via inline style (not conditional render) so messages persist. */}
                                 <div
-                                  className="md:flex w-[320px] lg:w-[360px] shrink-0 flex-col rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_30px_rgba(0,180,216,0.1)] bg-[#050505] transition-all duration-300"
+                                  className="flex-col rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_30px_rgba(0,180,216,0.1)] bg-[#050505] transition-all duration-300 min-h-0 flex-1 md:flex-none md:w-[320px] lg:w-[360px] md:shrink-0"
                                   style={{ display: pendingMode === 'avatar-chat' ? 'flex' : 'none' }}
                                 >
                                   <InRoomChatPanel />
@@ -1609,10 +1621,10 @@ export default function FloatingCTA() {
                               </div>
 
                               {/* Trust Footer */}
-                              <div className="shrink-0 px-4 py-2 flex items-center justify-center gap-6 text-[10px] md:text-xs text-gray-400 bg-[#07090f] border-t border-white/15">
-                                <span className="flex items-center gap-1.5"><Lock className="h-3 w-3 text-emerald-400" />Your information is secure and never shared.</span>
-                                <span className="h-3 w-px bg-white/20" />
-                                <span className="flex items-center gap-1.5"><Clock className="h-3 w-3 text-[#00b4d8]" />AI-Powered. Human-Focused. 24/7.</span>
+                              <div className="shrink-0 px-3 py-1.5 md:py-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[9px] sm:text-[10px] md:text-xs text-gray-400 bg-[#07090f] border-t border-white/15">
+                                <span className="flex items-center gap-1"><Lock className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-emerald-400" /><span className="hidden sm:inline">Your information is secure and never shared.</span><span className="sm:hidden">Secure &amp; private.</span></span>
+                                <span className="h-3 w-px bg-white/20 hidden sm:block" />
+                                <span className="flex items-center gap-1"><Clock className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-[#00b4d8]" />AI-Powered. Human-Focused. 24/7.</span>
                               </div>
                             </div>
 

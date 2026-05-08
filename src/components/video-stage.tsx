@@ -257,7 +257,7 @@ export default function VideoStage({ mode = 'video', keyframeMetadata, hideContr
               )}
               
               {!isAvatarOnly && (
-                <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2 z-20">
+                <div className="absolute bottom-24 md:bottom-3 left-3 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2 z-20">
                   <div className="h-2 w-2 rounded-full bg-[#00b4d8] animate-pulse" />
                   <span className="text-white text-xs font-semibold tracking-wide">Ailana AI</span>
                 </div>
@@ -266,7 +266,7 @@ export default function VideoStage({ mode = 'video', keyframeMetadata, hideContr
 
             {/* "You" — small PiP overlay (only in video mode, no human tracks) */}
             {!isAvatarOnly && gridTracks.length === 0 && (
-              <div className="absolute bottom-4 right-4 w-28 h-20 md:w-36 md:h-24 rounded-xl overflow-hidden bg-[#1a1a1a]/80 border border-white/10 flex flex-col items-center justify-center gap-1 z-20 shadow-lg backdrop-blur-sm">
+              <div className="absolute bottom-24 md:bottom-4 right-3 md:right-4 w-28 h-20 md:w-36 md:h-24 rounded-xl overflow-hidden bg-[#1a1a1a]/80 border border-white/10 flex flex-col items-center justify-center gap-1 z-20 shadow-lg backdrop-blur-sm">
                 <Users className="h-4 w-4 text-white/20" />
                 <p className="text-white/30 text-[8px] font-bold uppercase tracking-widest">You</p>
               </div>
