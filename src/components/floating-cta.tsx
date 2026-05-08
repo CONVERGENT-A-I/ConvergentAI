@@ -1158,6 +1158,9 @@ export default function FloatingCTA() {
 
         announcement.onstart = () => {
           setIsAnnouncementStarted(true);
+          // Pre-trigger the backend channel start so network latency 
+          // overlaps with the end of the TTS audio.
+          setTimeout(() => setIsAnnouncementComplete(true), 1000);
         };
         announcement.onend = () => {
           setIsAnnouncementComplete(true);
