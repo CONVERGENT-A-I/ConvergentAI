@@ -472,7 +472,7 @@ function ContextualHelp() {
 }
 
 /** In-room chat panel using LiveKit useChat(), displayed as side panel */
-function InRoomChatPanel() {
+function InRoomChatPanel({ isActive }: { isActive?: boolean }) {
   const { chatMessages, send, isSending } = useChat();
   const room = useRoomContext();
   const [input, setInput] = useState('');
@@ -602,6 +602,15 @@ function InRoomChatPanel() {
       if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
     };
   }, [displayMessages]);
+
+  // Auto-scroll when the chat panel becomes visible (e.g. switching modes)
+  useEffect(() => {
+    if (isActive) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+      }, 10);
+    }
+  }, [isActive]);
 
   const handleSend = () => {
     const text = input.trim();
@@ -1668,7 +1677,7 @@ export default function FloatingCTA() {
                                   className="flex-col rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_30px_rgba(0,180,216,0.1)] bg-[#050505] transition-all duration-300 min-h-0 flex-1 md:flex-none md:w-[320px] lg:w-[360px] md:shrink-0"
                                   style={{ display: pendingMode === 'avatar-chat' ? 'flex' : 'none' }}
                                 >
-                                  <InRoomChatPanel />
+                                  <InRoomChatPanel isActive={pendingMode === 'avatar-chat'} />
                                 </div>
                               </div>
 
