@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, Sparkles, X, Phone, Video, Mic, MicOff, VideoOff, PhoneOff, Monitor, Circle, Loader2, Send, Check, ArrowRight, Clock, Lock, ShieldAlert, RefreshCw, Volume2, VolumeX, Headset, Bot } from "lucide-react";
+import { MessageCircle, Sparkles, X, Phone, Video, Mic, MicOff, VideoOff, PhoneOff, Monitor, Circle, Loader2, Send, Check, ArrowRight, Clock, Lock, ShieldAlert, RefreshCw, Volume2, VolumeX, Headset, Bot, MoreHorizontal } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import {
   LiveKitRoom,
@@ -67,9 +67,12 @@ function MediaGuard({ mode }: { mode: string }) {
         try { await lp.setCameraEnabled(false); } catch (e) { }
         console.log('[MediaGuard] 🔇 Mic & camera OFF');
       } else if (mode === 'voice') {
+        try { await lp.setMicrophoneEnabled(false); } catch (e) { }
         try { await lp.setCameraEnabled(false); } catch (e) { }
-        console.log('[MediaGuard] 🔇 Camera OFF (voice mode)');
+        console.log('[MediaGuard] 🔇 Mic & camera OFF (voice mode)');
       } else if (mode === 'video') {
+        try { await lp.setMicrophoneEnabled(false); } catch (e) { }
+        try { await lp.setCameraEnabled(false); } catch (e) { }
         console.log('[MediaGuard] 🔇 Mic & camera OFF by default (waiting for user to enable)');
       }
     };
@@ -197,7 +200,7 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
     { icon: isCameraEnabled ? <Video className="h-4 w-4 sm:h-5 sm:w-5" /> : <VideoOff className="h-4 w-4 sm:h-5 sm:w-5" />, label: isCameraEnabled ? 'Stop Video' : 'Video', onClick: toggleCam, danger: false, pulse: false, active: false, hideInChat: true },
     { icon: <PhoneOff className="h-4 w-4 sm:h-5 sm:w-5" />, label: 'End', onClick: onEnd, danger: true, pulse: false, active: false, hideInChat: false },
     { icon: <Monitor className="h-4 w-4 sm:h-5 sm:w-5" />, label: isScreenSharing ? 'Stop Share' : 'Share', onClick: toggleScreenShare, danger: false, pulse: false, active: isScreenSharing, hideInChat: false },
-    { icon: <Headset className="h-4 w-4 sm:h-5 sm:w-5" />, label: 'Loan Officer', onClick: () => { setShowComingSoon(true); setTimeout(() => setShowComingSoon(false), 2500); }, danger: false, pulse: false, active: false, hideInChat: false },
+    { icon: <MoreHorizontal className="h-4 w-4 sm:h-5 sm:w-5" />, label: 'More', onClick: () => { setShowComingSoon(true); setTimeout(() => setShowComingSoon(false), 2500); }, danger: false, pulse: false, active: false, hideInChat: false },
   ];
 
   // In chat mode, mic and camera are shown but disabled (greyed out)
@@ -268,7 +271,7 @@ function RoomControls({ onEnd, mode }: { onEnd: () => void; mode: string }) {
 
             {/* Coming Soon tooltip — Loan Officer button only */}
             <AnimatePresence>
-              {c.label === 'Loan Officer' && showComingSoon && (
+              {c.label === 'More' && showComingSoon && (
                 <motion.div
                   initial={{ opacity: 0, y: 8, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -1510,7 +1513,7 @@ export default function FloatingCTA() {
                           <LiveKitRoom
                             key={roomName}
                             video={false}
-                            audio={true}
+                            audio={false}
                             token={token || ""}
                             serverUrl={lkUrl || ""}
                             connect={true}

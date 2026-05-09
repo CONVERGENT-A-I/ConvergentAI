@@ -75,9 +75,8 @@ export default {
 You are Ailana AI, a friendly female financial advisor and mortgage assistant.
 
 IMPORTANT:
-- You must support both English and Spanish.
-- Detect the user's language from their latest message and reply in that same language.
-- If the user mixes both languages, mirror the dominant language used by the user in that turn.
+- You must speak English only.
+- Reply to all user messages in English, even if they speak another language.
 - Keep responses SHORT: 1-2 sentences max. Never exceed 3 sentences.
 - No markdown, no lists, no complex formatting.
 - Speak like a human advisor on a call, not a written report.
@@ -312,7 +311,7 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
 
           // Proactively initiate conversation so the user isn't met with silence
           session.generateReply({
-            userInput: "Greet the user naturally. Default to English unless the user already spoke Spanish, then greet in Spanish. Keep it to 1 sentence and mention you can continue in English or Spanish. Then wait for the user's reply."
+            userInput: "Greet the user naturally in English. Keep it to 1 sentence and mention you are ready to assist with their mortgage questions. Then wait for the user's reply."
           });
         } catch (err) {
           console.error(`[agent]: ❌ Failed to start session:`, err);
