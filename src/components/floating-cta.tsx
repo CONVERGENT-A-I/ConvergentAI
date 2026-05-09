@@ -1226,7 +1226,7 @@ export default function FloatingCTA() {
                 initial={{ scale: 1.05, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="relative w-full sm:w-[90vw] max-w-7xl h-[100dvh] sm:h-[92vh] min-h-0 sm:min-h-[500px] max-h-none sm:max-h-[960px] bg-[#0B0F19] rounded-none sm:rounded-3xl shadow-[0_8px_60px_rgba(0,180,216,0.25),0_0_0_1px_rgba(0,180,216,0.08)] flex flex-col overflow-hidden border-0 sm:border border-white/20"
+                className="relative w-[96vw] sm:w-[90vw] max-w-7xl h-[85dvh] sm:h-[92vh] min-h-0 sm:min-h-[500px] max-h-none sm:max-h-[960px] bg-[#0B0F19] rounded-2xl sm:rounded-3xl shadow-[0_8px_60px_rgba(0,180,216,0.25),0_0_0_1px_rgba(0,180,216,0.08)] flex flex-col overflow-hidden border border-white/20"
               >
                 {isOffline && (
                   <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[220] px-4 py-2 rounded-full bg-red-500/90 text-white text-xs font-bold tracking-wide border border-white/20 shadow-[0_8px_25px_rgba(239,68,68,0.35)]">
