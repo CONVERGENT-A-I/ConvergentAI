@@ -29,9 +29,12 @@ export default function SecurityCenter() {
           variants={fadeUp}
           className="max-w-4xl mb-24"
         >
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-green/10 border border-brand-green/20 text-brand-green text-xs font-bold tracking-widest uppercase mb-6">
-            <Shield className="w-3.5 h-3.5" />
-            Designed for Regulatory Compliance (FFIEC/NCUA/FDIC)
+          <div className="inline-flex flex-col md:flex-row items-start md:items-center gap-0.5 md:gap-2 px-3 md:px-4 py-2 md:py-1.5 rounded-xl md:rounded-full bg-brand-green/10 border border-brand-green/20 text-brand-green text-[10px] md:text-xs font-bold tracking-widest uppercase mb-6 w-fit">
+            <div className="flex items-center gap-2">
+              <Shield className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />
+              <span>Designed for Regulatory Compliance</span>
+            </div>
+            <span className="pl-[22px] md:pl-0 opacity-90">(FFIEC/NCUA/FDIC)</span>
           </div>
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-black tracking-tight mb-8">
             Engineered for <span className="text-brand-green">Financial Integrity.</span><br />
