@@ -166,20 +166,27 @@ export default function SecurityCenter() {
             <h2 className="text-2xl md:text-4xl font-bold tracking-tight">Inherited Compliance Architecture</h2>
           </div>
           
-          <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.02] backdrop-blur-sm">
-            <table className="w-full text-left border-collapse">
-              <thead>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.02] backdrop-blur-sm overflow-hidden">
+            <table className="w-full text-left border-collapse block md:table">
+              <thead className="hidden md:table-header-group">
                 <tr className="border-b border-white/10 bg-white/[0.02]">
                   <th className="p-6 text-sm font-bold tracking-widest text-zinc-500 uppercase">Layer</th>
                   <th className="p-6 text-sm font-bold tracking-widest text-zinc-500 uppercase">Provider</th>
                   <th className="p-6 text-sm font-bold tracking-widest text-zinc-500 uppercase">Certifications & Standards</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
-                <tr className="hover:bg-white/[0.02] transition-colors">
-                  <td className="p-6 font-semibold text-white">Infrastructure & Compute</td>
-                  <td className="p-6 font-medium text-zinc-300">Google Cloud (GCP)</td>
-                  <td className="p-6">
+              <tbody className="divide-y divide-white/5 block md:table-row-group">
+                <tr className="hover:bg-white/[0.02] transition-colors flex flex-col md:table-row">
+                  <td className="p-4 md:p-6 border-b md:border-none border-white/5 block md:table-cell">
+                    <span className="md:hidden text-[10px] font-bold tracking-widest text-zinc-500 uppercase block mb-1">Layer</span>
+                    <span className="font-semibold text-white">Infrastructure & Compute</span>
+                  </td>
+                  <td className="p-4 md:p-6 border-b md:border-none border-white/5 block md:table-cell">
+                    <span className="md:hidden text-[10px] font-bold tracking-widest text-zinc-500 uppercase block mb-1">Provider</span>
+                    <span className="font-medium text-zinc-300">Google Cloud (GCP)</span>
+                  </td>
+                  <td className="p-4 md:p-6 block md:table-cell">
+                    <span className="md:hidden text-[10px] font-bold tracking-widest text-zinc-500 uppercase block mb-2">Certifications & Standards</span>
                     <div className="flex flex-wrap gap-2">
                       {['SOC 2 Type II', 'ISO 27001', 'PCI-DSS', 'HIPAA'].map(cert => (
                         <span key={cert} className="px-3 py-1 rounded-md bg-white/5 border border-white/10 text-xs font-semibold text-zinc-300">
@@ -189,10 +196,17 @@ export default function SecurityCenter() {
                     </div>
                   </td>
                 </tr>
-                <tr className="hover:bg-white/[0.02] transition-colors">
-                  <td className="p-6 font-semibold text-white">Real-Time Media Processing</td>
-                  <td className="p-6 font-medium text-zinc-300">LiveKit</td>
-                  <td className="p-6">
+                <tr className="hover:bg-white/[0.02] transition-colors flex flex-col md:table-row">
+                  <td className="p-4 md:p-6 border-b md:border-none border-white/5 block md:table-cell">
+                    <span className="md:hidden text-[10px] font-bold tracking-widest text-zinc-500 uppercase block mb-1">Layer</span>
+                    <span className="font-semibold text-white">Real-Time Media Processing</span>
+                  </td>
+                  <td className="p-4 md:p-6 border-b md:border-none border-white/5 block md:table-cell">
+                    <span className="md:hidden text-[10px] font-bold tracking-widest text-zinc-500 uppercase block mb-1">Provider</span>
+                    <span className="font-medium text-zinc-300">LiveKit</span>
+                  </td>
+                  <td className="p-4 md:p-6 block md:table-cell">
+                    <span className="md:hidden text-[10px] font-bold tracking-widest text-zinc-500 uppercase block mb-2">Certifications & Standards</span>
                     <div className="flex flex-wrap gap-2">
                       {['SOC 2 Type II'].map(cert => (
                         <span key={cert} className="px-3 py-1 rounded-md bg-white/5 border border-white/10 text-xs font-semibold text-zinc-300">
@@ -202,10 +216,17 @@ export default function SecurityCenter() {
                     </div>
                   </td>
                 </tr>
-                <tr className="hover:bg-white/[0.02] transition-colors">
-                  <td className="p-6 font-semibold text-white">Telephony Backbone (SIP)</td>
-                  <td className="p-6 font-medium text-zinc-300">Telnyx</td>
-                  <td className="p-6">
+                <tr className="hover:bg-white/[0.02] transition-colors flex flex-col md:table-row">
+                  <td className="p-4 md:p-6 border-b md:border-none border-white/5 block md:table-cell">
+                    <span className="md:hidden text-[10px] font-bold tracking-widest text-zinc-500 uppercase block mb-1">Layer</span>
+                    <span className="font-semibold text-white">Telephony Backbone (SIP)</span>
+                  </td>
+                  <td className="p-4 md:p-6 border-b md:border-none border-white/5 block md:table-cell">
+                    <span className="md:hidden text-[10px] font-bold tracking-widest text-zinc-500 uppercase block mb-1">Provider</span>
+                    <span className="font-medium text-zinc-300">Telnyx</span>
+                  </td>
+                  <td className="p-4 md:p-6 block md:table-cell">
+                    <span className="md:hidden text-[10px] font-bold tracking-widest text-zinc-500 uppercase block mb-2">Certifications & Standards</span>
                     <div className="flex flex-wrap gap-2">
                       {['SOC 2 Type II', 'Licensed Carrier'].map(cert => (
                         <span key={cert} className="px-3 py-1 rounded-md bg-white/5 border border-white/10 text-xs font-semibold text-zinc-300">
