@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React from "react";
 import Navbar from "@/components/navbar";
@@ -79,10 +79,12 @@ export default function SecurityCenter() {
             </div>
 
             {/* Connection / Data Tunnel */}
-            <div className="hidden lg:flex items-center justify-center">
+            <div className="flex flex-col items-center justify-center py-4 lg:py-0">
               <div className="flex flex-col items-center gap-2">
-                <span className="text-[10px] font-bold text-brand-green/40 uppercase tracking-[0.3em]">Secure Data Tunnel</span>
-                <div className="flex items-center gap-0 text-brand-green/50 relative">
+                <span className="text-[10px] font-bold text-brand-green/40 uppercase tracking-[0.3em] lg:mb-0 mb-2">Secure Data Tunnel</span>
+                
+                {/* Desktop Horizontal Tunnel (hidden on mobile) */}
+                <div className="hidden lg:flex items-center gap-0 text-brand-green/50 relative">
                   {/* Moving Particle 1 */}
                   <motion.div 
                     className="absolute w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_10px_#00FF99]"
@@ -97,11 +99,34 @@ export default function SecurityCenter() {
                   />
                   
                   <div className="w-20 h-[2px] bg-gradient-to-r from-transparent via-brand-green/30 to-transparent" />
-                  <div className="w-10 h-10 rounded-full border border-brand-green/30 flex items-center justify-center bg-brand-green/5 backdrop-blur-sm">
+                  <div className="w-10 h-10 rounded-full border border-brand-green/30 flex items-center justify-center bg-brand-green/5 backdrop-blur-sm z-10">
                     <Lock className="w-4 h-4 text-brand-green" />
                   </div>
                   <div className="w-20 h-[2px] bg-gradient-to-r from-transparent via-brand-green/30 to-transparent" />
                 </div>
+
+                {/* Mobile Vertical Tunnel (hidden on desktop) */}
+                <div className="flex lg:hidden flex-col items-center gap-0 text-brand-green/50 relative">
+                  {/* Moving Particle 1 */}
+                  <motion.div 
+                    className="absolute w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_10px_#00FF99]"
+                    animate={{ y: [-40, 40], opacity: [0, 1, 0] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                  />
+                  {/* Moving Particle 2 */}
+                  <motion.div 
+                    className="absolute w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_10px_#00FF99]"
+                    animate={{ y: [-40, 40], opacity: [0, 1, 0] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "linear", delay: 1 }}
+                  />
+                  
+                  <div className="w-[2px] h-12 bg-gradient-to-b from-transparent via-brand-green/30 to-transparent" />
+                  <div className="w-10 h-10 rounded-full border border-brand-green/30 flex items-center justify-center bg-brand-green/5 backdrop-blur-sm z-10 my-[-4px]">
+                    <Lock className="w-4 h-4 text-brand-green" />
+                  </div>
+                  <div className="w-[2px] h-12 bg-gradient-to-b from-transparent via-brand-green/30 to-transparent" />
+                </div>
+
                 <div className="flex items-center gap-4 mt-2">
                   <div className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[9px] font-bold text-zinc-500">TLS 1.3</div>
                   <div className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[9px] font-bold text-zinc-500">mTLS</div>
