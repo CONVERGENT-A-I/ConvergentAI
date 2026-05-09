@@ -83,6 +83,26 @@ function MediaGuard({ mode }: { mode: string }) {
   return null;
 }
 
+function ActivityTracker() {
+  const room = useRoomContext();
+  
+  useEffect(() => {
+    if (!room) return;
+    const handleActiveSpeakers = (speakers: any[]) => {
+      // If anyone is speaking (human or agent), it counts as activity.
+      if (speakers.length > 0) {
+        window.dispatchEvent(new Event('agent_activity'));
+      }
+    };
+    room.on(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakers);
+    return () => {
+      room.off(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakers);
+    };
+  }, [room]);
+  
+  return null;
+}
+
 function ChannelStartTrigger({ isLivePhase, mode, isAnnouncementComplete }: { isLivePhase: boolean; mode: string; isAnnouncementComplete: boolean }) {
   const { send } = useChat();
   const room = useRoomContext();
@@ -739,6 +759,7 @@ export default function FloatingCTA() {
   const [showInactivityPrompt, setShowInactivityPrompt] = useState(false);
   const [inactivityCountdown, setInactivityCountdown] = useState(10);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showLoanOfficerComingSoon, setShowLoanOfficerComingSoon] = useState(false);
   const introVideoRef = useRef<HTMLVideoElement>(null);
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -1023,7 +1044,7 @@ export default function FloatingCTA() {
       }, INACTIVITY_MS);
     };
 
-    const activityEvents: Array<keyof WindowEventMap> = ['pointerdown', 'pointermove', 'mousemove', 'keydown', 'touchstart', 'wheel'];
+    const activityEvents: Array<string> = ['pointerdown', 'pointermove', 'mousemove', 'keydown', 'touchstart', 'wheel', 'agent_activity'];
     const onActivity = () => {
       // Once the inactivity prompt is visible, ignore activity events so the
       // user can actually click the popup buttons without it vanishing.
@@ -1297,7 +1318,7 @@ export default function FloatingCTA() {
 
                 <div className="absolute inset-0 flex flex-col overflow-hidden z-0">
                   {/* ── Top Header ── */}
-                  <div className="flex items-center justify-between px-3 sm:px-4 md:px-6 py-2.5 md:py-4 relative z-10 shrink-0 bg-[#080c14]/95 backdrop-blur-md border-b border-white/15 gap-2">
+                  <div className="flex items-center justify-between px-3 sm:px-4 md:px-6 py-2.5 md:py-4 relative z-50 shrink-0 bg-[#080c14]/95 backdrop-blur-md border-b border-white/15 gap-2">
                     {/* Logo */}
                     <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
                       <div className="relative h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-transparent">
@@ -1313,18 +1334,46 @@ export default function FloatingCTA() {
                           { m: 'video' as PendingMode, icon: <Video className="h-3 w-3 sm:h-3.5 sm:w-3.5" />, label: 'Video' },
                           { m: 'voice' as PendingMode, icon: <Phone className="h-3 w-3 sm:h-3.5 sm:w-3.5" />, label: 'Voice' },
                           { m: 'avatar-chat' as PendingMode, icon: <MessageCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5" />, label: 'Chat' },
-                        ]).map(({ m, icon, label }) => (
-                          <button
-                            key={m}
-                            onClick={() => handleAIAction(m as 'video' | 'voice' | 'avatar-chat')}
-                            className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 rounded-full text-[9px] sm:text-xs md:text-sm font-semibold transition-all cursor-pointer ${pendingMode === m
-                              ? 'bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-md'
-                              : 'text-gray-400 hover:bg-white/10 hover:text-white'
-                              }`}
-                          >
-                            {icon}
-                            <span>{label}</span>
-                          </button>
+                          { m: 'loan-officer' as any, icon: <Headset className="h-3 w-3 sm:h-3.5 sm:w-3.5" />, label: 'Loan Officer', disabled: true },
+                        ]).map(({ m, icon, label, disabled }) => (
+                          <div key={m} className="relative flex items-center">
+                            <button
+                              onClick={() => {
+                                if (disabled) {
+                                  setShowLoanOfficerComingSoon(true);
+                                  setTimeout(() => setShowLoanOfficerComingSoon(false), 2500);
+                                  return;
+                                }
+                                handleAIAction(m as 'video' | 'voice' | 'avatar-chat');
+                              }}
+                              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 rounded-full text-[9px] sm:text-xs md:text-sm font-semibold transition-all cursor-pointer ${disabled
+                                ? 'opacity-40 text-gray-400 hover:bg-white/5 cursor-not-allowed'
+                                : pendingMode === m
+                                ? 'bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-md'
+                                : 'text-gray-400 hover:bg-white/10 hover:text-white'
+                                }`}
+                            >
+                              {icon}
+                              <span>{label}</span>
+                            </button>
+                            <AnimatePresence>
+                              {disabled && showLoanOfficerComingSoon && (
+                                <motion.div
+                                  initial={{ opacity: 0, y: 5, scale: 0.9 }}
+                                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                                  exit={{ opacity: 0, y: 5, scale: 0.9 }}
+                                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                  className="absolute top-full mt-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-4 py-2.5 bg-gradient-to-b from-[#1a1a1a] to-[#0a0a0a] border border-white/20 text-white rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.8)] whitespace-nowrap pointer-events-none backdrop-blur-xl"
+                                >
+                                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-[#00b4d8]/20 text-[#00b4d8] shadow-[0_0_10px_rgba(0,180,216,0.2)]">
+                                    <Clock className="w-3.5 h-3.5" />
+                                  </div>
+                                  <span className="text-xs font-bold tracking-wide text-white">Coming Soon</span>
+                                  <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#1a1a1a] border-t border-l border-white/20 rotate-45 rounded-sm" />
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -1541,6 +1590,7 @@ export default function FloatingCTA() {
                           >
                             <AgentReadinessCheck onAgentReady={setIsAgentReady} />
                             <MediaGuard mode={pendingMode} />
+                            <ActivityTracker />
                             <ChannelStartTrigger
                               isLivePhase={flowPhase === 'live'}
                               mode={pendingMode}

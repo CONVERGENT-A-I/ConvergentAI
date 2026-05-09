@@ -139,7 +139,7 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
       turnHandling: {
         turnDetection: 'vad',
         endpointing: {
-          minDelay: 200,
+          minDelay: 400,
         },
         interruption: {
           minDuration: 200,
