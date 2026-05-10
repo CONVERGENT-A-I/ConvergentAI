@@ -57,7 +57,7 @@ export default {
     // Load a fresh VAD instance for this specific session
     console.log(`[agent]: Loading Hybrid VAD...`);
     const sessionVad = await silero.VAD.load({
-      minSilenceDuration: 400,
+      minSilenceDuration: 600,
       prefixPaddingDuration: 200,
     });
 
@@ -139,7 +139,7 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
       turnHandling: {
         turnDetection: 'vad',
         endpointing: {
-          minDelay: 400,
+          minDelay: 600,
         },
         interruption: {
           minDuration: 250,
