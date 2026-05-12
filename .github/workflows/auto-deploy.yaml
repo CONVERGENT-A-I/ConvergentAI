@@ -26,25 +26,38 @@ jobs:
             --tunnel-through-iap \
             --quiet \
             --command='sudo bash -s' <<'EOF'
-          set -e
+          set -euo pipefail
 
-          cd /opt/convergent-ai/ConvergentAI
+          APP_DIR="/opt/convergent-ai/ConvergentAI"
 
-          git config --global --add safe.directory /opt/convergent-ai/ConvergentAI
+          echo "Go to app directory"
+          cd "$APP_DIR"
+
+          git config --global --add safe.directory "$APP_DIR"
 
           echo "Pull latest code"
           git fetch origin main
           git reset --hard origin/main
 
-          echo "Stop old containers"
-          docker-compose down
+          echo "Docker usage BEFORE deploy"
+          docker system df || true
+          docker builder du || true
 
-          echo "Remove Old images"
-          docker images -q | xargs -r docker rmi -f
+          echo "Stop old containers"
+          docker compose down || docker-compose down
 
           echo "Rebuild and recreate containers"
-          docker-compose up -d --build
+          docker compose up -d --build || docker-compose up -d --build
 
           echo "Verify containers"
           docker ps | grep convergent
+
+          echo "Cleanup Docker build cache"
+          docker builder prune -a -f
+
+          echo "Cleanup dangling images"
+          docker image prune -f
+
+          echo "Cleanup stopped containers"
+          docker container prune -f
           EOF
