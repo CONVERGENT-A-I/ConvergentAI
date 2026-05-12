@@ -1333,17 +1333,17 @@ export default function FloatingCTA() {
                       <div className="relative h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-transparent">
                         <Image src={AppIcon} alt="ConvergentAI Logo" fill sizes="32px" className="object-contain" />
                       </div>
-                      <span className="font-extrabold text-white text-xs sm:text-sm md:text-lg tracking-tight">ConvergentAI</span>
+                      <span className="hidden lg:inline font-extrabold text-white text-xs sm:text-sm md:text-lg tracking-tight">ConvergentAI</span>
                     </div>
 
                     {/* Center: Mode Switcher (live phase only) */}
                     {flowPhase === 'live' && isLkConnected && isAgentReady && (
                       <div className="flex items-center bg-white/5 rounded-full p-0.5 sm:p-1 border border-white/10 shadow-sm backdrop-blur-md">
                         {([
-                          { m: 'video' as PendingMode, icon: <Video className="h-3 w-3 sm:h-3.5 sm:w-3.5" />, label: 'Video' },
-                          { m: 'voice' as PendingMode, icon: <Phone className="h-3 w-3 sm:h-3.5 sm:w-3.5" />, label: 'Voice' },
-                          { m: 'avatar-chat' as PendingMode, icon: <MessageCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5" />, label: 'Chat' },
-                          { m: 'loan-officer' as any, icon: <Headset className="h-3 w-3 sm:h-3.5 sm:w-3.5" />, label: 'Loan Officer', disabled: true },
+                          { m: 'video' as PendingMode, icon: <Video className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />, label: 'Video' },
+                          { m: 'voice' as PendingMode, icon: <Phone className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />, label: 'Voice' },
+                          { m: 'avatar-chat' as PendingMode, icon: <MessageCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />, label: 'Chat' },
+                          { m: 'loan-officer' as any, icon: <Headset className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />, label: <><span className="hidden lg:inline">Loan Officer</span><span className="lg:hidden">Officer</span></>, disabled: true },
                         ]).map(({ m, icon, label, disabled }) => (
                           <div key={m} className="relative flex items-center">
                             <button
@@ -1355,7 +1355,7 @@ export default function FloatingCTA() {
                                 }
                                 handleAIAction(m as 'video' | 'voice' | 'avatar-chat');
                               }}
-                              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 rounded-full text-[9px] sm:text-xs md:text-sm font-semibold transition-all cursor-pointer ${disabled
+                              className={`flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 rounded-full text-[9px] sm:text-xs md:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap ${disabled
                                 ? 'opacity-40 text-gray-400 hover:bg-white/5 cursor-not-allowed'
                                 : pendingMode === m
                                 ? 'bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-md'
@@ -1402,9 +1402,9 @@ export default function FloatingCTA() {
                             </div>
                           </div>
                           {/* sm+: text labels */}
-                          <div className="hidden sm:flex items-center gap-1.5 text-gray-400 text-xs font-medium">
+                          <div className="hidden sm:flex items-center gap-1.5 text-gray-400 text-[10px] md:text-xs font-medium">
                             <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
-                            <span className="hidden md:inline">Available </span>24/7
+                            <span className="hidden lg:inline">Available </span>24/7
                           </div>
                           <div className="hidden sm:flex items-center gap-1.5 text-gray-400 text-xs font-medium">
                             <Lock className="h-3 w-3" />
