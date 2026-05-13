@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import * as openai from '@livekit/agents-plugin-openai';
 import * as silero from '@livekit/agents-plugin-silero';
+import { transferRoomToMloQueue } from './transfer.js';
 
 dotenv.config();
 
@@ -86,8 +87,9 @@ PERSONALITY:
 - Sounds like a real human advisor, not a bot
 
 COMMUNICATION:
-- If the user requests to speak with a loan officer, be transferred, or receive an SMS/Text, smoothly reply: "Yes, we connect you to loan officers in your geographic location and can send SMS updates, but as a demo product, these features are currently turned off."
-- Do not attempt to simulate routing or actually transfer the call.
+- If the user requests to speak with a loan officer or be transferred, respond: "Let me connect you to a licensed loan officer now. Please hold for just a moment."
+- Do not attempt to simulate routing — the system will handle the actual transfer.
+- If the transfer fails, tell the user: "I'm unable to reach an officer right now. Would you like to schedule a callback instead?"
 - Never tell users to click UI elements.
 
 GUIDELINE AUTHORITY:
@@ -98,8 +100,15 @@ Do not invent specific numbers. If you reference a threshold, only cite it if yo
 MORTGAGE BEHAVIOR:
 - Never assume eligibility. Never say "approved" or "denied".
 - Use: "likely eligible", "potentially eligible", "unlikely", or "needs review".
-- If unsure of specifics: "This would need to be confirmed with official guidelines or underwriting review."
+- If unsure: "This would need to be confirmed with official guidelines or underwriting review."
 - If scenario is complex: say it likely needs AUS review.
+
+TRANSFER & HANDOFF (LOAN OFFICER):
+- If the user asks for a human, a loan officer, or a transfer, say: "I'm connecting you to a licensed mortgage loan officer in your area who can help you with those specifics. Please hold for just a moment."
+- While the connection is ringing, you can briefly say: "One moment while I route your call."
+- Once an officer joins, you should say: "Hello, I have a client on the line interested in [mention topic]. I'll stay on the line if you need anything."
+- After the handoff, STAY SILENT. Do not interrupt the officer. Only speak if the user or officer addresses you directly.
+- If the transfer fails: "I'm unable to reach an officer right now. Would you like to schedule a callback instead?"
 
 RESPONSE STYLE — STRICT:
 - Answer the question directly in 1-2 sentences.
@@ -247,37 +256,92 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
         return;
       }
 
-      // if (messageText === 'SYSTEM_INTRO_TRIGGER') {
-      //   console.log(`[agent]: 💬 [STEP 1] Received Intro Trigger. Playing cached TTS...`);
+      // ── MLO Transfer handler ──────────────────────────────────────────────
+      if (messageText === 'SYSTEM_TRANSFER_MLO') {
+        console.log(`[agent]: 📞 MLO Transfer requested by ${participantIdentity ?? 'unknown'}`);
 
-      //   const source = new AudioSource(introSampleRate, introNumChannels);
-      //   const track = LocalAudioTrack.createAudioTrack('intro-audio', source);
+        // 1. Verbal announcement before dialling
+        if ((session as any)._started) {
+          session.generateReply({
+            userInput: "The system is now initiating a transfer to a human loan officer. Please announce this to the user warmly. Say: 'I'm connecting you to a licensed mortgage loan officer in your area. Please hold for just a moment.' — Then stop speaking."
+          });
+          // Brief pause so the TTS starts before the SIP call fires
+          await new Promise(r => setTimeout(r, 3500));
+        }
 
-      //   const pub = await ctx.room.localParticipant?.publishTrack(track, {
-      //     source: TrackSource.SOURCE_MICROPHONE
-      //   } as any);
+        // 2. Find the human participant identity (filter out agent + keyframe)
+        const participants = Array.from(ctx.room.remoteParticipants.values());
+        const humanParticipant = participants.find(p =>
+          p.identity !== 'agent' &&
+          !p.identity.startsWith('agent-') &&
+          !p.identity.startsWith('keyframe-') &&
+          !p.identity.startsWith('mlo-queue-') &&
+          !p.identity.startsWith('mlo-link-')
+        );
+        const userIdent = humanParticipant?.identity ?? participantIdentity ?? 'unknown';
 
-      //   console.log(`[agent]: 💬 [STEP 2] Streaming pre-cached intro audio...`);
-      //   if (cachedIntroFrames) {
-      //     for (const frame of cachedIntroFrames) {
-      //       await source.captureFrame(frame);
-      //     }
-      //   }
+        // 3. Initiate SIP transfer
+        const roomName = ctx.room.name;
+        if (!roomName) {
+          console.error('[agent]: ❌ Cannot transfer — room name is undefined');
+          return;
+        }
 
-      //   console.log(`[agent]: 💬 [STEP 3] Intro audio streaming complete. Waiting for playout...`);
-      //   await source.waitForPlayout();
-      //   if (pub?.sid) {
-      //     await ctx.room.localParticipant?.unpublishTrack(pub.sid);
-      //   }
-      //   await source.close();
+        try {
+          const result = await transferRoomToMloQueue({
+            roomName,
+            userIdentity: userIdent,
+          });
 
-      //   const response = JSON.stringify({ message: 'SYSTEM_INTRO_DONE' });
-      //   await ctx.room.localParticipant?.publishData(new TextEncoder().encode(response), { topic: 'lk-chat', reliable: true });
-      //   await ctx.room.localParticipant?.sendChatMessage(response);
+          console.log(`[agent]: ✅ MLO Transfer bridge established:`, {
+            participantId: result.sipParticipantId,
+            identity: result.participantIdentity,
+            callId: result.sipCallId
+          });
 
-      //   console.log(`[agent]: ✅ [STEP 4] Intro fully played. Waiting for channel selection.`);
-      //   return;
-      // }
+          // 4. Notify frontend of success
+          const successMsg = JSON.stringify({
+            message: 'SYSTEM_TRANSFER_STARTED',
+            sipParticipantId: result.sipParticipantId,
+            participantIdentity: result.participantIdentity,
+          });
+          await ctx.room.localParticipant?.publishData(
+            new TextEncoder().encode(successMsg),
+            { topic: 'lk-chat', reliable: true }
+          );
+
+          // 5. Instruct agent to silence and transition to handoff mode
+          if ((session as any)._started) {
+            session.generateReply({
+              userInput: "A loan officer is now joining the room. Please introduce the user briefly and then STAY SILENT. Do not speak unless directly addressed. Example: 'Officer, I have a client on the line. I will stay on the line as a silent assistant.'"
+            });
+          }
+        } catch (err: unknown) {
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          console.error(`[agent]: ❌ MLO Transfer failed:`, errorMessage);
+
+          // 5. Verbal fallback
+          if ((session as any)._started) {
+            session.generateReply({
+              userInput: "Tell the user: I'm unable to reach a loan officer right now. Would you like to schedule a callback instead? — Say only this, nothing else."
+            });
+          }
+
+          // 6. Notify frontend of failure
+          const failMsg = JSON.stringify({
+            message: 'SYSTEM_TRANSFER_FAILED',
+            reason: errorMessage.includes('SIP_ERROR_') 
+              ? `SIP Error: ${errorMessage.split('SIP_ERROR_')[1]}`
+              : "Unable to reach a loan officer right now."
+          });
+          await ctx.room.localParticipant?.publishData(
+            new TextEncoder().encode(failMsg),
+            { topic: 'lk-chat', reliable: true }
+          );
+        }
+        return;
+      }
+      // ────────────────────────────────────────────────────────────────────────
 
       if (messageText.startsWith('SYSTEM_CHANNEL_START')) {
         const targetMode = messageText.split(':')[1] || 'video';

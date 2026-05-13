@@ -20,46 +20,46 @@
 
 ---
 
-## Task 1: Environment & Transfer Module (Backend Foundation)
+## Task 1: Environment & Transfer Module (Backend Foundation) ✅ DONE
 
-- [ ] Add SIP env vars to `backend/.env`:
+- [x] Add SIP env vars to `backend/.env`:
   - `SIP_TRUNK_SID=ST_BG93CdR9QrVm`
   - `SIP_CALL_TO=livekit-mlo-queue`
   - `SIP_FROM_NUMBER=+12017404497`
   - `SIP_PARTICIPANT_NAME=MLO Queue`
   - `SIP_WAIT_UNTIL_ANSWERED=true`
   - `SIP_RINGING_TIMEOUT_SECONDS=45`
-- [ ] Create `backend/src/transfer.ts` — ESM version of the transfer function from handoff doc
-- [ ] Convert CommonJS (`require`) to ESM (`import`) to match `"type": "module"` in backend
-- [ ] Import `SipClient` from `livekit-server-sdk` (already installed)
-- [ ] Export `transferRoomToMloQueue({ roomName, userIdentity })` function
-- [ ] Add error handling: `TwirpError` catch with SIP status code extraction
-- [ ] Validate all 6 SIP env vars on module load (fail-fast)
+- [x] Create `backend/src/transfer.ts` — ESM version of the transfer function from handoff doc
+- [x] Convert CommonJS (`require`) to ESM (`import`) to match `"type": "module"` in backend
+- [x] Import `SipClient` from `livekit-server-sdk` (already installed)
+- [x] Export `transferRoomToMloQueue({ roomName, userIdentity })` function
+- [x] Add error handling: `TwirpError` catch with SIP status code extraction
+- [x] Validate all 6 SIP env vars on module load (fail-fast)
 
 ---
 
-## Task 2: Agent System Message Handler (Backend Trigger)
+## Task 2: Agent System Message Handler (Backend Trigger) ✅ DONE
 
-- [ ] Add `SYSTEM_TRANSFER_MLO` handler in `agent.ts` → `handleSystemMessages()`
-- [ ] On trigger: import and call `transferRoomToMloQueue()` with current `roomName`
-- [ ] Extract user identity from room participants (filter out agent/keyframe)
-- [ ] Before transfer: AILANA says "Connecting you to a licensed loan officer now. Please hold."
-- [ ] On success: send `SYSTEM_TRANSFER_STARTED` data message back to frontend
-- [ ] On failure: AILANA says "I'm unable to reach an officer right now. Let me schedule a callback."
-- [ ] On failure: send `SYSTEM_TRANSFER_FAILED` data message to frontend with reason
-- [ ] Do NOT disconnect the AI agent from the room — keep it as fallback until MLO answers
+- [x] Add `SYSTEM_TRANSFER_MLO` handler in `agent.ts` → `handleSystemMessages()`
+- [x] On trigger: import and call `transferRoomToMloQueue()` with current `roomName`
+- [x] Extract user identity from room participants (filter out agent/keyframe)
+- [x] Before transfer: AILANA says "Connecting you to a licensed loan officer now. Please hold."
+- [x] On success: send `SYSTEM_TRANSFER_STARTED` data message back to frontend
+- [x] On failure: AILANA says "I'm unable to reach an officer right now. Let me schedule a callback."
+- [x] On failure: send `SYSTEM_TRANSFER_FAILED` data message to frontend with reason
+- [x] Do NOT disconnect the AI agent from the room — keep it as fallback until MLO answers
 
 ---
 
-## Task 3: Frontend — Enable Loan Officer Channel (UI Trigger)
+## Task 3: Frontend — Enable Loan Officer Channel (UI Trigger) ✅ DONE
 
-- [ ] Remove `disabled: true` from the Loan Officer mode button in `floating-cta.tsx` mode switcher
-- [ ] Remove "Coming Soon" tooltip logic for loan officer button
-- [ ] On click: send `SYSTEM_TRANSFER_MLO` data message via `room.localParticipant.publishData()`
-- [ ] Show transfer-in-progress UI state (ringing animation, "Connecting to Loan Officer...")
-- [ ] Listen for `SYSTEM_TRANSFER_STARTED` → update UI to "Loan Officer Connected"
-- [ ] Listen for `SYSTEM_TRANSFER_FAILED` → show fallback options (NeetoCal scheduling, retry)
-- [ ] Disable repeated clicks during transfer (debounce/lock)
+- [x] Remove `disabled: true` from the Loan Officer mode button in `floating-cta.tsx` mode switcher
+- [x] Remove "Coming Soon" tooltip logic for loan officer button
+- [x] On click: send `SYSTEM_TRANSFER_MLO` data message via `room.localParticipant.publishData()`
+- [x] Show transfer-in-progress UI state (ringing animation, "Connecting to Loan Officer...")
+- [x] Listen for `SYSTEM_TRANSFER_STARTED` → update UI to "Loan Officer Connected"
+- [x] Listen for `SYSTEM_TRANSFER_FAILED` → show fallback options (NeetoCal scheduling, retry)
+- [x] Disable repeated clicks during transfer (debounce/lock)
 
 ---
 
@@ -76,25 +76,25 @@
 
 ---
 
-## Task 5: Agent Verbal Handoff (Conversational Bridge)
+## Task 5: Agent Verbal Handoff (Conversational Bridge) ✅ DONE
 
-- [ ] Update AILANA system prompt: remove "these features are currently turned off" for transfers
-- [ ] Add transfer instruction: when user requests transfer → trigger `SYSTEM_TRANSFER_MLO`
-- [ ] AILANA pre-transfer script: "I'm connecting you to a licensed mortgage loan officer in your area."
-- [ ] AILANA hold script (while ringing): "Please hold for just a moment."
-- [ ] AILANA introduction to MLO: "I have [user name] on the line regarding [topic summary]."
-- [ ] AILANA post-handoff: go silent unless directly addressed
-- [ ] If MLO doesn't answer within timeout (45s): AILANA offers NeetoCal fallback
+- [x] Update AILANA system prompt: remove "these features are currently turned off" for transfers
+- [x] Add transfer instruction: when user requests transfer → trigger `SYSTEM_TRANSFER_MLO`
+- [x] AILANA pre-transfer script: "I'm connecting you to a licensed mortgage loan officer in your area."
+- [x] AILANA hold script (while ringing): "Please hold for just a moment."
+- [x] AILANA introduction to MLO: "I have [user name] on the line regarding [topic summary]."
+- [x] AILANA post-handoff: go silent unless directly addressed
+- [x] If MLO doesn't answer within timeout (45s): AILANA offers NeetoCal fallback
 
 ---
 
-## Task 6: Fallback & Error Handling
+## Task 6: Fallback & Error Handling ✅ DONE
 
-- [ ] Ring group scenario — SIP ringing timeout (45s, no answer): offer fallback options
-- [ ] Call queue scenario — client-side max wait (3 min, queue answered but no MLO yet): offer fallback options
-- [ ] SIP trunk error (network/auth): log error, show "Unable to connect" with retry button
-- [ ] FSPBX down: detect via SIP status codes (503/480), offer SMS callback option
-- [ ] Offer 3 fallback paths on any failure or timeout:
+- [x] Ring group scenario — SIP ringing timeout (45s, no answer): offer fallback options
+- [x] Call queue scenario — client-side max wait (3 min, queue answered but no MLO yet): offer fallback options
+- [x] SIP trunk error (network/auth): log error, show "Unable to connect" with retry button
+- [x] FSPBX down: detect via SIP status codes (503/480), offer SMS callback option
+- [x] Offer 3 fallback paths on any failure or timeout:
   - Option A: Retry transfer
   - Option B: Schedule via NeetoCal
   - Option C: Return to AILANA
