@@ -370,6 +370,7 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
           await session.start({
             agent: vadAgent,
             room: ctx.room,
+            record: true,
           });
           (session as any)._started = true;
           console.log(`[agent]: 🟢 Realtime Agent session.start() completed. Mode ${targetMode} is ready.`);
@@ -389,7 +390,7 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
         console.log(`[agent]: 💬 Generating reply for: "${messageText}"`);
         if (!(session as any)._started) {
           console.warn(`[agent]: ⚠️ Attempted to generate reply but session not started. Starting now...`);
-          await session.start({ agent: vadAgent, room: ctx.room });
+          await session.start({ agent: vadAgent, room: ctx.room, record: true });
           (session as any)._started = true;
         }
 
