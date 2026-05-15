@@ -48,10 +48,24 @@ process.on('uncaughtException', (err) => {
 
 export default {
   async entry(ctx: JobContext) {
+    // Helper to send logs to the frontend browser console
+    const remoteLog = async (msg: string, isError = false) => {
+      try {
+        const payload = JSON.stringify({ message: `SYSTEM_REMOTE_LOG:${isError ? '❌' : 'ℹ️'} ${msg}` });
+        await ctx.room.localParticipant?.publishData(
+          new TextEncoder().encode(payload),
+          { topic: 'lk-chat', reliable: true }
+        );
+      } catch (e) {}
+    };
+
     console.log(`[agent]: Receiving job for room: ${ctx.room.name}`);
+    await remoteLog(`Receiving job for room: ${ctx.room.name}`);
 
     if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_openai_api_key_here') {
-      console.error('[agent]: ❌ CRITICAL: OPENAI_API_KEY is missing in backend/.env');
+      const err = 'OPENAI_API_KEY is missing in backend/.env';
+      console.error(`[agent]: ❌ CRITICAL: ${err}`);
+      await remoteLog(`CRITICAL: ${err}`, true);
       return;
     }
 
@@ -366,11 +380,15 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
         }
 
         try {
-          console.log(`[agent]: 🚀 [STEP 6] Attempting to start AgentSession with record=true for room: ${ctx.room.name}`);
+          const startMsg = `Attempting to start AgentSession with record=true for room: ${ctx.room.name}`;
+          console.log(`[agent]: 🚀 [STEP 6] ${startMsg}`);
+          await remoteLog(`🚀 [STEP 6] ${startMsg}`);
           
           // Verify environment in the worker context
           const hasKeys = !!process.env.LIVEKIT_API_KEY && !!process.env.LIVEKIT_API_SECRET;
-          console.log(`[agent]: [DEBUG] Env Check - Keys: ${hasKeys}, URL: ${process.env.LIVEKIT_URL}`);
+          const envMsg = `Env Check - Keys: ${hasKeys}, URL: ${process.env.LIVEKIT_URL}`;
+          console.log(`[agent]: [DEBUG] ${envMsg}`);
+          await remoteLog(`[DEBUG] ${envMsg}`);
 
           await session.start({
             agent: vadAgent,
@@ -379,16 +397,21 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
           });
           
           (session as any)._started = true;
-          console.log(`[agent]: 🟢 [SUCCESS] AgentSession.start() completed. Recording/Insights should be active.`);
+          const successMsg = `AgentSession.start() completed. Recording/Insights should be active.`;
+          console.log(`[agent]: 🟢 [SUCCESS] ${successMsg}`);
+          await remoteLog(`🟢 [SUCCESS] ${successMsg}`);
 
           // Proactively initiate conversation so the user isn't met with silence
           session.generateReply({
             userInput: "Greet the user naturally in English. Keep it to 1 sentence and mention you are ready to assist with their mortgage questions. Then wait for the user's reply."
           });
         } catch (err: any) {
-          console.error(`[agent]: ❌ [ERROR] Failed to start AgentSession:`, err);
+          const errMsg = `Failed to start AgentSession: ${err?.message || String(err)}`;
+          console.error(`[agent]: ❌ [ERROR] ${errMsg}`);
+          await remoteLog(`[ERROR] ${errMsg}`, true);
           if (err?.message?.includes('permission')) {
             console.error('[agent]: 🔑 Insight failure likely due to missing Recording permissions.');
+            await remoteLog('🔑 Insight failure likely due to missing Recording permissions.', true);
           }
         }
         return;

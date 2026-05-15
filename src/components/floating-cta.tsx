@@ -242,6 +242,26 @@ function TransferManager({
   return null;
 }
 
+function RemoteLogger() {
+  const room = useRoomContext();
+  useEffect(() => {
+    if (!room || room.state !== 'connected') return;
+    const handleData = (payload: Uint8Array) => {
+      try {
+        const text = new TextDecoder().decode(payload);
+        const parsed = JSON.parse(text);
+        if (parsed.message?.startsWith('SYSTEM_REMOTE_LOG:')) {
+          const logMsg = parsed.message.replace('SYSTEM_REMOTE_LOG:', '');
+          console.log(`[RemoteAgent] ${logMsg}`);
+        }
+      } catch (e) {}
+    };
+    room.on(RoomEvent.DataReceived, handleData);
+    return () => { room.off(RoomEvent.DataReceived, handleData); };
+  }, [room, room.state]);
+  return null;
+}
+
 function TransferOverlay({ state, waitSeconds, error, onRetry, onSchedule }: { 
   state: 'idle' | 'ringing' | 'connected' | 'failed' | 'waiting_queue', 
   waitSeconds: number,
@@ -1845,6 +1865,7 @@ export default function FloatingCTA() {
                               setTransferError={setTransferError}
                               setTransferWaitSeconds={setTransferWaitSeconds}
                             />
+                            <RemoteLogger />
 
                             <TransferOverlay 
                               state={transferState} 
