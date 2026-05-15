@@ -366,21 +366,30 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
         }
 
         try {
-          console.log(`[agent]: [STEP 6] Calling session.start()...`);
+          console.log(`[agent]: 🚀 [STEP 6] Attempting to start AgentSession with record=true for room: ${ctx.room.name}`);
+          
+          // Verify environment in the worker context
+          const hasKeys = !!process.env.LIVEKIT_API_KEY && !!process.env.LIVEKIT_API_SECRET;
+          console.log(`[agent]: [DEBUG] Env Check - Keys: ${hasKeys}, URL: ${process.env.LIVEKIT_URL}`);
+
           await session.start({
             agent: vadAgent,
             room: ctx.room,
             record: true,
           });
+          
           (session as any)._started = true;
-          console.log(`[agent]: 🟢 Realtime Agent session.start() completed. Mode ${targetMode} is ready.`);
+          console.log(`[agent]: 🟢 [SUCCESS] AgentSession.start() completed. Recording/Insights should be active.`);
 
           // Proactively initiate conversation so the user isn't met with silence
           session.generateReply({
             userInput: "Greet the user naturally in English. Keep it to 1 sentence and mention you are ready to assist with their mortgage questions. Then wait for the user's reply."
           });
-        } catch (err) {
-          console.error(`[agent]: ❌ Failed to start session:`, err);
+        } catch (err: any) {
+          console.error(`[agent]: ❌ [ERROR] Failed to start AgentSession:`, err);
+          if (err?.message?.includes('permission')) {
+            console.error('[agent]: 🔑 Insight failure likely due to missing Recording permissions.');
+          }
         }
         return;
       }
