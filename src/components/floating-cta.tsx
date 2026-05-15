@@ -1577,7 +1577,7 @@ export default function FloatingCTA() {
                           { m: 'video' as PendingMode, icon: <Video className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />, label: 'Video' },
                           { m: 'voice' as PendingMode, icon: <Phone className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />, label: 'Voice' },
                           { m: 'avatar-chat' as PendingMode, icon: <MessageCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />, label: 'Chat' },
-                          { m: 'loan-officer' as PendingMode, icon: <Headset className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />, label: <><span className="hidden lg:inline">Loan Officer</span><span className="lg:hidden">Officer</span></>, disabled: false },
+                          { m: 'loan-officer' as PendingMode, icon: <Headset className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />, label: <><span className="hidden lg:inline">Loan Officer</span><span className="lg:hidden">Officer</span></>, disabled: true },
                         ]).map(({ m, icon, label, disabled }) => (
                           <div key={m} className="relative flex items-center">
                             <button
