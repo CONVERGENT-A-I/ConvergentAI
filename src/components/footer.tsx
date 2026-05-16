@@ -9,7 +9,7 @@ export default function Footer() {
         <div className="w-full h-px bg-white/15 mb-12" />
 
         {/* Footer content: big brand mark + balanced columns across breakpoints */}
-        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-y-10 gap-x-6 md:gap-x-8 md:gap-y-12 xl:gap-x-10 xl:gap-y-10 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-y-10 gap-x-6 md:gap-x-8 md:gap-y-12 xl:gap-x-10 xl:gap-y-10 items-start">
           {/* Brand (logo only) */}
           <div className="flex flex-col items-center md:col-span-3 xl:col-span-1 md:max-w-3xl md:mx-auto xl:max-w-none xl:mx-0 text-center xl:text-left xl:items-start gap-5 md:gap-6">
             {/* Logo — primary element */}
@@ -104,6 +104,23 @@ export default function Footer() {
             >
               Data Processing Agreement
             </Link>
+          </div>
+
+          {/* Resources */}
+          <div className="flex flex-col items-center md:items-center xl:items-start text-center xl:text-left gap-3">
+            <span className="text-zinc-500 text-sm font-bold uppercase tracking-[0.2em] mb-1">
+              Resources
+            </span>
+            <a
+              href="/the-phygital-imperative.docx"
+              download
+              className="text-zinc-300 text-sm md:text-base font-medium hover:text-brand-green transition-colors inline-flex items-center gap-1.5"
+            >
+              The Phygital Imperative
+              <svg className="w-3.5 h-3.5 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V3" />
+              </svg>
+            </a>
           </div>
 
           {/* Right: Copyright */}

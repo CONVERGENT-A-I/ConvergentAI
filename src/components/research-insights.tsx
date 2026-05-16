@@ -1,7 +1,7 @@
-﻿"use client";
+"use client";
 
 import { motion, Variants } from "framer-motion";
-import { TrendingDown, Clock, Zap, PhoneOff, Layers, Trophy, Cpu, TrendingUp } from "lucide-react";
+import { TrendingDown, Clock, Zap, PhoneOff, Layers, Trophy, Cpu, TrendingUp, FileDown } from "lucide-react";
 
 export default function ResearchInsights() {
   const insights = [
@@ -126,6 +126,42 @@ export default function ResearchInsights() {
             Our AI assistant guides Applicants through complex next steps and instantly routes hot opportunities to your MLOs and branches. 
             By ensuring your institution is always the first to respond, we secure Applicant loyalty and keep mortgage production inside your institution.
           </p>
+        </motion.div>
+
+        {/* Whitepaper Download Card */}
+        <motion.div
+          variants={itemVariants}
+          className="relative mt-16 p-8 md:p-10 rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.04] to-white/[0.01] backdrop-blur-sm overflow-hidden group hover:border-brand-green/30 transition-colors duration-500"
+        >
+          {/* Decorative glow */}
+          <div className="absolute -top-20 -right-20 w-60 h-60 bg-brand-green/10 rounded-full blur-[100px] opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+
+          <div className="relative flex flex-col md:flex-row items-start md:items-center gap-6 md:gap-10">
+            {/* Icon */}
+            <div className="flex-shrink-0 w-14 h-14 rounded-xl bg-brand-green/10 border border-brand-green/20 flex items-center justify-center group-hover:bg-brand-green/20 group-hover:border-brand-green/40 transition-all duration-500">
+              <FileDown className="w-7 h-7 text-brand-green" />
+            </div>
+
+            {/* Text */}
+            <div className="flex-1 space-y-2">
+              <h3 className="text-white text-xl md:text-2xl font-black tracking-tight">
+                The Phygital Imperative
+              </h3>
+              <p className="text-zinc-400 text-sm md:text-base font-medium leading-relaxed max-w-2xl">
+                Download our whitepaper on bridging digital and physical touchpoints to eliminate mortgage drop-off and build lasting Applicant relationships.
+              </p>
+            </div>
+
+            {/* Download Button */}
+            <a
+              href="/the-phygital-imperative.docx"
+              download
+              className="flex-shrink-0 inline-flex items-center gap-2.5 bg-brand-green text-black px-7 py-3.5 rounded-full text-sm font-black uppercase tracking-widest hover:shadow-[0_0_30px_rgba(0,255,153,0.5)] hover:scale-105 active:scale-95 transition-all duration-300"
+            >
+              <FileDown className="w-4 h-4" />
+              Download
+            </a>
+          </div>
         </motion.div>
       </motion.div>
     </section>
