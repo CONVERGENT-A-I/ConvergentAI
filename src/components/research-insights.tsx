@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { motion, Variants } from "framer-motion";
 import { TrendingDown, Clock, Zap, PhoneOff, Layers, Trophy, Cpu, TrendingUp, FileDown } from "lucide-react";
+import WhitepaperGateModal from "./whitepaper-gate-modal";
 
 export default function ResearchInsights() {
+  const [isGateOpen, setIsGateOpen] = useState(false);
   const insights = [
     {
       label: "90% Drop-off Rate",
@@ -153,17 +156,19 @@ export default function ResearchInsights() {
             </div>
 
             {/* Download Button */}
-            <a
-              href="/the-phygital-imperative.docx"
-              download
-              className="flex-shrink-0 inline-flex items-center gap-2.5 bg-brand-green text-black px-7 py-3.5 rounded-full text-sm font-black uppercase tracking-widest hover:shadow-[0_0_30px_rgba(0,255,153,0.5)] hover:scale-105 active:scale-95 transition-all duration-300"
+            <button
+              onClick={() => setIsGateOpen(true)}
+              className="flex-shrink-0 inline-flex items-center gap-2.5 bg-brand-green text-black px-7 py-3.5 rounded-full text-sm font-black uppercase tracking-widest hover:shadow-[0_0_30px_rgba(0,255,153,0.5)] hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer"
             >
               <FileDown className="w-4 h-4" />
               Download
-            </a>
+            </button>
           </div>
         </motion.div>
       </motion.div>
+
+      {/* Lead Capture Gate Modal */}
+      <WhitepaperGateModal isOpen={isGateOpen} onClose={() => setIsGateOpen(false)} />
     </section>
   );
 }
