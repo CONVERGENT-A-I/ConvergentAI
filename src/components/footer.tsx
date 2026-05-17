@@ -10,7 +10,7 @@ export default function Footer() {
         <div className="w-full h-px bg-white/15 mb-12" />
 
         {/* Footer content: big brand mark + balanced columns across breakpoints */}
-        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-y-10 gap-x-6 md:gap-x-8 md:gap-y-12 xl:gap-x-10 xl:gap-y-10 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-y-10 gap-x-6 md:gap-x-8 md:gap-y-12 xl:gap-x-10 xl:gap-y-10 items-start">
           {/* Brand (logo only) */}
           <div className="flex flex-col items-center md:col-span-3 xl:col-span-1 md:max-w-3xl md:mx-auto xl:max-w-none xl:mx-0 text-center xl:text-left xl:items-start gap-5 md:gap-6">
             {/* Logo — primary element */}
@@ -82,7 +82,7 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* Trust & Legal */}
+          {/* Trust, Legal & Resources */}
           <div className="flex flex-col items-center md:items-center xl:items-start text-center xl:text-left gap-3">
             <span className="text-zinc-500 text-sm font-bold uppercase tracking-[0.2em] mb-1">
               Trust
@@ -105,11 +105,8 @@ export default function Footer() {
             >
               Data Processing Agreement
             </Link>
-          </div>
 
-          {/* Resources */}
-          <div className="flex flex-col items-center md:items-center xl:items-start text-center xl:text-left gap-3">
-            <span className="text-zinc-500 text-sm font-bold uppercase tracking-[0.2em] mb-1">
+            <span className="text-zinc-500 text-sm font-bold uppercase tracking-[0.2em] mt-4 mb-1">
               Resources
             </span>
             <FooterWhitepaperLink />

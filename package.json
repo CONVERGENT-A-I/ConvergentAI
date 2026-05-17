@@ -15,6 +15,7 @@
     "@livekit/components-styles": "^1.2.0",
     "@prisma/client": "^6.19.3",
     "framer-motion": "^12.38.0",
+    "googleapis": "^171.4.0",
     "livekit-client": "^2.18.1",
     "livekit-server-sdk": "^2.15.1",
     "lucide-react": "^1.7.0",

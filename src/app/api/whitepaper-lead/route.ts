@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { promises as fs } from "fs";
-import path from "path";
+import { google } from "googleapis";
+// import { promises as fs } from "fs";
+// import path from "path";
 
 interface WhitepaperLead {
   name: string;
@@ -11,20 +12,20 @@ interface WhitepaperLead {
   submittedAt: string;
 }
 
-const LEADS_FILE = path.join(process.cwd(), "whitepaper-leads.json");
+// const LEADS_FILE = path.join(process.cwd(), "whitepaper-leads.json");
 
-async function readLeads(): Promise<WhitepaperLead[]> {
-  try {
-    const data = await fs.readFile(LEADS_FILE, "utf-8");
-    return JSON.parse(data);
-  } catch {
-    return [];
-  }
-}
+// async function readLeads(): Promise<WhitepaperLead[]> {
+//   try {
+//     const data = await fs.readFile(LEADS_FILE, "utf-8");
+//     return JSON.parse(data);
+//   } catch {
+//     return [];
+//   }
+// }
 
-async function writeLeads(leads: WhitepaperLead[]): Promise<void> {
-  await fs.writeFile(LEADS_FILE, JSON.stringify(leads, null, 2), "utf-8");
-}
+// async function writeLeads(leads: WhitepaperLead[]): Promise<void> {
+//   await fs.writeFile(LEADS_FILE, JSON.stringify(leads, null, 2), "utf-8");
+// }
 
 export async function POST(req: NextRequest) {
   try {
@@ -57,12 +58,51 @@ export async function POST(req: NextRequest) {
       submittedAt: new Date().toISOString(),
     };
 
-    // Append to leads file
-    const leads = await readLeads();
-    leads.push(lead);
-    await writeLeads(leads);
+    // --- GOOGLE SHEETS INTEGRATION ---
+    const GOOGLE_CLIENT_EMAIL = process.env.GOOGLE_CLIENT_EMAIL;
+    // Replace literal '\n' characters with actual newlines for the private key
+    const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+    const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID;
 
-    console.log(`[Whitepaper Lead] ${lead.name} — ${lead.organization} (${lead.email})`);
+    if (!GOOGLE_CLIENT_EMAIL || !GOOGLE_PRIVATE_KEY || !GOOGLE_SHEET_ID) {
+      console.error("[Whitepaper API] Missing Google Sheets environment variables.");
+      return NextResponse.json(
+        { error: "Google Sheets integration is not configured." },
+        { status: 500 }
+      );
+    }
+
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: GOOGLE_CLIENT_EMAIL,
+        private_key: GOOGLE_PRIVATE_KEY,
+      },
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+
+    const sheets = google.sheets({ version: "v4", auth });
+
+    // Append to Sheet (Assumes a sheet named "Sheet1" exists)
+    // Structure: [Timestamp, Name, Title, Organization, Email, Phone]
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: GOOGLE_SHEET_ID,
+      range: "Sheet1!A1:F1",
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [
+          [
+            lead.submittedAt,
+            lead.name,
+            lead.title,
+            lead.organization,
+            lead.email,
+            lead.phone,
+          ],
+        ],
+      },
+    });
+
+    console.log(`[Whitepaper Lead] ${lead.name} saved to Google Sheets.`);
 
     return NextResponse.json({ success: true });
   } catch (error) {
