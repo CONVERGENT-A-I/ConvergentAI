@@ -4,7 +4,6 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import * as openai from '@livekit/agents-plugin-openai';
 import * as silero from '@livekit/agents-plugin-silero';
-import { transferRoomToMloQueue } from './transfer.js';
 
 dotenv.config();
 
@@ -48,24 +47,10 @@ process.on('uncaughtException', (err) => {
 
 export default {
   async entry(ctx: JobContext) {
-    // Helper to send logs to the frontend browser console
-    const remoteLog = async (msg: string, isError = false) => {
-      try {
-        const payload = JSON.stringify({ message: `SYSTEM_REMOTE_LOG:${isError ? '❌' : 'ℹ️'} ${msg}` });
-        await ctx.room.localParticipant?.publishData(
-          new TextEncoder().encode(payload),
-          { topic: 'lk-chat', reliable: true }
-        );
-      } catch (e) {}
-    };
-
     console.log(`[agent]: Receiving job for room: ${ctx.room.name}`);
-    await remoteLog(`Receiving job for room: ${ctx.room.name}`);
 
     if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_openai_api_key_here') {
-      const err = 'OPENAI_API_KEY is missing in backend/.env';
-      console.error(`[agent]: ❌ CRITICAL: ${err}`);
-      await remoteLog(`CRITICAL: ${err}`, true);
+      console.error('[agent]: ❌ CRITICAL: OPENAI_API_KEY is missing in backend/.env');
       return;
     }
 
@@ -101,9 +86,8 @@ PERSONALITY:
 - Sounds like a real human advisor, not a bot
 
 COMMUNICATION:
-- If the user requests to speak with a loan officer or be transferred, respond: "Let me connect you to a licensed loan officer now. Please hold for just a moment."
-- Do not attempt to simulate routing — the system will handle the actual transfer.
-- If the transfer fails, tell the user: "I'm unable to reach an officer right now. Would you like to schedule a callback instead?"
+- If the user requests to speak with a loan officer, be transferred, or receive an SMS/Text, smoothly reply: "Yes, we connect you to loan officers in your geographic location and can send SMS updates, but as a demo product, these features are currently turned off."
+- Do not attempt to simulate routing or actually transfer the call.
 - Never tell users to click UI elements.
 
 GUIDELINE AUTHORITY:
@@ -114,15 +98,8 @@ Do not invent specific numbers. If you reference a threshold, only cite it if yo
 MORTGAGE BEHAVIOR:
 - Never assume eligibility. Never say "approved" or "denied".
 - Use: "likely eligible", "potentially eligible", "unlikely", or "needs review".
-- If unsure: "This would need to be confirmed with official guidelines or underwriting review."
+- If unsure of specifics: "This would need to be confirmed with official guidelines or underwriting review."
 - If scenario is complex: say it likely needs AUS review.
-
-TRANSFER & HANDOFF (LOAN OFFICER):
-- If the user asks for a human, a loan officer, or a transfer, say: "I'm connecting you to a licensed mortgage loan officer in your area who can help you with those specifics. Please hold for just a moment."
-- While the connection is ringing, you can briefly say: "One moment while I route your call."
-- Once an officer joins, you should say: "Hello, I have a client on the line interested in [mention topic]. I'll stay on the line if you need anything."
-- After the handoff, STAY SILENT. Do not interrupt the officer. Only speak if the user or officer addresses you directly.
-- If the transfer fails: "I'm unable to reach an officer right now. Would you like to schedule a callback instead?"
 
 RESPONSE STYLE — STRICT:
 - Answer the question directly in 1-2 sentences.
@@ -191,6 +168,7 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
 
     // When true, the agent responds via text-only chat (no voice/audio output)
     let voiceMuted = false;
+    let isHibernating = false;
 
     // Conversation history for text-only mode (so context is preserved)
     const chatHistory: Array<{ role: string; content: string }> = [
@@ -258,6 +236,63 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
     };
 
     const handleSystemMessages = async (messageText: string, participantIdentity: string | undefined) => {
+      if (isHibernating && messageText !== 'SYSTEM_RESUME_AGENT') {
+        console.log(`[agent]: 🛌 Ignoring message while hibernating: ${messageText}`);
+        return;
+      }
+
+      if (messageText === 'SYSTEM_TRANSFER_MLO') {
+        isHibernating = true;
+        console.log(`[agent]: 🛌 Agent hibernating. Initiating SIP transfer...`);
+        
+        // Unsubscribe from remote audio so VAD stops hearing the user
+        for (const p of ctx.room.remoteParticipants.values()) {
+          for (const pub of p.trackPublications.values()) {
+            if (pub.subscribed) {
+               pub.setSubscribed(false);
+            }
+          }
+        }
+
+        // Trigger SIP Transfer
+        try {
+          console.log(`[agent]: ⏳ Importing sipTransfer utility...`);
+          const { transferRoomToMloQueue } = await import('./utils/sipTransfer.js');
+          console.log(`[agent]: ⏳ Calling transferRoomToMloQueue...`);
+          transferRoomToMloQueue({ 
+            roomName: ctx.room.name || '',
+            ...(participantIdentity ? { userIdentity: participantIdentity } : {})
+          }).then((res) => {
+             console.log(`[agent]: 📞 SIP Transfer initiated successfully:`, res);
+          }).catch((err) => {
+             console.error(`[agent]: ❌ SIP Transfer failed in background:`, err);
+          });
+        } catch (err) {
+          console.error(`[agent]: ❌ SIP Transfer import/setup failed:`, err);
+        }
+        return;
+      }
+
+      if (messageText === 'SYSTEM_RESUME_AGENT') {
+        isHibernating = false;
+        console.log(`[agent]: ☀️ Agent waking up from hibernation.`);
+        
+        // Resubscribe to remote audio
+        for (const p of ctx.room.remoteParticipants.values()) {
+          for (const pub of p.trackPublications.values()) {
+            if (!pub.subscribed) {
+               pub.setSubscribed(true);
+            }
+          }
+        }
+        
+        // Let the user know Ailana is back
+        session.generateReply({
+          userInput: "Say something brief indicating you are back and ready to help."
+        });
+        return;
+      }
+
       // Handle avatar voice toggle from the UI
       if (messageText === 'SYSTEM_VOICE_MUTED') {
         voiceMuted = true;
@@ -270,92 +305,37 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
         return;
       }
 
-      // ── MLO Transfer handler ──────────────────────────────────────────────
-      if (messageText === 'SYSTEM_TRANSFER_MLO') {
-        console.log(`[agent]: 📞 MLO Transfer requested by ${participantIdentity ?? 'unknown'}`);
+      // if (messageText === 'SYSTEM_INTRO_TRIGGER') {
+      //   console.log(`[agent]: 💬 [STEP 1] Received Intro Trigger. Playing cached TTS...`);
 
-        // 1. Verbal announcement before dialling
-        if ((session as any)._started) {
-          session.generateReply({
-            userInput: "The system is now initiating a transfer to a human loan officer. Please announce this to the user warmly. Say: 'I'm connecting you to a licensed mortgage loan officer in your area. Please hold for just a moment.' — Then stop speaking."
-          });
-          // Brief pause so the TTS starts before the SIP call fires
-          await new Promise(r => setTimeout(r, 3500));
-        }
+      //   const source = new AudioSource(introSampleRate, introNumChannels);
+      //   const track = LocalAudioTrack.createAudioTrack('intro-audio', source);
 
-        // 2. Find the human participant identity (filter out agent + keyframe)
-        const participants = Array.from(ctx.room.remoteParticipants.values());
-        const humanParticipant = participants.find(p =>
-          p.identity !== 'agent' &&
-          !p.identity.startsWith('agent-') &&
-          !p.identity.startsWith('keyframe-') &&
-          !p.identity.startsWith('mlo-queue-') &&
-          !p.identity.startsWith('mlo-link-')
-        );
-        const userIdent = humanParticipant?.identity ?? participantIdentity ?? 'unknown';
+      //   const pub = await ctx.room.localParticipant?.publishTrack(track, {
+      //     source: TrackSource.SOURCE_MICROPHONE
+      //   } as any);
 
-        // 3. Initiate SIP transfer
-        const roomName = ctx.room.name;
-        if (!roomName) {
-          console.error('[agent]: ❌ Cannot transfer — room name is undefined');
-          return;
-        }
+      //   console.log(`[agent]: 💬 [STEP 2] Streaming pre-cached intro audio...`);
+      //   if (cachedIntroFrames) {
+      //     for (const frame of cachedIntroFrames) {
+      //       await source.captureFrame(frame);
+      //     }
+      //   }
 
-        try {
-          const result = await transferRoomToMloQueue({
-            roomName,
-            userIdentity: userIdent,
-          });
+      //   console.log(`[agent]: 💬 [STEP 3] Intro audio streaming complete. Waiting for playout...`);
+      //   await source.waitForPlayout();
+      //   if (pub?.sid) {
+      //     await ctx.room.localParticipant?.unpublishTrack(pub.sid);
+      //   }
+      //   await source.close();
 
-          console.log(`[agent]: ✅ MLO Transfer bridge established:`, {
-            participantId: result.sipParticipantId,
-            identity: result.participantIdentity,
-            callId: result.sipCallId
-          });
+      //   const response = JSON.stringify({ message: 'SYSTEM_INTRO_DONE' });
+      //   await ctx.room.localParticipant?.publishData(new TextEncoder().encode(response), { topic: 'lk-chat', reliable: true });
+      //   await ctx.room.localParticipant?.sendChatMessage(response);
 
-          // 4. Notify frontend of success
-          const successMsg = JSON.stringify({
-            message: 'SYSTEM_TRANSFER_STARTED',
-            sipParticipantId: result.sipParticipantId,
-            participantIdentity: result.participantIdentity,
-          });
-          await ctx.room.localParticipant?.publishData(
-            new TextEncoder().encode(successMsg),
-            { topic: 'lk-chat', reliable: true }
-          );
-
-          // 5. Instruct agent to silence and transition to handoff mode
-          if ((session as any)._started) {
-            session.generateReply({
-              userInput: "A loan officer is now joining the room. Please introduce the user briefly and then STAY SILENT. Do not speak unless directly addressed. Example: 'Officer, I have a client on the line. I will stay on the line as a silent assistant.'"
-            });
-          }
-        } catch (err: unknown) {
-          const errorMessage = err instanceof Error ? err.message : String(err);
-          console.error(`[agent]: ❌ MLO Transfer failed:`, errorMessage);
-
-          // 5. Verbal fallback
-          if ((session as any)._started) {
-            session.generateReply({
-              userInput: "Tell the user: I'm unable to reach a loan officer right now. Would you like to schedule a callback instead? — Say only this, nothing else."
-            });
-          }
-
-          // 6. Notify frontend of failure
-          const failMsg = JSON.stringify({
-            message: 'SYSTEM_TRANSFER_FAILED',
-            reason: errorMessage.includes('SIP_ERROR_') 
-              ? `SIP Error: ${errorMessage.split('SIP_ERROR_')[1]}`
-              : "Unable to reach a loan officer right now."
-          });
-          await ctx.room.localParticipant?.publishData(
-            new TextEncoder().encode(failMsg),
-            { topic: 'lk-chat', reliable: true }
-          );
-        }
-        return;
-      }
-      // ────────────────────────────────────────────────────────────────────────
+      //   console.log(`[agent]: ✅ [STEP 4] Intro fully played. Waiting for channel selection.`);
+      //   return;
+      // }
 
       if (messageText.startsWith('SYSTEM_CHANNEL_START')) {
         const targetMode = messageText.split(':')[1] || 'video';
@@ -380,39 +360,20 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
         }
 
         try {
-          const startMsg = `Attempting to start AgentSession with record=true for room: ${ctx.room.name}`;
-          console.log(`[agent]: 🚀 [STEP 6] ${startMsg}`);
-          await remoteLog(`🚀 [STEP 6] ${startMsg}`);
-          
-          // Verify environment in the worker context
-          const hasKeys = !!process.env.LIVEKIT_API_KEY && !!process.env.LIVEKIT_API_SECRET;
-          const envMsg = `Env Check - Keys: ${hasKeys}, URL: ${process.env.LIVEKIT_URL}`;
-          console.log(`[agent]: [DEBUG] ${envMsg}`);
-          await remoteLog(`[DEBUG] ${envMsg}`);
-
+          console.log(`[agent]: [STEP 6] Calling session.start()...`);
           await session.start({
             agent: vadAgent,
             room: ctx.room,
-            record: true,
           });
-          
           (session as any)._started = true;
-          const successMsg = `AgentSession.start() completed. Recording/Insights should be active.`;
-          console.log(`[agent]: 🟢 [SUCCESS] ${successMsg}`);
-          await remoteLog(`🟢 [SUCCESS] ${successMsg}`);
+          console.log(`[agent]: 🟢 Realtime Agent session.start() completed. Mode ${targetMode} is ready.`);
 
           // Proactively initiate conversation so the user isn't met with silence
           session.generateReply({
             userInput: "Greet the user naturally in English. Keep it to 1 sentence and mention you are ready to assist with their mortgage questions. Then wait for the user's reply."
           });
-        } catch (err: any) {
-          const errMsg = `Failed to start AgentSession: ${err?.message || String(err)}`;
-          console.error(`[agent]: ❌ [ERROR] ${errMsg}`);
-          await remoteLog(`[ERROR] ${errMsg}`, true);
-          if (err?.message?.includes('permission')) {
-            console.error('[agent]: 🔑 Insight failure likely due to missing Recording permissions.');
-            await remoteLog('🔑 Insight failure likely due to missing Recording permissions.', true);
-          }
+        } catch (err) {
+          console.error(`[agent]: ❌ Failed to start session:`, err);
         }
         return;
       }
@@ -422,7 +383,7 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
         console.log(`[agent]: 💬 Generating reply for: "${messageText}"`);
         if (!(session as any)._started) {
           console.warn(`[agent]: ⚠️ Attempted to generate reply but session not started. Starting now...`);
-          await session.start({ agent: vadAgent, room: ctx.room, record: true });
+          await session.start({ agent: vadAgent, room: ctx.room });
           (session as any)._started = true;
         }
 

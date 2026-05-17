@@ -33,7 +33,7 @@ if (typeof window !== 'undefined') {
   };
 }
 
-type FlowPhase = 'idle' | 'connecting' | 'intro' | 'live' | 'error';
+type FlowPhase = 'idle' | 'connecting' | 'intro' | 'live' | 'error' | 'closing-mlo';
 type PendingMode = 'intro-avatar' | 'video' | 'voice' | 'avatar-chat' | 'loan-officer';
 
 function AgentReadinessCheck({ onAgentReady }: { onAgentReady: (r: boolean) => void }) {
@@ -85,7 +85,7 @@ function MediaGuard({ mode }: { mode: string }) {
 
 function ActivityTracker() {
   const room = useRoomContext();
-  
+
   useEffect(() => {
     if (!room) return;
     const handleActiveSpeakers = (speakers: any[]) => {
@@ -99,7 +99,7 @@ function ActivityTracker() {
       room.off(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakers);
     };
   }, [room]);
-  
+
   return null;
 }
 
@@ -112,19 +112,33 @@ function ChannelStartTrigger({ isLivePhase, mode, isAnnouncementComplete }: { is
 
   useEffect(() => {
     if (isLivePhase && isAnnouncementComplete && room.state === 'connected' && agentReady && lastTriggeredMode.current !== mode) {
+      const prevMode = lastTriggeredMode.current;
       const trySend = async (retries = 3) => {
         try {
           lastTriggeredMode.current = mode;
-          console.log(`[ui]: 🚀 Channel starting (${mode}). Sending SYSTEM_CHANNEL_START...`);
           const encoder = new TextEncoder();
-          const payload = encoder.encode(JSON.stringify({ message: `SYSTEM_CHANNEL_START:${mode}` }));
-          await room.localParticipant.publishData(payload, { topic: "lk-chat", reliable: true });
+
+          if (prevMode === 'loan-officer' && mode !== 'loan-officer') {
+            console.log(`[ui]: ☀️ Waking up agent...`);
+            const resumePayload = encoder.encode(JSON.stringify({ message: `SYSTEM_RESUME_AGENT` }));
+            await room.localParticipant.publishData(resumePayload, { topic: "lk-chat", reliable: true });
+          }
+
+          if (mode === 'loan-officer') {
+            console.log(`[ui]: 📞 Transferring to MLO...`);
+            const transferPayload = encoder.encode(JSON.stringify({ message: `SYSTEM_TRANSFER_MLO` }));
+            await room.localParticipant.publishData(transferPayload, { topic: "lk-chat", reliable: true });
+          } else {
+            console.log(`[ui]: 🚀 Channel starting (${mode}). Sending SYSTEM_CHANNEL_START...`);
+            const startPayload = encoder.encode(JSON.stringify({ message: `SYSTEM_CHANNEL_START:${mode}` }));
+            await room.localParticipant.publishData(startPayload, { topic: "lk-chat", reliable: true });
+          }
         } catch (err) {
           console.warn(`[ui]: Failed to send start trigger (retries left: ${retries}):`, err);
           if (retries > 0) {
             setTimeout(() => trySend(retries - 1), 500);
           } else {
-            lastTriggeredMode.current = null; // reset so next mode change can try again
+            lastTriggeredMode.current = prevMode; // reset so next mode change can try again
           }
         }
       };
@@ -137,227 +151,6 @@ function ChannelStartTrigger({ isLivePhase, mode, isAnnouncementComplete }: { is
   }, [isLivePhase, mode, send, room.state, agentReady, isAnnouncementComplete]);
 
   return null;
-}
-
-function TransferManager({ 
-  pendingMode, 
-  transferState, 
-  setTransferState, 
-  setTransferError,
-  setTransferWaitSeconds
-}: {
-  pendingMode: string;
-  transferState: string;
-  setTransferState: (s: any) => void;
-  setTransferError: (e: any) => void;
-  setTransferWaitSeconds: (s: any) => void;
-}) {
-  const room = useRoomContext();
-  const lastTriggeredMode = useRef<string | null>(null);
-
-  // Trigger transfer when pendingMode becomes 'loan-officer'
-  useEffect(() => {
-    if (pendingMode === 'loan-officer' && room.state === 'connected' && lastTriggeredMode.current !== 'loan-officer') {
-      const doTransfer = async () => {
-        lastTriggeredMode.current = 'loan-officer';
-        setTransferState('ringing');
-        setTransferError(null);
-        setTransferWaitSeconds(0);
-
-        try {
-          console.log('[ui]: 📞 Initiating SIP Transfer signal...');
-          const encoder = new TextEncoder();
-          const payload = encoder.encode(JSON.stringify({ message: 'SYSTEM_TRANSFER_MLO' }));
-          await room.localParticipant.publishData(payload, { topic: 'lk-chat', reliable: true });
-        } catch (err) {
-          console.error('[ui]: Failed to send transfer signal:', err);
-          setTransferState('failed');
-          setTransferError('Signal failed to send');
-        }
-      };
-      doTransfer();
-    }
-
-    if (pendingMode !== 'loan-officer') {
-      lastTriggeredMode.current = null;
-    }
-  }, [pendingMode, room.state]);
-
-  // Listen for transfer events from backend
-  useEffect(() => {
-    if (!room || room.state !== 'connected') return;
-
-    const handleData = (payload: Uint8Array) => {
-      try {
-        const text = new TextDecoder().decode(payload);
-        const parsed = JSON.parse(text);
-        
-        if (parsed.message === 'SYSTEM_TRANSFER_STARTED') {
-          console.log('[ui]: ✅ Transfer started (SIP participant joined)');
-          setTransferState('connected');
-        } else if (parsed.message === 'SYSTEM_TRANSFER_FAILED') {
-          console.error('[ui]: ❌ Transfer failed:', parsed.reason);
-          setTransferState('failed');
-          setTransferError(parsed.reason || 'Connection failed');
-        }
-      } catch (e) { }
-    };
-
-    room.on(RoomEvent.DataReceived, handleData);
-    return () => { room.off(RoomEvent.DataReceived, handleData); };
-  }, [room, room.state]);
-
-  // Track SIP Participant joining/leaving
-  useEffect(() => {
-    if (!room || room.state !== 'connected') return;
-
-    const onParticipantConnected = (p: any) => {
-      if (p.identity.startsWith('mlo-queue-') || p.identity.startsWith('mlo-link-')) {
-        console.log('[ui]: 👤 MLO SIP participant joined:', p.identity);
-        setTransferState('connected');
-      }
-    };
-
-    const onParticipantDisconnected = (p: any) => {
-      if (p.identity.startsWith('mlo-queue-') || p.identity.startsWith('mlo-link-')) {
-        console.log('[ui]: 👤 MLO SIP participant left:', p.identity);
-        if (transferState === 'connected') {
-          setTransferState('failed');
-          setTransferError('The officer has disconnected.');
-        } else {
-          setTransferState('idle');
-        }
-      }
-    };
-
-    room.on(RoomEvent.ParticipantConnected, onParticipantConnected);
-    room.on(RoomEvent.ParticipantDisconnected, onParticipantDisconnected);
-    
-    return () => {
-      room.off(RoomEvent.ParticipantConnected, onParticipantConnected);
-      room.off(RoomEvent.ParticipantDisconnected, onParticipantDisconnected);
-    };
-  }, [room, room.state, transferState]);
-
-  return null;
-}
-
-function RemoteLogger() {
-  const room = useRoomContext();
-  useEffect(() => {
-    if (!room || room.state !== 'connected') return;
-    const handleData = (payload: Uint8Array) => {
-      try {
-        const text = new TextDecoder().decode(payload);
-        const parsed = JSON.parse(text);
-        if (parsed.message?.startsWith('SYSTEM_REMOTE_LOG:')) {
-          const logMsg = parsed.message.replace('SYSTEM_REMOTE_LOG:', '');
-          console.log(`[RemoteAgent] ${logMsg}`);
-        }
-      } catch (e) {}
-    };
-    room.on(RoomEvent.DataReceived, handleData);
-    return () => { room.off(RoomEvent.DataReceived, handleData); };
-  }, [room, room.state]);
-  return null;
-}
-
-function TransferOverlay({ state, waitSeconds, error, onRetry, onSchedule }: { 
-  state: 'idle' | 'ringing' | 'connected' | 'failed' | 'waiting_queue', 
-  waitSeconds: number,
-  error?: string | null,
-  onRetry: () => void,
-  onSchedule: () => void
-}) {
-  if (state === 'idle') return null;
-
-  const formatWait = (s: number) => {
-    const mm = Math.floor(s / 60);
-    const ss = s % 60;
-    return `${mm}:${ss.toString().padStart(2, '0')}`;
-  };
-
-  return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="absolute inset-0 z-[150] bg-[#050505]/95 backdrop-blur-xl flex items-center justify-center p-6 rounded-3xl"
-    >
-      <div className="max-w-sm w-full flex flex-col items-center text-center gap-8">
-        {/* Status Icon */}
-        <div className="relative">
-          {state === 'ringing' || state === 'waiting_queue' ? (
-            <div className="relative h-24 w-24 flex items-center justify-center">
-               <motion.div 
-                  className="absolute inset-0 rounded-full border-2 border-[#00b4d8]/30"
-                  animate={{ scale: [1, 1.5], opacity: [0.5, 0] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-               />
-               <div className="relative z-10 h-16 w-16 rounded-full bg-[#00b4d8] flex items-center justify-center shadow-[0_0_30px_rgba(0,180,216,0.5)]">
-                  <Headset className="h-8 w-8 text-white animate-bounce" />
-               </div>
-            </div>
-          ) : state === 'connected' ? (
-            <div className="h-20 w-20 rounded-full bg-emerald-500 flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.5)]">
-               <Check className="h-10 w-10 text-white" />
-            </div>
-          ) : (
-            <div className="h-20 w-20 rounded-full bg-red-500 flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.5)]">
-               <ShieldAlert className="h-10 w-10 text-white" />
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-3">
-          <h3 className="text-2xl font-bold text-white tracking-tight">
-            {state === 'ringing' ? 'Connecting to Officer...' : 
-             state === 'waiting_queue' ? 'Waiting in Queue...' :
-             state === 'connected' ? 'Officer Connected' :
-             'Connection Failed'}
-          </h3>
-          <p className="text-gray-400 text-sm leading-relaxed">
-            {state === 'ringing' || state === 'waiting_queue' ? 'Your call is being routed to the next available licensed mortgage officer. Please stay on the line.' :
-             state === 'connected' ? 'A licensed officer has joined the session. You can speak now.' :
-             error || 'We were unable to reach an officer at this time. Our queues might be full.'}
-          </p>
-        </div>
-
-        {(state === 'ringing' || state === 'waiting_queue') && (
-          <div className="flex flex-col items-center gap-2">
-            <span className="text-[#00b4d8] text-3xl font-mono font-bold tracking-widest">{formatWait(waitSeconds)}</span>
-            <span className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Hold Time</span>
-          </div>
-        )}
-
-        {state === 'failed' && (
-          <div className="flex flex-col w-full gap-3">
-            <button 
-              onClick={onRetry}
-              className="w-full py-4 rounded-2xl bg-white text-black font-bold hover:bg-[#00b4d8] hover:text-white transition-all shadow-xl cursor-pointer"
-            >
-              Try Again
-            </button>
-            <button 
-              onClick={onSchedule}
-              className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-bold hover:bg-white/10 transition-all cursor-pointer"
-            >
-              Schedule Callback
-            </button>
-          </div>
-        )}
-
-        {state === 'connected' && (
-          <button 
-            onClick={onRetry} // Acts as "Back to AI" in this context or just dismisses
-            className="mt-4 px-6 py-2 rounded-full border border-white/10 text-gray-400 hover:text-white transition-colors cursor-pointer"
-          >
-            Return to Ailana
-          </button>
-        )}
-      </div>
-    </motion.div>
-  );
 }
 
 /** Custom control bar for the Google Meet-style live UI */
@@ -854,8 +647,8 @@ function InRoomChatPanel({ isActive }: { isActive?: boolean }) {
           <button
             onClick={toggleAvatarVoice}
             className={`group relative flex items-center gap-3 px-4 py-2 rounded-xl transition-all duration-500 cursor-pointer border overflow-hidden ${avatarVoiceEnabled
-                ? 'bg-[#00b4d8]/10 border-[#00b4d8]/40 shadow-[0_0_25px_rgba(0,180,216,0.2)]'
-                : 'bg-white/[0.03] border-white/10 opacity-80 hover:opacity-100 hover:border-white/20'
+              ? 'bg-[#00b4d8]/10 border-[#00b4d8]/40 shadow-[0_0_25px_rgba(0,180,216,0.2)]'
+              : 'bg-white/[0.03] border-white/10 opacity-80 hover:opacity-100 hover:border-white/20'
               }`}
           >
             {/* Animated subtle glow */}
@@ -990,9 +783,6 @@ export default function FloatingCTA() {
   const [inactivityCountdown, setInactivityCountdown] = useState(10);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showLoanOfficerComingSoon, setShowLoanOfficerComingSoon] = useState(false);
-  const [transferState, setTransferState] = useState<'idle' | 'ringing' | 'connected' | 'failed' | 'waiting_queue'>('idle');
-  const [transferError, setTransferError] = useState<string | null>(null);
-  const [transferWaitSeconds, setTransferWaitSeconds] = useState(0);
   const introVideoRef = useRef<HTMLVideoElement>(null);
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -1006,7 +796,22 @@ export default function FloatingCTA() {
   // Track current phase in a ref so async callbacks (fetchToken) always read the latest value
   const flowPhaseRef = useRef<FlowPhase>('idle');
 
-  const fetchToken = async (mode?: string, forceNewRoom?: boolean) => {
+  const [mloClosingCountdown, setMloClosingCountdown] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (mloClosingCountdown === null) return;
+    if (mloClosingCountdown <= 0) {
+      setIsOpen(false);
+      setMloClosingCountdown(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setMloClosingCountdown(mloClosingCountdown - 1);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [mloClosingCountdown]);
+
+  const fetchToken = async (mode?: PendingMode, forceNewRoom = false) => {
     // Prevent concurrent duplicate calls (e.g. compliance agree + mode button)
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
@@ -1101,14 +906,9 @@ export default function FloatingCTA() {
     }
   };
 
-  const handleAIAction = (mode: 'video' | 'voice' | 'avatar-chat') => {
+  const handleAIAction = (mode: PendingMode) => {
     setIsOpen(true);
     if (flowPhase === 'live' && pendingMode === mode) return;
-
-    // Reset transfer state if switching back to AI modes
-    if (transferState !== 'idle') {
-      setTransferState('idle');
-    }
 
     setPendingMode(mode);
     if (!hasAgreed) {
@@ -1123,15 +923,6 @@ export default function FloatingCTA() {
         return;
       }
       fetchToken(mode);
-    }
-  };
-
-  const handleTransfer = async () => {
-    if (!isLkConnected) {
-      // If not connected yet (e.g. from idle), we need to connect first
-      fetchToken('loan-officer');
-    } else {
-      setPendingMode('loan-officer');
     }
   };
 
@@ -1170,9 +961,6 @@ export default function FloatingCTA() {
     isFetchingRef.current = false;
     setIsSubmitting(false);
     hasAnnouncedRef.current = false;
-    setTransferState('idle');
-    setTransferError(null);
-    setTransferWaitSeconds(0);
   };
 
   // Full restart: tear down the broken connection and establish a fresh one.
@@ -1377,7 +1165,16 @@ export default function FloatingCTA() {
   const confirmEndCall = () => {
     setShowEndCallConfirm(false);
     setShowInactivityPrompt(false);
-    setIsOpen(false);
+
+    if (pendingMode === 'loan-officer') {
+      setToken(null);
+      setLkUrl(null);
+      setIsLkConnected(false);
+      setFlowPhase('closing-mlo');
+      setMloClosingCountdown(10);
+    } else {
+      setIsOpen(false);
+    }
   };
 
   // Handle the 2-second blur transition once video is ready
@@ -1389,19 +1186,6 @@ export default function FloatingCTA() {
       return () => clearTimeout(timer);
     }
   }, [isVideoReady, flowPhase]);
-
-  // Transfer Wait Timer
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (transferState === 'ringing' || transferState === 'waiting_queue') {
-      interval = setInterval(() => {
-        setTransferWaitSeconds(prev => prev + 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [transferState]);
-
-  // Track SIP Participant joining/leaving - MOVED TO TransferManager
 
 
 
@@ -1607,17 +1391,13 @@ export default function FloatingCTA() {
                                   setTimeout(() => setShowLoanOfficerComingSoon(false), 2500);
                                   return;
                                 }
-                                if (m === 'loan-officer') {
-                                  handleTransfer();
-                                } else {
-                                  handleAIAction(m as 'video' | 'voice' | 'avatar-chat');
-                                }
+                                handleAIAction(m as 'video' | 'voice' | 'avatar-chat');
                               }}
                               className={`flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 rounded-full text-[9px] sm:text-xs md:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap ${disabled
                                 ? 'opacity-40 text-gray-400 hover:bg-white/5 cursor-not-allowed'
                                 : pendingMode === m
-                                ? 'bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-md'
-                                : 'text-gray-400 hover:bg-white/10 hover:text-white'
+                                  ? 'bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-md'
+                                  : 'text-gray-400 hover:bg-white/10 hover:text-white'
                                 }`}
                             >
                               {icon}
@@ -1858,29 +1638,6 @@ export default function FloatingCTA() {
                             <AgentReadinessCheck onAgentReady={setIsAgentReady} />
                             <MediaGuard mode={pendingMode} />
                             <ActivityTracker />
-                            <TransferManager 
-                              pendingMode={pendingMode}
-                              transferState={transferState}
-                              setTransferState={setTransferState}
-                              setTransferError={setTransferError}
-                              setTransferWaitSeconds={setTransferWaitSeconds}
-                            />
-                            <RemoteLogger />
-
-                            <TransferOverlay 
-                              state={transferState} 
-                              waitSeconds={transferWaitSeconds}
-                              error={transferError}
-                              onRetry={() => {
-                                setTransferState('idle');
-                                handleAIAction('video');
-                              }}
-                              onSchedule={() => {
-                                window.open('https://neeto.cal/ailana', '_blank');
-                                setTransferState('idle');
-                                handleAIAction('video');
-                              }}
-                            />
                             <ChannelStartTrigger
                               isLivePhase={flowPhase === 'live'}
                               mode={pendingMode}
@@ -1938,7 +1695,35 @@ export default function FloatingCTA() {
                                   )}
 
                                   <div className="absolute inset-0">
-                                    <VideoStage mode={pendingMode} keyframeMetadata={keyframeMetaData} hideControls />
+                                    {pendingMode === 'loan-officer' ? (
+                                      <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-gradient-to-br from-[#0B0F19] to-[#021A30]">
+                                        <div className="relative mb-8">
+                                          <div className="absolute inset-0 rounded-full border-2 border-[#00b4d8]/20 animate-[ping_3s_ease-in-out_infinite]" />
+                                          <div className="absolute inset-[-20px] rounded-full border border-[#00b4d8]/10 animate-[ping_4s_ease-in-out_infinite]" />
+                                          <div className="h-24 w-24 rounded-full border-2 border-[#00b4d8]/40 bg-black/50 flex items-center justify-center backdrop-blur-md shadow-[0_0_50px_rgba(0,180,216,0.2)]">
+                                            <Headset className="w-10 h-10 text-[#00b4d8] animate-pulse" />
+                                          </div>
+                                        </div>
+                                        <h3 className="text-xl font-bold text-white mb-2 tracking-tight">Loan Officer Queue</h3>
+                                        <p className="text-[#00b4d8]/70 text-sm max-w-xs text-center">
+                                          Please hold. We are connecting you to a licensed mortgage expert...
+                                        </p>
+
+                                        {/* Decorative equalizer for hold music */}
+                                        <div className="flex items-center justify-center gap-1.5 mt-8 opacity-70">
+                                          {[1, 2, 3, 4, 5].map((i) => (
+                                            <motion.div
+                                              key={`eq-${i}`}
+                                              className="w-1.5 bg-[#00b4d8] rounded-full"
+                                              animate={{ height: [10, 20 + Math.random() * 20, 10] }}
+                                              transition={{ duration: 1 + Math.random(), repeat: Infinity, ease: "easeInOut" }}
+                                            />
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <VideoStage mode={pendingMode} keyframeMetadata={keyframeMetaData} hideControls />
+                                    )}
                                   </div>
 
                                   {/* Real-time transcript subtitles */}
@@ -1992,6 +1777,24 @@ export default function FloatingCTA() {
                         >
                           <RefreshCw className="h-4 w-4" />
                           {isOffline ? 'Waiting for Internet...' : 'Start New Session'}
+                        </button>
+                      </motion.div>
+                    )}
+
+                    {flowPhase === 'closing-mlo' && (
+                      <motion.div key="closing-mlo-view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center text-center px-6">
+                        <div className="w-16 h-16 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center mb-6">
+                          <Check className="w-8 h-8 text-[#00b4d8]" />
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-2 tracking-tight">Call Ended</h3>
+                        <p className="text-gray-400 text-sm max-w-[280px] mb-8">
+                          Thank you for speaking with our Loan Officer. Your session will close in {mloClosingCountdown} seconds...
+                        </p>
+                        <button
+                          onClick={() => { setMloClosingCountdown(0); setIsOpen(false); }}
+                          className="flex items-center gap-2 bg-white text-black px-8 py-3 rounded-xl font-bold hover:bg-[#00b4d8] hover:text-white transition-all cursor-pointer"
+                        >
+                          Close Now
                         </button>
                       </motion.div>
                     )}
