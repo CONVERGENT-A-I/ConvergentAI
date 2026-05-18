@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { motion, Variants } from "framer-motion";
 import { CheckCircle2 } from "lucide-react";
@@ -98,8 +98,8 @@ export default function LiveAgentDashboard() {
               ))}
             </ul>
 
-            {/* CTA */}
-            <motion.div variants={itemVariants}>
+            {/* CTA — commented out temporarily */}
+            {/* <motion.div variants={itemVariants}>
               <a
                 href="https://my-solution-app.vercel.app/"
                 target="_blank"
@@ -109,7 +109,7 @@ export default function LiveAgentDashboard() {
                 View LiveAgent Dashboard
                 <div className="absolute inset-0 rounded-2xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
               </a>
-            </motion.div>
+            </motion.div> */}
           </div>
 
           {/* Right: Stacked Image Mockups */}
