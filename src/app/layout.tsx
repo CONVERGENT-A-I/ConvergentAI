@@ -1,6 +1,7 @@
-﻿import { Suspense } from "react";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import Footer from "@/components/footer";
 import FloatingCTA from "@/components/floating-cta";
@@ -33,7 +34,15 @@ export default function RootLayout({
       className={`${manrope.variable} h-full antialiased`}
       suppressHydrationWarning
     >
+      <head>
+        {/* Termly Cookie Consent */}
+        <Script
+          src="https://app.termly.io/resource-blocker/f99cb3c5-d5a4-4ed3-9c93-1ccc32223251?autoBlock=on"
+          strategy="afterInteractive"
+        />
+      </head>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
+
         <BackendConnectionTest />
         {children}
         <Suspense fallback={null}>

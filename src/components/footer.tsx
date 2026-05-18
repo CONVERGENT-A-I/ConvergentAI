@@ -100,6 +100,12 @@ export default function Footer() {
               Privacy Policy
             </Link>
             <Link
+              href="/termsandconditions"
+              className="text-zinc-300 text-sm md:text-base font-medium hover:text-brand-green transition-colors"
+            >
+              Terms & Conditions
+            </Link>
+            <Link
               href="/dpa"
               className="text-zinc-300 text-sm md:text-base font-medium hover:text-brand-green transition-colors"
             >
