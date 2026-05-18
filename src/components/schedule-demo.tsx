@@ -14,6 +14,22 @@ export default function ScheduleDemo() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const handleSubmit = () => {
+    // Build NeetoCal URL with pre-filled name & email params
+    const baseUrl = "https://convergentai.neetocal.com/meeting-with-david-patten";
+    const params = new URLSearchParams();
+    if (formData.fullName.trim())  params.set("name",  formData.fullName.trim());
+    if (formData.workEmail.trim()) params.set("email", formData.workEmail.trim());
+
+    const targetUrl = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
+
+    // Clear the form fields
+    setFormData({ fullName: "", workEmail: "", creditUnion: "" });
+
+    // Open NeetoCal in a new tab
+    window.open(targetUrl, "_blank", "noopener,noreferrer");
+  };
+
   const containerVariants: Variants = {
     hidden: { opacity: 0 },
     show: {
@@ -24,35 +40,34 @@ export default function ScheduleDemo() {
 
   const itemVariants: Variants = {
     hidden: { opacity: 0, y: 30 },
-    show: { 
-      opacity: 1, 
-      y: 0, 
-      transition: { duration: 0.8, ease: "easeOut" } 
+    show: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.8, ease: "easeOut" },
     },
   };
 
   return (
-    /* Outer section — distinct dark grey background */
     <section id="schedule-demo" className="bg-[#0A0A0A] py-24 md:py-32 px-8 md:px-12 lg:px-24 overflow-hidden">
-      <motion.div 
+      <motion.div
         className="max-w-[1400px] mx-auto w-full"
         variants={containerVariants}
         initial="hidden"
         whileInView="show"
         viewport={{ once: true, margin: "-50px" }}
       >
-        {/* Inner bordered container — the "card" with gradient border */}
-        <div className="relative rounded-[2.5rem] overflow-hidden p-px"
+        {/* Inner bordered container */}
+        <div
+          className="relative rounded-[2.5rem] overflow-hidden p-px"
           style={{
-            background: "linear-gradient(135deg, rgba(0,255,153,0.25) 0%, rgba(255,255,255,0.06) 40%, rgba(0,255,153,0.1) 100%)",
+            background:
+              "linear-gradient(135deg, rgba(0,255,153,0.25) 0%, rgba(255,255,255,0.06) 40%, rgba(0,255,153,0.1) 100%)",
           }}
         >
           {/* Inner background */}
           <div className="relative bg-[#0D0D0D] rounded-[2.5rem] px-10 md:px-16 lg:px-20 py-16 md:py-20 overflow-hidden">
-
-            {/* Subtle ambient glow top-left */}
+            {/* Ambient glows */}
             <div className="absolute -top-32 -left-32 w-96 h-96 bg-brand-green/5 rounded-full blur-3xl pointer-events-none" />
-            {/* Subtle ambient glow bottom-right */}
             <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-brand-green/5 rounded-full blur-3xl pointer-events-none" />
 
             <div className="relative grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24 items-center">
@@ -71,7 +86,7 @@ export default function ScheduleDemo() {
 
                 <motion.div variants={itemVariants} className="w-16 h-1 bg-brand-green rounded-full mb-8" />
 
-                <motion.p 
+                <motion.p
                   variants={itemVariants}
                   className="text-zinc-400 font-medium leading-relaxed mb-5"
                   style={{ fontSize: "clamp(0.95rem, 1.2vw, 1.2rem)" }}
@@ -79,7 +94,7 @@ export default function ScheduleDemo() {
                   Schedule your executive demo to see how AI intent-capture
                   turns visitors into funded loans.
                 </motion.p>
-                <motion.p 
+                <motion.p
                   variants={itemVariants}
                   className="text-zinc-500 font-medium leading-relaxed"
                   style={{ fontSize: "clamp(0.9rem, 1.1vw, 1.1rem)" }}
@@ -118,7 +133,7 @@ export default function ScheduleDemo() {
                   />
                 </div>
 
-                {/* Credit Union / CUSO Name */}
+                {/* Financial Institution Name */}
                 <div className="group">
                   <input
                     type="text"
@@ -132,15 +147,13 @@ export default function ScheduleDemo() {
                 </div>
 
                 {/* Submit Button */}
-                <a
-                  href="https://convergentai.neetocal.com/meeting-with-david-patten"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group relative mt-2 w-full bg-brand-green text-black px-6 py-4 rounded-2xl text-sm md:text-base font-black uppercase tracking-widest hover:shadow-[0_0_50px_rgba(0,255,153,0.5)] transition-all transform hover:-translate-y-1 active:scale-95 flex items-center justify-center"
+                <button
+                  onClick={handleSubmit}
+                  className="group relative mt-2 w-full bg-brand-green text-black px-6 py-4 rounded-2xl text-sm md:text-base font-black uppercase tracking-widest hover:shadow-[0_0_50px_rgba(0,255,153,0.5)] transition-all transform hover:-translate-y-1 active:scale-95 flex items-center justify-center cursor-pointer"
                 >
                   Schedule a Demo
                   <div className="absolute inset-0 rounded-2xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </a>
+                </button>
 
                 <p className="text-zinc-600 text-xs text-center mt-1">
                   No commitment required. Response within 24 hours.
@@ -150,7 +163,6 @@ export default function ScheduleDemo() {
             </div>
           </div>
         </div>
-
       </motion.div>
     </section>
   );
