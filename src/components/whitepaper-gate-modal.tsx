@@ -57,16 +57,6 @@ export default function WhitepaperGateModal({ isOpen, onClose }: WhitepaperGateM
       }
 
       setStatus("success");
-
-      // Trigger the download after a brief pause
-      setTimeout(() => {
-        const link = document.createElement("a");
-        link.href = "/the-phygital-imperative.docx";
-        link.download = "The Phygital Imperative.docx";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }, 800);
     } catch (err: any) {
       setStatus("error");
       setServerError(err.message || "Failed to submit. Please try again.");
@@ -157,19 +147,20 @@ export default function WhitepaperGateModal({ isOpen, onClose }: WhitepaperGateM
                   <div className="space-y-2">
                     <h4 className="text-xl font-black text-white tracking-tight">Thank You!</h4>
                     <p className="text-zinc-400 text-sm font-medium leading-relaxed max-w-xs">
-                      Your download should start automatically. If it doesn&apos;t,{" "}
-                      <a
-                        href="/the-phygital-imperative.docx"
-                        download="The Phygital Imperative.docx"
-                        className="text-brand-green hover:underline"
-                      >
-                        click here
-                      </a>.
+                      Click the button below to download your copy.
                     </p>
                   </div>
+                  <a
+                    href="/api/whitepaper-download"
+                    download="The Phygital Imperative.docx"
+                    className="mt-4 inline-flex items-center gap-2.5 bg-brand-green text-black px-6 py-3 rounded-full text-sm font-black uppercase tracking-widest hover:shadow-[0_0_30px_rgba(0,255,153,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
+                  >
+                    <FileDown className="w-4 h-4" />
+                    Download Now
+                  </a>
                   <button
                     onClick={handleClose}
-                    className="mt-4 px-6 py-2.5 rounded-full bg-white/5 border border-white/10 text-sm font-bold text-zinc-300 hover:bg-white/10 hover:text-white transition-all"
+                    className="mt-2 px-6 py-2.5 rounded-full bg-white/5 border border-white/10 text-sm font-bold text-zinc-300 hover:bg-white/10 hover:text-white transition-all"
                   >
                     Close
                   </button>
