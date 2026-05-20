@@ -6,7 +6,7 @@ import * as openai from '@livekit/agents-plugin-openai';
 import * as silero from '@livekit/agents-plugin-silero';
 
 dotenv.config();
-
+//dotenv.config({ path: path.resolve(__dirname, '../.env') });
 // Global safety net for the known OpenAI 'audio_end_ms' null-type bug
 process.on('uncaughtException', (err) => {
   if (err?.message?.includes('audio_end_ms') || (err as any)?.context?.error?.message?.includes('audio_end_ms')) {
