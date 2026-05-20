@@ -65,7 +65,7 @@ export default {
     // const introWarm = prewarmIntroAudio();
 
     const model = new openai.realtime.RealtimeModel({
-      model: "gpt-4o-mini-realtime-preview",
+      model: "gpt-realtime-mini",
       voice: "coral",
       modalities: ["audio", "text"],
       turnDetection: null,
