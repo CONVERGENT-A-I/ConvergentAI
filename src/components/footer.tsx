@@ -106,10 +106,12 @@ export default function Footer() {
               Terms & Conditions
             </Link>
             <Link
-              href="/dpa"
+              href="https://app.termly.io/dsar/1acd48eb-09ac-4991-bd12-43b98d86a2d7"
+              target="_blank"
+              rel="noreferrer"
               className="text-zinc-300 text-sm md:text-base font-medium hover:text-brand-green transition-colors"
             >
-              Data Processing Agreement
+              Data Subject Access Request (DSAR)
             </Link>
 
             <span className="text-zinc-500 text-sm font-bold uppercase tracking-[0.2em] mt-4 mb-1">
