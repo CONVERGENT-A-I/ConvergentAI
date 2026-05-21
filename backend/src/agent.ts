@@ -61,7 +61,7 @@ export default {
       prefixPaddingDuration: 200,
     });
 
-    // // Pre-warm intro audio in parallel with model setup (non-blocking)
+    // Pre-warm intro audio in parallel with model setup (non-blocking)
     // const introWarm = prewarmIntroAudio();
 
     const model = new openai.realtime.RealtimeModel({

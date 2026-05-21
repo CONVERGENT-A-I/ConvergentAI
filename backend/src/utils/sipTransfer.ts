@@ -35,6 +35,8 @@ export async function transferRoomToMloQueue({ roomName, userIdentity }: { roomN
   );
 
   try {
+    console.log(`[sipTransfer] Creating SIP participant for room: ${roomName}, userIdentity: ${userIdentity}`);
+    console.log(`[sipTransfer] SIP parameters: SIP_TRUNK_SID=${requiredEnv('SIP_TRUNK_SID')}, SIP_CALL_TO=${requiredEnv('SIP_CALL_TO')}`);
     const participant = await sipClient.createSipParticipant(
       requiredEnv('SIP_TRUNK_SID'),
       requiredEnv('SIP_CALL_TO'),
@@ -53,6 +55,8 @@ export async function transferRoomToMloQueue({ roomName, userIdentity }: { roomN
         },
       }
     );
+
+    console.log(`[sipTransfer] SIP participant created successfully. ID: ${participant.participantId}, Identity: ${participant.participantIdentity}, CallId: ${participant.sipCallId}`);
 
     return {
       success: true,

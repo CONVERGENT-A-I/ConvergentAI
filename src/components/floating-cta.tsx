@@ -125,9 +125,12 @@ function ChannelStartTrigger({ isLivePhase, mode, isAnnouncementComplete }: { is
           }
 
           if (mode === 'loan-officer') {
-            console.log(`[ui]: 📞 Transferring to MLO...`);
+            console.log(`[ui-loan-officer]: 📞 Transferring to MLO...`);
+            console.log(`[ui-loan-officer]: 📞 Room Name: ${room.name}`);
+            console.log(`[ui-loan-officer]: 📞 Local Participant Identity: ${room.localParticipant.identity}`);
             const transferPayload = encoder.encode(JSON.stringify({ message: `SYSTEM_TRANSFER_MLO` }));
             await room.localParticipant.publishData(transferPayload, { topic: "lk-chat", reliable: true });
+            console.log(`[ui-loan-officer]: 📞 Sent SYSTEM_TRANSFER_MLO message over DataChannel.`);
           } else {
             console.log(`[ui]: 🚀 Channel starting (${mode}). Sending SYSTEM_CHANNEL_START...`);
             const startPayload = encoder.encode(JSON.stringify({ message: `SYSTEM_CHANNEL_START:${mode}` }));
@@ -907,21 +910,30 @@ export default function FloatingCTA() {
   };
 
   const handleAIAction = (mode: PendingMode) => {
+    if (mode === 'loan-officer') {
+      console.log(`[ui-loan-officer]: 🔘 User clicked 'Loan Officer' button. Current mode: ${pendingMode}, flowPhase: ${flowPhase}`);
+    }
     setIsOpen(true);
-    if (flowPhase === 'live' && pendingMode === mode) return;
+    if (flowPhase === 'live' && pendingMode === mode) {
+      if (mode === 'loan-officer') console.log(`[ui-loan-officer]: ⚠️ Already in 'live' phase with 'loan-officer' mode. Ignoring click.`);
+      return;
+    }
 
     setPendingMode(mode);
     if (!hasAgreed) {
+      if (mode === 'loan-officer') console.log(`[ui-loan-officer]: 📝 User hasn't agreed to terms yet. Showing compliance gate.`);
       setFlowPhase('intro');
       setIsIntroComplete(true); // Skip intro video, show compliance directly
     } else {
       if (isLkConnected || flowPhase === 'intro' || flowPhase === 'live') {
+        if (mode === 'loan-officer') console.log(`[ui-loan-officer]: ✅ User agreed, already connected (or in intro/live). Transitioning to live mode.`);
         if (!keyframeMetaData && mode !== 'voice') {
           fetchToken(mode);
         }
         setFlowPhase('live');
         return;
       }
+      if (mode === 'loan-officer') console.log(`[ui-loan-officer]: 🔄 Not connected yet, fetching LiveKit token for mode...`);
       fetchToken(mode);
     }
   };
@@ -1381,7 +1393,7 @@ export default function FloatingCTA() {
                           { m: 'video' as PendingMode, icon: <Video className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />, label: 'Video' },
                           { m: 'voice' as PendingMode, icon: <Phone className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />, label: 'Voice' },
                           { m: 'avatar-chat' as PendingMode, icon: <MessageCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />, label: 'Chat' },
-                          { m: 'loan-officer' as PendingMode, icon: <Headset className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />, label: <><span className="hidden lg:inline">Loan Officer</span><span className="lg:hidden">Officer</span></>, disabled: true },
+                          { m: 'loan-officer' as PendingMode, icon: <Headset className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />, label: <><span className="hidden lg:inline">Loan Officer</span><span className="lg:hidden">Officer</span></>, disabled: false },
                         ]).map(({ m, icon, label, disabled }) => (
                           <div key={m} className="relative flex items-center">
                             <button
