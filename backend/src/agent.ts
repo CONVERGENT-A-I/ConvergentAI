@@ -3,19 +3,12 @@ import { RoomEvent, AudioSource, LocalAudioTrack, TrackSource } from '@livekit/r
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import * as openai from '@livekit/agents-plugin-openai';
+import * as google from '@livekit/agents-plugin-google';
 import * as silero from '@livekit/agents-plugin-silero';
 
 dotenv.config();
 //dotenv.config({ path: path.resolve(__dirname, '../.env') });
-// Global safety net for the known OpenAI 'audio_end_ms' null-type bug
-process.on('uncaughtException', (err) => {
-  if (err?.message?.includes('audio_end_ms') || (err as any)?.context?.error?.message?.includes('audio_end_ms')) {
-    console.warn('[agent]: 🛡️ Suppressed known OpenAI audio_end_ms crash.');
-    return;
-  }
-  console.error('[agent]: ❌ Uncaught Exception:', err);
-  process.exit(1);
-});
+
 
 // Removed globalSileroVad - VAD instances are stateful and must be per-session
 
@@ -49,8 +42,8 @@ export default {
   async entry(ctx: JobContext) {
     console.log(`[agent]: Receiving job for room: ${ctx.room.name}`);
 
-    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_openai_api_key_here') {
-      console.error('[agent]: ❌ CRITICAL: OPENAI_API_KEY is missing in backend/.env');
+    if (!process.env.GOOGLE_API_KEY || process.env.GOOGLE_API_KEY === 'your_google_api_key_here') {
+      console.error('[agent]: ❌ CRITICAL: GOOGLE_API_KEY is missing in backend/.env');
       return;
     }
 
@@ -63,13 +56,6 @@ export default {
 
     // Pre-warm intro audio in parallel with model setup (non-blocking)
     // const introWarm = prewarmIntroAudio();
-
-    const model = new openai.realtime.RealtimeModel({
-      model: "gpt-realtime-mini",
-      voice: "coral",
-      modalities: ["audio", "text"],
-      turnDetection: null,
-    });
 
     const baseInstructions = `
 You are Ailana AI, a friendly female financial advisor and mortgage assistant.
@@ -132,6 +118,13 @@ VOICE RULES — CRITICAL:
 Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, and precise.
 `;
 
+    const model = new google.beta.realtime.RealtimeModel({
+      model: "gemini-3.1-flash-live-preview",
+      voice: "Aoede",
+      temperature: 0.7,
+      instructions: interactiveInstructions,
+    });
+
     // Interactive "VAD" Agent 
     const vadAgent = new voice.Agent({
       instructions: interactiveInstructions,
@@ -145,6 +138,7 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
         interruption: {
           minDuration: 250,
         },
+        preemptiveGeneration: {},
       },
     });
 
@@ -155,7 +149,6 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
     });
 
     session.on(voice.AgentSessionEventTypes.Error, (err: any) => {
-      if (err?.message?.includes('audio_end_ms')) return;
       console.error('[agent-error]: Session error:', err);
     });
 
