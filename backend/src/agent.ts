@@ -168,44 +168,55 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
       { role: 'system', content: baseInstructions }
     ];
 
-    // Generate a text-only reply using the standard OpenAI Chat Completions API
+    // Generate a text-only reply using the Google Gemini Chat API
     const generateTextOnlyReply = async (userMessage: string) => {
       chatHistory.push({ role: 'user', content: userMessage });
       console.log(`[agent]: 📝 Text-only mode: generating reply for "${userMessage}"...`);
 
       try {
-        const apiKey = process.env.OPENAI_API_KEY;
+        const apiKey = process.env.GOOGLE_API_KEY;
         if (!apiKey) {
-          console.error('[agent]: ❌ No OPENAI_API_KEY for text-only reply');
+          console.error('[agent]: ❌ No GOOGLE_API_KEY for text-only reply');
           return;
         }
 
-        const res = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: chatHistory.slice(-20),
-            max_tokens: 200,
-            temperature: 0.7,
-          }),
-        });
+        // Build Gemini-format contents array from chat history
+        // Gemini requires alternating user/model roles — skip the system message (index 0)
+        const geminiContents = chatHistory.slice(1).slice(-20).map((msg) => ({
+          role: msg.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: msg.content }],
+        }));
+
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              system_instruction: {
+                parts: [{ text: baseInstructions }],
+              },
+              contents: geminiContents,
+              generationConfig: {
+                maxOutputTokens: 200,
+                temperature: 0.7,
+              },
+            }),
+          }
+        );
 
         if (!res.ok) {
           const errBody = await res.text().catch(() => '');
-          console.error(`[agent]: ❌ Text-only API error: ${res.status} — ${errBody}`);
+          console.error(`[agent]: ❌ Gemini text-only API error: ${res.status} — ${errBody}`);
           return;
         }
 
         const data = await res.json();
-        const reply = data.choices?.[0]?.message?.content?.trim();
+        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 
         if (reply) {
           chatHistory.push({ role: 'assistant', content: reply });
-          console.log(`[agent]: 💬 Text-only reply: "${reply}"`);
+          console.log(`[agent]: 💬 Gemini text-only reply: "${reply}"`);
 
           // Send via text stream on 'lk.chat' topic so the frontend useChat() hook picks it up
           try {
@@ -221,7 +232,7 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
             }
           }
         } else {
-          console.warn('[agent]: ⚠️ Text-only API returned empty reply');
+          console.warn('[agent]: ⚠️ Gemini text-only API returned empty reply');
         }
       } catch (err) {
         console.error('[agent]: ❌ Text-only reply failed:', err);
