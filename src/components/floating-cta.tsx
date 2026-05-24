@@ -187,20 +187,20 @@ function MloDetector({ onMloStatusChange }: { onMloStatusChange: (joined: boolea
 
 function LoanOfficerQueueUI() {
   return (
-    <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-gradient-to-br from-[#0B0F19] to-[#1a1105]">
+    <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-gradient-to-br from-[#0B0F19] to-[#01142e]">
       <div className="relative mb-8">
-        <div className="absolute inset-0 rounded-full border-2 border-amber-500/20 animate-[ping_3s_ease-in-out_infinite]" />
-        <div className="absolute inset-[-20px] rounded-full border border-amber-500/10 animate-[ping_4s_ease-in-out_infinite]" />
-        <div className="h-24 w-24 rounded-full border-2 border-amber-500/40 bg-black/60 flex items-center justify-center backdrop-blur-md shadow-[0_0_50px_rgba(245,158,11,0.2)]">
-          <Headset className="w-10 h-10 text-amber-500 animate-pulse" />
+        <div className="absolute inset-0 rounded-full border-2 border-[#00b4d8]/20 animate-[ping_3s_ease-in-out_infinite]" />
+        <div className="absolute inset-[-20px] rounded-full border border-[#00b4d8]/10 animate-[ping_4s_ease-in-out_infinite]" />
+        <div className="h-24 w-24 rounded-full border-2 border-[#00b4d8]/40 bg-black/60 flex items-center justify-center backdrop-blur-md shadow-[0_0_50px_rgba(0,180,216,0.2)]">
+          <Headset className="w-10 h-10 text-[#00b4d8] animate-pulse" />
         </div>
       </div>
       <h3 className="text-xl font-bold text-white mb-2 tracking-tight">
         Connecting to Loan Officer
       </h3>
       <div className="flex items-center gap-2 mb-8">
-        <Loader2 className="w-4 h-4 text-amber-500/70 animate-spin" />
-        <p className="text-amber-500/70 text-sm max-w-xs text-center font-medium">
+        <Loader2 className="w-4 h-4 text-[#00b4d8]/70 animate-spin" />
+        <p className="text-[#00b4d8]/70 text-sm max-w-xs text-center font-medium">
           You're in the queue...
         </p>
       </div>
@@ -210,7 +210,7 @@ function LoanOfficerQueueUI() {
         {[1, 2, 3, 4, 5].map((i) => (
           <motion.div
             key={`eq-${i}`}
-            className="w-1.5 bg-amber-500 rounded-full"
+            className="w-1.5 bg-[#00b4d8] rounded-full"
             animate={{
               height: [10, 20 + Math.random() * 25, 10],
             }}
@@ -223,7 +223,7 @@ function LoanOfficerQueueUI() {
         ))}
       </div>
       <div className="flex justify-center opacity-40">
-         <p className="text-[10px] text-amber-500 uppercase tracking-[0.3em] font-bold">Your call is important to us</p>
+         <p className="text-[10px] text-[#00b4d8] uppercase tracking-[0.3em] font-bold">Your call is important to us</p>
       </div>
     </div>
   );
@@ -241,32 +241,32 @@ function LoanOfficerLiveUI({ mloName, callSeconds }: { mloName: string | null, c
   const initials = displayName.substring(0, 2).toUpperCase();
 
   return (
-    <div className="absolute inset-0 z-40 flex flex-col items-center bg-gradient-to-br from-[#0B0F19] to-[#00331f]">
-      <div className="w-full bg-[#00FF99]/10 border-b border-[#00FF99]/20 py-2.5 px-4 flex items-center justify-center gap-2 backdrop-blur-sm">
-        <div className="w-2 h-2 rounded-full bg-[#00FF99] animate-pulse shadow-[0_0_8px_rgba(0,255,153,0.8)]" />
-        <span className="text-[#00FF99] text-[11px] font-bold uppercase tracking-[0.2em]">Live Call</span>
-        <span className="text-[#00FF99]/50 mx-2">•</span>
-        <span className="text-[#00FF99]/90 font-mono text-sm tracking-wide">{formatTime(callSeconds)}</span>
+    <div className="absolute inset-0 z-40 flex flex-col items-center bg-gradient-to-br from-[#0B0F19] to-[#01142e]">
+      <div className="w-full bg-[#00b4d8]/10 border-b border-[#00b4d8]/20 py-2.5 px-4 flex items-center justify-center gap-2 backdrop-blur-sm">
+        <div className="w-2 h-2 rounded-full bg-[#00b4d8] animate-pulse shadow-[0_0_8px_rgba(0,180,216,0.8)]" />
+        <span className="text-[#00b4d8] text-[11px] font-bold uppercase tracking-[0.2em]">Live Call</span>
+        <span className="text-[#00b4d8]/50 mx-2">•</span>
+        <span className="text-[#00b4d8]/90 font-mono text-sm tracking-wide">{formatTime(callSeconds)}</span>
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center w-full px-6 gap-10">
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             {/* Active rings */}
-            <div className="absolute inset-[-10px] rounded-full border border-[#00FF99]/30 animate-[ping_2s_ease-in-out_infinite]" />
-            <div className="absolute inset-[-20px] rounded-full border border-[#00FF99]/10 animate-[ping_3s_ease-in-out_infinite]" />
-            <div className="h-28 w-28 rounded-full bg-[#00FF99]/10 border-2 border-[#00FF99]/50 flex items-center justify-center shadow-[0_0_40px_rgba(0,255,153,0.25)] backdrop-blur-md">
-              <span className="text-3xl font-black text-[#00FF99] tracking-tighter">{initials}</span>
+            <div className="absolute inset-[-10px] rounded-full border border-[#00b4d8]/30 animate-[ping_2s_ease-in-out_infinite]" />
+            <div className="absolute inset-[-20px] rounded-full border border-[#00b4d8]/10 animate-[ping_3s_ease-in-out_infinite]" />
+            <div className="h-28 w-28 rounded-full bg-gradient-to-br from-[#00b4d8]/20 to-[#023e8a]/20 border-2 border-[#00b4d8]/50 flex items-center justify-center shadow-[0_0_40px_rgba(0,180,216,0.25)] backdrop-blur-md">
+              <span className="text-3xl font-black text-[#00b4d8] tracking-tighter">{initials}</span>
             </div>
             <div className="absolute bottom-0 right-0 w-7 h-7 bg-[#0B0F19] rounded-full flex items-center justify-center">
-              <div className="w-5 h-5 bg-[#00FF99] rounded-full flex items-center justify-center shadow-[0_0_10px_rgba(0,255,153,0.5)]">
+              <div className="w-5 h-5 bg-[#00b4d8] rounded-full flex items-center justify-center shadow-[0_0_10px_rgba(0,180,216,0.5)]">
                 <Phone className="w-3 h-3 text-[#0B0F19]" />
               </div>
             </div>
           </div>
           <div className="text-center">
             <h2 className="text-2xl font-bold text-white tracking-tight">{displayName}</h2>
-            <p className="text-[#00FF99]/80 text-sm font-medium mt-1">Licensed Mortgage Loan Officer</p>
+            <p className="text-[#00b4d8]/80 text-sm font-medium mt-1">Licensed Mortgage Loan Officer</p>
           </div>
         </div>
 
@@ -275,7 +275,7 @@ function LoanOfficerLiveUI({ mloName, callSeconds }: { mloName: string | null, c
           {[...Array(12)].map((_, i) => (
             <motion.div
               key={`live-eq-${i}`}
-              className="w-1.5 bg-[#00FF99] rounded-full"
+              className="w-1.5 bg-[#00b4d8] rounded-full"
               animate={{
                 height: [4, 15 + Math.random() * 30, 4],
               }}
@@ -2437,9 +2437,9 @@ export default function FloatingCTA() {
                           transition={{ type: "spring", damping: 15, stiffness: 200, delay: 0.1 }}
                           className="relative mb-6"
                         >
-                          <div className="absolute inset-0 rounded-full bg-[#00FF99] blur-xl opacity-30 animate-pulse" />
-                          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#00FF99] to-[#00cc7a] flex items-center justify-center shadow-lg border-4 border-[#0B0F19] relative z-10">
-                            <Check className="w-10 h-10 text-[#0B0F19] stroke-[3px]" />
+                          <div className="absolute inset-0 rounded-full bg-[#00b4d8] blur-xl opacity-30 animate-pulse" />
+                          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#00b4d8] to-[#023e8a] flex items-center justify-center shadow-lg border-4 border-[#0B0F19] relative z-10">
+                            <Check className="w-10 h-10 text-white stroke-[3px]" />
                           </div>
                         </motion.div>
                         
