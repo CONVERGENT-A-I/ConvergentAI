@@ -131,6 +131,15 @@ function MediaGuard({ mode }: { mode: string }) {
         console.log(
           "[MediaGuard] 🔇 Mic & camera OFF by default (waiting for user to enable)",
         );
+      } else if (mode === "loan-officer") {
+        // Loan officer mode: enable mic so user can talk to the SIP participant, disable camera
+        try {
+          await lp.setMicrophoneEnabled(true);
+        } catch (e) {}
+        try {
+          await lp.setCameraEnabled(false);
+        } catch (e) {}
+        console.log("[MediaGuard] 🎤 Mic ON, camera OFF (loan-officer SIP mode)");
       }
     };
 
@@ -1095,7 +1104,8 @@ export default function FloatingCTA() {
         participantIdentityRef.current = `guest_${Math.floor(Math.random() * 10000)}`;
       }
 
-      const response = await fetch("/api/get-token", {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+      const response = await fetch(`${backendUrl}/api/get-token`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1680,7 +1690,7 @@ export default function FloatingCTA() {
                           { m: 'video' as PendingMode, icon: <Video className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />, label: 'Video' },
                           { m: 'voice' as PendingMode, icon: <Phone className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />, label: 'Voice' },
                           { m: 'avatar-chat' as PendingMode, icon: <MessageCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />, label: 'Chat' },
-                          { m: 'loan-officer' as PendingMode, icon: <Headset className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />, label: <><span className="hidden lg:inline">Loan Officer</span><span className="lg:hidden">Officer</span></>, disabled: true },
+                          { m: 'loan-officer' as PendingMode, icon: <Headset className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />, label: <><span className="hidden lg:inline">Loan Officer</span><span className="lg:hidden">Officer</span></>, disabled: false },
                         ]).map(({ m, icon, label, disabled }) => (
                           <div key={m} className="relative flex items-center">
                             <button
@@ -2257,7 +2267,9 @@ export default function FloatingCTA() {
                                 </div>
                               </div>
 
-                              {!keyframeMetaData && <RoomAudioRenderer />}
+                              {/* Always render audio for loan-officer mode (SIP audio),
+                                  or when no Keyframe avatar is active (voice mode) */}
+                              {(pendingMode === "loan-officer" || !keyframeMetaData) && <RoomAudioRenderer />}
                             </LiveKitRoom>
                           </motion.div>
                         )}

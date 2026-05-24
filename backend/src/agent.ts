@@ -264,8 +264,7 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
           const { transferRoomToMloQueue } = await import('./utils/sipTransfer.js');
           console.log(`[agent]: ⏳ Calling transferRoomToMloQueue...`);
           transferRoomToMloQueue({ 
-            roomName: ctx.room.name || '',
-            ...(participantIdentity ? { userIdentity: participantIdentity } : {})
+            roomName: ctx.room.name || ''
           }).then((res) => {
              console.log(`[agent]: 📞 SIP Transfer initiated successfully:`, res);
           }).catch((err) => {
@@ -409,6 +408,12 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
 
     ctx.room.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
       console.log(`[agent-debug]: Subscribed to track from ${participant.identity}: ${pub.source} (${pub.kind})`);
+      // If the agent is hibernating (MLO transfer active), immediately unsubscribe
+      // from any newly joined participant's tracks so VAD doesn't hear the Loan Officer
+      if (isHibernating) {
+        console.log(`[agent]: 🛌 Hibernating — auto-unsubscribing from ${participant.identity}'s track`);
+        pub.setSubscribed(false);
+      }
     });
 
     ctx.room.on(RoomEvent.ParticipantConnected, (participant) => {

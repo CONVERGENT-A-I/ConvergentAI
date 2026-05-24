@@ -1,227 +1,196 @@
-# LiveKit Agent to SignalWire/FSPBX Transfer Handoff
+Please have the developers update the SignalWire Setup and FSPBX Setup sections of the documentation with these real-world architectural values:
+1. SignalWire Space Target Mapping
+Our SignalWire space uses a standard SIP Endpoint registration format, not an isolated SWML subdomain.
 
-This is the working SIP-only transfer path for sending an active LiveKit room to the FSPBX MLO queue.
+Incorrect Documentation Value: convergentai-livekit-mlo-queue.dapp.signalwire.com
+Correct Production Value: convergentai-33de6d391dc2.sip.signalwire.com
+2. Destination Extension Number
+The MLO Queue is mapped to extension 9400 on our PBX, not 2001.
+
+Incorrect Documentation Value: 2001
+Correct Production Value: 9400
+3. Connection Method
+SignalWire is configured to handle this leg via Passthrough (Block PSTN) to natively route SIP-to-SIP traffic. Developers do not need to maintain or execute a standalone .swml script block for this transfer path.
+
+:computer: Section 2: Updated Environment Configuration
+Developers should swap out the placeholder environment variables in the .env setup file for these verified variables:
+Code snippet
+
+
+
+LIVEKIT_URL=
+wss://your-project.livekit.cloud
+LIVEKIT_API_KEY=your-livekit-api-key
+LIVEKIT_API_SECRET=your-livekit-api-secret
+
+# The verified Trunk ID generated in your LiveKit dashboard
+SIP_TRUNK_SID=ST_JA7tUGjFUZ9K
+
+# The destination user extension on the targeted PBX
+SIP_CALL_TO=9400
+
+# The verified identity number registered on SignalWire
+SIP_FROM_NUMBER=+12017404497
+SIP_PARTICIPANT_NAME=MLO Queue
+SIP_WAIT_UNTIL_ANSWERED=true
+SIP_RINGING_TIMEOUT_SECONDS=45
+
+:rocket: Section 3: Clean Node.js Code Adjustments
+Have the developers replace the metadata headers block inside the transferRoomToMloQueue function to reflect the corrected target extension metadata.
+Here is the clean snippet for the sipClient.createSipParticipant options payload:
+JavaScript
+
+
+
+const participant = await sipClient.createSipParticipant(
+  requiredEnv('SIP_TRUNK_SID'),
+  requiredEnv('SIP_CALL_TO'), // Will cleanly evaluate to '9400'
+  roomName,
+  {
+    participantIdentity: `mlo-queue-${Date.now()}`,
+    participantName: process.env.SIP_PARTICIPANT_NAME || 'MLO Queue',
+    fromNumber: process.env.SIP_FROM_NUMBER || undefined,
+    playDialtone: true,
+    waitUntilAnswered: boolEnv('SIP_WAIT_UNTIL_ANSWERED', true),
+    ringingTimeout: numberEnv('SIP_RINGING_TIMEOUT_SECONDS', 45),
+    headers: {
+      'X-Transfer-Source': 'livekit-agent-transfer',
+      'X-Transfer-From': userIdentity || 'unknown',
+      'X-Queue-Extension': '9400', // Updated from 2001 to 9400
+    },
+  }
+);David  [2:46 AM]
+most of the entries are not not needed because we are not using swml or pstn. I will attempt to provide you with something cleaner.
+David  [2:59 AM]
+Here you go:LiveKit Transfer to Queue.txt 
+
+Here is the fully updated, clean production documentation and script. The caller identity number has been updated to **`+14238931776`** to match your active Chattanooga number on the [Purchased Phone Numbers](https://convergentai.signalwire.com/phone_numbers) dashboard.
+
+---
+
+# FS PBX & LiveKit SIP-to-SIP Transfer Handoff
+
+This document details the configuration for transferring an active LiveKit room call directly to the **FS PBX** MLO Sales Queue over a strict SIP-to-SIP path via SignalWire. This path bypasses the PSTN entirely.
+
+## 1. Network Topology
 
 ```text
 LiveKit Agent/Backend
--> LiveKit outbound SIP trunk
--> SignalWire SWML SIP Address
--> SignalWire SWML Script
--> FSPBX SIP URI
--> Ring Group / Queue 2001
+  └── LiveKit Outbound SIP Trunk
+       └── SignalWire Proxy (Passthrough Mode)
+            └── FS PBX Domain (fspbx.convergentai.tech:7000)
+                 └── MLO Sales Queue (Extension 9400)
+
 ```
 
-No PSTN destination is used. The SignalWire number is only used as the SIP caller ID / From identity.
+---
 
-## LiveKit Trunk Settings
+## 2. Infrastructure Configuration
 
-Create or use this LiveKit outbound SIP trunk:
+### LiveKit Trunk Settings
 
-```text
-Trunk name: SignalWire SWML MLO Queue Trunk
-Trunk ID: ST_JA7tUGjFUZ9K
-Direction: Outbound
-Address: convergentai-livekit-mlo-queue.dapp.signalwire.com
-Numbers: +12017404497
-Transport: Auto
-Authentication: none
-Media encryption: disabled or optional
-```
+Create or update your outbound SIP trunk inside your LiveKit dashboard using these exact parameters:
 
-JSON form:
+* **Trunk Name:** SignalWire MLO Queue Trunk
+* **Trunk ID:** `ST_JA7tUGjFUZ9K`
+* **Address:** `convergentai-33de6d391dc2.sip.signalwire.com`
+* **Numbers:** `["+14238931776"]`
+* **Transport:** `SIP_TRANSPORT_UDP` (3)
 
-```json
-{
-  "trunk": {
-    "name": "SignalWire SWML MLO Queue Trunk",
-    "address": "convergentai-livekit-mlo-queue.dapp.signalwire.com",
-    "numbers": ["+12017404497"],
-    "transport": 3
-  }
-}
-```
+### SignalWire Endpoint Settings
 
-## SignalWire Setup
+To facilitate direct SIP-to-SIP proxying without script overhead, configure your **livekit-mlo** credential resource inside the SignalWire dashboard as follows:
 
-SignalWire SWML Script:
+* **Call Handler:** `Passthrough`
+* **PSTN Policy:** `Block PSTN` (Enforces strict SIP-to-SIP isolation for security)
 
-```text
-Name: LiveKit MLO Queue Forward
-SIP Address: sip:livekit-mlo-queue@convergentai-livekit-mlo-queue.dapp.signalwire.com
-Context: Public
-Channel: Audio
-```
+### FS PBX Settings
 
-SWML script:
+Verify these target metrics on your active [Basic Queues](https://fspbx.convergentai.tech/basic-queues) dashboard:
 
-```json
-{
-  "version": "1.0.0",
-  "sections": {
-    "main": [
-      {
-        "connect": {
-          "answer_on_bridge": true,
-          "from": "+12017404497",
-          "to": "sip:2001@fspbx.convergentai.tech:7000;transport=udp",
-          "username": "1101",
-          "password": "FSPBX_1101_PASSWORD",
-          "encryption": "forbidden",
-          "codecs": "PCMU,PCMA",
-          "timeout": 90
-        }
-      }
-    ]
-  }
-}
-```
+* **SIP Domain:** `fspbx.convergentai.tech`
+* **SIP Port:** `7000`
+* **Transport:** `UDP`
+* **Target Queue Extension:** `9400` (MLO Sales Queue)
 
-Use the real FSPBX extension password in SignalWire only. Do not commit it to application code.
+---
 
-## FSPBX Setup
+## 3. Deployment Environment Variables
 
-```text
-SIP domain: fspbx.convergentai.tech
-SIP port: 7000
-Transport: UDP
-Auth extension used by SignalWire: 1101
-Queue / ring group extension: 2001
-Queue members: 1101, 1102
-```
-
-Recommended queue settings:
-
-```text
-Ring duration: 30-60 seconds
-Confirm answer: disabled for initial SIP bridge testing
-```
-
-## Required App Environment Variables
+Store these values in your backend application context (`.env`):
 
 ```env
 LIVEKIT_URL=wss://your-project.livekit.cloud
 LIVEKIT_API_KEY=your-livekit-api-key
 LIVEKIT_API_SECRET=your-livekit-api-secret
 
+# Telephony Routing
 SIP_TRUNK_SID=ST_JA7tUGjFUZ9K
-SIP_CALL_TO=livekit-mlo-queue
-SIP_FROM_NUMBER=+12017404497
-SIP_PARTICIPANT_NAME=MLO Queue
-SIP_WAIT_UNTIL_ANSWERED=true
-SIP_RINGING_TIMEOUT_SECONDS=45
+SIP_CALL_TO=9400
+SIP_FROM_NUMBER=+14238931776
+
 ```
 
-`SIP_CALL_TO` is the user part of the SignalWire SIP Address:
+---
 
-```text
-sip:livekit-mlo-queue@convergentai-livekit-mlo-queue.dapp.signalwire.com
-```
+## 4. Production Node.js Transfer Script
 
-## Install Dependency
-
-```bash
-npm install livekit-server-sdk
-```
-
-## Copy-Ready Node.js Transfer Code
-
-Use this in the Agent backend when the user clicks the transfer button or when your app explicitly requests transfer.
+This clean, production-ready script strips out all external webhooks and custom headers, executing a native SIP-to-SIP handoff block.
 
 ```js
 'use strict';
 
-const { SipClient, TwirpError } = require('livekit-server-sdk');
+const { SipClient } = require('livekit-server-sdk');
 
-function normalizeLiveKitUrl(url) {
-  return url.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://');
-}
-
-function requiredEnv(name) {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return value;
-}
-
-function boolEnv(name, defaultValue) {
-  const value = process.env[name];
-  if (!value) return defaultValue;
-  return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
-}
-
-function numberEnv(name, defaultValue) {
-  const value = Number(process.env[name]);
-  return Number.isFinite(value) ? value : defaultValue;
-}
-
-async function transferRoomToMloQueue({ roomName, userIdentity }) {
+/**
+ * Triggers a direct SIP-to-SIP transfer leg from an active LiveKit room 
+ * into the SignalWire gateway domain mapped to FS PBX.
+ * * @param {Object} params
+ * @param {string} params.roomName - The active LiveKit room name containing the user
+ */
+async function transferRoomToMloQueue({ roomName }) {
   if (!roomName) {
-    throw new Error('roomName is required');
+    throw new Error('roomName is required to execute a transfer');
   }
+
+  // Normalize host format for the LiveKit SipClient constructor
+  const livekitHost = process.env.LIVEKIT_URL.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://');
 
   const sipClient = new SipClient(
-    normalizeLiveKitUrl(requiredEnv('LIVEKIT_URL')),
-    requiredEnv('LIVEKIT_API_KEY'),
-    requiredEnv('LIVEKIT_API_SECRET')
+    livekitHost,
+    process.env.LIVEKIT_API_KEY,
+    process.env.LIVEKIT_API_SECRET
   );
 
   try {
     const participant = await sipClient.createSipParticipant(
-      requiredEnv('SIP_TRUNK_SID'),
-      requiredEnv('SIP_CALL_TO'),
+      process.env.SIP_TRUNK_SID,  // ST_JA7tUGjFUZ9K
+      process.env.SIP_CALL_TO,    // 9400
       roomName,
       {
         participantIdentity: `mlo-queue-${Date.now()}`,
-        participantName: process.env.SIP_PARTICIPANT_NAME || 'MLO Queue',
-        fromNumber: process.env.SIP_FROM_NUMBER || undefined,
+        fromNumber: process.env.SIP_FROM_NUMBER || undefined, // Sends +14238931776 as Outbound Caller ID Identity
         playDialtone: true,
-        waitUntilAnswered: boolEnv('SIP_WAIT_UNTIL_ANSWERED', true),
-        ringingTimeout: numberEnv('SIP_RINGING_TIMEOUT_SECONDS', 45),
-        headers: {
-          'X-Transfer-Source': 'livekit-agent-transfer',
-          'X-Transfer-From': userIdentity || 'unknown',
-          'X-Queue-Extension': '2001',
-        },
+        waitUntilAnswered: true
       }
     );
 
     return {
       success: true,
       sipParticipantId: participant.sipParticipantId || participant.participantId,
-      participantIdentity: participant.participantIdentity,
-      sipCallId: participant.sipCallId,
+      sipCallId: participant.sipCallId
     };
   } catch (error) {
-    if (error instanceof TwirpError) {
-      throw new Error(
-        `LiveKit SIP transfer failed: ${error.message}; ` +
-        `SIP status=${error.metadata?.sip_status_code || 'unknown'} ` +
-        `${error.metadata?.sip_status || ''}`
-      );
-    }
-
-    throw error;
+    throw new Error(`LiveKit to SignalWire SIP Handshake Failed: ${error.message}`);
   }
 }
 
 module.exports = { transferRoomToMloQueue };
+
 ```
 
-## Example Usage
+---
 
-```js
-const { transferRoomToMloQueue } = require('./transferRoomToMloQueue');
+## 5. Execution Verification
 
-await transferRoomToMloQueue({
-  roomName: 'active-livekit-room-name',
-  userIdentity: 'customer-123',
-});
-```
-
-## Important Notes
-
-- The LiveKit room must already exist and contain the customer/user.
-- This does not rely on AI decision logic. Trigger it only from the explicit transfer button or your own deterministic app action.
-- If SignalWire logs show `ringing` and `answered`, the SIP path is working.
-- If the call rings only once, adjust FSPBX ring group `2001` ring duration and confirm-answer settings.
+When developers trigger this code, you can monitor your active session logs to verify traffic. A successful handshake path will show the inbound leg from LiveKit hitting the endpoint using `+14238931776` as the mask identity, and cleanly creating an outbound bridge leg straight to `sip:9400@fspbx.convergentai.tech:7000`.

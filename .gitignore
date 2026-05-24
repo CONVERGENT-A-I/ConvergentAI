@@ -55,3 +55,6 @@ backend/.dockerignore
 Dockerfile
 docker-compose.yaml
 .dockerignore
+
+
+livekit-fspbx-bridge
