@@ -1192,8 +1192,6 @@ export default function FloatingCTA() {
       interval = setInterval(() => {
         setMloCallSeconds((prev) => prev + 1);
       }, 1000);
-    } else {
-      setMloCallSeconds(0);
     }
     return () => clearInterval(interval);
   }, [flowPhase, pendingMode, mloParticipantJoined]);
@@ -1410,6 +1408,7 @@ export default function FloatingCTA() {
     hasAnnouncedRef.current = true;
     participantIdentityRef.current = null;
     isFetchingRef.current = false;
+    setMloCallSeconds(0);
 
     // Explicitly force-skip intro + compliance (user already did these)
     setHasAgreed(true);
