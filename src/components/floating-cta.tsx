@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -167,6 +167,129 @@ function ActivityTracker() {
   }, [room]);
 
   return null;
+}
+
+function MloDetector({ onMloStatusChange }: { onMloStatusChange: (joined: boolean, name: string | null) => void }) {
+  const participants = useRemoteParticipants();
+  
+  useEffect(() => {
+    const mloParticipant = participants.find(p => p.identity.startsWith('sip_') || p.identity.includes('sip'));
+    
+    if (mloParticipant) {
+      onMloStatusChange(true, mloParticipant.name || mloParticipant.identity);
+    } else {
+      onMloStatusChange(false, null);
+    }
+  }, [participants, onMloStatusChange]);
+
+  return null;
+}
+
+function LoanOfficerQueueUI() {
+  return (
+    <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-gradient-to-br from-[#0B0F19] to-[#1a1105]">
+      <div className="relative mb-8">
+        <div className="absolute inset-0 rounded-full border-2 border-amber-500/20 animate-[ping_3s_ease-in-out_infinite]" />
+        <div className="absolute inset-[-20px] rounded-full border border-amber-500/10 animate-[ping_4s_ease-in-out_infinite]" />
+        <div className="h-24 w-24 rounded-full border-2 border-amber-500/40 bg-black/60 flex items-center justify-center backdrop-blur-md shadow-[0_0_50px_rgba(245,158,11,0.2)]">
+          <Headset className="w-10 h-10 text-amber-500 animate-pulse" />
+        </div>
+      </div>
+      <h3 className="text-xl font-bold text-white mb-2 tracking-tight">
+        Connecting to Loan Officer
+      </h3>
+      <div className="flex items-center gap-2 mb-8">
+        <Loader2 className="w-4 h-4 text-amber-500/70 animate-spin" />
+        <p className="text-amber-500/70 text-sm max-w-xs text-center font-medium">
+          You're in the queue...
+        </p>
+      </div>
+
+      {/* Decorative equalizer for hold music */}
+      <div className="flex items-center justify-center gap-1.5 opacity-80 mb-12">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <motion.div
+            key={`eq-${i}`}
+            className="w-1.5 bg-amber-500 rounded-full"
+            animate={{
+              height: [10, 20 + Math.random() * 25, 10],
+            }}
+            transition={{
+              duration: 1 + Math.random(),
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
+        ))}
+      </div>
+      <div className="flex justify-center opacity-40">
+         <p className="text-[10px] text-amber-500 uppercase tracking-[0.3em] font-bold">Your call is important to us</p>
+      </div>
+    </div>
+  );
+}
+
+function LoanOfficerLiveUI({ mloName, callSeconds }: { mloName: string | null, callSeconds: number }) {
+  const formatTime = (totalSeconds: number) => {
+    const hh = Math.floor(totalSeconds / 3600);
+    const mm = Math.floor((totalSeconds % 3600) / 60);
+    const ss = totalSeconds % 60;
+    return `${hh > 0 ? hh.toString().padStart(2, "0") + ':' : ''}${mm.toString().padStart(2, "0")}:${ss.toString().padStart(2, "0")}`;
+  };
+
+  const displayName = mloName ? mloName.replace('sip_', '') : 'Loan Officer';
+  const initials = displayName.substring(0, 2).toUpperCase();
+
+  return (
+    <div className="absolute inset-0 z-40 flex flex-col items-center bg-gradient-to-br from-[#0B0F19] to-[#00331f]">
+      <div className="w-full bg-[#00FF99]/10 border-b border-[#00FF99]/20 py-2.5 px-4 flex items-center justify-center gap-2 backdrop-blur-sm">
+        <div className="w-2 h-2 rounded-full bg-[#00FF99] animate-pulse shadow-[0_0_8px_rgba(0,255,153,0.8)]" />
+        <span className="text-[#00FF99] text-[11px] font-bold uppercase tracking-[0.2em]">Live Call</span>
+        <span className="text-[#00FF99]/50 mx-2">•</span>
+        <span className="text-[#00FF99]/90 font-mono text-sm tracking-wide">{formatTime(callSeconds)}</span>
+      </div>
+
+      <div className="flex-1 flex flex-col items-center justify-center w-full px-6 gap-10">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            {/* Active rings */}
+            <div className="absolute inset-[-10px] rounded-full border border-[#00FF99]/30 animate-[ping_2s_ease-in-out_infinite]" />
+            <div className="absolute inset-[-20px] rounded-full border border-[#00FF99]/10 animate-[ping_3s_ease-in-out_infinite]" />
+            <div className="h-28 w-28 rounded-full bg-[#00FF99]/10 border-2 border-[#00FF99]/50 flex items-center justify-center shadow-[0_0_40px_rgba(0,255,153,0.25)] backdrop-blur-md">
+              <span className="text-3xl font-black text-[#00FF99] tracking-tighter">{initials}</span>
+            </div>
+            <div className="absolute bottom-0 right-0 w-7 h-7 bg-[#0B0F19] rounded-full flex items-center justify-center">
+              <div className="w-5 h-5 bg-[#00FF99] rounded-full flex items-center justify-center shadow-[0_0_10px_rgba(0,255,153,0.5)]">
+                <Phone className="w-3 h-3 text-[#0B0F19]" />
+              </div>
+            </div>
+          </div>
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-white tracking-tight">{displayName}</h2>
+            <p className="text-[#00FF99]/80 text-sm font-medium mt-1">Licensed Mortgage Loan Officer</p>
+          </div>
+        </div>
+
+        {/* Audio Visualizer */}
+        <div className="flex items-center justify-center gap-1.5 h-12 w-full max-w-[200px]">
+          {[...Array(12)].map((_, i) => (
+            <motion.div
+              key={`live-eq-${i}`}
+              className="w-1.5 bg-[#00FF99] rounded-full"
+              animate={{
+                height: [4, 15 + Math.random() * 30, 4],
+              }}
+              transition={{
+                duration: 0.5 + Math.random() * 0.5,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ChannelStartTrigger({
@@ -1052,6 +1175,29 @@ export default function FloatingCTA() {
     null,
   );
 
+  const [mloParticipantJoined, setMloParticipantJoined] = useState(false);
+  const [mloParticipantName, setMloParticipantName] = useState<string | null>(null);
+  const [mloCallSeconds, setMloCallSeconds] = useState(0);
+
+  const handleMloStatusChange = useCallback((joined: boolean, name: string | null) => {
+    setMloParticipantJoined(joined);
+    if (name) {
+      setMloParticipantName(name);
+    }
+  }, []);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (flowPhase === "live" && pendingMode === "loan-officer" && mloParticipantJoined) {
+      interval = setInterval(() => {
+        setMloCallSeconds((prev) => prev + 1);
+      }, 1000);
+    } else {
+      setMloCallSeconds(0);
+    }
+    return () => clearInterval(interval);
+  }, [flowPhase, pendingMode, mloParticipantJoined]);
+
   useEffect(() => {
     if (mloClosingCountdown === null) return;
     if (mloClosingCountdown <= 0) {
@@ -1234,13 +1380,16 @@ export default function FloatingCTA() {
     isFetchingRef.current = false;
     setIsSubmitting(false);
     hasAnnouncedRef.current = false;
+    setMloParticipantJoined(false);
+    setMloParticipantName(null);
+    setMloCallSeconds(0);
   };
 
   // Full restart: tear down the broken connection and establish a fresh one.
   // Skips intro + compliance since the user already completed those.
-  const restartSession = () => {
+  const restartSession = (modeOverride?: PendingMode) => {
     const mode =
-      pendingMode === "intro-avatar" ? "video" : pendingMode || "video";
+      modeOverride || (pendingMode === "intro-avatar" ? "video" : pendingMode || "video");
 
     // Reset connection state
     setToken(null);
@@ -2075,6 +2224,7 @@ export default function FloatingCTA() {
                               <AgentReadinessCheck
                                 onAgentReady={setIsAgentReady}
                               />
+                              <MloDetector onMloStatusChange={handleMloStatusChange} />
                               <MediaGuard mode={pendingMode} />
                               <ActivityTracker />
                               <ChannelStartTrigger
@@ -2169,44 +2319,11 @@ export default function FloatingCTA() {
 
                                     <div className="absolute inset-0">
                                       {pendingMode === "loan-officer" ? (
-                                        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-gradient-to-br from-[#0B0F19] to-[#021A30]">
-                                          <div className="relative mb-8">
-                                            <div className="absolute inset-0 rounded-full border-2 border-[#00b4d8]/20 animate-[ping_3s_ease-in-out_infinite]" />
-                                            <div className="absolute inset-[-20px] rounded-full border border-[#00b4d8]/10 animate-[ping_4s_ease-in-out_infinite]" />
-                                            <div className="h-24 w-24 rounded-full border-2 border-[#00b4d8]/40 bg-black/50 flex items-center justify-center backdrop-blur-md shadow-[0_0_50px_rgba(0,180,216,0.2)]">
-                                              <Headset className="w-10 h-10 text-[#00b4d8] animate-pulse" />
-                                            </div>
-                                          </div>
-                                          <h3 className="text-xl font-bold text-white mb-2 tracking-tight">
-                                            Loan Officer Queue
-                                          </h3>
-                                          <p className="text-[#00b4d8]/70 text-sm max-w-xs text-center">
-                                            Please hold. We are connecting you
-                                            to a licensed mortgage expert...
-                                          </p>
-
-                                          {/* Decorative equalizer for hold music */}
-                                          <div className="flex items-center justify-center gap-1.5 mt-8 opacity-70">
-                                            {[1, 2, 3, 4, 5].map((i) => (
-                                              <motion.div
-                                                key={`eq-${i}`}
-                                                className="w-1.5 bg-[#00b4d8] rounded-full"
-                                                animate={{
-                                                  height: [
-                                                    10,
-                                                    20 + Math.random() * 20,
-                                                    10,
-                                                  ],
-                                                }}
-                                                transition={{
-                                                  duration: 1 + Math.random(),
-                                                  repeat: Infinity,
-                                                  ease: "easeInOut",
-                                                }}
-                                              />
-                                            ))}
-                                          </div>
-                                        </div>
+                                        mloParticipantJoined ? (
+                                          <LoanOfficerLiveUI mloName={mloParticipantName} callSeconds={mloCallSeconds} />
+                                        ) : (
+                                          <LoanOfficerQueueUI />
+                                        )
                                       ) : (
                                         <VideoStage
                                           mode={pendingMode}
@@ -2294,7 +2411,7 @@ export default function FloatingCTA() {
                             "We're having trouble reaching our AI services. Please check your connection and try again."}
                         </p>
                         <button
-                          onClick={restartSession}
+                          onClick={() => restartSession()}
                           disabled={isOffline}
                           className="flex items-center gap-2 bg-white text-black px-8 py-3 rounded-xl font-bold hover:bg-[#00b4d8] hover:text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
@@ -2309,30 +2426,86 @@ export default function FloatingCTA() {
                     {flowPhase === "closing-mlo" && (
                       <motion.div
                         key="closing-mlo-view"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="flex flex-col items-center justify-center text-center px-6"
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        className="flex flex-col items-center justify-center px-6 w-full h-full max-w-md mx-auto"
                       >
-                        <div className="w-16 h-16 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center mb-6">
-                          <Check className="w-8 h-8 text-[#00b4d8]" />
-                        </div>
-                        <h3 className="text-xl font-bold text-white mb-2 tracking-tight">
-                          Call Ended
-                        </h3>
-                        <p className="text-gray-400 text-sm max-w-[280px] mb-8">
-                          Thank you for speaking with our Loan Officer. Your
-                          session will close in {mloClosingCountdown} seconds...
-                        </p>
-                        <button
-                          onClick={() => {
-                            setMloClosingCountdown(0);
-                            setIsOpen(false);
-                          }}
-                          className="flex items-center gap-2 bg-white text-black px-8 py-3 rounded-xl font-bold hover:bg-[#00b4d8] hover:text-white transition-all cursor-pointer"
+                        <motion.div 
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ type: "spring", damping: 15, stiffness: 200, delay: 0.1 }}
+                          className="relative mb-6"
                         >
-                          Close Now
-                        </button>
+                          <div className="absolute inset-0 rounded-full bg-[#00FF99] blur-xl opacity-30 animate-pulse" />
+                          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#00FF99] to-[#00cc7a] flex items-center justify-center shadow-lg border-4 border-[#0B0F19] relative z-10">
+                            <Check className="w-10 h-10 text-[#0B0F19] stroke-[3px]" />
+                          </div>
+                        </motion.div>
+                        
+                        <h3 className="text-3xl font-black text-white mb-2 tracking-tight">
+                          Call Complete
+                        </h3>
+                        <p className="text-gray-400 text-sm mb-8 text-center">
+                          Thank you for speaking with our Loan Officer.
+                        </p>
+
+                        <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 mb-8 backdrop-blur-md">
+                           <div className="flex justify-between items-center mb-3">
+                             <span className="text-gray-400 text-xs font-medium uppercase tracking-wider">Duration</span>
+                             <span className="text-white font-mono font-medium">{formatTime(mloCallSeconds)}</span>
+                           </div>
+                           <div className="flex justify-between items-center mb-4">
+                             <span className="text-gray-400 text-xs font-medium uppercase tracking-wider">Officer</span>
+                             <span className="text-white font-medium">{mloParticipantName ? mloParticipantName.replace('sip_', '') : 'Assigned Expert'}</span>
+                           </div>
+                           <div className="w-full h-px bg-white/10 mb-4" />
+                           <p className="text-[10px] text-gray-500 text-center uppercase tracking-widest font-semibold leading-relaxed">
+                             This conversation was recorded<br/>for quality and compliance.
+                           </p>
+                        </div>
+
+                        <div className="flex flex-col gap-3 w-full">
+                          <button
+                            onClick={() => {
+                              setMloClosingCountdown(0);
+                              setIsOpen(false);
+                            }}
+                            className="w-full py-3.5 rounded-xl border border-white/20 text-white font-bold hover:bg-white/10 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <X className="w-4 h-4" />
+                            Close Now
+                          </button>
+                          
+                          <div className="flex items-center justify-center gap-3 my-2">
+                             <div className="h-px bg-white/10 flex-1" />
+                             <span className="text-xs text-gray-500 font-medium uppercase tracking-widest">Or</span>
+                             <div className="h-px bg-white/10 flex-1" />
+                          </div>
+
+                          <button
+                            onClick={() => {
+                              setMloClosingCountdown(null);
+                              restartSession("video");
+                            }}
+                            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white font-bold hover:shadow-[0_0_20px_rgba(0,180,216,0.4)] transition-all flex items-center justify-center gap-2 cursor-pointer relative overflow-hidden group"
+                          >
+                            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform" />
+                            <Bot className="w-5 h-5 relative z-10" />
+                            <span className="relative z-10">Return to Ailana</span>
+                          </button>
+                        </div>
+
+                        {/* Circular progress countdown */}
+                        {mloClosingCountdown !== null && mloClosingCountdown > 0 && (
+                          <div className="absolute top-6 right-6 flex items-center gap-2 opacity-50">
+                             <svg className="w-5 h-5 transform -rotate-90">
+                                <circle cx="10" cy="10" r="8" fill="transparent" stroke="currentColor" strokeWidth="2" className="text-white/20" />
+                                <circle cx="10" cy="10" r="8" fill="transparent" stroke="currentColor" strokeWidth="2" className="text-white" strokeDasharray="50" strokeDashoffset={50 - (mloClosingCountdown / 10) * 50} />
+                             </svg>
+                             <span className="text-xs font-mono font-medium text-white">{mloClosingCountdown}s</span>
+                          </div>
+                        )}
                       </motion.div>
                     )}
                   </div>
