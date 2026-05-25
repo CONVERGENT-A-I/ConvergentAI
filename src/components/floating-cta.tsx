@@ -2450,57 +2450,57 @@ export default function FloatingCTA() {
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.95 }}
-                        className="flex flex-col items-center justify-center px-6 w-full h-full max-w-md mx-auto"
+                        className="flex flex-col items-center justify-center px-4 sm:px-6 w-full h-full max-w-md mx-auto overflow-y-auto py-4 sm:py-0"
                       >
                         <motion.div 
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
                           transition={{ type: "spring", damping: 15, stiffness: 200, delay: 0.1 }}
-                          className="relative mb-6"
+                          className="relative mb-4 sm:mb-6"
                         >
                           <div className="absolute inset-0 rounded-full bg-[#00b4d8] blur-xl opacity-30 animate-pulse" />
-                          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#00b4d8] to-[#023e8a] flex items-center justify-center shadow-lg border-4 border-[#0B0F19] relative z-10">
-                            <Check className="w-10 h-10 text-white stroke-[3px]" />
+                          <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-[#00b4d8] to-[#023e8a] flex items-center justify-center shadow-lg border-4 border-[#0B0F19] relative z-10">
+                            <Check className="w-7 h-7 sm:w-10 sm:h-10 text-white stroke-[3px]" />
                           </div>
                         </motion.div>
                         
-                        <h3 className="text-3xl font-black text-white mb-2 tracking-tight">
+                        <h3 className="text-2xl sm:text-3xl font-black text-white mb-1 sm:mb-2 tracking-tight">
                           Call Complete
                         </h3>
-                        <p className="text-gray-400 text-sm mb-8 text-center">
+                        <p className="text-gray-400 text-xs sm:text-sm mb-4 sm:mb-8 text-center">
                           Thank you for speaking with our Loan Officer.
                         </p>
 
-                        <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 mb-8 backdrop-blur-md">
-                           <div className="flex justify-between items-center mb-3">
-                             <span className="text-gray-400 text-xs font-medium uppercase tracking-wider">Duration</span>
-                             <span className="text-white font-mono font-medium">{formatTime(mloCallSeconds)}</span>
+                        <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-3.5 sm:p-5 mb-4 sm:mb-8 backdrop-blur-md">
+                           <div className="flex justify-between items-center mb-2.5 sm:mb-3">
+                             <span className="text-gray-400 text-[10px] sm:text-xs font-medium uppercase tracking-wider">Duration</span>
+                             <span className="text-white font-mono text-sm sm:text-base font-medium">{formatTime(mloCallSeconds)}</span>
                            </div>
-                           <div className="flex justify-between items-center mb-4">
-                             <span className="text-gray-400 text-xs font-medium uppercase tracking-wider">Officer</span>
-                             <span className="text-white font-medium">{mloParticipantName ? mloParticipantName.replace('sip_', '') : 'Assigned Expert'}</span>
+                           <div className="flex justify-between items-center mb-3 sm:mb-4">
+                             <span className="text-gray-400 text-[10px] sm:text-xs font-medium uppercase tracking-wider">Officer</span>
+                             <span className="text-white text-sm sm:text-base font-medium">{mloParticipantName ? mloParticipantName.replace('sip_', '') : 'Assigned Expert'}</span>
                            </div>
-                           <div className="w-full h-px bg-white/10 mb-4" />
-                           <p className="text-[10px] text-gray-500 text-center uppercase tracking-widest font-semibold leading-relaxed">
+                           <div className="w-full h-px bg-white/10 mb-3 sm:mb-4" />
+                           <p className="text-[9px] sm:text-[10px] text-gray-500 text-center uppercase tracking-widest font-semibold leading-relaxed">
                              This conversation was recorded<br/>for quality and compliance.
                            </p>
                         </div>
 
-                        <div className="flex flex-col gap-3 w-full">
+                        <div className="flex flex-col gap-2.5 sm:gap-3 w-full">
                           <button
                             onClick={() => {
                               setMloClosingCountdown(0);
                               setIsOpen(false);
                             }}
-                            className="w-full py-3.5 rounded-xl border border-white/20 text-white font-bold hover:bg-white/10 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                            className="w-full py-2.5 sm:py-3.5 rounded-xl border border-white/20 text-white text-sm sm:text-base font-bold hover:bg-white/10 transition-colors flex items-center justify-center gap-2 cursor-pointer"
                           >
-                            <X className="w-4 h-4" />
+                            <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                             Close Now
                           </button>
                           
-                          <div className="flex items-center justify-center gap-3 my-2">
+                          <div className="flex items-center justify-center gap-3 my-1 sm:my-2">
                              <div className="h-px bg-white/10 flex-1" />
-                             <span className="text-xs text-gray-500 font-medium uppercase tracking-widest">Or</span>
+                             <span className="text-[10px] sm:text-xs text-gray-500 font-medium uppercase tracking-widest">Or</span>
                              <div className="h-px bg-white/10 flex-1" />
                           </div>
 
@@ -2509,22 +2509,22 @@ export default function FloatingCTA() {
                               setMloClosingCountdown(null);
                               restartSession("video");
                             }}
-                            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white font-bold hover:shadow-[0_0_20px_rgba(0,180,216,0.4)] transition-all flex items-center justify-center gap-2 cursor-pointer relative overflow-hidden group"
+                            className="w-full py-2.5 sm:py-3.5 rounded-xl bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white text-sm sm:text-base font-bold hover:shadow-[0_0_20px_rgba(0,180,216,0.4)] transition-all flex items-center justify-center gap-2 cursor-pointer relative overflow-hidden group"
                           >
                             <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform" />
-                            <Bot className="w-5 h-5 relative z-10" />
+                            <Bot className="w-4 h-4 sm:w-5 sm:h-5 relative z-10" />
                             <span className="relative z-10">Return to Ailana</span>
                           </button>
                         </div>
 
                         {/* Circular progress countdown */}
                         {mloClosingCountdown !== null && mloClosingCountdown > 0 && (
-                          <div className="absolute top-6 right-6 flex items-center gap-2 opacity-50">
-                             <svg className="w-5 h-5 transform -rotate-90">
+                          <div className="absolute top-3 right-3 sm:top-6 sm:right-6 flex items-center gap-1.5 sm:gap-2 opacity-50">
+                             <svg className="w-4 h-4 sm:w-5 sm:h-5 transform -rotate-90">
                                 <circle cx="10" cy="10" r="8" fill="transparent" stroke="currentColor" strokeWidth="2" className="text-white/20" />
                                 <circle cx="10" cy="10" r="8" fill="transparent" stroke="currentColor" strokeWidth="2" className="text-white" strokeDasharray="50" strokeDashoffset={50 - (mloClosingCountdown / 10) * 50} />
                              </svg>
-                             <span className="text-xs font-mono font-medium text-white">{mloClosingCountdown}s</span>
+                             <span className="text-[10px] sm:text-xs font-mono font-medium text-white">{mloClosingCountdown}s</span>
                           </div>
                         )}
                       </motion.div>
