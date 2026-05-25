@@ -186,6 +186,14 @@ function MloDetector({ onMloStatusChange }: { onMloStatusChange: (joined: boolea
 }
 
 function LoanOfficerQueueUI() {
+  const beams = useMemo(() => {
+    return Array.from({ length: 5 }, (_, i) => ({
+      id: i,
+      maxHeight: 20 + Math.random() * 25,
+      duration: 0.8 + Math.random() * 0.6,
+    }));
+  }, []);
+
   return (
     <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-gradient-to-br from-[#0B0F19] to-[#01142e]">
       <div className="relative mb-8">
@@ -207,16 +215,17 @@ function LoanOfficerQueueUI() {
 
       {/* Decorative equalizer for hold music */}
       <div className="flex items-center justify-center gap-1.5 opacity-80 mb-12">
-        {[1, 2, 3, 4, 5].map((i) => (
+        {beams.map((beam) => (
           <motion.div
-            key={`eq-${i}`}
+            key={`eq-${beam.id}`}
             className="w-1.5 bg-[#00b4d8] rounded-full"
             animate={{
-              height: [10, 20 + Math.random() * 25, 10],
+              height: [10, beam.maxHeight],
             }}
             transition={{
-              duration: 1 + Math.random(),
+              duration: beam.duration,
               repeat: Infinity,
+              repeatType: "reverse",
               ease: "easeInOut",
             }}
           />
@@ -239,6 +248,14 @@ function LoanOfficerLiveUI({ mloName, callSeconds }: { mloName: string | null, c
 
   const displayName = mloName ? mloName.replace('sip_', '') : 'Loan Officer';
   const initials = displayName.substring(0, 2).toUpperCase();
+
+  const beams = useMemo(() => {
+    return Array.from({ length: 12 }, (_, i) => ({
+      id: i,
+      maxHeight: 15 + Math.random() * 30,
+      duration: 0.4 + Math.random() * 0.4,
+    }));
+  }, []);
 
   return (
     <div className="absolute inset-0 z-40 flex flex-col items-center bg-gradient-to-br from-[#0B0F19] to-[#01142e]">
@@ -272,16 +289,17 @@ function LoanOfficerLiveUI({ mloName, callSeconds }: { mloName: string | null, c
 
         {/* Audio Visualizer */}
         <div className="flex items-center justify-center gap-1.5 h-12 w-full max-w-[200px]">
-          {[...Array(12)].map((_, i) => (
+          {beams.map((beam) => (
             <motion.div
-              key={`live-eq-${i}`}
+              key={`live-eq-${beam.id}`}
               className="w-1.5 bg-[#00b4d8] rounded-full"
               animate={{
-                height: [4, 15 + Math.random() * 30, 4],
+                height: [4, beam.maxHeight],
               }}
               transition={{
-                duration: 0.5 + Math.random() * 0.5,
+                duration: beam.duration,
                 repeat: Infinity,
+                repeatType: "reverse",
                 ease: "easeInOut",
               }}
             />
