@@ -1201,6 +1201,21 @@ export default function FloatingCTA() {
   const [mloParticipantJoined, setMloParticipantJoined] = useState(false);
   const [mloParticipantName, setMloParticipantName] = useState<string | null>(null);
   const [mloCallSeconds, setMloCallSeconds] = useState(0);
+  const hasMloJoinedRef = useRef(false);
+
+  useEffect(() => {
+    if (mloParticipantJoined) {
+      hasMloJoinedRef.current = true;
+    } else if (hasMloJoinedRef.current && pendingMode === "loan-officer" && flowPhase === "live") {
+      console.log("[ui-loan-officer]: SIP participant left. Ending call.");
+      setToken(null);
+      setLkUrl(null);
+      setIsLkConnected(false);
+      setFlowPhase("closing-mlo");
+      setMloClosingCountdown(10);
+      hasMloJoinedRef.current = false;
+    }
+  }, [mloParticipantJoined, pendingMode, flowPhase]);
 
   const handleMloStatusChange = useCallback((joined: boolean, name: string | null) => {
     setMloParticipantJoined(joined);
@@ -1431,6 +1446,7 @@ export default function FloatingCTA() {
     setMloParticipantJoined(false);
     setMloParticipantName(null);
     setMloCallSeconds(0);
+    hasMloJoinedRef.current = false;
   };
 
   // Full restart: tear down the broken connection and establish a fresh one.
@@ -1999,7 +2015,7 @@ export default function FloatingCTA() {
                               )}
                             </AnimatePresence>
                           </div>
-                        ))}`
+                        ))}
                       </div>
                     )}
 
