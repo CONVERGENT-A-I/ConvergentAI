@@ -2268,7 +2268,7 @@ export default function FloatingCTA() {
                                     {isLkConnected &&
                                       isAgentReady &&
                                       isAnnouncementStarted && (
-                                        <div className="absolute top-3 left-3 z-50 flex items-center gap-2 bg-black/50 backdrop-blur-md px-2.5 py-1 rounded-full border border-red-500/30">
+                                        <div className="absolute top-3 left-3 z-50 flex items-center gap-1.5 sm:gap-2 bg-black/50 backdrop-blur-md p-1.5 sm:px-2.5 sm:py-1 rounded-full border border-red-500/30">
                                           <motion.div
                                             animate={{ opacity: [1, 0.4, 1] }}
                                             transition={{
@@ -2279,10 +2279,10 @@ export default function FloatingCTA() {
                                           >
                                             <Circle className="h-2.5 w-2.5 fill-red-500 text-red-500" />
                                           </motion.div>
-                                          <span className="text-[9px] font-black text-white uppercase tracking-widest">
+                                          <span className="hidden sm:inline text-[9px] font-black text-white uppercase tracking-widest">
                                             Rec
                                           </span>
-                                          <span className="text-[9px] font-mono text-white/70">
+                                          <span className="hidden sm:inline text-[9px] font-mono text-white/70">
                                             {formatTime(recordingSeconds)}
                                           </span>
                                         </div>
