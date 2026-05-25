@@ -795,20 +795,24 @@ function ContextualHelp() {
             className="absolute top-10 right-0 w-64 bg-black/80 backdrop-blur-xl border border-white/20 rounded-2xl p-4 shadow-2xl"
           >
             <h4 className="text-white font-semibold text-sm mb-2">
-              Voice Commands
+              Available Modes
             </h4>
-            <ul className="text-white/70 text-xs space-y-2">
+            <ul className="text-white/70 text-[11px] space-y-2.5">
               <li className="flex items-start gap-2">
-                <span className="text-blue-400 mt-0.5">•</span>
-                <span>&quot;Switch to chat&quot; to use text only</span>
+                <span className="text-[#00b4d8] mt-0.5">•</span>
+                <span><strong>Video:</strong> Interactive face-to-face virtual avatar</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-blue-400 mt-0.5">•</span>
-                <span>&quot;Go to voice&quot; for audio only</span>
+                <span className="text-[#00b4d8] mt-0.5">•</span>
+                <span><strong>Voice:</strong> Spoken audio-only conversation with Ailana</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-blue-400 mt-0.5">•</span>
-                <span>&quot;Start video&quot; for full face-to-face</span>
+                <span className="text-[#00b4d8] mt-0.5">•</span>
+                <span><strong>Chat:</strong> Text-only conversation with Ailana</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-[#00b4d8] mt-0.5">•</span>
+                <span><strong>Officer:</strong> Direct transfer to a human Loan Officer</span>
               </li>
             </ul>
           </motion.div>
