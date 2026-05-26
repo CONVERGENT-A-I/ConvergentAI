@@ -138,7 +138,9 @@ export default function Footer() {
                 Chattanooga, Tennessee
               </span>
               <Link
-                href="mailto:info@convergentai.tech"
+                href="https://mail.google.com/mail/?view=cm&fs=1&to=info@convergentai.tech"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-zinc-400 text-sm md:text-base font-medium hover:text-brand-green transition-colors duration-200"
               >
                 info@convergentai.tech
