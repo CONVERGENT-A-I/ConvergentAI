@@ -52,7 +52,7 @@
 - [ ] Ingest Freddie Mac (LPA) guidelines
 - [ ] Ingest HUD/FHA guidelines
 - [ ] Build retrieval pipeline (query → embed → search → context injection)
-- [ ] Integrate RAG context into AILANA's system prompt per-query
+- [ ] Integrate RAG context into AILANA's Gemini system prompt per-query
 - [ ] Add source citation in AI responses (`"Per Fannie Mae Section X..."`)
 - [ ] Implement fallback: "This requires underwriting review" when confidence is low
 
@@ -61,7 +61,7 @@
 ## Task 6: Intent Detection & MLO Alerts (P1 — Conversion trigger)
 
 - [ ] Define intent signals: requesting a person, providing property location, starting 1003
-- [ ] Build intent classifier (rule-based + LLM confirmation)
+- [ ] Build intent classifier (rule-based + Gemini LLM confirmation)
 - [ ] Implement SMS alert to state-licensed MLOs on intent detection
 - [ ] Route alerts by applicant jurisdiction (state-specific MLO matching)
 - [ ] Integrate NMLS license verification via Apify scraper
@@ -71,8 +71,8 @@
 
 ## Task 7: AI Gap Audit Engine (P1 — Core differentiator)
 
-- [ ] Build 24-month residency continuity validator against MISMO containers
-- [ ] Build 24-month employment continuity validator
+- [ ] Leverage Gemini's large context to validate 24-month residency continuity against MISMO XML
+- [ ] Leverage Gemini's large context to validate 24-month employment continuity against MISMO XML
 - [ ] Flag gaps > 30 days, generate verbal prompts for AILANA
 - [ ] Implement URLA Section I–VIII field completeness scanner
 - [ ] Generate per-section audit status: `COMPLETE | GAP_DETECTED | EMPTY`
@@ -136,13 +136,14 @@
 
 ---
 
-## Task 13: Telephony — fspbx / FreeSWITCH (P3 — SIP/PSTN bridge)
+## Task 13: Telephony — SignalWire & fspbx (P3 — SIP/PSTN bridge)
 
-- [ ] Configure fspbx FreeSWITCH instance on GCP
-- [ ] Enable SIP trunk for PSTN inbound/outbound
-- [ ] Bridge WebRTC (LiveKit) ↔ SIP (fspbx) for live transfers
+- [ ] Configure fspbx FreeSWITCH instance with `mod_callcenter` on GCP
+- [ ] Enable SignalWire SIP trunk for PSTN inbound/outbound bridging
+- [ ] Bridge WebRTC (LiveKit) ↔ SIP (SignalWire + fspbx) for live transfers
 - [ ] Implement queue routing: AI → MLO handoff based on intent + jurisdiction
-- [ ] Add "Transfer to Loan Officer" flow in AILANA (replace "Coming Soon")
+- [ ] Add "Transfer to Loan Officer" flow in AILANA (triggering LiveKit SIP bridge)
+- [ ] Implement Gemini agent hibernation logic during human handoff
 - [ ] Record transferred calls with compliance disclosure
 
 ---
