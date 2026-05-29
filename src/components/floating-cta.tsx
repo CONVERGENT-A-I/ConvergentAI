@@ -358,16 +358,22 @@ function ChannelStartTrigger({
             await room.localParticipant.publishData(transferPayload, { topic: "lk-chat", reliable: true });
             console.log(`[ui-loan-officer]: 📞 Sent SYSTEM_TRANSFER_MLO message over DataChannel.`);
           } else {
-            console.log(
-              `[ui]: 🚀 Channel starting (${mode}). Sending SYSTEM_CHANNEL_START...`,
-            );
-            const startPayload = encoder.encode(
-              JSON.stringify({ message: `SYSTEM_CHANNEL_START:${mode}` }),
-            );
-            await room.localParticipant.publishData(startPayload, {
-              topic: "lk-chat",
-              reliable: true,
-            });
+            const sendChannelStart = async (attempt: number) => {
+              console.log(
+                `[ui]: 🚀 Channel starting (${mode}). Sending SYSTEM_CHANNEL_START (attempt ${attempt})...`,
+              );
+              const startPayload = encoder.encode(
+                JSON.stringify({ message: `SYSTEM_CHANNEL_START:${mode}` }),
+              );
+              await room.localParticipant.publishData(startPayload, {
+                topic: "lk-chat",
+                reliable: true,
+              });
+            };
+            await sendChannelStart(1);
+            // Agent worker may join slightly after the compliance/recording handoff.
+            setTimeout(() => void sendChannelStart(2), 2000);
+            setTimeout(() => void sendChannelStart(3), 4500);
           }
         } catch (err) {
           console.warn(

@@ -1,5 +1,5 @@
 import { type JobContext, ServerOptions, cli, voice, tts } from '@livekit/agents';
-import { RoomEvent, AudioSource, LocalAudioTrack, TrackSource } from '@livekit/rtc-node';
+import { RoomEvent, TrackKind } from '@livekit/rtc-node';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import * as openai from '@livekit/agents-plugin-openai';
@@ -37,6 +37,49 @@ dotenv.config();
 // }
 // ---------------------------------------------
 
+const INITIAL_GREETING_PROMPT =
+  'The user has just joined the live voice session. Introduce yourself and greet them right now in one short English sentence, then wait for their reply.';
+
+type GeminiRealtimeSession = {
+  sendClientEvent?: (event: { type: string; value: Record<string, unknown> }) => void;
+};
+
+function getGeminiModelName(realtimeModel: google.beta.realtime.RealtimeModel): string {
+  return (realtimeModel as { _options?: { model?: string } })._options?.model ?? '';
+}
+
+function isGemini31RealtimeModel(realtimeModel: google.beta.realtime.RealtimeModel): boolean {
+  return getGeminiModelName(realtimeModel).includes('3.1');
+}
+
+function getAgentRealtimeSession(agentSession: voice.AgentSession): GeminiRealtimeSession | undefined {
+  const activity = (agentSession as unknown as { activity?: { realtimeSession?: GeminiRealtimeSession } })
+    .activity;
+  return activity?.realtimeSession;
+}
+
+async function waitForAgentRealtimeSession(
+  agentSession: voice.AgentSession,
+  timeoutMs = 8000,
+): Promise<GeminiRealtimeSession | undefined> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const rt = getAgentRealtimeSession(agentSession);
+    if (rt?.sendClientEvent) return rt;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return undefined;
+}
+
+function sendGeminiRealtimeText(rtSession: GeminiRealtimeSession, text: string): void {
+  if (!rtSession.sendClientEvent) {
+    throw new Error('Gemini realtime session is missing sendClientEvent');
+  }
+  rtSession.sendClientEvent({
+    type: 'realtime_input',
+    value: { text },
+  });
+}
 
 export default {
   async entry(ctx: JobContext) {
@@ -162,6 +205,9 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
     // When true, the agent responds via text-only chat (no voice/audio output)
     let voiceMuted = false;
     let isHibernating = false;
+    let hasSentInitialGreeting = false;
+    let greetingFallbackTimer: NodeJS.Timeout | null = null;
+    const usesGemini31 = isGemini31RealtimeModel(model);
 
     // Conversation history for text-only mode (so context is preserved)
     const chatHistory: Array<{ role: string; content: string }> = [
@@ -239,6 +285,57 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
       }
     };
 
+    const requestVoiceReply = async (text: string, reason: string) => {
+      if (usesGemini31) {
+        const rtSession = await waitForAgentRealtimeSession(session);
+        if (!rtSession) {
+          throw new Error(`Gemini 3.1 realtime session not ready (${reason})`);
+        }
+        sendGeminiRealtimeText(rtSession, text);
+        console.log(`[agent]: ✅ Sent Gemini 3.1 realtime text (${reason})`);
+        return;
+      }
+      session.generateReply({ userInput: text });
+    };
+
+    const triggerInitialGreeting = async (reason: string) => {
+      if (!(session as any)._started || hasSentInitialGreeting || isHibernating) {
+        return;
+      }
+      hasSentInitialGreeting = true;
+      if (greetingFallbackTimer) {
+        clearTimeout(greetingFallbackTimer);
+        greetingFallbackTimer = null;
+      }
+      console.log(`[agent]: 👋 Triggering initial greeting (${reason})...`);
+      try {
+        await requestVoiceReply(INITIAL_GREETING_PROMPT, reason);
+      } catch (err) {
+        hasSentInitialGreeting = false;
+        console.error(`[agent]: ❌ Initial greeting failed (${reason}):`, err);
+      }
+    };
+
+    const resetGreetingState = () => {
+      hasSentInitialGreeting = false;
+      if (greetingFallbackTimer) {
+        clearTimeout(greetingFallbackTimer);
+        greetingFallbackTimer = null;
+      }
+    };
+
+    const scheduleInitialGreetingFallbacks = () => {
+      if (greetingFallbackTimer) {
+        clearTimeout(greetingFallbackTimer);
+      }
+      greetingFallbackTimer = setTimeout(() => {
+        void triggerInitialGreeting('post-start-fallback-2s');
+      }, 2000);
+      setTimeout(() => {
+        void triggerInitialGreeting('post-start-fallback-4s');
+      }, 4000);
+    };
+
     const handleSystemMessages = async (messageText: string, participantIdentity: string | undefined) => {
       if (isHibernating && messageText !== 'SYSTEM_RESUME_AGENT') {
         console.log(`[agent]: 🛌 Ignoring message while hibernating: ${messageText}`);
@@ -247,6 +344,7 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
 
       if (messageText === 'SYSTEM_TRANSFER_MLO') {
         isHibernating = true;
+        resetGreetingState();
         console.log(`[agent]: 🛌 Agent hibernating. Initiating SIP transfer...`);
         
         // Unsubscribe from remote audio so VAD stops hearing the user
@@ -278,6 +376,7 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
 
       if (messageText === 'SYSTEM_RESUME_AGENT') {
         isHibernating = false;
+        resetGreetingState();
         console.log(`[agent]: ☀️ Agent waking up from hibernation.`);
         
         // Resubscribe to remote audio
@@ -290,9 +389,14 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
         }
         
         // Let the user know Ailana is back
-        session.generateReply({
-          userInput: "Say something brief indicating you are back and ready to help."
-        });
+        try {
+          await requestVoiceReply(
+            'Say something brief indicating you are back and ready to help.',
+            'resume-agent',
+          );
+        } catch (err) {
+          console.error('[agent]: ❌ Resume greeting failed:', err);
+        }
         return;
       }
 
@@ -345,8 +449,11 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
         console.log(`[agent]: 🚀 [STEP 5] Channel Started (${targetMode}). Syncing Realtime Agent...`);
 
         if ((session as any)._started) {
-          console.log(`[agent]: ⚠️ Session already started. Informing agent of mode switch to ${targetMode}.`);
-          // Note: Session is already healthy and listening to all tracks by default in this version.
+          console.log(`[agent]: ⚠️ Session already started. Retrying greeting for mode ${targetMode}.`);
+          if (!hasSentInitialGreeting) {
+            void triggerInitialGreeting('channel-start-retry');
+            scheduleInitialGreetingFallbacks();
+          }
           return;
         }
 
@@ -369,12 +476,14 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
             room: ctx.room,
           });
           (session as any)._started = true;
+          resetGreetingState();
           console.log(`[agent]: 🟢 Realtime Agent session.start() completed. Mode ${targetMode} is ready.`);
 
-          // Proactively initiate conversation so the user isn't met with silence
-          session.generateReply({
-            userInput: "Greet the user naturally in English. Keep it to 1 sentence and mention you are ready to assist with their mortgage questions. Then wait for the user's reply."
-          });
+          // Gemini 3.1 will not speak first via generateReply(); send realtime text after session is up.
+          setTimeout(() => {
+            void triggerInitialGreeting('post-start-immediate');
+          }, 600);
+          scheduleInitialGreetingFallbacks();
         } catch (err) {
           console.error(`[agent]: ❌ Failed to start session:`, err);
         }
@@ -395,7 +504,11 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
           await generateTextOnlyReply(messageText);
         } else {
           // Normal voice mode — full audio response via Realtime API
-          session.generateReply({ userInput: messageText });
+          try {
+            await requestVoiceReply(messageText, 'user-message');
+          } catch (err) {
+            console.warn(`[agent]: ⚠️ Voice reply failed:`, err);
+          }
         }
       } catch (err) {
         console.warn(`[agent]: ⚠️ Could not generate reply:`, err);
@@ -408,6 +521,13 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
 
     ctx.room.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
       console.log(`[agent-debug]: Subscribed to track from ${participant.identity}: ${pub.source} (${pub.kind})`);
+      const isLikelyHuman =
+        participant.identity !== 'agent' &&
+        !participant.identity.startsWith('agent-') &&
+        !participant.identity.startsWith('keyframe-');
+      if (isLikelyHuman && pub.kind === TrackKind.KIND_AUDIO) {
+        void triggerInitialGreeting('remote-human-audio-ready');
+      }
       // If the agent is hibernating (MLO transfer active), immediately unsubscribe
       // from any newly joined participant's tracks so VAD doesn't hear the Loan Officer
       if (isHibernating) {
