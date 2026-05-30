@@ -90,13 +90,13 @@ export default function SecurityCenter() {
                 <div className="hidden lg:flex items-center gap-0 text-brand-green/50 relative">
                   {/* Moving Particle 1 */}
                   <motion.div 
-                    className="absolute w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_10px_#00FF99]"
+                    className="absolute w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_10px_#22C5CC]"
                     animate={{ x: [-80, 80], opacity: [0, 1, 0] }}
                     transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                   />
                   {/* Moving Particle 2 */}
                   <motion.div 
-                    className="absolute w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_10px_#00FF99]"
+                    className="absolute w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_10px_#22C5CC]"
                     animate={{ x: [-80, 80], opacity: [0, 1, 0] }}
                     transition={{ duration: 2, repeat: Infinity, ease: "linear", delay: 1 }}
                   />
@@ -112,13 +112,13 @@ export default function SecurityCenter() {
                 <div className="flex lg:hidden flex-col items-center gap-0 text-brand-green/50 relative">
                   {/* Moving Particle 1 */}
                   <motion.div 
-                    className="absolute w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_10px_#00FF99]"
+                    className="absolute w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_10px_#22C5CC]"
                     animate={{ y: [-40, 40], opacity: [0, 1, 0] }}
                     transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                   />
                   {/* Moving Particle 2 */}
                   <motion.div 
-                    className="absolute w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_10px_#00FF99]"
+                    className="absolute w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_10px_#22C5CC]"
                     animate={{ y: [-40, 40], opacity: [0, 1, 0] }}
                     transition={{ duration: 2, repeat: Infinity, ease: "linear", delay: 1 }}
                   />
@@ -142,7 +142,7 @@ export default function SecurityCenter() {
               <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
                 <Shield className="w-32 h-32 text-brand-green" />
               </div>
-              <div className="w-16 h-16 rounded-2xl bg-brand-green/10 flex items-center justify-center mb-6 relative z-10 shadow-[0_0_20px_rgba(0,255,153,0.1)] group-hover:shadow-[0_0_30px_rgba(0,255,153,0.2)] transition-all">
+              <div className="w-16 h-16 rounded-2xl bg-brand-green/10 flex items-center justify-center mb-6 relative z-10 shadow-[0_0_20px_rgba(34,197,204,0.1)] group-hover:shadow-[0_0_30px_rgba(34,197,204,0.2)] transition-all">
                 <Server className="w-8 h-8 text-brand-green" />
               </div>
               <h3 className="text-xl font-bold text-white mb-2 relative z-10">ConvergentAI Platform</h3>
@@ -353,7 +353,7 @@ export default function SecurityCenter() {
               </div>
               
               {/* DLP Engine */}
-              <div className="p-6 rounded-2xl bg-[#0a1f16] border border-brand-green/30 flex flex-col items-center justify-center gap-2 shadow-[0_0_40px_rgba(0,255,153,0.1)] relative overflow-hidden">
+              <div className="p-6 rounded-2xl bg-[#051a1e] border border-brand-green/30 flex flex-col items-center justify-center gap-2 shadow-[0_0_40px_rgba(34,197,204,0.1)] relative overflow-hidden">
                 <motion.div 
                   className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-green/10 to-transparent w-full"
                   animate={{ x: ['-100%', '100%'] }}
@@ -378,7 +378,7 @@ export default function SecurityCenter() {
                   animate={{ y: [0, 48], opacity: [0, 1, 0] }}
                   transition={{ duration: 2, repeat: Infinity, ease: "linear", delay: 1 }}
                 >
-                  <div className="w-3 h-3 rounded-full bg-brand-green shadow-[0_0_15px_#00FF99]" />
+                  <div className="w-3 h-3 rounded-full bg-brand-green shadow-[0_0_15px_#22C5CC]" />
                   <Lock className="w-3 h-3 text-brand-green mt-1" />
                 </motion.div>
               </div>
@@ -419,7 +419,7 @@ export default function SecurityCenter() {
             </p>
             
             <div className="flex items-center gap-4">
-              <div className="h-3 w-3 rounded-full bg-brand-green shadow-[0_0_10px_#00FF99] animate-pulse" />
+              <div className="h-3 w-3 rounded-full bg-brand-green shadow-[0_0_10px_#22C5CC] animate-pulse" />
               <span className="text-brand-green font-bold tracking-widest uppercase text-sm">Status: Audit in Progress (2026)</span>
             </div>
           </div>
@@ -503,7 +503,7 @@ export default function SecurityCenter() {
             </p>
             <Link 
               href="/pilot"
-              className="inline-flex items-center justify-center gap-3 bg-brand-green text-black px-8 py-4 rounded-2xl text-lg font-bold hover:shadow-[0_0_30px_rgba(0,255,153,0.6)] transition-all transform hover:-translate-y-1"
+              className="inline-flex items-center justify-center gap-3 bg-brand-green text-black px-8 py-4 rounded-2xl text-lg font-bold hover:shadow-[0_0_30px_rgba(34,197,204,0.6)] transition-all transform hover:-translate-y-1"
             >
               Explore the 90-Day Pilot Program
               <ArrowRight className="w-5 h-5 transition-transform" />

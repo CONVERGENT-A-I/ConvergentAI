@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { Manrope } from "next/font/google";
+import { Inter } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import Footer from "@/components/footer";
@@ -9,17 +9,18 @@ import BackendConnectionTest from "@/components/backend-connection-test";
 
 import ErrorBoundary from "@/components/error-boundary";
 
-const manrope = Manrope({
-  variable: "--font-manrope",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700", "800"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
   title: "ConvergentAI",
   description: "Stop Mortgage Leakage with 24/7 Phygital Applicant Engagement",
   icons: {
-    icon: "/favicon.png",
+    icon: "/newassets/ConvergentAI_logo_package/ConvergentAI_favicon.svg",
   },
 };
 
@@ -31,7 +32,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${manrope.variable} h-full antialiased`}
+      className={`${inter.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

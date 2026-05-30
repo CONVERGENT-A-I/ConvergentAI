@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React from "react";
 import Navbar from "@/components/navbar";
@@ -233,19 +233,19 @@ export default function PilotProgram() {
           whileInView="visible"
           viewport={{ once: true, margin: "-100px" }}
           variants={fadeUp}
-          className="p-10 md:p-16 rounded-3xl bg-white/[0.02] border border-white/10 relative overflow-hidden text-center"
+          className="p-10 md:p-16 rounded-3xl bg-brand-green/10 border border-brand-green/20 relative overflow-hidden text-center"
         >
           <div className="relative z-10 max-w-3xl mx-auto">
-            <h2 className="text-2xl md:text-4xl font-bold tracking-tight mb-6">Is it secure?</h2>
-            <p className="text-lg text-zinc-400 font-medium mb-10 leading-relaxed">
+            <h2 className="text-2xl md:text-4xl font-bold tracking-tight mb-6 text-white">Is it secure?</h2>
+            <p className="text-lg text-brand-green/80 font-medium mb-10 leading-relaxed">
               We understand that deploying AI in a financial institution requires absolute certainty. Review our comprehensive security architecture designed for Credit Unions and Community Banks.
             </p>
             <Link 
               href="/security"
-              className="inline-flex items-center justify-center gap-3 bg-white text-black px-8 py-4 rounded-2xl text-lg font-bold hover:bg-zinc-200 transition-colors"
+              className="inline-flex items-center justify-center gap-3 bg-brand-green text-black px-8 py-4 rounded-2xl text-lg font-bold hover:shadow-[0_0_30px_rgba(34,197,204,0.6)] transition-all transform hover:-translate-y-1"
             >
               Review Security & Trust Center
-              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              <ArrowRight className="w-5 h-5 transition-transform" />
             </Link>
           </div>
         </motion.section>

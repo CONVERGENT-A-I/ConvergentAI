@@ -1,10 +1,9 @@
-﻿"use client";
+"use client";
 
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import Image from "next/image";
-import AppIcon from "../app/icon.png";
 
 export type WhitepaperType = "security-architecture" | "ai-governance" | null;
 
@@ -36,7 +35,7 @@ export default function WhitepaperModal({ type, onClose }: WhitepaperModalProps)
           {/* Header */}
           <div className="flex items-center justify-between p-4 md:p-6 border-b border-white/5 shrink-0 bg-black/40">
             <div className="flex items-center gap-3">
-              <Image src={AppIcon} alt="ConvergentAI Logo" width={20} height={20} className="w-5 h-5 object-contain" />
+              <Image src="/newassets/ConvergentAI_logo_package/ConvergentAI_app_icon_navy.svg" alt="ConvergentAI Logo" width={20} height={20} className="w-5 h-5 object-contain" />
               <h3 className="text-sm font-bold text-white uppercase tracking-wider">
                 {type === 'security-architecture' ? 'Security Architecture' : 'AI Governance'}
               </h3>

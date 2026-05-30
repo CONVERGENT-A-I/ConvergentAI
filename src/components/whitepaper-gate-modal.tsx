@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, FileDown, Loader2, CheckCircle2, User, Briefcase, Building2, Mail, Phone } from "lucide-react";
 import Image from "next/image";
-import AppIcon from "../app/icon.png";
 
 interface WhitepaperGateModalProps {
   isOpen: boolean;
@@ -118,7 +117,7 @@ export default function WhitepaperGateModal({ isOpen, onClose }: WhitepaperGateM
           {/* Header */}
           <div className="flex items-center justify-between p-5 md:p-6 border-b border-white/5 shrink-0 bg-black/40">
             <div className="flex items-center gap-3">
-              <Image src={AppIcon} alt="ConvergentAI Logo" width={20} height={20} className="w-5 h-5 object-contain" />
+              <Image src="/newassets/ConvergentAI_logo_package/ConvergentAI_favicon.svg" alt="ConvergentAI Logo" width={20} height={20} className="w-5 h-5 object-contain" />
               <h3 className="text-sm font-bold text-white uppercase tracking-wider">
                 Download Whitepaper
               </h3>
