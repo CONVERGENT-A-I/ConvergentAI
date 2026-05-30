@@ -94,7 +94,7 @@ export default {
     console.log(`[agent]: Loading Hybrid VAD...`);
     const sessionVad = await silero.VAD.load({
       minSilenceDuration: 300,
-      prefixPaddingDuration: 200,
+      prefixPaddingDuration: 150,
     });
 
     // Pre-warm intro audio in parallel with model setup (non-blocking)
@@ -164,7 +164,7 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
     const model = new google.beta.realtime.RealtimeModel({
       model: "gemini-3.1-flash-live-preview",
       voice: "Aoede",
-      temperature: 0.7,
+      temperature: 0.5,
       instructions: interactiveInstructions,
     });
 
@@ -176,10 +176,10 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
       turnHandling: {
         turnDetection: 'vad',
         endpointing: {
-          minDelay: 300,
+          minDelay: 250, // Reduced from 300ms for ultra-fast turn recognition
         },
         interruption: {
-          minDuration: 250,
+          minDuration: 200, // Reduced from 250ms for faster interruption handling
         },
         preemptiveGeneration: {},
       },
@@ -244,8 +244,8 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
               },
               contents: geminiContents,
               generationConfig: {
-                maxOutputTokens: 200,
-                temperature: 0.7,
+                maxOutputTokens: 150,
+                temperature: 0.6,
               },
             }),
           }
@@ -346,12 +346,12 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
         isHibernating = true;
         resetGreetingState();
         console.log(`[agent]: 🛌 Agent hibernating. Initiating SIP transfer...`);
-        
+
         // Unsubscribe from remote audio so VAD stops hearing the user
         for (const p of ctx.room.remoteParticipants.values()) {
           for (const pub of p.trackPublications.values()) {
             if (pub.subscribed) {
-               pub.setSubscribed(false);
+              pub.setSubscribed(false);
             }
           }
         }
@@ -361,12 +361,12 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
           console.log(`[agent]: ⏳ Importing sipTransfer utility...`);
           const { transferRoomToMloQueue } = await import('./utils/sipTransfer.js');
           console.log(`[agent]: ⏳ Calling transferRoomToMloQueue...`);
-          transferRoomToMloQueue({ 
+          transferRoomToMloQueue({
             roomName: ctx.room.name || ''
           }).then((res) => {
-             console.log(`[agent]: 📞 SIP Transfer initiated successfully:`, res);
+            console.log(`[agent]: 📞 SIP Transfer initiated successfully:`, res);
           }).catch((err) => {
-             console.error(`[agent]: ❌ SIP Transfer failed in background:`, err);
+            console.error(`[agent]: ❌ SIP Transfer failed in background:`, err);
           });
         } catch (err) {
           console.error(`[agent]: ❌ SIP Transfer import/setup failed:`, err);
@@ -378,16 +378,16 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
         isHibernating = false;
         resetGreetingState();
         console.log(`[agent]: ☀️ Agent waking up from hibernation.`);
-        
+
         // Resubscribe to remote audio
         for (const p of ctx.room.remoteParticipants.values()) {
           for (const pub of p.trackPublications.values()) {
             if (!pub.subscribed) {
-               pub.setSubscribed(true);
+              pub.setSubscribed(true);
             }
           }
         }
-        
+
         // Let the user know Ailana is back
         try {
           await requestVoiceReply(
@@ -482,7 +482,7 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
           // Gemini 3.1 will not speak first via generateReply(); send realtime text after session is up.
           setTimeout(() => {
             void triggerInitialGreeting('post-start-immediate');
-          }, 600);
+          }, 400);
           scheduleInitialGreetingFallbacks();
         } catch (err) {
           console.error(`[agent]: ❌ Failed to start session:`, err);
