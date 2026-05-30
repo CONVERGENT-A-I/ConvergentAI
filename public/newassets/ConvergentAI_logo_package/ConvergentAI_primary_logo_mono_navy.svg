@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="260" viewBox="0 0 1100 260" role="img" aria-label="ConvergentAI logo">
+  
+  <g transform="translate(40,58)">
+    <rect x="12.00" y="33.00" width="10.00" height="10.00" rx="1.50" fill="#001A5B"/>
+<rect x="12.00" y="57.00" width="10.00" height="10.00" rx="1.50" fill="#001A5B"/>
+<rect x="12.00" y="81.00" width="10.00" height="10.00" rx="1.50" fill="#001A5B"/>
+<rect x="12.00" y="105.00" width="10.00" height="10.00" rx="1.50" fill="#001A5B"/>
+<path d="M32 38 C70 38 86 39 105 39 L132 58" fill="none" stroke="#001A5B" stroke-width="5.80" stroke-linecap="butt" stroke-linejoin="miter" transform="translate(0,0) scale(1.0)"/>
+<path d="M32 62 C72 62 88 62 108 63 L132 72" fill="none" stroke="#001A5B" stroke-width="5.80" stroke-linecap="butt" stroke-linejoin="miter" transform="translate(0,0) scale(1.0)"/>
+<path d="M32 86 C72 86 88 86 108 85 L132 78" fill="none" stroke="#001A5B" stroke-width="5.80" stroke-linecap="butt" stroke-linejoin="miter" transform="translate(0,0) scale(1.0)"/>
+<path d="M32 110 C70 110 86 108 105 107 L132 88" fill="none" stroke="#001A5B" stroke-width="5.80" stroke-linecap="butt" stroke-linejoin="miter" transform="translate(0,0) scale(1.0)"/>
+<path d="M178 22 L146 39 L146 121 L178 138" fill="none" stroke="#001A5B" stroke-width="10.00" stroke-linecap="butt" stroke-linejoin="miter" transform="translate(0,0) scale(1.0)"/>
+  </g>
+  <text x="300" y="153" font-family="Inter Display, Inter, Arial, sans-serif" font-size="78" font-weight="650" letter-spacing="-2" fill="#001A5B">Convergent<tspan fill="#001A5B">AI</tspan></text>
+</svg>

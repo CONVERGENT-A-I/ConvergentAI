@@ -14,7 +14,6 @@ import { Users, Send, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
-import AppIcon from "../app/icon.png";
 import KeyframeAvatar from "./keyframe-avatar";
 
 import { useMotionValue, useSpring, useTransform } from "framer-motion";
@@ -136,7 +135,7 @@ function VoiceVisualizer() {
           transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
           className="relative h-32 w-32 md:h-44 md:w-44 opacity-90"
         >
-          <Image src={AppIcon} alt="Logo" fill sizes="176px" className="object-contain" />
+          <Image src="/newassets/ConvergentAI_logo_package/ConvergentAI_icon_mark_reverse.svg" alt="Logo" fill sizes="176px" className="object-contain" />
         </motion.div>
 
         {/* Glassmorphism Highlight */}

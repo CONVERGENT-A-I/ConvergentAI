@@ -36,11 +36,11 @@ export default function Navbar() {
         {/* Logo */}
         <Link href="/" className="relative z-[200] hover:opacity-80 transition-opacity">
           <Image
-            src="/footer_logo_for_nav.png"
-            alt="ConvergentAI Logo"
-            width={400}
-            height={100}
-            className="h-20 md:h-32 w-auto object-contain"
+            src="/newassets/ConvergentAI_logo_package/ConvergentAI_primary_logo_reverse_1100px.png"
+            alt="ConvergentAI"
+            width={1100}
+            height={260}
+            className="h-24 w-auto sm:h-28 md:h-32 xl:h-28 object-contain"
             priority
           />
         </Link>

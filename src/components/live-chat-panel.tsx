@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { Send } from "lucide-react";
-import AppIcon from "../app/icon.png";
 
 interface ChatMessage {
   id: string;
@@ -148,7 +147,7 @@ export default function LiveChatPanel() {
              className="relative w-full h-full z-10"
              style={{ willChange: "transform" }}
           >
-            <Image src={AppIcon} alt="ConvergentAI Background" fill sizes="(max-width: 768px) 250px, 350px" className="object-contain z-10" />
+            <Image src="/newassets/ConvergentAI_logo_package/ConvergentAI_icon_mark_reverse.svg" alt="ConvergentAI Background" fill sizes="(max-width: 768px) 250px, 350px" className="object-contain z-10" />
             
             {/* Glow Bullets Shooting Out */}
             {[...Array(6)].map((_, i) => (

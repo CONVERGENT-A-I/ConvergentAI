@@ -16,14 +16,14 @@ export default function Footer() {
             {/* Logo — primary element */}
             <Link
               href="/"
-              className="hover:opacity-80 transition-opacity shrink-0 w-full flex justify-center xl:justify-start"
+              className="hover:opacity-80 transition-opacity shrink-0 flex justify-center xl:justify-start"
             >
               <Image
-                src="/footer_logo.png"
+                src="/newassets/ConvergentAI_logo_package/ConvergentAI_primary_logo_reverse_1100px.png"
                 alt="ConvergentAI"
-                width={1200}
-                height={400}
-                className="h-44 w-auto sm:h-48 md:h-56 lg:h-60 xl:h-56 max-w-[min(100%,34rem)] xl:max-w-none object-contain object-center xl:object-left"
+                width={1100}
+                height={260}
+                className="h-24 w-auto sm:h-28 md:h-32 xl:h-28 object-contain"
               />
             </Link>
           </div>

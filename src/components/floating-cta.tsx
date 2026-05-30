@@ -40,7 +40,6 @@ import {
 } from "@livekit/components-react";
 import { RoomEvent } from "livekit-client";
 import "@livekit/components-styles";
-import AppIcon from "../app/icon.png";
 
 import VideoStage from "./video-stage";
 
@@ -1949,7 +1948,7 @@ export default function FloatingCTA() {
                     <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
                       <div className="relative h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-transparent">
                         <Image
-                          src={AppIcon}
+                          src="/newassets/ConvergentAI_logo_package/ConvergentAI_app_icon_navy.svg"
                           alt="ConvergentAI Logo"
                           fill
                           sizes="32px"

@@ -1,7 +1,15 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-green: #00FF99;
+  --color-primary-navy: #001A5B;
+  --color-action-blue: #2453F3;
+  --color-intelligence-purple: #5F43D9;
+  --color-support-lavender: #8C95F1;
+  --color-digital-teal: #22C5CC;
+
+  /* Map the previous brand-green token to the new Digital Teal color so that 
+     all existing UI accents and triggers instantly update to the new brand guidelines */
+  --color-brand-green: #22C5CC;
   --color-background: #000000;
   --color-foreground: #FFFFFF;
 }
@@ -9,7 +17,13 @@
 :root {
   --background: #000000;
   --foreground: #ffffff;
-  --brand-green: #00FF99;
+  --primary-navy: #001A5B;
+  --action-blue: #2453F3;
+  --intelligence-purple: #5F43D9;
+  --support-lavender: #8C95F1;
+  --digital-teal: #22C5CC;
+  
+  --brand-green: #22C5CC;
 }
 
 html {
@@ -27,13 +41,13 @@ html {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #00d4f5 0%, #0252c4 45%, #7b2fff 100%);
+  background: linear-gradient(180deg, #22C5CC 0%, #2453F3 45%, #5F43D9 100%);
   border-radius: 999px;
   border: 2px solid #050505;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #23e6ff 0%, #0d68e3 45%, #9152ff 100%);
+  background: linear-gradient(180deg, #3de2e9 0%, #4c74f5 45%, #7e66df 100%);
 }
 
 ::-webkit-scrollbar-corner {
@@ -49,7 +63,7 @@ html {
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: var(--font-manrope), Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), "Inter Display", Inter, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
