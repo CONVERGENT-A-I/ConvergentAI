@@ -226,12 +226,12 @@ export default function SecurityCenter() {
                   </td>
                   <td className="p-4 md:p-6 border-b md:border-none border-white/5 block md:table-cell">
                     <span className="md:hidden text-[10px] font-bold tracking-widest text-zinc-500 uppercase block mb-1">Provider</span>
-                    <span className="font-medium text-zinc-300">Telnyx</span>
+                    <span className="font-medium text-zinc-300">SignalWire</span>
                   </td>
                   <td className="p-4 md:p-6 block md:table-cell">
                     <span className="md:hidden text-[10px] font-bold tracking-widest text-zinc-500 uppercase block mb-2">Certifications & Standards</span>
                     <div className="flex flex-wrap gap-2">
-                      {['SOC 2 Type II', 'Licensed Carrier'].map(cert => (
+                      {['ISO 27001'].map(cert => (
                         <span key={cert} className="px-3 py-1 rounded-md bg-white/5 border border-white/10 text-xs font-semibold text-zinc-300">
                           {cert}
                         </span>
