@@ -191,7 +191,7 @@ export default function PrivacyPolicyPage() {
             <section id="section-7" className="scroll-mt-32">
               <h3 className={sectionHead}>7. DO WE COLLECT INFORMATION FROM MINORS?</h3>
               <p className={shortNote}>In Short: We do not knowingly collect data from or market to children under 18 years of age.</p>
-              <p className={prose}>We do not knowingly collect, solicit data from, or market to children under 18 years of age, nor do we knowingly sell such personal information. By using the Services, you represent that you are at least 18 or that you are the parent or guardian of such a minor and consent to such minor dependent&apos;s use of the Services. If we learn that personal information from users less than 18 years of age has been collected, we will deactivate the account and take reasonable measures to promptly delete such data from our records. If you become aware of any data we may have collected from children under age 18, please contact us at info@convergentai.tech.</p>
+              <p className={prose}>We do not knowingly collect, solicit data from, or market to children under 18 years of age, nor do we knowingly sell such personal information. By using the Services, you represent that you are at least 18 or that you are the parent or guardian of such a minor and consent to such minor dependent&apos;s use of the Services. If we learn that personal information from users less than 18 years of age has been collected, we will deactivate the account and take reasonable measures to promptly delete such data from our records. If you become aware of any data we may have collected from children under age 18, please contact us at <a href="https://mail.google.com/mail/?view=cm&fs=1&to=info@convergentai.tech" target="_blank" rel="noopener noreferrer" className="text-brand-green hover:underline">info@convergentai.tech</a>.</p>
             </section>
 
             {/* 8 */}
@@ -296,7 +296,12 @@ export default function PrivacyPolicyPage() {
                   data subject access request
                 </a>
                 , by emailing us at{" "}
-                <a href="mailto:info@convergentai.tech" className="text-brand-green hover:underline underline-offset-4">
+                <a
+                  href="https://mail.google.com/mail/?view=cm&fs=1&to=info@convergentai.tech"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-brand-green hover:underline underline-offset-4"
+                >
                   info@convergentai.tech
                 </a>
                 , or by referring to the contact details at the bottom of this document.
@@ -320,7 +325,14 @@ export default function PrivacyPolicyPage() {
                 <p className="text-zinc-300 text-sm">2209 Chamberlain Ave., Unit B</p>
                 <p className="text-zinc-300 text-sm">Chattanooga, TN 37404</p>
                 <p className="text-zinc-300 text-sm">United States</p>
-                <a href="mailto:info@convergentai.tech" className="text-brand-green text-sm hover:underline mt-2 block">info@convergentai.tech</a>
+                <a
+                  href="https://mail.google.com/mail/?view=cm&fs=1&to=info@convergentai.tech"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-brand-green text-sm hover:underline mt-2 block"
+                >
+                  info@convergentai.tech
+                </a>
               </div>
             </section>
 
