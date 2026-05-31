@@ -46,7 +46,7 @@ export default function Navbar() {
         </Link>
 
         {/* Navigation Links - Desktop */}
-        <div className="hidden xl:flex items-center gap-6 xl:gap-12">
+        <div className="hidden xl:flex items-center gap-6 xl:gap-8">
           {[
             { name: "Home", href: "/" },
             { name: "About Us", href: "/about" },
@@ -58,7 +58,7 @@ export default function Navbar() {
               <Link
                 key={link.name}
                 href={link.href}
-                className={`relative py-1 text-xs xl:text-sm font-bold tracking-[0.15em] uppercase transition-colors duration-300
+                className={`relative py-1 text-[11px] xl:text-xs font-bold tracking-[0.15em] uppercase transition-colors duration-300
                   ${isActive ? "text-brand-green" : "text-white/60 hover:text-brand-green"}
                   after:absolute after:bottom-0 after:left-0 after:h-[2px] after:w-full after:bg-brand-green 
                   after:origin-left after:scale-x-0 after:transition-transform after:duration-300 
