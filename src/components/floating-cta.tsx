@@ -57,8 +57,7 @@ type PendingMode =
   | "video"
   | "voice"
   | "avatar-chat"
-  | "loan-officer"
-  | "tts-avatar";
+  | "loan-officer";
 
 function AgentReadinessCheck({
   onAgentReady,
@@ -90,7 +89,7 @@ function MediaGuard({ mode }: { mode: string }) {
 
     // Explicitly handle all modes as the single source of truth
     const syncMedia = async () => {
-      if (mode === "avatar-chat" || mode === "intro-avatar" || mode === "tts-avatar") {
+      if (mode === "avatar-chat" || mode === "intro-avatar") {
         try {
           await lp.setMicrophoneEnabled(false);
         } catch (e) {
@@ -395,27 +394,6 @@ function ChannelStartTrigger({
       lastTriggeredMode.current = null;
     }
   }, [isLivePhase, mode, send, room.state, agentReady, isAnnouncementComplete]);
-
-  return null;
-}
-
-function TtsIntroTrigger({ isLivePhase, mode }: { isLivePhase: boolean; mode: string }) {
-  const room = useRoomContext();
-  const participants = useRemoteParticipants();
-  const agentReady = participants.length > 0;
-  const hasTriggered = useRef(false);
-
-  useEffect(() => {
-    if (isLivePhase && room.state === 'connected' && agentReady && mode === 'tts-avatar' && !hasTriggered.current) {
-      hasTriggered.current = true;
-      console.log(`[ui]: 🚀 Triggering TTS intro...`);
-      const payload = new TextEncoder().encode(JSON.stringify({ message: 'SYSTEM_INTRO_TRIGGER' }));
-      room.localParticipant.publishData(payload, { topic: "lk-chat", reliable: true }).catch(console.error);
-    }
-    if (!isLivePhase) {
-      hasTriggered.current = false;
-    }
-  }, [isLivePhase, room.state, agentReady, mode, room.localParticipant]);
 
   return null;
 }
@@ -2421,10 +2399,6 @@ export default function FloatingCTA() {
                                 mode={pendingMode}
                                 isAnnouncementComplete={isAnnouncementComplete}
                               />
-                              <TtsIntroTrigger
-                                isLivePhase={flowPhase === "live"}
-                                mode={pendingMode}
-                              />
 
                               {/* Fallback Notification Overlay */}
                               <AnimatePresence>
@@ -2483,12 +2457,12 @@ export default function FloatingCTA() {
                                       )}
 
                                     {/* Contextual help overlay */}
-                                    {isLkConnected && isAgentReady && pendingMode !== 'tts-avatar' && (
+                                    {isLkConnected && isAgentReady && (
                                       <ContextualHelp />
                                     )}
 
                                     {/* Suggested commands cycling text */}
-                                    {isLkConnected && isAgentReady && pendingMode !== 'tts-avatar' && (
+                                    {isLkConnected && isAgentReady && (
                                       <SuggestedCommands />
                                     )}
 
@@ -2532,14 +2506,12 @@ export default function FloatingCTA() {
                                     )}
 
                                     {/* Custom Controls */}
-                                    {pendingMode !== 'tts-avatar' && (
-                                      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-50">
-                                        <RoomControls
-                                          onEnd={requestEndCall}
-                                          mode={pendingMode}
-                                        />
-                                      </div>
-                                    )}
+                                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-50">
+                                      <RoomControls
+                                        onEnd={requestEndCall}
+                                        mode={pendingMode}
+                                      />
+                                    </div>
                                   </div>
 
                                   {/* Right: Chat Panel — always mounted so useChat() & transcripts survive channel switches.
@@ -2711,33 +2683,7 @@ export default function FloatingCTA() {
         )}
       </AnimatePresence>
 
-      <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end gap-4">
-        <motion.div
-          layout
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => {
-            setIsOpen(true);
-            setFlowPhase('live');
-            flowPhaseRef.current = "live";
-            setPendingMode('tts-avatar');
-            fetchToken('tts-avatar');
-          }}
-          className="group relative flex items-center gap-2 md:gap-3 rounded-full bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-700 p-1.5 pr-4 md:p-2 md:pr-6 text-white shadow-[0_0_20px_rgba(16,185,129,0.4)] transition-all duration-300 hover:shadow-[0_0_40px_rgba(16,185,129,0.6)] hover:-translate-y-1 hover:scale-[1.02] active:scale-95 cursor-pointer"
-        >
-          <div className="relative h-8 w-8 md:h-10 md:w-10 rounded-full bg-white/20 flex items-center justify-center overflow-hidden border border-white/30 backdrop-blur-sm">
-            <Sparkles className="h-4 w-4 md:h-5 md:w-5 text-white" />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[9px] md:text-[10px] font-bold text-white/70 uppercase tracking-[0.2em] mb-0.5">Test Flow</span>
-            <span className="text-xs md:text-sm font-black tracking-tight text-white flex items-center gap-2">
-              Test TTS Avatar
-            </span>
-          </div>
-        </motion.div>
-
+      <div className="fixed bottom-6 right-6 z-[100]">
         <motion.div
           layout
           initial={{ scale: 0, opacity: 0 }}

@@ -1,5 +1,5 @@
 import { type JobContext, ServerOptions, cli, voice, tts } from '@livekit/agents';
-import { RoomEvent, TrackKind, AudioSource, LocalAudioTrack, TrackSource, AudioFrame } from '@livekit/rtc-node';
+import { RoomEvent, TrackKind } from '@livekit/rtc-node';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import * as openai from '@livekit/agents-plugin-openai';
@@ -12,56 +12,30 @@ dotenv.config();
 
 // Removed globalSileroVad - VAD instances are stateful and must be per-session
 
-// --- TTS Intro functionality ---
-// Pre-cached intro audio frames (synthesized once at boot, reused on every trigger)
-let cachedIntroFrames: any[] | null = null;
-let introSampleRate = 24000;
-let introNumChannels = 1;
+// --- TTS Intro functionality commented out ---
+// // Pre-cached intro audio frames (synthesized once, reused on every trigger)
+// let cachedIntroFrames: any[] | null = null;
+// let introSampleRate = 24000;
+// let introNumChannels = 1;
 
-async function prewarmIntroAudio() {
-  if (cachedIntroFrames) return;
-  console.log('[agent]: 🔥 Pre-warming intro TTS audio...');
-  const introTts = new google.beta.TTS({ 
-    model: "gemini-3.1-flash-tts-preview",
-    voiceName: "Aoede" 
-  });
-  introSampleRate = introTts.sampleRate;
-  introNumChannels = introTts.numChannels;
-  const introText = "Hello, I am Ailana. It's a pleasure to meet you. As your mortgage assistant, my goal is to make your path to homeownership as clear and straightforward as possible using our specialized AI. To ensure we are protecting your privacy and meeting our commitment to transparency, I have placed our AI Use Disclosure on your screen for you to review. Once you click, 'Agree & Get Started,' we can move forward together to find the right mortgage solution for your goals.";
-  const stream = introTts.synthesize(introText);
-  const frames: any[] = [];
-  let totalSamples = 0;
-  
-  const samplesPerFrame = introSampleRate / 100; // 10ms frame
-  const emptyData = new Int16Array(samplesPerFrame * introNumChannels);
-  
-  // Programmatically pad 2.5 seconds of silence at the start to give Keyframe Avatar time to connect
-  const startSilenceFrames = 2.5 * 100;
-  for (let i = 0; i < startSilenceFrames; i++) {
-    frames.push(new AudioFrame(emptyData, introSampleRate, introNumChannels, samplesPerFrame));
-    totalSamples += samplesPerFrame;
-  }
-  
-  // Synthesize real audio
-  for await (const event of stream) {
-    if ((event as any).frame) {
-      frames.push((event as any).frame);
-      totalSamples += (event as any).frame.samplesPerChannel;
-    }
-  }
-  
-  // Programmatically pad 1.5 seconds of silence at the end to prevent WebRTC cutoff
-  const endSilenceFrames = 1.5 * 100;
-  for (let i = 0; i < endSilenceFrames; i++) {
-    frames.push(new AudioFrame(emptyData, introSampleRate, introNumChannels, samplesPerFrame));
-    totalSamples += samplesPerFrame;
-  }
-  
-  cachedIntroFrames = frames;
-  const durationSec = totalSamples / introSampleRate;
-  console.log(`[agent]: ✅ Intro audio pre-cached (${frames.length} frames, ${durationSec.toFixed(2)}s total duration)`);
-}
-// ---------------------------------
+// async function prewarmIntroAudio() {
+//   if (cachedIntroFrames) return;
+//   console.log('[agent]: 🔥 Pre-warming intro TTS audio...');
+//   const introTts = new openai.TTS({ voice: "coral" });
+//   introSampleRate = introTts.sampleRate;
+//   introNumChannels = introTts.numChannels;
+//   const introText = "Hello,,, Hello, I am Ailana. It's a pleasure to meet you. As your mortgage assistant, my goal is to make your path to homeownership as clear and straightforward as possible using our specialized AI. To ensure we are protecting your privacy and meeting our commitment to transparency, I have placed our AI Use Disclosure on your screen for you to review. Once you click, 'Agree & Get Started,' we can move forward together to find the right mortgage solution for your goals.,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,...............             .........................              ,,,,,,,,,,,,,,,,, ...........................,,,,,,,,,,,,,,,,,,,,......................,,,,,,,,,,.............";
+//   const stream = introTts.synthesize(introText);
+//   const frames: any[] = [];
+//   for await (const event of stream) {
+//     if ((event as any).frame) {
+//       frames.push((event as any).frame);
+//     }
+//   }
+//   cachedIntroFrames = frames;
+//   console.log(`[agent]: ✅ Intro audio pre-cached (${frames.length} frames)`);
+// }
+// ---------------------------------------------
 
 const INITIAL_GREETING_PROMPT =
   'The user has just joined the live voice session. Introduce yourself and greet them right now in one short English sentence, then wait for their reply.';
@@ -124,7 +98,7 @@ export default {
     });
 
     // Pre-warm intro audio in parallel with model setup (non-blocking)
-    const introWarm = prewarmIntroAudio();
+    // const introWarm = prewarmIntroAudio();
 
     const baseInstructions = `
 You are Ailana AI, a friendly female financial advisor and mortgage assistant.
@@ -225,8 +199,8 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
       console.log(`[agent-debug]: Agent state changed to: ${state}`);
     });
 
-    // Ensure intro audio is ready before handling triggers
-    await introWarm;
+    // // Ensure intro audio is ready before handling triggers
+    // await introWarm;
 
     // When true, the agent responds via text-only chat (no voice/audio output)
     let voiceMuted = false;
@@ -362,17 +336,7 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
       }, 4000);
     };
 
-    const handleSystemMessages = async (rawMessage: string, participantIdentity: string | undefined) => {
-      let messageText = rawMessage;
-      try {
-        const parsed = JSON.parse(rawMessage);
-        if (parsed.message) {
-          messageText = parsed.message;
-        }
-      } catch (e) {
-        // Not JSON, ignore
-      }
-
+    const handleSystemMessages = async (messageText: string, participantIdentity: string | undefined) => {
       if (isHibernating && messageText !== 'SYSTEM_RESUME_AGENT') {
         console.log(`[agent]: 🛌 Ignoring message while hibernating: ${messageText}`);
         return;
@@ -448,50 +412,37 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
         return;
       }
 
-      if (messageText === 'SYSTEM_INTRO_TRIGGER') {
-        console.log(`[agent]: 💬 [STEP 1] Received Intro Trigger. Playing cached TTS...`);
+      // if (messageText === 'SYSTEM_INTRO_TRIGGER') {
+      //   console.log(`[agent]: 💬 [STEP 1] Received Intro Trigger. Playing cached TTS...`);
 
-        const source = new AudioSource(introSampleRate, introNumChannels);
-        const track = LocalAudioTrack.createAudioTrack('intro-audio', source);
+      //   const source = new AudioSource(introSampleRate, introNumChannels);
+      //   const track = LocalAudioTrack.createAudioTrack('intro-audio', source);
 
-        const pub = await ctx.room.localParticipant?.publishTrack(track, {
-          source: TrackSource.SOURCE_MICROPHONE
-        } as any);
+      //   const pub = await ctx.room.localParticipant?.publishTrack(track, {
+      //     source: TrackSource.SOURCE_MICROPHONE
+      //   } as any);
 
-        console.log(`[agent]: 💬 [STEP 2] Streaming pre-cached intro audio...`);
-        if (cachedIntroFrames) {
-          for (const frame of cachedIntroFrames) {
-            await source.captureFrame(frame);
-          }
-        }
+      //   console.log(`[agent]: 💬 [STEP 2] Streaming pre-cached intro audio...`);
+      //   if (cachedIntroFrames) {
+      //     for (const frame of cachedIntroFrames) {
+      //       await source.captureFrame(frame);
+      //     }
+      //   }
 
-        console.log(`[agent]: 💬 [STEP 3] Intro audio streaming complete. Waiting for playout...`);
-        
-        // Calculate total duration to ensure we wait exactly the right amount of time
-        // because waitForPlayout() sometimes returns prematurely in rtc-node.
-        let totalSamples = 0;
-        if (cachedIntroFrames) {
-          for (const frame of cachedIntroFrames) {
-            totalSamples += frame.samplesPerChannel;
-          }
-        }
-        const delayMs = (totalSamples / introSampleRate) * 1000;
-        console.log(`[agent]: ⏳ Waiting exactly ${delayMs.toFixed(0)}ms for full audio playout...`);
-        
-        await new Promise(resolve => setTimeout(resolve, delayMs));
+      //   console.log(`[agent]: 💬 [STEP 3] Intro audio streaming complete. Waiting for playout...`);
+      //   await source.waitForPlayout();
+      //   if (pub?.sid) {
+      //     await ctx.room.localParticipant?.unpublishTrack(pub.sid);
+      //   }
+      //   await source.close();
 
-        if (pub?.sid) {
-          await ctx.room.localParticipant?.unpublishTrack(pub.sid);
-        }
-        await source.close();
+      //   const response = JSON.stringify({ message: 'SYSTEM_INTRO_DONE' });
+      //   await ctx.room.localParticipant?.publishData(new TextEncoder().encode(response), { topic: 'lk-chat', reliable: true });
+      //   await ctx.room.localParticipant?.sendChatMessage(response);
 
-        const response = JSON.stringify({ message: 'SYSTEM_INTRO_DONE' });
-        await ctx.room.localParticipant?.publishData(new TextEncoder().encode(response), { topic: 'lk-chat', reliable: true });
-        await ctx.room.localParticipant?.sendChatMessage(response);
-
-        console.log(`[agent]: ✅ [STEP 4] Intro fully played. Waiting for channel selection.`);
-        return;
-      }
+      //   console.log(`[agent]: ✅ [STEP 4] Intro fully played. Waiting for channel selection.`);
+      //   return;
+      // }
 
       if (messageText.startsWith('SYSTEM_CHANNEL_START')) {
         const targetMode = messageText.split(':')[1] || 'video';
@@ -499,7 +450,7 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
 
         if ((session as any)._started) {
           console.log(`[agent]: ⚠️ Session already started. Retrying greeting for mode ${targetMode}.`);
-          if (!hasSentInitialGreeting && targetMode !== 'tts-avatar' && targetMode !== 'intro-avatar') {
+          if (!hasSentInitialGreeting) {
             void triggerInitialGreeting('channel-start-retry');
             scheduleInitialGreetingFallbacks();
           }
@@ -528,15 +479,11 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
           resetGreetingState();
           console.log(`[agent]: 🟢 Realtime Agent session.start() completed. Mode ${targetMode} is ready.`);
 
-          if (targetMode !== 'tts-avatar' && targetMode !== 'intro-avatar') {
-            // Gemini 3.1 will not speak first via generateReply(); send realtime text after session is up.
-            setTimeout(() => {
-              void triggerInitialGreeting('post-start-immediate');
-            }, 400);
-            scheduleInitialGreetingFallbacks();
-          } else {
-             console.log(`[agent]: 🔇 Skipping initial Gemini greeting because mode is ${targetMode}`);
-          }
+          // Gemini 3.1 will not speak first via generateReply(); send realtime text after session is up.
+          setTimeout(() => {
+            void triggerInitialGreeting('post-start-immediate');
+          }, 400);
+          scheduleInitialGreetingFallbacks();
         } catch (err) {
           console.error(`[agent]: ❌ Failed to start session:`, err);
         }
