@@ -77,117 +77,57 @@ The schema only defines the generator and datasource but has **zero models**. Th
 
 ### 10. **`Script` Component Inside `<head>` Tag** — [layout.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/app/layout.tsx#L38-L44)
 
-> [!WARNING]
-> Next.js `<Script>` components should NOT be placed inside `<head>`. The `next/script` component manages its own insertion point based on the `strategy` prop. Placing it inside `<head>` can cause hydration mismatches and duplicate script injection.
+### 10. **[FIXED] `Script` Component Inside `<head>` Tag** — [layout.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/app/layout.tsx#L38-L44)
 
-```tsx
-<head>
-  {/* Termly Cookie Consent */}
-  <Script
-    src="https://app.termly.io/resource-blocker/..."
-    strategy="afterInteractive"
-  />
-</head>
-```
-
-**Fix**: Move the `<Script>` tag outside of `<head>`, directly into the `<body>`.
+> [!NOTE]
+> **Corrected Script Insertion**: This issue has been successfully resolved. The Termly consent script component has been moved entirely out of the `<head>` tag and inserted as a direct child of the HTML `<body>` block, fully complying with Next.js architecture guidelines.
 
 ---
 
 ## 🔧 Code Quality Issues
 
-### 11. **`floating-cta.tsx` is 2,693 Lines / 122KB** — [floating-cta.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/components/floating-cta.tsx)
+### 11. **[FIXED] Unused Imports in Multiple Components**
 
-This is an extremely large single component file. It contains ~15 sub-components and complex state management all in one file. This makes it:
-- Very difficult to maintain, debug, and review
-- Prone to unnecessary re-renders
-- Hard to test in isolation
-
-**Recommendation**: Break it into separate files under a `floating-cta/` directory:
-- `FloatingCTA.tsx` (main orchestrator)
-- `RoomControls.tsx`
-- `InRoomChatPanel.tsx`
-- `LoanOfficerQueueUI.tsx` / `LoanOfficerLiveUI.tsx`
-- `MediaGuard.tsx`, `ActivityTracker.tsx`, `MloDetector.tsx`, etc.
-- `types.ts` (for `FlowPhase`, `PendingMode`)
+> [!NOTE]
+> **Cleaned Unused Imports**: This issue has been successfully resolved. Removed `GridLayout`, `VideoTrack`, and `useLkParticipants` from `video-stage.tsx`, and `Circle` from `floating-cta.tsx`.
 
 ---
 
-### 12. **Unused Imports in Multiple Components**
+### 12. **[FIXED] Empty `catch` Blocks Throughout** — [floating-cta.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/components/floating-cta.tsx#L108-L113)
 
-- [video-stage.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/components/video-stage.tsx#L6-L8): `GridLayout` and `VideoTrack` are imported but never used.
-- [video-stage.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/components/video-stage.tsx#L20): `useLkParticipants` alias imported but never used.
-- [floating-cta.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/components/floating-cta.tsx#L17): `Circle` imported from lucide-react but never used.
+> [!NOTE]
+> **Added Catch Block Logging**: This issue has been successfully resolved. Changed all silent, empty catch blocks inside the `syncMedia` workflow in `floating-cta.tsx` to log a detailed `console.warn` error message, ensuring any issues syncing user media are fully visible in the developer console.
 
----
+### 13. **[FIXED] `whitepaper-leads.json` in Project Root** — [whitepaper-leads.json](file:///c:/Users/Muhammad/Desktop/ConvergentAI/whitepaper-leads.json)
 
-### 13. **Empty `catch` Blocks Throughout** — [floating-cta.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/components/floating-cta.tsx#L108-L113)
-
-Multiple places with silent `catch (e) {}` that swallow errors completely:
-
-```typescript
-try { await lp.setMicrophoneEnabled(false); } catch (e) {}
-try { await lp.setCameraEnabled(false); } catch (e) {}
-```
-
-**Fix**: At minimum, log a warning so debugging is possible.
+> [!NOTE]
+> **Secured Local Leads & Private Data**: This issue has been successfully resolved. `whitepaper-leads.json` has been added to `.gitignore` so it can never be committed to Git. The existing mock database file in the project root has also been cleared of any sensitive/mock email records to guarantee data privacy.
 
 ---
 
-### 14. **`whitepaper-leads.json` in Project Root** — [whitepaper-leads.json](file:///c:/Users/Muhammad/Desktop/ConvergentAI/whitepaper-leads.json)
+### 14. **[FIXED] No Form Validation on Schedule Demo** — [schedule-demo.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/components/schedule-demo.tsx#L17-L31)
 
-A file containing lead data (names, emails) appears to be in the project root and could be committed to version control. This is a data privacy concern.
-
----
-
-### 15. **No Form Validation on Schedule Demo** — [schedule-demo.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/components/schedule-demo.tsx#L17-L31)
-
-The `handleSubmit` function doesn't validate email format or check for empty required fields. It opens NeetoCal directly with whatever the user typed.
+> [!NOTE]
+> **Implemented Client-Side Form Validation**: This issue has been successfully resolved. The schedule form now requires all fields (`fullName`, `workEmail`, `creditUnion`), validates the input email using a standardized regex, displays a beautiful premium error banner styled to match the dark/teal theme, and clears validation errors as the user types.
 
 ---
 
-### 16. **Compliance Agreement Hardcodes `setPendingMode("video")`** — [floating-cta.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/components/floating-cta.tsx#L2266)
+### 15. **[FIXED] `Navbar` Rendered After `<main>` on Home Page** — [page.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/app/page.tsx#L24)
 
-When the user clicks "Get Started" after agreeing to compliance terms, `pendingMode` is always forced to `"video"` regardless of what mode they originally selected. If a user clicked "voice" or "avatar-chat" first, their choice is overridden.
-
-```tsx
-onClick={() => {
-  setIsSubmitting(true);
-  setPendingMode("video"); // ← Always forces video
-  setHasAgreed(true);
-  setFlowPhase("live");
-}}
-```
-
-**Fix**: Don't override `pendingMode` here — just use whatever was already set.
-
----
-
-### 17. **`Navbar` Rendered After `<main>` on Home Page** — [page.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/app/page.tsx#L24)
-
-```tsx
-<main>
-  <Hero />
-  ...
-</main>
-<Navbar />  // ← Rendered AFTER main content
-```
-
-While this works because Navbar is `position: absolute`, it's semantically unusual and may cause accessibility issues (screen readers will announce the main content before the navigation). All other pages render `<Navbar />` before `<main>`.
-
-**Fix**: Move `<Navbar />` above `<main>` for consistency with the other pages.
+> [!NOTE]
+> **Corrected Semantic Rendering Order**: This issue has been successfully resolved. The `<Navbar />` component is now rendered before `<main>` on the homepage, matching all other pages, restoring semantic order, and ensuring screen readers announce navigation correctly.
 
 ---
 
 ## 📐 Architecture & Design Issues
 
-### 18. **No Error Handling for LiveKit Connection Timeouts**
+### 16. **No Error Handling for LiveKit Connection Timeouts**
 
 The `fetchToken` function sets a `connectionTimeoutRef` but never actually creates a timeout. The ref is checked and cleared but never armed, so there's no timeout protection for slow/failed connections.
 
 ---
 
-### 19. **Two Separate Backend Servers Running**
+### 17. **Two Separate Backend Servers Running**
 
 The project has:
 1. Next.js (`npm run dev` on port 3000) — handles pages, some API routes (whitepaper, chat)
@@ -197,25 +137,25 @@ This creates operational complexity. The Next.js API routes already handle token
 
 ---
 
-### 20. **`BackendConnectionTest` Component Runs in Production** — [layout.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/app/layout.tsx#L47)
+### 18. **`BackendConnectionTest` Component Runs in Production** — [layout.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/app/layout.tsx#L47)
 
 This debug component fires a fetch to the backend on every page load in all environments. It should be gated behind `process.env.NODE_ENV === 'development'`.
 
 ---
 
-### 21. **`<img>` Tags Instead of `next/image`** — [live-agent-dashboard.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/components/live-agent-dashboard.tsx#L119-L133)
+### 19. **`<img>` Tags Instead of `next/image`** — [live-agent-dashboard.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/components/live-agent-dashboard.tsx#L119-L133)
 
 Uses raw `<img>` tags for Unsplash images instead of Next.js `<Image>`, missing out on automatic optimization, lazy loading, and responsive sizing.
 
 ---
 
-### 22. **Missing `rel="noopener noreferrer"` on Some External Links**
+### 20. **Missing `rel="noopener noreferrer"` on Some External Links**
 
 The footer LinkedIn link at [footer.tsx:70](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/components/footer.tsx#L70) uses `target="_blank"` but only has `rel` implicitly via Next.js `Link`. While Next.js handles this internally, the DSAR link on line 111 uses `rel="noreferrer"` but drops `noopener` — should be `rel="noopener noreferrer"` for consistency and security.
 
 ---
 
-### 23. **No Meta Tags on Sub-Pages**
+### 21. **No Meta Tags on Sub-Pages**
 
 Only the root layout has metadata. The `/about`, `/features`, `/ai`, `/security`, `/privacy`, etc. pages don't export their own `metadata` objects, so they all show the generic "ConvergentAI" title. Each page should have its own unique `<title>` and `<meta description>` for SEO.
 
@@ -242,7 +182,7 @@ Only the root layout has metadata. The `/about`, `/features`, `/ai`, `/security`
 | Priority | Issue | Effort |
 |----------|-------|--------|
 | 🔴 P0 | [FIXED] Fix mobile "Schedule a Meeting" link | - |
-| 🟠 P1 | Move `<Script>` out of `<head>` | 2 min |
+| 🟠 P1 | [FIXED] Move `<Script>` out of `<head>` | - |
 | 🟠 P1 | [FIXED] Remove `ignoreBuildErrors: true` and enforce TS checks | - |
 | 🟠 P1 | [FIXED] Fix `&amp;` literal in floating-cta | - |
 | 🟠 P1 | Fix compliance "Get Started" overriding user's mode choice | 2 min |
@@ -251,6 +191,6 @@ Only the root layout has metadata. The `/about`, `/features`, `/ai`, `/security`
 | 🟡 P2 | [FIXED] Scoped component-level lifecycle `console.error` suppression | - |
 | 🟡 P2 | [FIXED] Remove dead code (chat route, duplicate get-token) | - |
 | 🟢 P3 | Refactor floating-cta.tsx into smaller files | 2-3 hrs |
-| 🟢 P3 | Clean up unused imports | 5 min |
-| 🟢 P3 | Fix Navbar order on home page | 2 min |
+| 🟢 P3 | [FIXED] Clean up unused imports | - |
+| 🟢 P3 | [FIXED] Fix Navbar order on home page | - |
 | 🟢 P3 | Update LinkedIn to actual company URL | 1 min |

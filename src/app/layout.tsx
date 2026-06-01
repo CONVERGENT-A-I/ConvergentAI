@@ -35,14 +35,12 @@ export default function RootLayout({
       className={`${inter.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <head>
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
         {/* Termly Cookie Consent */}
         <Script
           src="https://app.termly.io/resource-blocker/f99cb3c5-d5a4-4ed3-9c93-1ccc32223251?autoBlock=on"
           strategy="afterInteractive"
         />
-      </head>
-      <body className="min-h-full flex flex-col" suppressHydrationWarning>
 
         <BackendConnectionTest />
         {children}

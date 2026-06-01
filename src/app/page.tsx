@@ -11,6 +11,7 @@ import ScheduleDemo from "@/components/schedule-demo";
 export default function Home() {
   return (
     <div className="min-h-screen bg-black">
+      <Navbar />
       <main>
         <Hero />
         <Avatars />
@@ -21,7 +22,6 @@ export default function Home() {
         <LiveAgentDashboard />
         <ScheduleDemo />
       </main>
-      <Navbar />
     </div>
   );
 }

@@ -14,7 +14,6 @@ import {
   VideoOff,
   PhoneOff,
   Monitor,
-  Circle,
   Loader2,
   Send,
   Check,
@@ -93,26 +92,38 @@ function MediaGuard({ mode }: { mode: string }) {
       if (mode === "avatar-chat" || mode === "intro-avatar" || mode === "tts-avatar") {
         try {
           await lp.setMicrophoneEnabled(false);
-        } catch (e) {}
+        } catch (e) {
+          console.warn("[MediaGuard] Failed to disable microphone in avatar mode:", e);
+        }
         try {
           await lp.setCameraEnabled(false);
-        } catch (e) {}
+        } catch (e) {
+          console.warn("[MediaGuard] Failed to disable camera in avatar mode:", e);
+        }
         console.log("[MediaGuard] 🔇 Mic & camera OFF");
       } else if (mode === "voice") {
         try {
           await lp.setMicrophoneEnabled(false);
-        } catch (e) {}
+        } catch (e) {
+          console.warn("[MediaGuard] Failed to disable microphone in voice mode:", e);
+        }
         try {
           await lp.setCameraEnabled(false);
-        } catch (e) {}
+        } catch (e) {
+          console.warn("[MediaGuard] Failed to disable camera in voice mode:", e);
+        }
         console.log("[MediaGuard] 🔇 Mic & camera OFF (voice mode)");
       } else if (mode === "video") {
         try {
           await lp.setMicrophoneEnabled(false);
-        } catch (e) {}
+        } catch (e) {
+          console.warn("[MediaGuard] Failed to disable microphone in video mode:", e);
+        }
         try {
           await lp.setCameraEnabled(false);
-        } catch (e) {}
+        } catch (e) {
+          console.warn("[MediaGuard] Failed to disable camera in video mode:", e);
+        }
         console.log(
           "[MediaGuard] 🔇 Mic & camera OFF by default (waiting for user to enable)",
         );
@@ -120,10 +131,14 @@ function MediaGuard({ mode }: { mode: string }) {
         // Loan officer mode: enable mic so user can talk to the SIP participant, disable camera
         try {
           await lp.setMicrophoneEnabled(true);
-        } catch (e) {}
+        } catch (e) {
+          console.warn("[MediaGuard] Failed to enable microphone in loan-officer mode:", e);
+        }
         try {
           await lp.setCameraEnabled(false);
-        } catch (e) {}
+        } catch (e) {
+          console.warn("[MediaGuard] Failed to disable camera in loan-officer mode:", e);
+        }
         console.log("[MediaGuard] 🎤 Mic ON, camera OFF (loan-officer SIP mode)");
       }
     };

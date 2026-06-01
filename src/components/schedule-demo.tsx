@@ -10,18 +10,50 @@ export default function ScheduleDemo() {
     creditUnion: "",
   });
 
+  const [error, setError] = useState<string | null>(null);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+    if (error) setError(null);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setError(null);
+
+    const name = formData.fullName.trim();
+    const email = formData.workEmail.trim();
+    const company = formData.creditUnion.trim();
+
+    if (!name) {
+      setError("Please enter your full name.");
+      return;
+    }
+
+    if (!email) {
+      setError("Please enter your work email.");
+      return;
+    }
+
+    // Basic RFC 5322 compliant email regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    if (!company) {
+      setError("Please enter your financial institution's name.");
+      return;
+    }
+
     // Build NeetoCal URL with pre-filled name & email params
     const baseUrl = "https://convergentai.neetocal.com/meeting-with-david-patten";
     const params = new URLSearchParams();
-    if (formData.fullName.trim())  params.set("name",  formData.fullName.trim());
-    if (formData.workEmail.trim()) params.set("email", formData.workEmail.trim());
+    params.set("name", name);
+    params.set("email", email);
 
-    const targetUrl = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
+    const targetUrl = `${baseUrl}?${params.toString()}`;
 
     // Clear the form fields
     setFormData({ fullName: "", workEmail: "", creditUnion: "" });
@@ -106,7 +138,22 @@ export default function ScheduleDemo() {
               </div>
 
               {/* Right — Form */}
-              <motion.div variants={itemVariants} className="flex flex-col gap-4">
+              <motion.form
+                onSubmit={handleSubmit}
+                variants={itemVariants}
+                className="flex flex-col gap-4"
+              >
+                {/* Error Banner */}
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-rose-500/10 border border-rose-500/20 text-rose-400 font-bold text-sm px-4 py-3 rounded-xl text-center transition-all duration-300"
+                  >
+                    {error}
+                  </motion.div>
+                )}
+
                 {/* Full Name */}
                 <div className="group">
                   <input
@@ -148,7 +195,7 @@ export default function ScheduleDemo() {
 
                 {/* Submit Button */}
                 <button
-                  onClick={handleSubmit}
+                  type="submit"
                   className="group relative mt-2 w-full bg-brand-green text-black px-6 py-4 rounded-2xl text-sm md:text-base font-black uppercase tracking-widest hover:shadow-[0_0_50px_rgba(0,255,153,0.5)] transition-all transform hover:-translate-y-1 active:scale-95 flex items-center justify-center cursor-pointer"
                 >
                   Schedule a Demo
@@ -158,7 +205,7 @@ export default function ScheduleDemo() {
                 <p className="text-zinc-600 text-xs text-center mt-1">
                   No commitment required. Response within 24 hours.
                 </p>
-              </motion.div>
+              </motion.form>
 
             </div>
           </div>

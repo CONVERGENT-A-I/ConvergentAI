@@ -3,11 +3,9 @@
 import {
   ControlBar,
   useTracks,
-  GridLayout,
   ParticipantTile,
   useParticipants,
   useChat,
-  VideoTrack,
 } from "@livekit/components-react";
 import { Track } from "livekit-client";
 import { Users, Send, Loader2 } from "lucide-react";
@@ -17,7 +15,6 @@ import Image from "next/image";
 import KeyframeAvatar from "./keyframe-avatar";
 
 import { useMotionValue, useSpring, useTransform } from "framer-motion";
-import { useParticipants as useLkParticipants } from "@livekit/components-react";
 
 /**
  * Dynamic connection status messages
