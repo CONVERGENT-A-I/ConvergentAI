@@ -19,6 +19,7 @@ import {
   Check,
   ArrowRight,
   Clock,
+  Circle,
   Lock,
   ShieldAlert,
   RefreshCw,
