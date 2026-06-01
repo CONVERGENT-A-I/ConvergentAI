@@ -115,15 +115,6 @@
 > [!NOTE]
 > **Implemented Connection Timeout Guards**: This issue has been successfully resolved. `fetchToken` inside `floating-cta.tsx` now arms `connectionTimeoutRef` with a 15-second window. If a connection is slow or fails to resolve, a warning is logged, the flow phase is cleanly set to `"error"`, the fetching state is cleared, and `connectionStatus` notifies the user. The timeout is cleared on both successful token resolutions and quick error catches.
 
----
-
-### 16. **Two Separate Backend Servers Running**
-
-The project has:
-1. Next.js (`npm run dev` on port 3000) — handles pages, some API routes (whitepaper, chat)
-2. Express backend (`backend/npm run dev` on port 3001) — handles LiveKit tokens, agent worker
-
-This creates operational complexity. The Next.js API routes already handle token generation (duplicated), and the Express server's sole unique purpose is spawning the agent worker. Consider consolidating.
 
 ---
 
