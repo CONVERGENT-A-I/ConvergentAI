@@ -68,6 +68,7 @@ export default function Footer() {
               <Link
                 href="https://linkedin.com"
                 target="_blank"
+                rel="noopener noreferrer"
                 aria-label="LinkedIn"
                 className="w-8 h-8 rounded-full bg-[#0A66C2] flex items-center justify-center hover:opacity-80 transition-opacity"
               >
@@ -108,7 +109,7 @@ export default function Footer() {
             <Link
               href="https://app.termly.io/dsar/1acd48eb-09ac-4991-bd12-43b98d86a2d7"
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               className="text-zinc-300 text-sm md:text-base font-medium hover:text-brand-green transition-colors"
             >
               Data Subject Access Request (DSAR)

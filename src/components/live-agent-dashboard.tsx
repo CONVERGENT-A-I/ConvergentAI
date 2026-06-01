@@ -2,6 +2,7 @@
 
 import { motion, Variants } from "framer-motion";
 import { CheckCircle2 } from "lucide-react";
+import Image from "next/image";
 
 const features = [
   {
@@ -115,21 +116,23 @@ export default function LiveAgentDashboard() {
           {/* Right: Stacked Image Mockups */}
           <motion.div variants={itemVariants} className="flex flex-col gap-6">
             {/* Top Image — full width */}
-            <div className="rounded-[1.5rem] overflow-hidden border border-white/10 shadow-2xl bg-zinc-900 w-full">
-              <img
+            <div className="rounded-[1.5rem] overflow-hidden border border-white/10 shadow-2xl bg-zinc-900 w-full relative">
+              <Image
                 src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=1200"
                 alt="Unified LiveAgent Dashboard — full view"
+                width={1200}
+                height={750}
                 className="w-full h-auto object-cover opacity-90"
-                loading="lazy"
               />
             </div>
             {/* Bottom Image — smaller, centered under the first */}
-            <div className="rounded-[1.5rem] overflow-hidden border border-white/10 shadow-2xl bg-zinc-900 w-2/3 mx-auto">
-              <img
+            <div className="rounded-[1.5rem] overflow-hidden border border-white/10 shadow-2xl bg-zinc-900 w-2/3 mx-auto relative">
+              <Image
                 src="https://images.unsplash.com/photo-1531538606174-0f90ff5dce83?auto=format&fit=crop&q=80&w=800"
                 alt="LiveAgent mortgage intent scoring panel"
+                width={800}
+                height={500}
                 className="w-full h-auto object-cover opacity-90"
-                loading="lazy"
               />
             </div>
           </motion.div>

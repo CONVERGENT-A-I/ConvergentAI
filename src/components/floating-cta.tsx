@@ -1298,6 +1298,20 @@ export default function FloatingCTA() {
     // Prevent concurrent duplicate calls (e.g. compliance agree + mode button)
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
+
+    // Arm connection timeout (15 seconds) to catch slow/failed connection attempts
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+    }
+    connectionTimeoutRef.current = setTimeout(() => {
+      console.warn("[fetchToken] Connection attempt timed out after 15 seconds.");
+      connectionTimeoutRef.current = null;
+      setFlowPhase("error");
+      flowPhaseRef.current = "error";
+      setConnectionStatus("Connection timed out. Please try again.");
+      isFetchingRef.current = false;
+    }, 15000);
+
     try {
       // Only show 'connecting' if we aren't already in a meaningful phase
       // Don't override intro phase — the CTA already set it to 'intro'
@@ -1389,6 +1403,10 @@ export default function FloatingCTA() {
         flowPhaseRef.current = nextPhase;
       }
     } catch (err) {
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+        connectionTimeoutRef.current = null;
+      }
       console.error("Error connecting to LiveKit:", err);
       setFlowPhase("error");
       flowPhaseRef.current = "error";

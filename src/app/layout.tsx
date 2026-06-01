@@ -42,7 +42,7 @@ export default function RootLayout({
           strategy="afterInteractive"
         />
 
-        <BackendConnectionTest />
+        {process.env.NODE_ENV === "development" && <BackendConnectionTest />}
         {children}
         <Suspense fallback={null}>
           <ErrorBoundary>
