@@ -138,7 +138,9 @@ export default function Navbar() {
               );
             })}
             <Link
-              href="/"
+              href="https://convergentai.neetocal.com/meeting-with-david-patten"
+              target="_blank"
+              rel="noopener noreferrer"
               className="mt-2 bg-brand-green text-black px-8 py-5 rounded-2xl text-center font-black uppercase tracking-wider text-base hover:opacity-90 active:scale-95 transition-all"
               onClick={() => setIsMenuOpen(false)}
             >

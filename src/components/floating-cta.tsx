@@ -2081,7 +2081,7 @@ export default function FloatingCTA() {
                           <div className="hidden sm:flex items-center gap-1.5 text-gray-400 text-xs font-medium">
                             <Lock className="h-3 w-3" />
                             <span className="hidden lg:inline">
-                              Secure &amp; Private
+                              Secure & Private
                             </span>
                           </div>
                         </>
@@ -2534,7 +2534,7 @@ export default function FloatingCTA() {
                                       shared.
                                     </span>
                                     <span className="sm:hidden">
-                                      Secure &amp; private.
+                                      Secure & private.
                                     </span>
                                   </span>
                                   <span className="h-3 w-px bg-white/20 hidden sm:block" />

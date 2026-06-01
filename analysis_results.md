@@ -22,21 +22,10 @@
 
 ## ⚠️ Significant Bugs & Issues
 
-### 3. **Navbar "Schedule a Meeting" in Mobile Menu Links to `/` Instead of NeetoCal** — [navbar.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/components/navbar.tsx#L140-L146)
+### 3. **[FIXED] Navbar "Schedule a Meeting" in Mobile Menu Links to `/` Instead of NeetoCal** — [navbar.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/components/navbar.tsx#L140-L146)
 
-The mobile menu "Schedule a Meeting" button links to the homepage `/` instead of the NeetoCal scheduling URL.
-
-```tsx
-// Mobile menu — links to "/"
-<Link href="/" className="...">
-  Schedule a Meeting
-</Link>
-
-// Desktop version correctly links to NeetoCal
-<Link href="https://convergentai.neetocal.com/meeting-with-david-patten" ...>
-```
-
-**Fix**: Change `href="/"` to `href="https://convergentai.neetocal.com/meeting-with-david-patten"` and add `target="_blank"`.
+> [!NOTE]
+> **Correct Scheduling Destination**: This issue has been successfully resolved. The mobile navigation menu button now correctly links to the NeetoCal page (`https://convergentai.neetocal.com/meeting-with-david-patten`) with `target="_blank"` and `rel="noopener noreferrer"`, fully aligning with the desktop header.
 
 ---
 
@@ -58,41 +47,31 @@ The schema only defines the generator and datasource but has **zero models**. Th
 
 ---
 
-### 6. **Duplicate Token Generation Logic (Frontend + Backend)** — [get-token/route.ts](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/app/api/get-token/route.ts) vs [backend/src/index.ts](file:///c:/Users/Muhammad/Desktop/ConvergentAI/backend/src/index.ts#L30-L120)
+### 6. **[FIXED] Duplicate Token Generation Logic (Frontend + Backend)** — [get-token/route.ts](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/app/api/get-token/route.ts) vs [backend/src/index.ts](file:///c:/Users/Muhammad/Desktop/ConvergentAI/backend/src/index.ts#L30-L120)
 
-The LiveKit token generation + Keyframe Labs session logic is **duplicated** in both:
-- Next.js API route: `src/app/api/get-token/route.ts`
-- Express backend: `backend/src/index.ts`
-
-The frontend `floating-cta.tsx` calls the **Express backend** endpoint (via `NEXT_PUBLIC_BACKEND_URL`), making the Next.js API route dead code. But the test route (`/api/test`) is only on the Express backend, while some API routes (chat, whitepaper) are only on Next.js.
-
-**Fix**: Consolidate to a single token-generation endpoint. Remove the unused duplicate.
+> [!NOTE]
+> **Consolidated Token Endpoint**: This issue has been successfully resolved. The duplicated token generation and Keyframe session setup in the Next.js API route has been completely removed and turned into a placeholder redirecting users to the single centralized token generator on the Express backend (`backend/src/index.ts`).
 
 ---
 
-### 7. **Chat API Route is Dead Code** — [chat/route.ts](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/app/api/chat/route.ts)
+### 7. **[FIXED] Chat API Route is Dead Code** — [chat/route.ts](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/app/api/chat/route.ts)
 
-This API route uses OpenAI's ChatCompletions API directly, but no component in the codebase calls `/api/chat`. The floating CTA uses LiveKit's DataChannel for all chat communication with the backend agent. This endpoint appears to be orphaned.
-
----
-
-### 8. **`useSearchParams()` Without Suspense Boundary** — [floating-cta.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/components/floating-cta.tsx#L1195)
-
-`useSearchParams()` in Next.js 16 requires a `<Suspense>` boundary wrapping the component. While there is a `<Suspense>` in layout.tsx around `<FloatingCTA>`, this is already wrapped. ✅ However, the `useSearchParams` hook is inside the `FloatingCTA` default export at line 1195, which is correctly wrapped. This is fine.
+> [!NOTE]
+> **Deprecated Unused Chat API**: This issue has been successfully resolved. The dead, duplicate OpenAI chat completions API route has been completely cleaned up and turned into a legacy placeholder, avoiding orphaned endpoints in the application.
 
 ---
 
-### 9. **HTML Entity `&amp;` Rendered as Literal Text** — [floating-cta.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/components/floating-cta.tsx#L2058)
+### 8. **[VERIFIED CORRECT] `useSearchParams()` Without Suspense Boundary** — [floating-cta.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/components/floating-cta.tsx#L1195)
 
-```tsx
-<span className="hidden lg:inline">
-  Secure &amp; Private  // ← Shows literal "&amp;" in React JSX
-</span>
-```
+> [!NOTE]
+> **Verified Suspense Integration**: This was successfully audited and verified to be correct. The `useSearchParams` hook is loaded inside `FloatingCTA`, which is strictly and correctly wrapped inside a global `<Suspense>` boundary in `src/app/layout.tsx`. No further action is required.
 
-In JSX, `&amp;` renders as the literal text `&amp;`, not `&`. Should be `Secure & Private` or `Secure &amp; Private` only if in raw HTML.
+---
 
-**Fix**: Change to `Secure & Private` (plain `&` in JSX).
+### 9. **[FIXED] HTML Entity `&amp;` Rendered as Literal Text** — [floating-cta.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/components/floating-cta.tsx#L2058)
+
+> [!NOTE]
+> **Corrected JSX Ampersands**: This issue has been successfully resolved. All occurrences of `&amp;` in the `FloatingCTA` JSX templates have been replaced with the direct, unescaped `&` character, ensuring proper rendering of "Secure & Private" and "Secure & private" in the UI.
 
 ---
 
@@ -262,15 +241,15 @@ Only the root layout has metadata. The `/about`, `/features`, `/ai`, `/security`
 
 | Priority | Issue | Effort |
 |----------|-------|--------|
-| 🔴 P0 | Fix mobile "Schedule a Meeting" linking to `/` | 2 min |
+| 🔴 P0 | [FIXED] Fix mobile "Schedule a Meeting" link | - |
 | 🟠 P1 | Move `<Script>` out of `<head>` | 2 min |
 | 🟠 P1 | [FIXED] Remove `ignoreBuildErrors: true` and enforce TS checks | - |
-| 🟠 P1 | Fix `&amp;` literal in floating-cta | 1 min |
+| 🟠 P1 | [FIXED] Fix `&amp;` literal in floating-cta | - |
 | 🟠 P1 | Fix compliance "Get Started" overriding user's mode choice | 2 min |
 | 🟡 P2 | Add per-page SEO metadata | 15 min |
 | 🟡 P2 | Gate `BackendConnectionTest` to dev-only | 2 min |
 | 🟡 P2 | [FIXED] Scoped component-level lifecycle `console.error` suppression | - |
-| 🟡 P2 | Remove dead code (chat route, duplicate get-token) | 10 min |
+| 🟡 P2 | [FIXED] Remove dead code (chat route, duplicate get-token) | - |
 | 🟢 P3 | Refactor floating-cta.tsx into smaller files | 2-3 hrs |
 | 🟢 P3 | Clean up unused imports | 5 min |
 | 🟢 P3 | Fix Navbar order on home page | 2 min |
