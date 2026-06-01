@@ -43,22 +43,7 @@ import "@livekit/components-styles";
 
 import VideoStage from "./video-stage";
 
-// Suppress harmless internal LiveKit warnings that cause Next.js error overlays in dev mode
-if (typeof window !== "undefined") {
-  const originalError = console.error;
-  console.error = (...args) => {
-    if (
-      typeof args[0] === "string" &&
-      (args[0].includes(
-        "Tried to add a track for a participant, that's not present",
-      ) ||
-        args[0].includes("Unknown DataChannel error"))
-    ) {
-      return; // Ignore
-    }
-    originalError.apply(console, args);
-  };
-}
+
 
 type FlowPhase =
   | "idle"
@@ -1215,6 +1200,25 @@ export default function FloatingCTA() {
   const inactivityCountdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastActivityAtRef = useRef<number>(Date.now());
   const searchParams = useSearchParams();
+
+  // Suppress harmless internal LiveKit warnings that cause Next.js error overlays in dev mode during widget lifecycle
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const originalError = console.error;
+    console.error = (...args: any[]) => {
+      if (
+        typeof args[0] === "string" &&
+        (args[0].includes("Tried to add a track for a participant, that's not present") ||
+          args[0].includes("Unknown DataChannel error"))
+      ) {
+        return; // Ignore
+      }
+      originalError.apply(console, args);
+    };
+    return () => {
+      console.error = originalError;
+    };
+  }, []);
 
   const isFetchingRef = useRef(false);
   const participantIdentityRef = useRef<string | null>(null);
