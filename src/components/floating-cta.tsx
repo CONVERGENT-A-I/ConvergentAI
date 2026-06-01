@@ -2177,11 +2177,11 @@ export default function FloatingCTA() {
                                 className="absolute inset-0 z-[160] flex flex-col items-center justify-center pointer-events-none bg-black/70"
                               >
                                 <div
-                                  className="w-24 h-24 drop-shadow-[0_0_15px_rgba(0,180,216,0.5)] animate-spin"
+                                  className="w-24 h-24 rounded-full bg-[#0a0a0a] border border-white/10 flex items-center justify-center p-5 drop-shadow-[0_0_15px_rgba(0,180,216,0.5)] animate-spin"
                                   style={{ animationDuration: "2s" }}
                                 >
                                   <img
-                                    src="/favicon.png"
+                                    src="/newassets/ConvergentAI_logo_package/ConvergentAI_icon_mark_reverse.svg"
                                     alt="Loading..."
                                     className="w-full h-full object-contain"
                                   />
