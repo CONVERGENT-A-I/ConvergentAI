@@ -483,7 +483,7 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
           // Gemini 3.1 will not speak first via generateReply(); send realtime text after session is up.
           setTimeout(() => {
             void triggerInitialGreeting('post-start-immediate');
-          }, 400);
+          }, 200);
           scheduleInitialGreetingFallbacks();
         } catch (err) {
           console.error(`[agent]: ❌ Failed to start session:`, err);
