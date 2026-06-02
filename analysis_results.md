@@ -115,6 +115,12 @@
 > [!NOTE]
 > **Implemented Connection Timeout Guards**: This issue has been successfully resolved. `fetchToken` inside `floating-cta.tsx` now arms `connectionTimeoutRef` with a 15-second window. If a connection is slow or fails to resolve, a warning is logged, the flow phase is cleanly set to `"error"`, the fetching state is cleared, and `connectionStatus` notifies the user. The timeout is cleared on both successful token resolutions and quick error catches.
 
+---
+
+### 16. **[✅] Refactor and Decompose Large `FloatingCTA` Component** — [floating-cta.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/components/floating-cta.tsx)
+
+> [!NOTE]
+> **Decomposed Core WebRTC Monolith**: This issue has been successfully resolved. The monolithic ~2,700-line `floating-cta.tsx` component has been completely decomposed and refactored into a modular suite of isolated, single-responsibility sub-components under `src/components/floating-cta/` (including `action-button.tsx`, `compliance-gate.tsx`, `room-controls.tsx`, `in-room-chat-panel.tsx`, `transcript-overlay.tsx`, and standard LiveKit activity hooks). A thin redirect wrapper at the root-level preserves backward compatibility.
 
 ---
 
@@ -208,10 +214,4 @@ The schema only defines the generator and datasource but has **zero models**. Th
 
 **Deferred Action Plan**: Either add the required database models or remove the Prisma dependency entirely to reduce bundle bloat in a future cleanup cycle.
 
----
 
-### Deferred 3. **Refactor and Decompose Large `FloatingCTA` Component** — [floating-cta.tsx](file:///c:/Users/Muhammad/Desktop/ConvergentAI/src/components/floating-cta.tsx)
-
-The `FloatingCTA` component is extremely large (~2,700 lines of code), containing multiple distinct responsibilities (WebRTC connection state, Framer Motion animations, media synchronizations, LiveKit room context management, custom sub-panels, and inactivity timeouts). This makes maintenance, debugging, and testing very difficult.
-
-**Deferred Action Plan**: Decompose `FloatingCTA` into smaller, highly cohesive sub-components (e.g., `VideoPanel`, `VoiceVisualizerOverlay`, `ChatInputBar`, `InactivityManager`, and `SettingsPanel`) in a future refactoring iteration to align with Next.js best practices.
