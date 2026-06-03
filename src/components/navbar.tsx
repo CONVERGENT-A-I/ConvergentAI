@@ -12,25 +12,6 @@ export default function Navbar() {
 
   return (
     <header className="absolute top-0 left-0 right-0 z-[100] flex flex-col">
-      {/* Top Banner (Marquee) */}
-      <div className="w-full bg-[#070b19] text-white py-2.5 overflow-hidden flex whitespace-nowrap border-b border-brand-green/20 relative shadow-[0_4px_20px_rgba(0,0,0,0.5)] z-50">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,transparent_0%,rgba(0,255,153,0.05)_50%,transparent_100%)] opacity-50 pointer-events-none" />
-        <div className="animate-marquee flex items-center w-max">
-          {[...Array(4)].map((_, i) => (
-            <Link key={i} href="/security" className="flex items-center gap-3 transition-opacity text-xs md:text-sm font-semibold tracking-[0.1em] px-12 group">
-              <ShieldCheck className="h-4 w-4 text-brand-green opacity-90 group-hover:scale-110 transition-transform" />
-              <span className="text-zinc-300 group-hover:text-white transition-colors duration-300">
-                <span className="text-white font-bold tracking-widest mr-2">SECURITY FIRST:</span>
-                Built on SOC 2 Type II Certified GCP & LiveKit Infrastructure <span className="opacity-50 mx-2">|</span> GLBA Aligned
-              </span>
-              <span className="text-brand-green ml-2 opacity-80 group-hover:opacity-100 group-hover:translate-x-1 transition-all inline-block font-bold">
-                [Explore Our Security Roadmap &rarr;]
-              </span>
-            </Link>
-          ))}
-        </div>
-      </div>
-
       <nav className="w-full relative">
         <div className="flex items-center justify-between px-6 py-4 md:px-10 lg:px-16 md:py-6 max-w-7xl mx-auto">
         {/* Logo */}

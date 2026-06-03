@@ -127,7 +127,7 @@ export default function Footer() {
               © 2026 ConvergentAI · All Rights Reserved.
             </span>
             <span className="text-zinc-500 text-sm md:text-base xl:text-lg font-medium">
-              Built for Modern Financial Institutions.
+              Built for fast response, trusted guidance, and human connection in financial services.
             </span>
 
             {/* Headquarters (moved here per client feedback) */}
@@ -181,13 +181,12 @@ export default function Footer() {
           </div>
 
           {/* Disclosure Text */}
-          <div className="max-w-4xl">
+          <div className="max-w-4xl space-y-4">
             <p className="text-zinc-500 text-[11px] md:text-xs leading-relaxed text-center md:text-left italic">
-              ConvergentAI is a technology provider and does not directly offer
-              financial services. Our AI solutions are designed to comply with
-              FFIEC, FDIC, and NCUA regulatory standards. All infrastructure is
-              hosted on SOC 2 Type II certified data centers with military-grade
-              AES-256 encryption.
+              ConvergentAI is designed to support regulated financial institution environments with secure transmission protocols, AES-256 encryption where applicable, logical tenant isolation, audit trails, configurable data handling controls, human oversight, and responsible AI governance. Infrastructure and communications providers may maintain independent certifications, including SOC 2 Type II and ISO 27001. ConvergentAI is actively pursuing its own SOC 2 Type 1 attestation.
+            </p>
+            <p className="text-zinc-500 text-[11px] md:text-xs leading-relaxed text-center md:text-left italic">
+              ConvergentAI is a technology provider and does not directly offer financial services, banking products, lending products, rates, approvals, underwriting decisions, or financial advice. Customer interactions, product disclosures, compliance obligations, and data governance remain subject to each institution’s policies, approvals, and regulatory requirements.
             </p>
           </div>
         </div>
