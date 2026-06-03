@@ -14,7 +14,7 @@ export default function Outcomes() {
     },
     {
       title: "Closed loan volume lift:",
-      stat: "20–40% as a result",
+      stat: "20–40%",
     },
     {
       title: "Faster lead-to-contact speeds",
@@ -81,6 +81,14 @@ export default function Outcomes() {
             </div>
           </div>
         </motion.div>
+
+        {/* Disclaimer / Fine Print */}
+        <motion.p 
+          variants={itemVariants} 
+          className="text-zinc-500 text-sm md:text-base font-medium max-w-3xl mx-auto mt-12 balance opacity-80"
+        >
+          Projected results vary by institution, traffic volume, product line, implementation, staffing model, and follow-up process.
+        </motion.p>
       </motion.div>
     </section>
   );
