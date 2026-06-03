@@ -41,16 +41,15 @@ export default function Hero() {
       >
         {/* Main Headline */}
         <motion.h1 variants={itemVariants} className="text-fluid-h1 font-black text-white mb-8 tracking-tight">
-          Stop Mortgage Leakage <br />
-          <span className="text-brand-green">with 24/7 Phygital</span> <br />
-          <span className="inline-block">Engagement</span>
+          Turn Customer Interest <br />
+          <span className="bg-clip-text bg-gradient-to-r from-[#2453F3] to-[#8C95F1] text-transparent">Into Action with 24/7/365 Support</span>
         </motion.h1>
 
         {/* Subheadline / Description */}
-        <motion.p variants={itemVariants} className="text-fluid-p text-zinc-400 max-w-3xl mb-12 font-medium balance">
-          Recover lost opportunities with AI voice and human-like avatars trained
-          to answer Applicant mortgage questions accurately using Fannie Mae,
-          Freddie Mac, and HUD guidelines.
+        <motion.p variants={itemVariants} className="text-fluid-p text-zinc-400 max-w-4xl mb-12 font-medium balance">
+          ConvergentAI helps banks, credit unions, and mortgage lenders turn customer intent into action with
+          instant answers, guided next steps, and seamless access to the right human expert at the moment
+          support is needed, in any language.
         </motion.p>
 
         {/* Call to Action Button */}
