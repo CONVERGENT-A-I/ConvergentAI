@@ -76,7 +76,7 @@ export default function Hero() {
 
         {/* Trusted By Banner (Mockup for maturity) */}
         <motion.div variants={itemVariants} className="mt-20 md:mt-32 pt-12 border-t border-white/10 w-full max-w-5xl opacity-90 flex flex-col items-center gap-8 shadow-[0_-20px_40px_rgba(0,0,0,0.5)]">
-          <span className="text-[10px] md:text-xs uppercase tracking-[0.4em] font-black text-zinc-300">Industry Standard AI Intelligence</span>
+          <span className="text-[10px] md:text-xs uppercase tracking-[0.4em] font-black text-zinc-300">MORTGAGE GUIDANCE ALIGNED WITH INDUSTRY STANDARDS</span>
           <div className="flex flex-wrap justify-center items-center gap-8 md:gap-20 opacity-100 transition-opacity duration-500">
             <span className="text-white font-black text-lg md:text-2xl tracking-tighter italic drop-shadow-md">Fannie Mae</span>
             <span className="text-white font-black text-lg md:text-2xl tracking-tighter italic drop-shadow-md">Freddie Mac</span>

@@ -49,7 +49,7 @@ export default function Avatars() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80" />
             </div>
             <p className="mt-10 text-brand-green text-sm md:text-lg font-black uppercase tracking-[0.25em]">
-              BRANCHPORTAL: AN AI-POWERED AVATAR SYSTEM
+              BRANCHPORTAL: IN-BRANCH AI CONCIERGE
             </p>
           </motion.div>
 
@@ -65,7 +65,7 @@ export default function Avatars() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80" />
             </div>
             <p className="mt-10 text-brand-green text-sm md:text-lg font-black uppercase tracking-[0.25em]">
-              AT-HOME: 24/7 DIGITAL AI ENGAGEMENT
+              AT-HOME: ALWAYS-AVAILABLE DIGITAL GUIDANCE
             </p>
           </motion.div>
         </div>
@@ -77,17 +77,17 @@ export default function Avatars() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12 md:gap-16 lg:gap-20 mb-24 items-start">
           <motion.div variants={itemVariants} className="space-y-6 max-w-[400px]">
             <h2 className="text-white text-2xl md:text-3xl lg:text-[2.25rem] font-black leading-[1.3] tracking-tighter text-balance">
-              Increase completed applications and reduce applicant abandonment.
+              Turn moments of customer interest into meaningful engagement.
             </h2>
           </motion.div>
           <motion.div variants={itemVariants} className="space-y-6 max-w-[400px]">
             <h2 className="text-white text-2xl md:text-3xl lg:text-[2.25rem] font-black leading-[1.3] tracking-tighter text-balance">
-              Accurate AI guidance trained on Fannie Mae, Freddie Mac, and HUD guidelines.
+              Deliver approved mortgage guidance aligned with agency standards.
             </h2>
           </motion.div>
           <motion.div variants={itemVariants} className="space-y-6 max-w-[400px]">
             <h2 className="text-white text-2xl md:text-3xl lg:text-[2.25rem] font-black leading-[1.3] tracking-tighter text-balance">
-              Connect to real MLOs fast when a human handoff is needed.
+              Route customers who need personal support to the right human expert.
             </h2>
           </motion.div>
         </div>
@@ -96,10 +96,10 @@ export default function Avatars() {
         <motion.div variants={itemVariants} className="flex justify-center">
           <a
             href="#schedule-demo"
-            className="group relative inline-flex items-center justify-center border border-zinc-700 hover:border-brand-green px-8 md:px-16 py-4 md:py-8 rounded-2xl transition-all overflow-hidden"
+            className="group relative inline-flex items-center justify-center border border-brand-green px-8 md:px-16 py-4 md:py-8 rounded-2xl transition-all overflow-hidden"
           >
-            <span className="relative z-10 text-brand-green text-base md:text-lg font-black uppercase tracking-widest group-hover:!text-black transition-colors duration-300 text-center">
-              Have Questions? Click Here
+            <span className="relative z-10 text-white text-base md:text-lg font-black uppercase tracking-widest group-hover:!text-white transition-colors duration-300 text-center">
+              Have Questions? Start Here
             </span>
             <div className="absolute inset-0 z-0 bg-brand-green transform translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
           </a>
