@@ -242,7 +242,7 @@ export default function PilotProgram() {
             </p>
             <Link 
               href="/security"
-              className="inline-flex items-center justify-center gap-3 bg-brand-green text-black px-8 py-4 rounded-2xl text-lg font-bold hover:shadow-[0_0_30px_rgba(34,197,204,0.6)] transition-all transform hover:-translate-y-1"
+              className="inline-flex items-center justify-center gap-3 bg-brand-green text-white px-8 py-4 rounded-2xl text-lg font-bold hover:shadow-[0_0_30px_rgba(0,26,91,0.6)] transition-all transform hover:-translate-y-1"
             >
               Review Security & Trust Center
               <ArrowRight className="w-5 h-5 transition-transform" />

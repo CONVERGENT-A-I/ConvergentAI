@@ -86,7 +86,7 @@ export default function AICTA() {
               href="https://convergentai.neetocal.com/meeting-with-david-patten"
               target="_blank"
               rel="noopener noreferrer"
-              className="group relative px-10 py-5 bg-brand-green hover:bg-[#22C5CC] text-black font-black text-lg md:text-xl rounded-full transition-all duration-300 hover:scale-105 hover:shadow-[0_10px_40px_rgba(34,197,204,0.4)] active:scale-95 inline-block"
+              className="group relative px-10 py-5 bg-brand-green hover:bg-[#001A5B] text-white font-black text-lg md:text-xl rounded-full transition-all duration-300 hover:scale-105 hover:shadow-[0_10px_40px_rgba(0,26,91,0.4)] active:scale-95 inline-block"
             >
               Schedule Demo
             </Link>
@@ -95,7 +95,7 @@ export default function AICTA() {
       </div>
 
       {/* Background Ambience */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-[radial-gradient(circle_at_50%_0%,rgba(34,197,204,0.03),transparent_70%)] pointer-events-none" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-[radial-gradient(circle_at_50%_0%,rgba(0,26,91,0.03),transparent_70%)] pointer-events-none" />
     </section>
   );
 }

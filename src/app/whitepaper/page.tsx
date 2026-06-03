@@ -186,7 +186,7 @@ export default function WhitepaperPage() {
                     <a
                       href="/api/whitepaper-download"
                       download="The Phygital Imperative.docx"
-                      className="mt-4 inline-flex items-center gap-2.5 bg-brand-green text-black px-8 py-3.5 rounded-full text-sm font-black uppercase tracking-widest hover:shadow-[0_0_30px_rgba(0,255,153,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
+                      className="mt-4 inline-flex items-center gap-2.5 bg-brand-green text-white px-8 py-3.5 rounded-full text-sm font-black uppercase tracking-widest hover:shadow-[0_0_30px_rgba(0,26,91,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
                     >
                       <FileDown className="w-4 h-4" />
                       Download Now
@@ -250,7 +250,7 @@ export default function WhitepaperPage() {
                       <button
                         type="submit"
                         disabled={status === "submitting"}
-                        className="w-full mt-2 inline-flex items-center justify-center gap-2.5 bg-brand-green text-black px-7 py-4 rounded-full text-sm font-black uppercase tracking-widest hover:shadow-[0_0_30px_rgba(0,255,153,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 disabled:opacity-60 disabled:pointer-events-none"
+                        className="w-full mt-2 inline-flex items-center justify-center gap-2.5 bg-brand-green text-white px-7 py-4 rounded-full text-sm font-black uppercase tracking-widest hover:shadow-[0_0_30px_rgba(0,26,91,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 disabled:opacity-60 disabled:pointer-events-none"
                       >
                         {status === "submitting" ? (
                           <>

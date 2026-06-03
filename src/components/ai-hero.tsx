@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import Image from "next/image";
@@ -79,7 +79,7 @@ export default function AIHero() {
             href="https://convergentai.neetocal.com/meeting-with-david-patten"
             target="_blank"
             rel="noopener noreferrer"
-            className="group relative bg-brand-green text-black px-10 py-5 md:px-12 md:py-6 rounded-2xl text-sm md:text-base font-black uppercase tracking-[0.2em] hover:shadow-[0_0_50px_rgba(0,255,153,0.6)] transition-all transform hover:-translate-y-1 active:scale-95 shadow-xl"
+            className="group relative bg-brand-green text-white px-10 py-5 md:px-12 md:py-6 rounded-2xl text-sm md:text-base font-black uppercase tracking-[0.2em] hover:shadow-[0_0_50px_rgba(0,26,91,0.6)] transition-all transform hover:-translate-y-1 active:scale-95 shadow-xl"
           >
             Schedule a Demo
             <div className="absolute inset-0 rounded-2xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />

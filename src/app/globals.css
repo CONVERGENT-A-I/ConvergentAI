@@ -5,11 +5,11 @@
   --color-action-blue: #2453F3;
   --color-intelligence-purple: #5F43D9;
   --color-support-lavender: #8C95F1;
-  --color-digital-teal: #22C5CC;
+  --color-digital-teal: #001A5B;
 
   /* Map the previous brand-green token to the new Digital Teal color so that 
      all existing UI accents and triggers instantly update to the new brand guidelines */
-  --color-brand-green: #22C5CC;
+  --color-brand-green: #001A5B;
   --color-background: #000000;
   --color-foreground: #FFFFFF;
 }
@@ -21,9 +21,9 @@
   --action-blue: #2453F3;
   --intelligence-purple: #5F43D9;
   --support-lavender: #8C95F1;
-  --digital-teal: #22C5CC;
+  --digital-teal: #001A5B;
   
-  --brand-green: #22C5CC;
+  --brand-green: #001A5B;
 }
 
 html {
@@ -41,13 +41,13 @@ html {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #22C5CC 0%, #2453F3 45%, #5F43D9 100%);
+  background: linear-gradient(180deg, #001A5B 0%, #2453F3 45%, #5F43D9 100%);
   border-radius: 999px;
   border: 2px solid #050505;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #3de2e9 0%, #4c74f5 45%, #7e66df 100%);
+  background: linear-gradient(180deg, #00278a 0%, #4c74f5 45%, #7e66df 100%);
 }
 
 ::-webkit-scrollbar-corner {

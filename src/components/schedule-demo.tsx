@@ -196,7 +196,7 @@ export default function ScheduleDemo() {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  className="group relative mt-2 w-full bg-brand-green text-black px-6 py-4 rounded-2xl text-sm md:text-base font-black uppercase tracking-widest hover:shadow-[0_0_50px_rgba(0,255,153,0.5)] transition-all transform hover:-translate-y-1 active:scale-95 flex items-center justify-center cursor-pointer"
+                  className="group relative mt-2 w-full bg-brand-green text-white px-6 py-4 rounded-2xl text-sm md:text-base font-black uppercase tracking-widest hover:shadow-[0_0_50px_rgba(0,26,91,0.5)] transition-all transform hover:-translate-y-1 active:scale-95 flex items-center justify-center cursor-pointer"
                 >
                   Schedule a Demo
                   <div className="absolute inset-0 rounded-2xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />

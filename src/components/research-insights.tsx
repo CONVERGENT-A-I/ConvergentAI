@@ -158,7 +158,7 @@ export default function ResearchInsights() {
             {/* Download Button */}
             <button
               onClick={() => setIsGateOpen(true)}
-              className="flex-shrink-0 inline-flex items-center gap-2.5 bg-brand-green text-black px-7 py-3.5 rounded-full text-sm font-black uppercase tracking-widest hover:shadow-[0_0_30px_rgba(0,255,153,0.5)] hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer"
+              className="flex-shrink-0 inline-flex items-center gap-2.5 bg-brand-green text-white px-7 py-3.5 rounded-full text-sm font-black uppercase tracking-widest hover:shadow-[0_0_30px_rgba(0,26,91,0.5)] hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer"
             >
               <FileDown className="w-4 h-4" />
               Download

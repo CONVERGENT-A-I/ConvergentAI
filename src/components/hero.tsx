@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { motion, Variants } from "framer-motion";
@@ -59,7 +59,7 @@ export default function Hero() {
             href="https://convergentai.neetocal.com/meeting-with-david-patten"
             target="_blank"
             rel="noopener noreferrer"
-            className="group relative inline-block bg-brand-green text-black px-8 md:px-12 py-4 md:py-6 rounded-2xl text-base md:text-xl font-black uppercase tracking-widest hover:shadow-[0_0_50px_rgba(0,255,153,0.6)] transition-all transform hover:-translate-y-1 active:scale-95"
+            className="group relative inline-block bg-brand-green text-white px-8 md:px-12 py-4 md:py-6 rounded-2xl text-base md:text-xl font-black uppercase tracking-widest hover:shadow-[0_0_50px_rgba(0,26,91,0.6)] transition-all transform hover:-translate-y-1 active:scale-95"
           >
             Schedule a Demo
             <div className="absolute inset-0 rounded-2xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />

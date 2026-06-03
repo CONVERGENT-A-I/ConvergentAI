@@ -77,7 +77,7 @@ export default function Navbar() {
             href="https://convergentai.neetocal.com/meeting-with-david-patten"
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-brand-green text-black px-6 py-3 xl:px-9 xl:py-4 rounded-full text-xs xl:text-sm font-black uppercase tracking-widest hover:shadow-[0_0_30px_rgba(0,255,153,0.6)] transition-all transform hover:scale-105 active:scale-95"
+            className="bg-brand-green text-white px-6 py-3 xl:px-9 xl:py-4 rounded-full text-xs xl:text-sm font-black uppercase tracking-widest hover:shadow-[0_0_30px_rgba(0,26,91,0.6)] transition-all transform hover:scale-105 active:scale-95"
           >
             Schedule a Meeting
           </Link>
@@ -141,7 +141,7 @@ export default function Navbar() {
               href="https://convergentai.neetocal.com/meeting-with-david-patten"
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-2 bg-brand-green text-black px-8 py-5 rounded-2xl text-center font-black uppercase tracking-wider text-base hover:opacity-90 active:scale-95 transition-all"
+              className="mt-2 bg-brand-green text-white px-8 py-5 rounded-2xl text-center font-black uppercase tracking-wider text-base hover:opacity-90 active:scale-95 transition-all"
               onClick={() => setIsMenuOpen(false)}
             >
               Schedule a Meeting
