@@ -105,7 +105,7 @@ export default function LiveAgentDashboard() {
                 href="https://my-solution-app.vercel.app/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group relative inline-block bg-brand-teal text-white px-4 md:px-6 py-3 md:py-4 rounded-2xl text-xs md:text-sm font-black uppercase tracking-wide hover:shadow-[0_0_40px_rgba(0,26,91,0.5)] transition-all transform hover:-translate-y-1 active:scale-95"
+                className="group relative inline-block bg-button-primary-bg text-button-primary-text px-4 md:px-6 py-3 md:py-4 rounded-2xl text-xs md:text-sm font-black uppercase tracking-wide hover:bg-button-primary-hover active:bg-button-primary-active hover:shadow-[0_0_40px_rgba(34,197,204,0.4)] transition-all transform hover:-translate-y-1"
               >
                 View LiveAgent Dashboard
                 <div className="absolute inset-0 rounded-2xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
