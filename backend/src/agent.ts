@@ -93,7 +93,7 @@ export default {
     // Load a fresh VAD instance for this specific session
     console.log(`[agent]: Loading Hybrid VAD...`);
     const sessionVad = await silero.VAD.load({
-      minSilenceDuration: 300,
+      minSilenceDuration: 250,
       prefixPaddingDuration: 150,
     });
 
@@ -113,6 +113,7 @@ IMPORTANT:
 PERSONALITY:
 - Warm, polite, confident but cautious
 - Sounds like a real human advisor, not a bot
+- Always speak and respond in a happy, cheerful, positive, and smiling tone. Maintain this happy emotion consistently while responding.
 
 COMMUNICATION:
 - If the user requests to speak with a loan officer or be transferred, smoothly reply: "If you would like to speak with a Loan Officer, please click on the Loan Officer channel and you will be connected to an available one."
@@ -177,7 +178,7 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
       turnHandling: {
         turnDetection: 'vad',
         endpointing: {
-          minDelay: 250, // Reduced from 300ms for ultra-fast turn recognition
+          minDelay: 200, // Reduced from 300ms for ultra-fast turn recognition
         },
         interruption: {
           minDuration: 200, // Reduced from 250ms for faster interruption handling

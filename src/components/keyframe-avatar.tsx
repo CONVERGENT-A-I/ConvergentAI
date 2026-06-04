@@ -221,6 +221,26 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
     };
   }, [keyframeMetadata]);
 
+  // Keep setting the happy emotion periodically when connected to ensure it stays constant
+  useEffect(() => {
+    if (status !== "connected" || !sessionRef.current) return;
+
+    const emotionInterval = setInterval(() => {
+      if (sessionRef.current && isConnectedRef.current) {
+        try {
+          // @ts-ignore
+          sessionRef.current.setEmotion("happy");
+        } catch (e) {
+          console.warn("[KeyframeAvatar] Failed to set periodic emotion:", e);
+        }
+      }
+    }, 3000);
+
+    return () => {
+      clearInterval(emotionInterval);
+    };
+  }, [status]);
+
   // ── Helpers ──────────────────────────────────────────────────────────────
   function tearDownAudioPipe() {
     try { sourceRef.current?.disconnect(); } catch (_) { }
