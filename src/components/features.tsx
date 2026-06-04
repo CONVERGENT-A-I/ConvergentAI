@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { motion, Variants } from "framer-motion";
 import { Home, UserPlus, Target, ShieldCheck } from "lucide-react";
@@ -45,7 +45,7 @@ export default function Features() {
   };
 
   return (
-    <section id="features" className="bg-black flex flex-col pt-4 md:pt-8 pb-16 px-8 md:px-12 lg:px-24 overflow-hidden">
+    <section id="features" className="bg-bg-primary flex flex-col pt-4 md:pt-8 pb-16 px-8 md:px-12 lg:px-24 overflow-hidden">
       <motion.div 
         className="max-w-[1600px] mx-auto w-full"
         variants={containerVariants}
@@ -59,14 +59,14 @@ export default function Features() {
             <motion.div
               variants={itemVariants}
               key={index}
-              className="group relative bg-zinc-950/40 border border-white/5 p-8 md:p-10 rounded-[2.5rem] flex flex-col items-center text-center transition-all duration-500 hover:border-brand-green/30 hover:bg-zinc-900/40 h-full"
+              className="group relative bg-bg-card border border-border-subtle p-8 md:p-10 rounded-[2.5rem] flex flex-col items-center text-center transition-all duration-500 hover:border-brand-teal/45 hover:bg-[#0D2654] h-full"
             >
               {/* Subtle Glow Effect on Hover */}
-              <div className="absolute -inset-px bg-brand-green/10 rounded-[2.5rem] opacity-0 group-hover:opacity-100 transition-opacity blur-xl" />
+              <div className="absolute -inset-px bg-brand-teal/10 rounded-[2.5rem] opacity-0 group-hover:opacity-100 transition-opacity blur-xl" />
 
               {/* Icon Container - Increased Size */}
-              <div className="relative z-10 w-20 h-20 bg-brand-green/10 rounded-2xl flex items-center justify-center mb-8 border border-brand-green/20">
-                  <feature.icon className="w-10 h-10 text-brand-green" strokeWidth={1.5} />
+              <div className="relative z-10 w-20 h-20 bg-brand-blue/10 rounded-2xl flex items-center justify-center mb-8 border border-brand-blue/20">
+                  <feature.icon className="w-10 h-10 text-brand-blue group-hover:text-brand-teal transition-colors duration-300" strokeWidth={1.5} />
               </div>
 
               {/* Headline */}
@@ -75,7 +75,7 @@ export default function Features() {
               </h3>
 
               {/* Description with Fluid Typography - Increased Scale and Balancing */}
-              <p className="relative z-10 text-zinc-400 font-medium leading-[1.6] opacity-80 text-balance [font-size:clamp(1rem,1.25vw,1.25rem)]">
+              <p className="relative z-10 text-text-secondary font-medium leading-[1.6] opacity-80 text-balance [font-size:clamp(1rem,1.25vw,1.25rem)]">
                 {feature.description}
               </p>
             </motion.div>

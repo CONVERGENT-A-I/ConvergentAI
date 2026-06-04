@@ -10,7 +10,7 @@ import ScheduleDemo from "@/components/schedule-demo";
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-bg-primary">
       <Navbar />
       <main>
         <Hero />

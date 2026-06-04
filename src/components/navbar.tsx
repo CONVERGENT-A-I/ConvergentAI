@@ -40,8 +40,8 @@ export default function Navbar() {
                 key={link.name}
                 href={link.href}
                 className={`relative py-1 text-[11px] xl:text-xs font-bold tracking-[0.15em] uppercase transition-colors duration-300
-                  ${isActive ? "text-brand-green" : "text-white/60 hover:text-brand-green"}
-                  after:absolute after:bottom-0 after:left-0 after:h-[2px] after:w-full after:bg-brand-green 
+                  ${isActive ? "text-white" : "text-text-secondary hover:text-brand-teal"}
+                  after:absolute after:bottom-0 after:left-0 after:h-[2px] after:w-full after:bg-brand-blue 
                   after:origin-left after:scale-x-0 after:transition-transform after:duration-300 
                   hover:after:scale-x-100
                 `}
@@ -58,7 +58,7 @@ export default function Navbar() {
             href="https://convergentai.neetocal.com/meeting-with-david-patten"
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-brand-green text-white px-6 py-3 xl:px-9 xl:py-4 rounded-full text-xs xl:text-sm font-black uppercase tracking-widest hover:shadow-[0_0_30px_rgba(0,26,91,0.6)] transition-all transform hover:scale-105 active:scale-95"
+            className="bg-button-primary-bg text-button-primary-text px-6 py-3 xl:px-9 xl:py-4 rounded-full text-xs xl:text-sm font-black uppercase tracking-widest hover:bg-button-primary-hover active:bg-button-primary-active hover:shadow-[0_0_30px_rgba(34,197,204,0.4)] transition-all transform hover:scale-105 active:scale-95"
           >
             Schedule a Meeting
           </Link>
@@ -97,7 +97,7 @@ export default function Navbar() {
           />
 
           {/* Menu Card */}
-          <div className="absolute top-36 md:top-50 left-6 right-6 bg-zinc-900 border border-white/10 rounded-[2rem] p-8 pt-12 flex flex-col gap-8 shadow-2xl animate-in slide-in-from-top-4 fade-in duration-300">
+          <div className="absolute top-36 md:top-50 left-6 right-6 bg-bg-card border border-border-subtle rounded-[2rem] p-8 pt-12 flex flex-col gap-8 shadow-2xl animate-in slide-in-from-top-4 fade-in duration-300">
             {[
               { name: "Home", href: "/" },
               { name: "About Us", href: "/about" },
@@ -110,7 +110,7 @@ export default function Navbar() {
                   key={link.name}
                   href={link.href}
                   className={`text-2xl font-black tracking-tight transition-colors duration-300
-                    ${isActive ? "text-brand-green" : "text-white hover:text-brand-green"}
+                    ${isActive ? "text-brand-blue" : "text-text-secondary hover:text-brand-teal"}
                   `}
                   onClick={() => setIsMenuOpen(false)}
                 >
@@ -122,7 +122,7 @@ export default function Navbar() {
               href="https://convergentai.neetocal.com/meeting-with-david-patten"
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-2 bg-brand-green text-white px-8 py-5 rounded-2xl text-center font-black uppercase tracking-wider text-base hover:opacity-90 active:scale-95 transition-all"
+              className="mt-2 bg-button-primary-bg text-button-primary-text px-8 py-5 rounded-2xl text-center font-black uppercase tracking-wider text-base hover:bg-button-primary-hover active:bg-button-primary-active active:scale-95 transition-all"
               onClick={() => setIsMenuOpen(false)}
             >
               Schedule a Meeting

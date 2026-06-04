@@ -80,7 +80,7 @@ export default function ScheduleDemo() {
   };
 
   return (
-    <section id="schedule-demo" className="bg-[#0A0A0A] py-24 md:py-32 px-8 md:px-12 lg:px-24 overflow-hidden">
+    <section id="schedule-demo" className="bg-bg-primary py-24 md:py-32 px-8 md:px-12 lg:px-24 overflow-hidden">
       <motion.div
         className="max-w-[1400px] mx-auto w-full"
         variants={containerVariants}
@@ -93,14 +93,14 @@ export default function ScheduleDemo() {
           className="relative rounded-[2.5rem] overflow-hidden p-px"
           style={{
             background:
-              "linear-gradient(135deg, rgba(0,255,153,0.25) 0%, rgba(255,255,255,0.06) 40%, rgba(0,255,153,0.1) 100%)",
+              "linear-gradient(135deg, rgba(140,149,241,0.25) 0%, rgba(255,255,255,0.06) 40%, rgba(34,197,204,0.1) 100%)",
           }}
         >
           {/* Inner background */}
-          <div className="relative bg-[#0D0D0D] rounded-[2.5rem] px-10 md:px-16 lg:px-20 py-16 md:py-20 overflow-hidden">
+          <div className="relative bg-bg-card rounded-[2.5rem] px-10 md:px-16 lg:px-20 py-16 md:py-20 overflow-hidden">
             {/* Ambient glows */}
-            <div className="absolute -top-32 -left-32 w-96 h-96 bg-brand-green/5 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-brand-green/5 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -top-32 -left-32 w-96 h-96 bg-brand-teal/5 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-brand-teal/5 rounded-full blur-3xl pointer-events-none" />
 
             <div className="relative grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24 items-center">
 
@@ -112,15 +112,15 @@ export default function ScheduleDemo() {
                   style={{ fontSize: "clamp(2.5rem, 5vw, 5rem)" }}
                 >
                   Eliminate Mortgage{" "}
-                  <span className="text-brand-green">Leakage</span>{" "}
+                  <span className="text-brand-teal">Leakage</span>{" "}
                   Today
                 </motion.h2>
 
-                <motion.div variants={itemVariants} className="w-16 h-1 bg-brand-green rounded-full mb-8" />
+                <motion.div variants={itemVariants} className="w-16 h-1 bg-gradient-to-r from-brand-blue via-brand-violet to-brand-teal rounded-full mb-8" />
 
                 <motion.p
                   variants={itemVariants}
-                  className="text-zinc-400 font-medium leading-relaxed mb-5"
+                  className="text-text-secondary font-medium leading-relaxed mb-5"
                   style={{ fontSize: "clamp(0.95rem, 1.2vw, 1.2rem)" }}
                 >
                   Schedule your executive demo to see how AI intent-capture
@@ -128,7 +128,7 @@ export default function ScheduleDemo() {
                 </motion.p>
                 <motion.p
                   variants={itemVariants}
-                  className="text-zinc-500 font-medium leading-relaxed"
+                  className="text-text-muted font-medium leading-relaxed"
                   style={{ fontSize: "clamp(0.9rem, 1.1vw, 1.1rem)" }}
                 >
                   Stop losing opportunities to competitors. Our 24/7
@@ -162,7 +162,7 @@ export default function ScheduleDemo() {
                     placeholder="Full Name"
                     value={formData.fullName}
                     onChange={handleChange}
-                    className="w-full bg-black/60 border border-white/10 group-hover:border-white/20 focus:border-brand-green/60 text-white placeholder-zinc-500 font-medium rounded-xl px-5 py-4 outline-none transition-colors duration-200"
+                    className="w-full bg-bg-secondary border border-border-strong group-hover:border-white/20 focus:border-brand-teal focus:ring-2 focus:ring-brand-teal/25 text-white placeholder-text-muted font-medium rounded-xl px-5 py-4 outline-none transition-colors duration-200"
                     style={{ fontSize: "clamp(0.9rem, 1.1vw, 1.05rem)" }}
                   />
                 </div>
@@ -175,7 +175,7 @@ export default function ScheduleDemo() {
                     placeholder="Work Email"
                     value={formData.workEmail}
                     onChange={handleChange}
-                    className="w-full bg-black/60 border border-white/10 group-hover:border-white/20 focus:border-brand-green/60 text-white placeholder-zinc-500 font-medium rounded-xl px-5 py-4 outline-none transition-colors duration-200"
+                    className="w-full bg-bg-secondary border border-border-strong group-hover:border-white/20 focus:border-brand-teal focus:ring-2 focus:ring-brand-teal/25 text-white placeholder-text-muted font-medium rounded-xl px-5 py-4 outline-none transition-colors duration-200"
                     style={{ fontSize: "clamp(0.9rem, 1.1vw, 1.05rem)" }}
                   />
                 </div>
@@ -188,7 +188,7 @@ export default function ScheduleDemo() {
                     placeholder="Financial Institution Name"
                     value={formData.creditUnion}
                     onChange={handleChange}
-                    className="w-full bg-black/60 border border-white/10 group-hover:border-white/20 focus:border-brand-green/60 text-white placeholder-zinc-500 font-medium rounded-xl px-5 py-4 outline-none transition-colors duration-200"
+                    className="w-full bg-bg-secondary border border-border-strong group-hover:border-white/20 focus:border-brand-teal focus:ring-2 focus:ring-brand-teal/25 text-white placeholder-text-muted font-medium rounded-xl px-5 py-4 outline-none transition-colors duration-200"
                     style={{ fontSize: "clamp(0.9rem, 1.1vw, 1.05rem)" }}
                   />
                 </div>
@@ -196,7 +196,7 @@ export default function ScheduleDemo() {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  className="group relative mt-2 w-full bg-brand-green text-white px-6 py-4 rounded-2xl text-sm md:text-base font-black uppercase tracking-widest hover:shadow-[0_0_50px_rgba(0,26,91,0.5)] transition-all transform hover:-translate-y-1 active:scale-95 flex items-center justify-center cursor-pointer"
+                  className="group relative mt-2 w-full bg-button-primary-bg text-button-primary-text px-6 py-4 rounded-2xl text-sm md:text-base font-black uppercase tracking-widest hover:bg-button-primary-hover active:bg-button-primary-active hover:shadow-[0_0_50px_rgba(34,197,204,0.4)] transition-all transform hover:-translate-y-1 active:scale-95 flex items-center justify-center cursor-pointer"
                 >
                   Schedule a Demo
                   <div className="absolute inset-0 rounded-2xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />

@@ -91,22 +91,22 @@ export default function WhitepaperPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-bg-primary">
       <Navbar />
 
       {/* Hero Section */}
       <section className="relative pt-52 md:pt-60 pb-20 px-6 md:px-12 lg:px-24 overflow-hidden">
         {/* Background effects */}
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-32 left-1/4 w-[500px] h-[500px] bg-brand-green/5 rounded-full blur-[150px]" />
-          <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-brand-green/3 rounded-full blur-[120px]" />
+          <div className="absolute top-32 left-1/4 w-[500px] h-[500px] bg-brand-teal/5 rounded-full blur-[150px]" />
+          <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-brand-teal/3 rounded-full blur-[120px]" />
         </div>
 
         <div className="relative max-w-6xl mx-auto">
           {/* Back link */}
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-zinc-400 text-sm font-semibold hover:text-brand-green transition-colors mb-10 group"
+            className="inline-flex items-center gap-2 text-zinc-400 text-sm font-semibold hover:text-brand-teal transition-colors mb-10 group"
           >
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
             Back to Home
@@ -121,15 +121,15 @@ export default function WhitepaperPage() {
               className="space-y-8"
             >
               {/* Badge */}
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-green/10 border border-brand-green/20">
-                <BookOpen className="w-4 h-4 text-brand-green" />
-                <span className="text-brand-green text-xs font-bold uppercase tracking-widest">Whitepaper</span>
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-teal/10 border border-brand-teal/20">
+                <BookOpen className="w-4 h-4 text-brand-teal" />
+                <span className="text-brand-teal text-xs font-bold uppercase tracking-widest">Whitepaper</span>
               </div>
 
               {/* Title */}
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.1]">
                 The Phygital{" "}
-                <span className="text-brand-green">Imperative</span>
+                <span className="text-brand-teal">Imperative</span>
               </h1>
 
               {/* Description */}
@@ -148,8 +148,8 @@ export default function WhitepaperPage() {
                   "Strategies to outpace competitors with instant response",
                 ].map((item, i) => (
                   <div key={i} className="flex items-start gap-3 group">
-                    <div className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full bg-brand-green/15 border border-brand-green/30 flex items-center justify-center">
-                      <ShieldCheck className="w-3 h-3 text-brand-green" />
+                    <div className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full bg-brand-teal/15 border border-brand-teal/30 flex items-center justify-center">
+                      <ShieldCheck className="w-3 h-3 text-brand-teal" />
                     </div>
                     <p className="text-zinc-300 text-sm md:text-base font-medium leading-relaxed">{item}</p>
                   </div>
@@ -166,7 +166,7 @@ export default function WhitepaperPage() {
             >
               <div className="relative p-8 md:p-10 rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.05] to-white/[0.01] backdrop-blur-sm overflow-hidden">
                 {/* Decorative glow */}
-                <div className="absolute -top-20 -right-20 w-60 h-60 bg-brand-green/8 rounded-full blur-[100px] pointer-events-none" />
+                <div className="absolute -top-20 -right-20 w-60 h-60 bg-brand-teal/8 rounded-full blur-[100px] pointer-events-none" />
 
                 {status === "success" ? (
                   <motion.div
@@ -174,8 +174,8 @@ export default function WhitepaperPage() {
                     animate={{ opacity: 1, scale: 1 }}
                     className="flex flex-col items-center text-center py-12 gap-6"
                   >
-                    <div className="w-20 h-20 rounded-full bg-brand-green/15 flex items-center justify-center">
-                      <CheckCircle2 className="w-10 h-10 text-brand-green" />
+                    <div className="w-20 h-20 rounded-full bg-brand-teal/15 flex items-center justify-center">
+                      <CheckCircle2 className="w-10 h-10 text-brand-teal" />
                     </div>
                     <div className="space-y-3">
                       <h4 className="text-2xl font-black text-white tracking-tight">Thank You!</h4>
@@ -186,7 +186,7 @@ export default function WhitepaperPage() {
                     <a
                       href="/api/whitepaper-download"
                       download="The Phygital Imperative.docx"
-                      className="mt-4 inline-flex items-center gap-2.5 bg-brand-green text-white px-8 py-3.5 rounded-full text-sm font-black uppercase tracking-widest hover:shadow-[0_0_30px_rgba(0,26,91,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
+                      className="mt-4 inline-flex items-center gap-2.5 bg-button-primary-bg text-button-primary-text px-8 py-3.5 rounded-full text-sm font-black uppercase tracking-widest hover:bg-button-primary-hover active:bg-button-primary-active hover:shadow-[0_0_30px_rgba(34,197,204,0.4)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
                     >
                       <FileDown className="w-4 h-4" />
                       Download Now
@@ -203,8 +203,8 @@ export default function WhitepaperPage() {
                     {/* Form header */}
                     <div className="space-y-2">
                       <div className="flex items-center gap-3 mb-1">
-                        <div className="w-10 h-10 rounded-lg bg-brand-green/10 border border-brand-green/20 flex items-center justify-center">
-                          <FileDown className="w-5 h-5 text-brand-green" />
+                        <div className="w-10 h-10 rounded-lg bg-brand-teal/10 border border-brand-teal/20 flex items-center justify-center">
+                          <FileDown className="w-5 h-5 text-brand-teal" />
                         </div>
                         <h3 className="text-lg font-black text-white tracking-tight">Download the Whitepaper</h3>
                       </div>
@@ -219,7 +219,7 @@ export default function WhitepaperPage() {
                         <div key={field.key}>
                           <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5">
                             {field.label}
-                            {field.required && <span className="text-brand-green ml-1">*</span>}
+                            {field.required && <span className="text-brand-teal ml-1">*</span>}
                           </label>
                           <div className="relative">
                             <field.icon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
@@ -228,7 +228,7 @@ export default function WhitepaperPage() {
                               placeholder={field.placeholder}
                               value={form[field.key as keyof typeof form]}
                               onChange={(e) => handleChange(field.key, e.target.value)}
-                              className={`w-full pl-10 pr-4 py-3 rounded-xl bg-white/[0.04] border text-white text-sm font-medium placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-green/40 focus:border-brand-green/40 transition-all ${
+                              className={`w-full pl-10 pr-4 py-3 rounded-xl bg-white/[0.04] border text-white text-sm font-medium placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-teal/40 focus:border-brand-teal/40 transition-all ${
                                 errors[field.key] ? "border-red-500/60" : "border-white/10 hover:border-white/20"
                               }`}
                             />
@@ -250,7 +250,7 @@ export default function WhitepaperPage() {
                       <button
                         type="submit"
                         disabled={status === "submitting"}
-                        className="w-full mt-2 inline-flex items-center justify-center gap-2.5 bg-brand-green text-white px-7 py-4 rounded-full text-sm font-black uppercase tracking-widest hover:shadow-[0_0_30px_rgba(0,26,91,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 disabled:opacity-60 disabled:pointer-events-none"
+                        className="w-full mt-2 inline-flex items-center justify-center gap-2.5 bg-button-primary-bg text-button-primary-text px-7 py-4 rounded-full text-sm font-black uppercase tracking-widest hover:bg-button-primary-hover active:bg-button-primary-active hover:shadow-[0_0_30px_rgba(34,197,204,0.4)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 disabled:opacity-60 disabled:pointer-events-none"
                       >
                         {status === "submitting" ? (
                           <>

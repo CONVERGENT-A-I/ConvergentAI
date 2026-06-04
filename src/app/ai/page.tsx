@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 
 export default function AIPage() {
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-bg-primary text-white">
       <Navbar />
       <main className="flex flex-col w-full overflow-hidden">
         <AIHero />

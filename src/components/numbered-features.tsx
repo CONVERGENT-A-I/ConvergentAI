@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { motion, Variants } from "framer-motion";
 
@@ -49,7 +49,7 @@ export default function NumberedFeatures() {
   };
 
   return (
-    <section className="bg-black py-20 px-8 md:px-12 lg:px-24 border-t border-white/5 overflow-hidden">
+    <section className="bg-bg-primary py-20 px-8 md:px-12 lg:px-24 border-t border-white/5 overflow-hidden">
       <motion.div 
         className="max-w-[1400px] mx-auto"
         variants={containerVariants}
@@ -66,13 +66,13 @@ export default function NumberedFeatures() {
             >
               <div className="flex flex-col gap-4">
                 {/* Clear, Non-Overlapping Number */}
-                <div className="text-brand-green font-black text-3xl md:text-4xl tracking-tighter transition-all duration-500 group-hover:scale-110 origin-left">
+                <div className="text-brand-teal font-black text-3xl md:text-4xl tracking-tighter transition-all duration-500 group-hover:scale-110 origin-left">
                   {item.number}
-                  <div className="h-1 w-12 bg-brand-green mt-2 opacity-50 group-hover:w-24 transition-all duration-700" />
+                  <div className="h-1 w-12 bg-brand-teal mt-2 opacity-50 group-hover:w-24 transition-all duration-700" />
                 </div>
                 
-                {/* Large Brand-Green Heading */}
-                <h3 className="text-brand-green font-black leading-[1.1] tracking-tighter" style={{ fontSize: "clamp(2.25rem, 4.5vw, 4rem)" }}>
+                {/* Large Brand-Teal Heading */}
+                <h3 className="text-brand-teal font-black leading-[1.1] tracking-tighter" style={{ fontSize: "clamp(2.25rem, 4.5vw, 4rem)" }}>
                   {item.title}
                 </h3>
               </div>

@@ -38,11 +38,11 @@ function scrollTo(id: string) {
 const prose = "text-zinc-300 leading-8 tracking-wide text-justify word-spacing-wide";
 const sectionHead = "text-xl font-bold text-white mb-5 scroll-mt-32 uppercase";
 const subHead = "text-lg font-semibold text-white mt-8 mb-3";
-const bullet = "list-disc pl-6 space-y-3 marker:text-brand-green text-zinc-300 text-sm leading-7 mb-6";
+const bullet = "list-disc pl-6 space-y-3 marker:text-brand-teal text-zinc-300 text-sm leading-7 mb-6";
 
 export default function TermsAndConditionsPage() {
   return (
-    <div className="min-h-screen bg-black flex flex-col selection:bg-brand-green/30 selection:text-white">
+    <div className="min-h-screen bg-bg-primary flex flex-col selection:bg-brand-teal/30 selection:text-white">
       <Navbar />
       <main className="flex-1 pt-60 pb-24 w-full">
         <div className="w-full max-w-4xl mx-auto px-5 sm:px-8 md:px-12">
@@ -50,7 +50,7 @@ export default function TermsAndConditionsPage() {
           {/* Header */}
           <div className="mb-14 border-b border-white/10 pb-8">
             <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight mb-3 uppercase">Terms of Service</h1>
-            <p className="text-brand-green font-medium">Last updated May 17, 2026</p>
+            <p className="text-brand-teal font-medium">Last updated May 17, 2026</p>
           </div>
 
           {/* Intro */}
@@ -59,19 +59,19 @@ export default function TermsAndConditionsPage() {
             We are ConvergentAI, Inc. (<strong>&quot;Company,&quot; &quot;we,&quot; &quot;us,&quot; &quot;our&quot;</strong>), a company registered in Tennessee, United States at 2209 Chamberlain Ave., Unit B, Chattanooga, TN 37404.
           </p>
           <p className={`${prose} mb-4`}>
-            We operate the website <a href="https://convergentai.tech" className="text-brand-green hover:underline">https://convergentai.tech</a> (the <strong>&quot;Site&quot;</strong>), the mobile application ConvergentAI Mobile (the <strong>&quot;App&quot;</strong>), as well as any other related products and services that refer or link to these legal terms (the <strong>&quot;Legal Terms&quot;</strong>) (collectively, the <strong>&quot;Services&quot;</strong>).
+            We operate the website <a href="https://convergentai.tech" className="text-brand-teal hover:underline">https://convergentai.tech</a> (the <strong>&quot;Site&quot;</strong>), the mobile application ConvergentAI Mobile (the <strong>&quot;App&quot;</strong>), as well as any other related products and services that refer or link to these legal terms (the <strong>&quot;Legal Terms&quot;</strong>) (collectively, the <strong>&quot;Services&quot;</strong>).
           </p>
           <p className={`${prose} mb-4`}>
             We provide a cutting-edge artificial intelligence platform designed to help businesses and developers build, optimize, and scale intelligent automation workflows. Our tools streamline data processing and accelerate the deployment of next-generation AI solutions.
           </p>
           <p className={`${prose} mb-4`}>
-            You can contact us by phone at (+1)7274390393, email at <a href="mailto:david@convergentai.tech" className="text-brand-green hover:underline">david@convergentai.tech</a>, or by mail to 2209 Chamberlain Ave., Unit B, Chattanooga, TN 37404, United States.
+            You can contact us by phone at (+1)7274390393, email at <a href="mailto:david@convergentai.tech" className="text-brand-teal hover:underline">david@convergentai.tech</a>, or by mail to 2209 Chamberlain Ave., Unit B, Chattanooga, TN 37404, United States.
           </p>
           <p className={`${prose} mb-4`}>
             These Legal Terms constitute a legally binding agreement made between you, whether personally or on behalf of an entity (<strong>&quot;you&quot;</strong>), and ConvergentAI, Inc., concerning your access to and use of the Services. You agree that by accessing the Services, you have read, understood, and agreed to be bound by all of these Legal Terms. IF YOU DO NOT AGREE WITH ALL OF THESE LEGAL TERMS, THEN YOU ARE EXPRESSLY PROHIBITED FROM USING THE SERVICES AND YOU MUST DISCONTINUE USE IMMEDIATELY.
           </p>
           <p className={`${prose} mb-4`}>
-            We will provide you with prior notice of any scheduled changes to the Services you are using. The modified Legal Terms will become effective upon posting or notifying you by <a href="mailto:david@convergentai.tech" className="text-brand-green hover:underline">david@convergentai.tech</a>, as stated in the email message. By continuing to use the Services after the effective date of any changes, you agree to be bound by the modified terms.
+            We will provide you with prior notice of any scheduled changes to the Services you are using. The modified Legal Terms will become effective upon posting or notifying you by <a href="mailto:david@convergentai.tech" className="text-brand-teal hover:underline">david@convergentai.tech</a>, as stated in the email message. By continuing to use the Services after the effective date of any changes, you agree to be bound by the modified terms.
           </p>
           <p className={`${prose} mb-4`}>
             The Services are intended for users who are at least 18 years old. Persons under the age of 18 are not permitted to use or register for the Services.
@@ -87,7 +87,7 @@ export default function TermsAndConditionsPage() {
               <li key={item.id}>
                 <button
                   onClick={() => scrollTo(item.id)}
-                  className="text-brand-green hover:text-white transition-colors duration-200 text-sm font-medium text-left hover:underline underline-offset-4 cursor-pointer"
+                  className="text-brand-teal hover:text-white transition-colors duration-200 text-sm font-medium text-left hover:underline underline-offset-4 cursor-pointer"
                 >
                   {item.label}
                 </button>
@@ -127,7 +127,7 @@ export default function TermsAndConditionsPage() {
               <h4 className={subHead}>Your use of our Services</h4>
               <p className={`${prose} mb-4`}>
                 Subject to your compliance with these Legal Terms, including the{" "}
-                <button onClick={() => scrollTo("section-7")} className="text-brand-green hover:underline underline-offset-4 cursor-pointer">&quot;PROHIBITED ACTIVITIES&quot;</button>{" "}
+                <button onClick={() => scrollTo("section-7")} className="text-brand-teal hover:underline underline-offset-4 cursor-pointer">&quot;PROHIBITED ACTIVITIES&quot;</button>{" "}
                 section below, we grant you a non-exclusive, non-transferable, revocable license to:
               </p>
               <ul className={bullet}>
@@ -141,7 +141,7 @@ export default function TermsAndConditionsPage() {
                 Except as set out in this section or elsewhere in our Legal Terms, no part of the Services and no Content or Marks may be copied, reproduced, aggregated, republished, uploaded, posted, publicly displayed, encoded, translated, transmitted, distributed, sold, licensed, or otherwise exploited for any commercial purpose whatsoever, without our express prior written permission.
               </p>
               <p className={`${prose} mb-4`}>
-                If you wish to make any use of the Services, Content, or Marks other than as set out in this section or elsewhere in our Legal Terms, please address your request to: <a href="mailto:david@convergentai.tech" className="text-brand-green hover:underline">david@convergentai.tech</a>. If we ever grant you the permission to post, reproduce, or publicly display any part of our Services or Content, you must identify us as the owners or licensors of the Services, Content, or Marks and ensure that any copyright or proprietary notice appears or is visible on posting, reproducing, or displaying our Content.
+                If you wish to make any use of the Services, Content, or Marks other than as set out in this section or elsewhere in our Legal Terms, please address your request to: <a href="mailto:david@convergentai.tech" className="text-brand-teal hover:underline">david@convergentai.tech</a>. If we ever grant you the permission to post, reproduce, or publicly display any part of our Services or Content, you must identify us as the owners or licensors of the Services, Content, or Marks and ensure that any copyright or proprietary notice appears or is visible on posting, reproducing, or displaying our Content.
               </p>
               <p className={`${prose} mb-4`}>
                 We reserve all rights not expressly granted to you in and to the Services, Content, and Marks.
@@ -153,7 +153,7 @@ export default function TermsAndConditionsPage() {
               <h4 className={subHead}>Your submissions</h4>
               <p className={`${prose} mb-4`}>
                 Please review this section and the{" "}
-                <button onClick={() => scrollTo("section-7")} className="text-brand-green hover:underline underline-offset-4 cursor-pointer">&quot;PROHIBITED ACTIVITIES&quot;</button>{" "}
+                <button onClick={() => scrollTo("section-7")} className="text-brand-teal hover:underline underline-offset-4 cursor-pointer">&quot;PROHIBITED ACTIVITIES&quot;</button>{" "}
                 section carefully prior to using our Services to understand the (a) rights you give us and (b) obligations you have when you post or upload any content through the Services.
               </p>
               <p className={`${prose} mb-4`}>
@@ -225,7 +225,7 @@ export default function TermsAndConditionsPage() {
 
               <h4 className={subHead}>Cancellation</h4>
               <p className={`${prose} mb-4`}>
-                All purchases are non-refundable. Users can cancel their subscription at any time by contacting our management team directly. Upon request, your account status will be updated accordingly. Your cancellation will take effect at the end of the current paid term. If you have any questions or are unsatisfied with our Services, please email us at <a href="mailto:david@convergentai.tech" className="text-brand-green hover:underline">david@convergentai.tech</a>.
+                All purchases are non-refundable. Users can cancel their subscription at any time by contacting our management team directly. Upon request, your account status will be updated accordingly. Your cancellation will take effect at the end of the current paid term. If you have any questions or are unsatisfied with our Services, please email us at <a href="mailto:david@convergentai.tech" className="text-brand-teal hover:underline">david@convergentai.tech</a>.
               </p>
 
               <h4 className={subHead}>Fee Changes</h4>
@@ -342,7 +342,7 @@ export default function TermsAndConditionsPage() {
             <section id="section-12" className="scroll-mt-32">
               <h3 className={sectionHead}>12. PRIVACY POLICY</h3>
               <p className={prose}>
-                We care about data privacy and security. Please review our Privacy Policy: <a href="https://convergentai.tech/privacy" className="text-brand-green hover:underline">https://convergentai.tech/privacy</a>. By using the Services, you agree to be bound by our Privacy Policy, which is incorporated into these Legal Terms. Please be advised the Services are hosted in the United States. If you access the Services from any other region of the world with laws or other requirements governing personal data collection, use, or disclosure that differ from applicable laws in the United States, then through your continued use of the Services, you are transferring your data to the United States, and you expressly consent to have your data transferred to and processed in the United States.
+                We care about data privacy and security. Please review our Privacy Policy: <a href="https://convergentai.tech/privacy" className="text-brand-teal hover:underline">https://convergentai.tech/privacy</a>. By using the Services, you agree to be bound by our Privacy Policy, which is incorporated into these Legal Terms. Please be advised the Services are hosted in the United States. If you access the Services from any other region of the world with laws or other requirements governing personal data collection, use, or disclosure that differ from applicable laws in the United States, then through your continued use of the Services, you are transferring your data to the United States, and you expressly consent to have your data transferred to and processed in the United States.
               </p>
             </section>
 
@@ -386,7 +386,7 @@ export default function TermsAndConditionsPage() {
               
               <h4 className={subHead}>Binding Arbitration</h4>
               <p className={`${prose} mb-4`}>
-                If the Parties are unable to resolve a Dispute through informal negotiations, the Dispute (except those Disputes expressly excluded below) will be finally and exclusively resolved by binding arbitration. YOU UNDERSTAND THAT WITHOUT THIS PROVISION, YOU WOULD HAVE THE RIGHT TO SUE IN COURT AND HAVE A JURY TRIAL. The arbitration shall be commenced and conducted under the Commercial Arbitration Rules of the American Arbitration Association (&quot;AAA&quot;) and, where appropriate, the AAA&apos;s Supplementary Procedures for Consumer Related Disputes (&quot;AAA Consumer Rules&quot;), both of which are available at the <a href="https://www.adr.org/" target="_blank" rel="noopener noreferrer" className="text-brand-green hover:underline">American Arbitration Association (AAA) website</a>. Your arbitration fees and your share of arbitrator compensation shall be governed by the AAA Consumer Rules and, where appropriate, limited by the AAA Consumer Rules. If such costs are determined by the arbitrator to be excessive, we will pay all arbitration fees and expenses. The arbitration may be conducted in person, through the submission of documents, by phone, or online. The arbitrator will make a decision in writing, but need not provide a statement of reasons unless requested by either Party. The arbitrator must follow applicable law, and any award may be challenged if the arbitrator fails to do so. Except where otherwise required by the applicable AAA rules or applicable law, the arbitration will take place in Hamilton, Tennessee. Except as otherwise provided herein, the Parties may litigate in court to compel arbitration, stay proceedings pending arbitration, or to confirm, modify, vacate, or enter judgment on the award entered by the arbitrator.
+                If the Parties are unable to resolve a Dispute through informal negotiations, the Dispute (except those Disputes expressly excluded below) will be finally and exclusively resolved by binding arbitration. YOU UNDERSTAND THAT WITHOUT THIS PROVISION, YOU WOULD HAVE THE RIGHT TO SUE IN COURT AND HAVE A JURY TRIAL. The arbitration shall be commenced and conducted under the Commercial Arbitration Rules of the American Arbitration Association (&quot;AAA&quot;) and, where appropriate, the AAA&apos;s Supplementary Procedures for Consumer Related Disputes (&quot;AAA Consumer Rules&quot;), both of which are available at the <a href="https://www.adr.org/" target="_blank" rel="noopener noreferrer" className="text-brand-teal hover:underline">American Arbitration Association (AAA) website</a>. Your arbitration fees and your share of arbitrator compensation shall be governed by the AAA Consumer Rules and, where appropriate, limited by the AAA Consumer Rules. If such costs are determined by the arbitrator to be excessive, we will pay all arbitration fees and expenses. The arbitration may be conducted in person, through the submission of documents, by phone, or online. The arbitrator will make a decision in writing, but need not provide a statement of reasons unless requested by either Party. The arbitrator must follow applicable law, and any award may be challenged if the arbitrator fails to do so. Except where otherwise required by the applicable AAA rules or applicable law, the arbitration will take place in Hamilton, Tennessee. Except as otherwise provided herein, the Parties may litigate in court to compel arbitration, stay proceedings pending arbitration, or to confirm, modify, vacate, or enter judgment on the award entered by the arbitrator.
               </p>
               <p className={`${prose} mb-4`}>
                 If for any reason, a Dispute proceeds in court rather than arbitration, the Dispute shall be commenced or prosecuted in the state and federal courts located in Hamilton, Tennessee, and the Parties hereby consent to, and waive all defenses of lack of personal jurisdiction, and forum non conveniens with respect to venue and jurisdiction in such state and federal courts. Application of the United Nations Convention on Contracts for the International Sale of Goods and the Uniform Computer Information Transaction Act (UCITA) are excluded from these Legal Terms.
@@ -475,7 +475,7 @@ export default function TermsAndConditionsPage() {
               
               <h4 className={subHead}>Support</h4>
               <p className={prose}>
-                If you have any questions or need assistance regarding our SMS communications, please reply with the keyword HELP. You can also email us at <a href="mailto:david@convergentai.tech" className="text-brand-green hover:underline">david@convergentai.tech</a> or call at (+1)7274390393. If you have any questions regarding privacy, please read our Privacy Policy: <a href="https://convergentai.tech/privacy" className="text-brand-green hover:underline">https://convergentai.tech/privacy</a>.
+                If you have any questions or need assistance regarding our SMS communications, please reply with the keyword HELP. You can also email us at <a href="mailto:david@convergentai.tech" className="text-brand-teal hover:underline">david@convergentai.tech</a> or call at (+1)7274390393. If you have any questions regarding privacy, please read our Privacy Policy: <a href="https://convergentai.tech/privacy" className="text-brand-teal hover:underline">https://convergentai.tech/privacy</a>.
               </p>
             </section>
 
@@ -508,7 +508,7 @@ export default function TermsAndConditionsPage() {
                 <p>United States</p>
                 <p>Phone: (+1)7274390393</p>
                 <p>
-                  <a href="mailto:david@convergentai.tech" className="text-brand-green font-bold underline">
+                  <a href="mailto:david@convergentai.tech" className="text-brand-teal font-bold underline">
                     david@convergentai.tech
                   </a>
                 </p>

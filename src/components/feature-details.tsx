@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { motion, Variants } from "framer-motion";
 
@@ -8,13 +8,13 @@ export default function FeatureDetails() {
       title: (
         <>
           AI Voice & <br />
-          <span className="text-brand-green tracking-tighter">Human-Like</span> <br />
+          <span className="text-brand-teal tracking-tighter">Human-Like</span> <br />
           Avatars
         </>
       ),
       description: (
         <>
-          The core intelligence layer of <span className="text-white font-bold">ConvergentAI</span>, featuring AI-powered voice and lifelike avatars that deliver natural, <span className="text-brand-green font-bold text-base md:text-lg">24/7</span> Applicant service. Our engine facilitates virtual receptionist duties, intelligent call routing, and automated scheduling for callbacks and meetings, alongside proactive outbound calls to promote refinancing or provide loan status updates. It ensures consistent, empathetic guidance across every phygital touchpoint, reducing wait times while maintaining a human feel that keeps Applicants engaged during high-stakes banking journeys. Responses to mortgage Applicant questions are grounded in <span className="text-brand-green font-bold">Freddie Mac and Fannie Mae</span> guidelines and operate under strict guardrails, regulations, and <span className="text-brand-green font-bold">S.A.F.E.</span> requirements.
+          The core intelligence layer of <span className="text-white font-bold">ConvergentAI</span>, featuring AI-powered voice and lifelike avatars that deliver natural, <span className="text-brand-teal font-bold text-base md:text-lg">24/7</span> Applicant service. Our engine facilitates virtual receptionist duties, intelligent call routing, and automated scheduling for callbacks and meetings, alongside proactive outbound calls to promote refinancing or provide loan status updates. It ensures consistent, empathetic guidance across every phygital touchpoint, reducing wait times while maintaining a human feel that keeps Applicants engaged during high-stakes banking journeys. Responses to mortgage Applicant questions are grounded in <span className="text-brand-teal font-bold">Freddie Mac and Fannie Mae</span> guidelines and operate under strict guardrails, regulations, and <span className="text-brand-teal font-bold">S.A.F.E.</span> requirements.
         </>
       )
     },
@@ -22,12 +22,12 @@ export default function FeatureDetails() {
       title: (
         <>
           Workflow <br />
-          <span className="text-brand-green tracking-tighter">Orchestration</span>
+          <span className="text-brand-teal tracking-tighter">Orchestration</span>
         </>
       ),
       description: (
         <>
-          A unified orchestration layer that bridges the gap between digital research and physical branch engagement. By automating the hand-off between <span className="text-white font-bold">AI avatars and human loan officers</span>, we eliminate the friction points where <span className="text-brand-green font-bold">institutional</span> Applicants typically drop off, maximizing application completion rates through intelligent routing.
+          A unified orchestration layer that bridges the gap between digital research and physical branch engagement. By automating the hand-off between <span className="text-white font-bold">AI avatars and human loan officers</span>, we eliminate the friction points where <span className="text-brand-teal font-bold">institutional</span> Applicants typically drop off, maximizing application completion rates through intelligent routing.
         </>
       )
     },
@@ -40,7 +40,7 @@ export default function FeatureDetails() {
       ),
       description: (
         <>
-          Our platform integrates seamlessly with existing <span className="text-brand-green font-bold">core systems and CRMs</span> to perform adaptive security checks and soft credit pulls. Designed at the enterprise grade, this architecture ensures every omnichannel message and Applicant document is handled with total data integrity and regulatory compliance.
+          Our platform integrates seamlessly with existing <span className="text-brand-teal font-bold">core systems and CRMs</span> to perform adaptive security checks and soft credit pulls. Designed at the enterprise grade, this architecture ensures every omnichannel message and Applicant document is handled with total data integrity and regulatory compliance.
         </>
       )
     },
@@ -48,12 +48,12 @@ export default function FeatureDetails() {
       title: (
         <>
           MLO <br />
-          <span className="text-brand-green tracking-tighter italic">Experience Tools</span>
+          <span className="text-brand-teal tracking-tighter italic">Experience Tools</span>
         </>
       ),
       description: (
         <>
-          Equip <span className="text-brand-green font-bold italic">MLOs</span> with tools that elevate every Applicant interaction and drive online conversions — including <span className="text-white font-bold uppercase tracking-widest text-xs md:text-sm">digital eSign, secure co-browse,</span> seamless mortgage application integration into your LOS and multiperson HD quality video communication.
+          Equip <span className="text-brand-teal font-bold italic">MLOs</span> with tools that elevate every Applicant interaction and drive online conversions — including <span className="text-white font-bold uppercase tracking-widest text-xs md:text-sm">digital eSign, secure co-browse,</span> seamless mortgage application integration into your LOS and multiperson HD quality video communication.
         </>
       )
     }
@@ -83,7 +83,7 @@ export default function FeatureDetails() {
   };
 
   return (
-    <section className="bg-black py-24 md:py-32 px-8 md:px-12 lg:px-24 overflow-hidden">
+    <section className="bg-bg-primary py-24 md:py-32 px-8 md:px-12 lg:px-24 overflow-hidden">
       <motion.div 
         className="max-w-[1400px] mx-auto"
         variants={containerVariants}
@@ -93,7 +93,7 @@ export default function FeatureDetails() {
       >
         {/* Section Header */}
         <motion.div variants={itemVariants} className="mb-24 md:mb-32 flex flex-col items-center text-center gap-4">
-          <div className="w-20 h-1 bg-brand-green opacity-50" />
+          <div className="w-20 h-1 bg-brand-teal opacity-50" />
           <h2 className="text-4xl md:text-6xl font-black text-white tracking-tighter uppercase mb-2">
             Platform Capabilities
           </h2>
@@ -120,9 +120,9 @@ export default function FeatureDetails() {
               {/* Right Side: Detailed Description with Inline Accent */}
               <div className="flex flex-col gap-6 relative">
                 {/* Horizontal Accent Line */}
-                <div className="w-16 h-px bg-brand-green/40 mb-2 md:mb-4" />
+                <div className="w-16 h-px bg-brand-teal/40 mb-2 md:mb-4" />
 
-                <p className="text-zinc-400 font-medium leading-[1.7] text-pretty" style={{ fontSize: "clamp(1rem, 1.25vw, 1.35rem)" }}>
+                <p className="text-text-secondary font-medium leading-[1.7] text-pretty" style={{ fontSize: "clamp(1rem, 1.25vw, 1.35rem)" }}>
                   {detail.description}
                 </p>
               </div>

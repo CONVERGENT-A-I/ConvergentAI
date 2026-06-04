@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { LucideIcon, Zap, Shield, MessageSquare, Cpu, Users, Smartphone } from "lucide-react";
 import { motion, Variants } from "framer-motion";
@@ -11,25 +11,25 @@ interface FeatureCardProps {
 
 function FeatureCard({ title, description, icon: Icon }: FeatureCardProps) {
   return (
-    <div className="group relative bg-zinc-900/30 border border-white/5 p-8 md:p-12 rounded-[2.5rem] flex flex-col items-start transition-all duration-500 hover:border-brand-green/30 hover:bg-zinc-900/50 h-full overflow-hidden">
+    <div className="group relative bg-bg-card border border-border-subtle p-8 md:p-12 rounded-[2.5rem] flex flex-col items-start transition-all duration-500 hover:border-brand-teal/45 hover:bg-[#0D2654] h-full overflow-hidden">
       {/* Glow Effect */}
-      <div className="absolute -inset-px bg-brand-green/5 rounded-[2.5rem] opacity-0 group-hover:opacity-100 transition-opacity blur-2xl" />
+      <div className="absolute -inset-px bg-brand-teal/5 rounded-[2.5rem] opacity-0 group-hover:opacity-100 transition-opacity blur-2xl" />
       
       {/* Icon */}
-      <div className="relative z-10 w-14 h-14 bg-brand-green/10 rounded-2xl flex items-center justify-center mb-8 border border-brand-green/20 group-hover:scale-110 transition-transform duration-500">
-        <Icon className="w-7 h-7 text-brand-green" strokeWidth={1.5} />
+      <div className="relative z-10 w-14 h-14 bg-brand-teal/10 rounded-2xl flex items-center justify-center mb-8 border border-brand-teal/20 group-hover:scale-110 transition-transform duration-500">
+        <Icon className="w-7 h-7 text-brand-teal" strokeWidth={1.5} />
       </div>
 
       {/* Content */}
       <h3 className="relative z-10 text-white text-2xl md:text-3xl font-bold leading-tight tracking-tight mb-4">
         {title}
       </h3>
-      <p className="relative z-10 text-zinc-400 font-medium leading-[1.6] [font-size:clamp(1rem,1.1vw,1.15rem)]">
+      <p className="relative z-10 text-text-secondary font-medium leading-[1.6] [font-size:clamp(1rem,1.1vw,1.15rem)]">
         {description}
       </p>
 
       {/* Subtle Bottom Accent */}
-      <div className="absolute bottom-0 left-0 h-[2px] w-0 bg-brand-green transition-all duration-700 group-hover:w-full opacity-50" />
+      <div className="absolute bottom-0 left-0 h-[2px] w-0 bg-brand-teal transition-all duration-700 group-hover:w-full opacity-50" />
     </div>
   );
 }
@@ -92,7 +92,7 @@ export default function FeaturesGrid() {
   };
 
   return (
-    <section className="bg-black py-20 md:py-32 overflow-hidden">
+    <section className="bg-bg-primary py-20 md:py-32 overflow-hidden">
       <motion.div 
         className="max-w-[1400px] mx-auto w-full"
         variants={containerVariants}

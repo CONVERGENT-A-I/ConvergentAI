@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
 import { motion, Variants } from "framer-motion";
@@ -59,7 +59,7 @@ export default function AIConnection() {
   };
 
   return (
-    <section id="connection" className="bg-black py-24 md:py-32 px-8 md:px-12 lg:px-24 overflow-hidden">
+    <section id="connection" className="bg-bg-primary py-24 md:py-32 px-8 md:px-12 lg:px-24 overflow-hidden">
       <motion.div
         className="max-w-[1600px] mx-auto w-full"
         variants={containerVariants}
@@ -69,7 +69,7 @@ export default function AIConnection() {
       >
         {/* Section Header */}
         <motion.div variants={headerVariants} className="mb-20 md:mb-32 flex flex-col items-center text-center gap-5">
-          <div className="w-20 h-1 bg-brand-green opacity-50 rounded-full" />
+          <div className="w-20 h-1 bg-brand-teal opacity-50 rounded-full" />
           <h2 className="text-4xl md:text-6xl lg:text-7xl font-black text-white tracking-tighter uppercase mb-2">
             The Science of Human Connection
           </h2>
@@ -82,7 +82,7 @@ export default function AIConnection() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24 items-center">
           {/* Left: Narrative — slides in from left */}
           <motion.div variants={leftVariants} className="flex flex-col gap-10">
-            <p className="text-zinc-400 font-medium leading-[1.8] [font-size:clamp(1.1rem,1.3vw,1.35rem)] text-pretty">
+            <p className="text-text-secondary font-medium leading-[1.8] [font-size:clamp(1.1rem,1.3vw,1.35rem)] text-pretty">
               At ConvergentAI, we believe that true communication is about more than words—it is the
               nuanced signals of tone, timing, and facial expressions that build lasting trust.
               Your Applicants read these visual contexts instinctively, looking for connection
@@ -91,7 +91,7 @@ export default function AIConnection() {
               feel deeply understood, not just responded to.
             </p>
 
-            <p className="text-zinc-400 font-medium leading-[1.8] [font-size:clamp(1.1rem,1.3vw,1.35rem)] text-pretty">
+            <p className="text-text-secondary font-medium leading-[1.8] [font-size:clamp(1.1rem,1.3vw,1.35rem)] text-pretty">
               When Applicants feel genuinely heard—through clear explanations, natural back-and-forth,
               and human-like signals such as tone and expression—they move forward with confidence
               in their mortgage decisions and are far less likely to abandon applications. This direct
@@ -104,11 +104,11 @@ export default function AIConnection() {
           {/* Right: Info Card — scales + slides from right */}
           <motion.div
             variants={rightVariants}
-            className="bg-[#0A1120] backdrop-blur-2xl border border-white/5 p-5 md:p-8 rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+            className="bg-bg-card border border-border-subtle p-5 md:p-8 rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)]"
           >
             {/* Image */}
-            <div className="relative aspect-video rounded-[2rem] overflow-hidden bg-black/40 mb-10 border border-white/5">
-              <div className="absolute inset-0 flex items-center justify-center bg-zinc-950">
+            <div className="relative aspect-video rounded-[2rem] overflow-hidden bg-bg-primary/40 mb-10 border border-white/5">
+              <div className="absolute inset-0 flex items-center justify-center bg-bg-primary">
                 <Image
                   src={ai3}
                   alt="Human Connection Interface"
@@ -120,12 +120,12 @@ export default function AIConnection() {
 
             {/* Card Content */}
             <div className="px-4 pb-2">
-              <h3 className="text-brand-green font-black text-xl md:text-2xl mb-6 leading-[1.2] tracking-tight uppercase">
+              <h3 className="text-brand-teal font-black text-xl md:text-2xl mb-6 leading-[1.2] tracking-tight uppercase">
                 BEYOND WORDS: <br />
                 COMMUNICATION THAT <br />
                 FEELS HUMAN
               </h3>
-              <p className="text-zinc-400 font-medium leading-relaxed [font-size:clamp(0.95rem,1.15vw,1.15rem)] opacity-90">
+              <p className="text-text-secondary font-medium leading-relaxed [font-size:clamp(0.95rem,1.15vw,1.15rem)] opacity-90">
                 Applicants don&apos;t just want quick answers—they want to feel like someone is actually with
                 them in the moment. ConvergentAI&apos;s voice and human-like avatars mirror natural pacing,
                 tone, and expression so conversations feel less like talking to a script and more like

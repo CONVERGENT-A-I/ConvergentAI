@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
 import { motion, Variants } from "framer-motion";
@@ -57,7 +57,7 @@ export default function BranchSegment() {
   };
 
   return (
-    <section className="bg-black py-24 md:py-32 px-8 md:px-12 lg:px-24 overflow-hidden">
+    <section className="bg-bg-primary py-24 md:py-32 px-8 md:px-12 lg:px-24 overflow-hidden">
       <motion.div
         className="max-w-[1400px] mx-auto"
         variants={containerVariants}
@@ -73,7 +73,7 @@ export default function BranchSegment() {
           <h2 className="text-4xl md:text-6xl font-black text-white tracking-tighter uppercase">
             BranchPortal & SEG Programs
           </h2>
-          <p className="max-w-4xl text-zinc-400 font-medium leading-[1.6] [font-size:clamp(1rem,1.35vw,1.45rem)]">
+          <p className="max-w-4xl text-text-secondary font-medium leading-[1.6] [font-size:clamp(1rem,1.35vw,1.45rem)]">
             ConvergentAI's BranchPortal brings AI-powered avatars and guidance
             into the branch, while SEG programs extend personalized mortgage and
             Applicant education tools to select employer groups. These
@@ -92,7 +92,7 @@ export default function BranchSegment() {
               className="group flex flex-col gap-6"
             >
               {/* Premium Image Container */}
-              <div className="relative aspect-[16/10] overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-900 transition-all duration-700 group-hover:border-brand-green/30 group-hover:shadow-[0_0_40px_rgba(0,255,153,0.1)]">
+              <div className="relative aspect-[16/10] overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-900 transition-all duration-700 group-hover:border-brand-teal/30 group-hover:shadow-[0_0_40px_rgba(34,197,204,0.1)]">
                 <Image
                   src={img.src}
                   alt={img.alt}
@@ -104,11 +104,11 @@ export default function BranchSegment() {
 
               {/* Green All-Caps Caption */}
               <div className="flex items-center justify-center gap-3">
-                <div className="w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_8px_rgba(0,255,153,0.8)] opacity-0 group-hover:opacity-100 transition-opacity" />
-                <p className="text-brand-green font-black text-xs md:text-sm tracking-[0.2em] uppercase text-center">
+                <div className="w-1.5 h-1.5 rounded-full bg-brand-teal shadow-[0_0_8px_rgba(34,197,204,0.8)] opacity-0 group-hover:opacity-100 transition-opacity" />
+                <p className="text-brand-teal font-black text-xs md:text-sm tracking-[0.2em] uppercase text-center">
                   {img.caption}
                 </p>
-                <div className="w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_8px_rgba(0,255,153,0.8)] opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="w-1.5 h-1.5 rounded-full bg-brand-teal shadow-[0_0_8px_rgba(34,197,204,0.8)] opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
             </motion.div>
           ))}

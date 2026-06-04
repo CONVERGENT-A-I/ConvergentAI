@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { motion, Variants } from "framer-motion";
 
@@ -64,7 +64,7 @@ export default function AIUseCases() {
   };
 
   return (
-    <section id="use-cases" className="bg-black py-24 md:py-32 px-8 md:px-12 lg:px-24 border-t border-white/5 overflow-hidden">
+    <section id="use-cases" className="bg-bg-primary py-24 md:py-32 px-8 md:px-12 lg:px-24 border-t border-white/5 overflow-hidden">
       <motion.div
         className="max-w-[1600px] mx-auto w-full"
         variants={containerVariants}
@@ -83,9 +83,9 @@ export default function AIUseCases() {
               style={{ fontSize: "clamp(2.5rem, 5vw, 4.5rem)" }}>
               Strategic <br />
               Use Cases & <br />
-              <span className="text-brand-green">Business Benefits</span>
+              <span className="text-brand-teal">Business Benefits</span>
             </h2>
-            <p className="text-zinc-400 font-medium leading-relaxed max-w-md opacity-90 text-pretty"
+            <p className="text-text-secondary font-medium leading-relaxed max-w-md opacity-90 text-pretty"
               style={{ fontSize: "clamp(1.1rem, 1.4vw, 1.3rem)" }}>
               Driving tangible ROI for financial institutions through immersive phygital
               engagement and AI automation.
@@ -102,19 +102,19 @@ export default function AIUseCases() {
                 key={index}
                 variants={cardVariants}
                 whileHover={{ scale: 1.02, x: 6 }}
-                className="group relative bg-zinc-950/40 border border-white/5 p-7 md:p-9 rounded-[2rem] transition-all duration-500 hover:border-brand-green/30 hover:bg-zinc-900/40 overflow-hidden"
+                className="group relative bg-bg-card border border-border-subtle p-7 md:p-9 rounded-[2rem] transition-all duration-500 hover:border-brand-teal/45 hover:bg-[#0D2654] overflow-hidden"
               >
                 {/* Subtle Glow Effect on Hover */}
-                <div className="absolute -inset-px bg-brand-green/5 rounded-[2rem] opacity-0 group-hover:opacity-100 transition-opacity blur-2xl" />
+                <div className="absolute -inset-px bg-brand-teal/5 rounded-[2rem] opacity-0 group-hover:opacity-100 transition-opacity blur-2xl" />
 
                 {/* Animated left accent bar */}
-                <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-full bg-brand-green scale-y-0 group-hover:scale-y-100 transition-transform duration-500 origin-top" />
+                <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-full bg-brand-teal scale-y-0 group-hover:scale-y-100 transition-transform duration-500 origin-top" />
 
                 <h3 className="relative z-10 text-white text-xl md:text-2xl xl:text-3xl font-black mb-3 tracking-tight">
                   {useCase.title}
                 </h3>
 
-                <p className="relative z-10 text-brand-green font-medium leading-[1.6] [font-size:clamp(0.95rem,1.1vw,1.15rem)] opacity-90">
+                <p className="relative z-10 text-brand-teal font-medium leading-[1.6] [font-size:clamp(0.95rem,1.1vw,1.15rem)] opacity-90">
                   {useCase.benefit}
                 </p>
               </motion.div>

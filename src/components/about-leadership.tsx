@@ -44,7 +44,7 @@ export default function AboutLeadership() {
   };
 
   return (
-    <section id="leadership" className="bg-black py-20 md:py-32 px-6 sm:px-12 lg:px-24 border-t border-white/5 overflow-hidden">
+    <section id="leadership" className="bg-bg-primary py-20 md:py-32 px-6 sm:px-12 lg:px-24 border-t border-white/5 overflow-hidden">
       <motion.div
         className="max-w-[1600px] mx-auto w-full"
         variants={containerVariants}
@@ -55,7 +55,7 @@ export default function AboutLeadership() {
 
         {/* Section Header - Matching Platform Capabilities Pattern */}
         <motion.div variants={itemVariants} className="mb-20 md:mb-32 flex flex-col items-center text-center gap-5">
-          <div className="w-20 h-1 bg-brand-green opacity-50 rounded-full" />
+          <div className="w-20 h-1 bg-brand-teal opacity-50 rounded-full" />
           <h2 className="text-4xl md:text-6xl lg:text-7xl font-black text-white tracking-tighter uppercase mb-2">
             The Leadership
           </h2>
@@ -66,7 +66,7 @@ export default function AboutLeadership() {
 
         {/* Narrative Intro */}
         <motion.div variants={itemVariants} className="mb-24 text-center max-w-4xl mx-auto">
-          <p className="text-zinc-400 font-medium leading-[1.8] [font-size:clamp(1.1rem,1.4vw,1.45rem)] opacity-90 mx-auto max-w-[850px] text-pretty">
+          <p className="text-text-secondary font-medium leading-[1.8] [font-size:clamp(1.1rem,1.4vw,1.45rem)] opacity-90 mx-auto max-w-[850px] text-pretty">
             Our leadership team brings 30+ years of combined mortgage and technology experience
             together with modern AI and phygital design. We understand how to empower branches,
             contact centers, and digital teams to work as one.
@@ -80,9 +80,9 @@ export default function AboutLeadership() {
           <motion.div variants={itemVariants} className="group flex flex-col items-center text-center">
             <div className="relative w-[260px] h-[260px] sm:w-[300px] sm:h-[300px] lg:w-[350px] lg:h-[350px] mb-8 md:mb-10">
               {/* Premium Background Glow Effect */}
-              <div className="absolute -inset-4 bg-brand-green/20 rounded-full blur-[60px] opacity-0 group-hover:opacity-100 transition-all duration-700 scale-90 group-hover:scale-100" />
+              <div className="absolute -inset-4 bg-brand-teal/20 rounded-full blur-[60px] opacity-0 group-hover:opacity-100 transition-all duration-700 scale-90 group-hover:scale-100" />
 
-              <div className="relative w-full h-full rounded-full overflow-hidden border-4 border-white/10 group-hover:border-brand-green/50 shadow-2xl transition-all duration-700 hover:scale-[1.03] z-10">
+              <div className="relative w-full h-full rounded-full overflow-hidden border-4 border-white/10 group-hover:border-brand-teal/50 shadow-2xl transition-all duration-700 hover:scale-[1.03] z-10">
                 <Image
                   src={a1}
                   alt="David Patten"
@@ -97,14 +97,14 @@ export default function AboutLeadership() {
                 style={{ fontSize: "clamp(1.75rem, 2.5vw, 2.5rem)" }}>
                 David Patten
               </h3>
-              <p className="font-black tracking-[0.2em] uppercase text-[10px] md:text-xs text-brand-green">
+              <p className="font-black tracking-[0.2em] uppercase text-[10px] md:text-xs text-brand-teal">
                 Founder & CEO
               </p>
               <a
                 href="https://linkedin.com/in/davidlpatten"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-4 p-3 rounded-full bg-white/5 border border-white/10 text-white/50 hover:bg-brand-green hover:text-black hover:border-brand-green transition-all duration-300"
+                className="mt-4 p-3 rounded-full bg-white/5 border border-white/10 text-white/50 hover:bg-brand-teal hover:text-black hover:border-brand-teal transition-all duration-300"
               >
                 <LinkedinIcon className="w-5 h-5" strokeWidth={1.5} />
               </a>
@@ -115,9 +115,9 @@ export default function AboutLeadership() {
           <motion.div variants={itemVariants} className="group flex flex-col items-center text-center">
             <div className="relative w-[260px] h-[260px] sm:w-[300px] sm:h-[300px] lg:w-[350px] lg:h-[350px] mb-8 md:mb-10">
               {/* Premium Background Glow Effect */}
-              <div className="absolute -inset-4 bg-brand-green/20 rounded-full blur-[60px] opacity-0 group-hover:opacity-100 transition-all duration-700 scale-90 group-hover:scale-100" />
+              <div className="absolute -inset-4 bg-brand-teal/20 rounded-full blur-[60px] opacity-0 group-hover:opacity-100 transition-all duration-700 scale-90 group-hover:scale-100" />
 
-              <div className="relative w-full h-full rounded-full overflow-hidden border-4 border-white/10 group-hover:border-brand-green/50 shadow-2xl transition-all duration-700 hover:scale-[1.03] z-10">
+              <div className="relative w-full h-full rounded-full overflow-hidden border-4 border-white/10 group-hover:border-brand-teal/50 shadow-2xl transition-all duration-700 hover:scale-[1.03] z-10">
                 <Image
                   src={a2}
                   alt="Elisa Llamido"
@@ -132,14 +132,14 @@ export default function AboutLeadership() {
                 style={{ fontSize: "clamp(1.75rem, 2.5vw, 2.5rem)" }}>
                 Elisa Llamido
               </h3>
-              <p className="font-black tracking-[0.2em] uppercase text-[10px] md:text-xs text-brand-green">
+              <p className="font-black tracking-[0.2em] uppercase text-[10px] md:text-xs text-brand-teal">
                 COO
               </p>
               <a
                 href="https://linkedin.com/in/elisallamido"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-4 p-3 rounded-full bg-white/5 border border-white/10 text-white/50 hover:bg-brand-green hover:text-black hover:border-brand-green transition-all duration-300"
+                className="mt-4 p-3 rounded-full bg-white/5 border border-white/10 text-white/50 hover:bg-brand-teal hover:text-black hover:border-brand-teal transition-all duration-300"
               >
                 <LinkedinIcon className="w-5 h-5" strokeWidth={1.5} />
               </a>
@@ -150,9 +150,9 @@ export default function AboutLeadership() {
           <motion.div variants={itemVariants} className="group flex flex-col items-center text-center">
             <div className="relative w-[260px] h-[260px] sm:w-[300px] sm:h-[300px] lg:w-[350px] lg:h-[350px] mb-8 md:mb-10">
               {/* Premium Background Glow Effect */}
-              <div className="absolute -inset-4 bg-brand-green/20 rounded-full blur-[60px] opacity-0 group-hover:opacity-100 transition-all duration-700 scale-90 group-hover:scale-100" />
+              <div className="absolute -inset-4 bg-brand-teal/20 rounded-full blur-[60px] opacity-0 group-hover:opacity-100 transition-all duration-700 scale-90 group-hover:scale-100" />
 
-              <div className="relative w-full h-full rounded-full overflow-hidden border-4 border-white/10 group-hover:border-brand-green/50 shadow-2xl transition-all duration-700 hover:scale-[1.03] z-10">
+              <div className="relative w-full h-full rounded-full overflow-hidden border-4 border-white/10 group-hover:border-brand-teal/50 shadow-2xl transition-all duration-700 hover:scale-[1.03] z-10">
                 <Image
                   src={mikeHalesImg}
                   alt="Mike Hales"
@@ -167,14 +167,14 @@ export default function AboutLeadership() {
                 style={{ fontSize: "clamp(1.75rem, 2.5vw, 2.5rem)" }}>
                 Mike Hales
               </h3>
-              <p className="font-black tracking-[0.2em] uppercase text-[10px] md:text-xs text-brand-green">
+              <p className="font-black tracking-[0.2em] uppercase text-[10px] md:text-xs text-brand-teal">
                 Industry Advisor
               </p>
               <a
                 href="https://www.linkedin.com/in/the-hales-connection/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-4 p-3 rounded-full bg-white/5 border border-white/10 text-white/50 hover:bg-brand-green hover:text-black hover:border-brand-green transition-all duration-300"
+                className="mt-4 p-3 rounded-full bg-white/5 border border-white/10 text-white/50 hover:bg-brand-teal hover:text-black hover:border-brand-teal transition-all duration-300"
               >
                 <LinkedinIcon className="w-5 h-5" strokeWidth={1.5} />
               </a>

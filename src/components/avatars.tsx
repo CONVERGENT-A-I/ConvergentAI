@@ -26,7 +26,7 @@ export default function Avatars() {
   };
 
   return (
-    <section id="avatars" className="bg-black min-h-[100svh] flex flex-col justify-center py-20 md:py-28 px-8 md:px-12 lg:px-24 overflow-hidden">
+    <section id="avatars" className="bg-bg-secondary min-h-[100svh] flex flex-col justify-center py-20 md:py-28 px-8 md:px-12 lg:px-24 overflow-hidden">
       <motion.div 
         className="max-w-[1600px] mx-auto w-full"
         variants={containerVariants}
@@ -38,7 +38,7 @@ export default function Avatars() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 mb-8 md:mb-10">
           {/* BranchPortal Card */}
           <motion.div variants={itemVariants} className="group cursor-pointer">
-            <div className="relative aspect-video overflow-hidden rounded-[2.5rem] border border-white/5 shadow-2xl transition-all duration-700 hover:border-brand-green/40">
+            <div className="relative aspect-video overflow-hidden rounded-[2.5rem] border border-border-subtle shadow-2xl transition-all duration-700 hover:border-brand-teal/40">
               <Image
                 src={h1}
                 alt="BranchPortal AI Avatar System"
@@ -48,14 +48,14 @@ export default function Avatars() {
               {/* Overlays */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80" />
             </div>
-            <p className="mt-10 text-brand-green text-sm md:text-lg font-black uppercase tracking-[0.25em]">
+            <p className="mt-10 text-brand-periwinkle text-sm md:text-lg font-black uppercase tracking-[0.25em]">
               BRANCHPORTAL: IN-BRANCH AI CONCIERGE
             </p>
           </motion.div>
 
           {/* At-Home Engagement Card */}
           <motion.div variants={itemVariants} className="group cursor-pointer">
-            <div className="relative aspect-video overflow-hidden rounded-[2.5rem] border border-white/5 shadow-2xl transition-all duration-700 hover:border-brand-green/40">
+            <div className="relative aspect-video overflow-hidden rounded-[2.5rem] border border-border-subtle shadow-2xl transition-all duration-700 hover:border-brand-teal/40">
               <Image
                 src={h2}
                 alt="At-Home 24/7 Digital AI Engagement"
@@ -64,7 +64,7 @@ export default function Avatars() {
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80" />
             </div>
-            <p className="mt-10 text-brand-green text-sm md:text-lg font-black uppercase tracking-[0.25em]">
+            <p className="mt-10 text-brand-periwinkle text-sm md:text-lg font-black uppercase tracking-[0.25em]">
               AT-HOME: ALWAYS-AVAILABLE DIGITAL GUIDANCE
             </p>
           </motion.div>
@@ -96,12 +96,12 @@ export default function Avatars() {
         <motion.div variants={itemVariants} className="flex justify-center">
           <a
             href="#schedule-demo"
-            className="group relative inline-flex items-center justify-center border border-brand-green px-8 md:px-16 py-4 md:py-8 rounded-2xl transition-all overflow-hidden"
+            className="group relative inline-flex items-center justify-center border border-brand-periwinkle px-8 md:px-16 py-4 md:py-8 rounded-2xl hover:border-brand-teal transition-all overflow-hidden"
           >
             <span className="relative z-10 text-white text-base md:text-lg font-black uppercase tracking-widest group-hover:!text-white transition-colors duration-300 text-center">
               Have Questions? Start Here
             </span>
-            <div className="absolute inset-0 z-0 bg-brand-green transform translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+            <div className="absolute inset-0 z-0 bg-brand-blue/16 transform translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
           </a>
         </motion.div>
       </motion.div>

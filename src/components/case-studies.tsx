@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
 import { motion, Variants } from "framer-motion";
@@ -63,7 +63,7 @@ export default function CaseStudies() {
   };
 
   return (
-    <section className="bg-black py-24 md:py-32 px-8 md:px-12 lg:px-24 border-t border-white/5 overflow-hidden">
+    <section className="bg-bg-primary py-24 md:py-32 px-8 md:px-12 lg:px-24 border-t border-white/5 overflow-hidden">
       <motion.div 
         className="max-w-[1400px] mx-auto"
         variants={containerVariants}
@@ -84,10 +84,10 @@ export default function CaseStudies() {
             <motion.div
               key={index}
               variants={cardVariants}
-              className="group flex flex-col items-start gap-6 bg-zinc-900/20 rounded-[2.5rem] border border-white/5 p-4 pb-10 transition-all duration-700 hover:border-brand-green/20 hover:bg-zinc-900/40"
+              className="group flex flex-col items-start gap-6 bg-bg-card rounded-[2.5rem] border border-border-subtle p-4 pb-10 transition-all duration-700 hover:border-brand-teal/45 hover:bg-[#0D2654]"
             >
               {/* Premium Image Container */}
-              <div className="relative w-full aspect-[16/10] overflow-hidden rounded-[2rem] bg-white border border-white/10 transition-all duration-700 group-hover:shadow-[0_0_40px_rgba(0,255,153,0.05)]">
+              <div className="relative w-full aspect-[16/10] overflow-hidden rounded-[2rem] bg-white border border-white/10 transition-all duration-700 group-hover:shadow-[0_0_40px_rgba(34,197,204,0.05)]">
                 <Image
                   src={cs.image}
                   alt={cs.title}
@@ -107,7 +107,7 @@ export default function CaseStudies() {
                   {cs.title}
                 </h3>
 
-                <p className="text-brand-green font-bold text-sm md:text-base tracking-wide">
+                <p className="text-brand-teal font-bold text-sm md:text-base tracking-wide">
                   {cs.stat}
                 </p>
               </div>

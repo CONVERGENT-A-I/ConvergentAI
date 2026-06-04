@@ -46,7 +46,7 @@ export default function LiveAgentDashboard() {
   };
 
   return (
-    <section className="bg-black py-24 md:py-32 px-8 md:px-12 lg:px-24 border-t border-white/5 overflow-hidden">
+    <section className="bg-bg-secondary py-24 md:py-32 px-8 md:px-12 lg:px-24 border-t border-white/5 overflow-hidden">
       <motion.div 
         className="max-w-[1600px] mx-auto w-full"
         variants={containerVariants}
@@ -71,7 +71,7 @@ export default function LiveAgentDashboard() {
             {/* Sub-description */}
             <motion.p 
               variants={itemVariants}
-              className="text-zinc-400 font-medium leading-relaxed mb-12"
+              className="text-text-secondary font-medium leading-relaxed mb-12"
               style={{ fontSize: "clamp(1rem, 1.2vw, 1.2rem)" }}
             >
               The Unified LiveAgent Dashboard provides MLOs with deep Applicant context and real-time
@@ -82,14 +82,14 @@ export default function LiveAgentDashboard() {
             <ul className="space-y-6 mb-12">
               {features.map((feature, index) => (
                 <motion.li variants={itemVariants} key={index} className="flex gap-4 items-start group">
-                  <CheckCircle2 className="w-5 h-5 text-brand-green shrink-0 mt-1" strokeWidth={2} />
+                  <CheckCircle2 className="w-5 h-5 text-brand-teal shrink-0 mt-1" strokeWidth={2} />
                   <div>
                     <span className="text-white font-bold block mb-0.5"
                       style={{ fontSize: "clamp(0.9rem, 1.1vw, 1.1rem)" }}
                     >
                       {feature.title}
                     </span>
-                    <span className="text-zinc-500 font-medium leading-relaxed"
+                    <span className="text-text-muted font-medium leading-relaxed"
                       style={{ fontSize: "clamp(0.85rem, 1vw, 1rem)" }}
                     >
                       {feature.description}
@@ -116,7 +116,7 @@ export default function LiveAgentDashboard() {
           {/* Right: Stacked Image Mockups */}
           <motion.div variants={itemVariants} className="flex flex-col gap-6">
             {/* Top Image — full width */}
-            <div className="rounded-[1.5rem] overflow-hidden border border-white/10 shadow-2xl bg-zinc-900 w-full relative">
+            <div className="rounded-[1.5rem] overflow-hidden border border-border-subtle shadow-2xl bg-bg-card w-full relative">
               <Image
                 src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=1200"
                 alt="Unified LiveAgent Dashboard — full view"
@@ -126,7 +126,7 @@ export default function LiveAgentDashboard() {
               />
             </div>
             {/* Bottom Image — smaller, centered under the first */}
-            <div className="rounded-[1.5rem] overflow-hidden border border-white/10 shadow-2xl bg-zinc-900 w-2/3 mx-auto relative">
+            <div className="rounded-[1.5rem] overflow-hidden border border-border-subtle shadow-2xl bg-bg-card w-2/3 mx-auto relative">
               <Image
                 src="https://images.unsplash.com/photo-1531538606174-0f90ff5dce83?auto=format&fit=crop&q=80&w=800"
                 alt="LiveAgent mortgage intent scoring panel"

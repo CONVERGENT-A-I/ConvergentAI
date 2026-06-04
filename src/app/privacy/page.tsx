@@ -25,8 +25,8 @@ function scrollTo(id: string) {
 const prose = "text-zinc-300 leading-8 tracking-wide text-justify word-spacing-wide";
 const sectionHead = "text-xl font-bold text-white mb-5 scroll-mt-32";
 const subHead = "text-lg font-semibold text-white mt-8 mb-3";
-const shortNote = "italic text-brand-green mb-4 text-sm";
-const bullet = "list-disc pl-6 space-y-3 marker:text-brand-green";
+const shortNote = "italic text-brand-teal mb-4 text-sm";
+const bullet = "list-disc pl-6 space-y-3 marker:text-brand-teal";
 
 const tableRows = [
   { cat: "A. Identifiers", ex: "Contact details, such as real name, alias, postal address, telephone or mobile contact number, unique personal identifier, online identifier, Internet Protocol address, email address, and account name", col: "" },
@@ -44,7 +44,7 @@ const tableRows = [
 
 export default function PrivacyPolicyPage() {
   return (
-    <div className="min-h-screen bg-black flex flex-col selection:bg-brand-green/30 selection:text-white">
+    <div className="min-h-screen bg-bg-primary flex flex-col selection:bg-brand-teal/30 selection:text-white">
       <Navbar />
       <main className="flex-1 pt-60 pb-24 w-full">
         <div className="w-full max-w-4xl mx-auto px-5 sm:px-8 md:px-12">
@@ -52,7 +52,7 @@ export default function PrivacyPolicyPage() {
           {/* Header */}
           <div className="mb-14 border-b border-white/10 pb-8">
             <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight mb-3 uppercase">Privacy Notice</h1>
-            <p className="text-brand-green font-medium">Last updated May 17, 2026</p>
+            <p className="text-brand-teal font-medium">Last updated May 17, 2026</p>
           </div>
 
           {/* Intro */}
@@ -60,7 +60,7 @@ export default function PrivacyPolicyPage() {
             This Privacy Notice for ConvergentAI, Inc. (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;), describes how and why we might access, collect, store, use, and/or share (&quot;process&quot;) your personal information when you use our services (&quot;Services&quot;), including when you:
           </p>
           <ul className={`${bullet} mb-6 text-zinc-300`}>
-            <li>Visit our website at <a href="https://convergentai.tech" className="text-brand-green hover:underline">https://convergentai.tech</a> or any website of ours that links to this Privacy Notice</li>
+            <li>Visit our website at <a href="https://convergentai.tech" className="text-brand-teal hover:underline">https://convergentai.tech</a> or any website of ours that links to this Privacy Notice</li>
             <li>Download and use our mobile application (ConvergentAI), or any other application of ours that links to this Privacy Notice</li>
             <li>Engage with us in other related ways, including any marketing or events</li>
           </ul>
@@ -74,37 +74,37 @@ export default function PrivacyPolicyPage() {
           <h2 id="summary" className="text-2xl font-bold tracking-wide mb-5 uppercase text-white border-b border-white/10 pb-2">Summary of Key Points</h2>
           <p className="italic text-zinc-400 mb-6 leading-7">
             This summary provides key points from our Privacy Notice, but you can find out more details about any of these topics by clicking the link following each key point or by using our{" "}
-            <button onClick={() => scrollTo("toc")} className="text-brand-green hover:underline underline-offset-4 italic cursor-pointer">table of contents</button>{" "}
+            <button onClick={() => scrollTo("toc")} className="text-brand-teal hover:underline underline-offset-4 italic cursor-pointer">table of contents</button>{" "}
             below to find the section you are looking for.
           </p>
           <ul className="space-y-3 list-none pl-0 mb-12">
             <li className="bg-white/[0.02] p-4 rounded-lg border border-white/5 text-zinc-300 text-sm leading-7">
               <strong className="text-white">What personal information do we process?</strong> When you visit, use, or navigate our Services, we may process personal information depending on how you interact with us and the Services, the choices you make, and the products and features you use. Learn more about{" "}
-              <button onClick={() => scrollTo("section-1")} className="text-brand-green hover:underline underline-offset-4 cursor-pointer">personal information you disclose to us</button>.
+              <button onClick={() => scrollTo("section-1")} className="text-brand-teal hover:underline underline-offset-4 cursor-pointer">personal information you disclose to us</button>.
             </li>
             <li className="bg-white/[0.02] p-4 rounded-lg border border-white/5 text-zinc-300 text-sm leading-7">
               <strong className="text-white">Do we process any sensitive personal information?</strong> Some of the information may be considered &quot;special&quot; or &quot;sensitive&quot; in certain jurisdictions, for example your racial or ethnic origins, sexual orientation, and religious beliefs. We do not process sensitive personal information.
             </li>
             <li className="bg-white/[0.02] p-4 rounded-lg border border-white/5 text-zinc-300 text-sm leading-7">
               <strong className="text-white">Do we collect any information from third parties?</strong> We may collect information from public databases, marketing partners, social media platforms, and other outside sources. Learn more about{" "}
-              <button onClick={() => scrollTo("section-1")} className="text-brand-green hover:underline underline-offset-4 cursor-pointer">information collected from other sources</button>.
+              <button onClick={() => scrollTo("section-1")} className="text-brand-teal hover:underline underline-offset-4 cursor-pointer">information collected from other sources</button>.
             </li>
             <li className="bg-white/[0.02] p-4 rounded-lg border border-white/5 text-zinc-300 text-sm leading-7">
               <strong className="text-white">How do we process your information?</strong> We process your information to provide, improve, and administer our Services, communicate with you, for security and fraud prevention, and to comply with law. We may also process your information for other purposes with your consent. Learn more about{" "}
-              <button onClick={() => scrollTo("section-2")} className="text-brand-green hover:underline underline-offset-4 cursor-pointer">how we process your information</button>.
+              <button onClick={() => scrollTo("section-2")} className="text-brand-teal hover:underline underline-offset-4 cursor-pointer">how we process your information</button>.
             </li>
             <li className="bg-white/[0.02] p-4 rounded-lg border border-white/5 text-zinc-300 text-sm leading-7">
               <strong className="text-white">In what situations and with which parties do we share personal information?</strong> We may share information in specific situations and with specific third parties. Learn more about{" "}
-              <button onClick={() => scrollTo("section-3")} className="text-brand-green hover:underline underline-offset-4 cursor-pointer">when and with whom we share your personal information</button>.
+              <button onClick={() => scrollTo("section-3")} className="text-brand-teal hover:underline underline-offset-4 cursor-pointer">when and with whom we share your personal information</button>.
             </li>
             <li className="bg-white/[0.02] p-4 rounded-lg border border-white/5 text-zinc-300 text-sm leading-7">
               <strong className="text-white">What are your rights?</strong> Depending on where you are located geographically, the applicable privacy law may mean you have certain rights regarding your personal information. Learn more about{" "}
-              <button onClick={() => scrollTo("section-8")} className="text-brand-green hover:underline underline-offset-4 cursor-pointer">your privacy rights</button>.
+              <button onClick={() => scrollTo("section-8")} className="text-brand-teal hover:underline underline-offset-4 cursor-pointer">your privacy rights</button>.
             </li>
             <li className="bg-white/[0.02] p-4 rounded-lg border border-white/5 text-zinc-300 text-sm leading-7">
               <strong className="text-white">How do you exercise your rights?</strong> The easiest way to exercise your rights is by submitting a data subject access request, or by contacting us. We will consider and act upon any request in accordance with applicable data protection laws.
             </li>
-            <li className="bg-brand-green/10 text-brand-green p-4 rounded-lg border border-brand-green/20 text-sm font-medium">
+            <li className="bg-brand-teal/10 text-brand-teal p-4 rounded-lg border border-brand-teal/20 text-sm font-medium">
               <strong>Want to learn more about what we do with any information we collect?</strong> Review the Privacy Notice in full below.
             </li>
           </ul>
@@ -116,7 +116,7 @@ export default function PrivacyPolicyPage() {
               <li key={item.id}>
                 <button
                   onClick={() => scrollTo(item.id)}
-                  className="text-brand-green hover:text-white transition-colors duration-200 text-sm font-medium text-left hover:underline underline-offset-4 cursor-pointer"
+                  className="text-brand-teal hover:text-white transition-colors duration-200 text-sm font-medium text-left hover:underline underline-offset-4 cursor-pointer"
                 >
                   {item.label}
                 </button>
@@ -168,7 +168,7 @@ export default function PrivacyPolicyPage() {
               <p className={`${prose} mb-4`}>We may use cookies and similar tracking technologies (like web beacons and pixels) to gather information when you interact with our Services. Some online tracking technologies help us maintain the security of our Services, prevent crashes, fix bugs, save your preferences, and assist with basic site functions.</p>
               <p className={`${prose} mb-4`}>We also permit third parties and service providers to use online tracking technologies on our Services for analytics and advertising, including to help manage and display advertisements, to tailor advertisements to your interests, or to send abandoned shopping cart reminders (depending on your communication preferences).</p>
               <p className={prose}>To the extent these online tracking technologies are deemed to be a &quot;sale&quot;/&quot;sharing&quot; under applicable US state laws, you can opt out by submitting a request as described below under section{" "}
-              <button onClick={() => scrollTo("section-10")} className="text-brand-green hover:underline underline-offset-4 cursor-pointer">&quot;DO UNITED STATES RESIDENTS HAVE SPECIFIC PRIVACY RIGHTS?&quot;</button></p>
+              <button onClick={() => scrollTo("section-10")} className="text-brand-teal hover:underline underline-offset-4 cursor-pointer">&quot;DO UNITED STATES RESIDENTS HAVE SPECIFIC PRIVACY RIGHTS?&quot;</button></p>
             </section>
 
             {/* 5 */}
@@ -191,7 +191,7 @@ export default function PrivacyPolicyPage() {
             <section id="section-7" className="scroll-mt-32">
               <h3 className={sectionHead}>7. DO WE COLLECT INFORMATION FROM MINORS?</h3>
               <p className={shortNote}>In Short: We do not knowingly collect data from or market to children under 18 years of age.</p>
-              <p className={prose}>We do not knowingly collect, solicit data from, or market to children under 18 years of age, nor do we knowingly sell such personal information. By using the Services, you represent that you are at least 18 or that you are the parent or guardian of such a minor and consent to such minor dependent&apos;s use of the Services. If we learn that personal information from users less than 18 years of age has been collected, we will deactivate the account and take reasonable measures to promptly delete such data from our records. If you become aware of any data we may have collected from children under age 18, please contact us at <a href="https://mail.google.com/mail/?view=cm&fs=1&to=info@convergentai.tech" target="_blank" rel="noopener noreferrer" className="text-brand-green hover:underline">info@convergentai.tech</a>.</p>
+              <p className={prose}>We do not knowingly collect, solicit data from, or market to children under 18 years of age, nor do we knowingly sell such personal information. By using the Services, you represent that you are at least 18 or that you are the parent or guardian of such a minor and consent to such minor dependent&apos;s use of the Services. If we learn that personal information from users less than 18 years of age has been collected, we will deactivate the account and take reasonable measures to promptly delete such data from our records. If you become aware of any data we may have collected from children under age 18, please contact us at <a href="https://mail.google.com/mail/?view=cm&fs=1&to=info@convergentai.tech" target="_blank" rel="noopener noreferrer" className="text-brand-teal hover:underline">info@convergentai.tech</a>.</p>
             </section>
 
             {/* 8 */}
@@ -199,7 +199,7 @@ export default function PrivacyPolicyPage() {
               <h3 className={sectionHead}>8. WHAT ARE YOUR PRIVACY RIGHTS?</h3>
               <p className={shortNote}>In Short: You may review, change, or terminate your account at any time, depending on your country, province, or state of residence.</p>
               <p className={`${prose} mb-4`}><strong className="text-white">Withdrawing your consent:</strong> If we are relying on your consent to process your personal information, you have the right to withdraw your consent at any time by contacting us using the contact details provided in the section{" "}
-              <button onClick={() => scrollTo("section-12")} className="text-brand-green hover:underline underline-offset-4 cursor-pointer">&quot;HOW CAN YOU CONTACT US ABOUT THIS NOTICE?&quot;</button>{" "}below.</p>
+              <button onClick={() => scrollTo("section-12")} className="text-brand-teal hover:underline underline-offset-4 cursor-pointer">&quot;HOW CAN YOU CONTACT US ABOUT THIS NOTICE?&quot;</button>{" "}below.</p>
               <p className={`${prose} mb-4`}>However, please note that this will not affect the lawfulness of the processing before its withdrawal nor, when applicable law allows, will it affect the processing of your personal information conducted in reliance on lawful processing grounds other than consent.</p>
               <h4 className={subHead}>Account Information</h4>
               <p className={prose}>If you would at any time like to review or change the information in your account or terminate your account, you can contact us. Upon your request to terminate your account, we will deactivate or delete your account and information from our active databases. However, we may retain some information in our files to prevent fraud, troubleshoot problems, assist with any investigations, enforce our legal terms and/or comply with applicable legal requirements.</p>
@@ -266,11 +266,11 @@ export default function PrivacyPolicyPage() {
               </ul>
 
               <p className={`${prose} mb-3`}><strong className="text-white">Sources of Personal Information</strong><br />Learn more about the sources of personal information we collect in{" "}
-              <button onClick={() => scrollTo("section-1")} className="text-brand-green hover:underline underline-offset-4 cursor-pointer">&quot;WHAT INFORMATION DO WE COLLECT?&quot;</button></p>
+              <button onClick={() => scrollTo("section-1")} className="text-brand-teal hover:underline underline-offset-4 cursor-pointer">&quot;WHAT INFORMATION DO WE COLLECT?&quot;</button></p>
               <p className={`${prose} mb-3`}><strong className="text-white">How We Use and Share Personal Information</strong><br />Learn more about how we use your personal information in the section,{" "}
-              <button onClick={() => scrollTo("section-2")} className="text-brand-green hover:underline underline-offset-4 cursor-pointer">&quot;HOW DO WE PROCESS YOUR INFORMATION?&quot;</button></p>
+              <button onClick={() => scrollTo("section-2")} className="text-brand-teal hover:underline underline-offset-4 cursor-pointer">&quot;HOW DO WE PROCESS YOUR INFORMATION?&quot;</button></p>
               <p className={`${prose} mb-6`}><strong className="text-white">Will your information be shared with anyone else?</strong><br />We may disclose your personal information with our service providers pursuant to a written contract between us and each service provider. Learn more about how we disclose personal information to in the section,{" "}
-              <button onClick={() => scrollTo("section-3")} className="text-brand-green hover:underline underline-offset-4 cursor-pointer">&quot;WHEN AND WITH WHOM DO WE SHARE YOUR PERSONAL INFORMATION?&quot;</button></p>
+              <button onClick={() => scrollTo("section-3")} className="text-brand-teal hover:underline underline-offset-4 cursor-pointer">&quot;WHEN AND WITH WHOM DO WE SHARE YOUR PERSONAL INFORMATION?&quot;</button></p>
 
               <h4 className={subHead}>Your Rights</h4>
               <p className={`${prose} mb-4`}>You have rights under certain US state data protection laws. However, these rights are not absolute, and in certain cases, we may decline your request as permitted by law. These rights include:</p>
@@ -291,7 +291,7 @@ export default function PrivacyPolicyPage() {
                   href="https://app.termly.io/dsar/1acd48eb-09ac-4991-bd12-43b98d86a2d7"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-brand-green hover:underline underline-offset-4"
+                  className="text-brand-teal hover:underline underline-offset-4"
                 >
                   data subject access request
                 </a>
@@ -300,7 +300,7 @@ export default function PrivacyPolicyPage() {
                   href="https://mail.google.com/mail/?view=cm&fs=1&to=info@convergentai.tech"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-brand-green hover:underline underline-offset-4"
+                  className="text-brand-teal hover:underline underline-offset-4"
                 >
                   info@convergentai.tech
                 </a>
@@ -329,7 +329,7 @@ export default function PrivacyPolicyPage() {
                   href="https://mail.google.com/mail/?view=cm&fs=1&to=info@convergentai.tech"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-brand-green text-sm hover:underline mt-2 block"
+                  className="text-brand-teal text-sm hover:underline mt-2 block"
                 >
                   info@convergentai.tech
                 </a>
@@ -345,7 +345,7 @@ export default function PrivacyPolicyPage() {
                   href="https://app.termly.io/dsar/1acd48eb-09ac-4991-bd12-43b98d86a2d7"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-brand-green hover:underline underline-offset-4"
+                  className="text-brand-teal hover:underline underline-offset-4"
                 >
                   data subject access request
                 </a>

@@ -17,7 +17,7 @@ export default function SecurityCenter() {
   const [activeWhitepaper, setActiveWhitepaper] = useState<WhitepaperType>(null);
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white selection:bg-brand-green/30">
+    <div className="min-h-screen bg-bg-primary text-white selection:bg-brand-teal/30">
       <Navbar />
 
       <main className="pt-52 md:pt-72 pb-24 px-6 md:px-12 lg:px-24 max-w-[1600px] mx-auto">
@@ -29,7 +29,7 @@ export default function SecurityCenter() {
           variants={fadeUp}
           className="max-w-4xl mb-24"
         >
-          <div className="inline-flex flex-col md:flex-row items-start md:items-center gap-0.5 md:gap-2 px-3 md:px-4 py-2 md:py-1.5 rounded-xl md:rounded-full bg-brand-green/10 border border-brand-green/20 text-brand-green text-[10px] md:text-xs font-bold tracking-widest uppercase mb-6 w-fit">
+          <div className="inline-flex flex-col md:flex-row items-start md:items-center gap-0.5 md:gap-2 px-3 md:px-4 py-2 md:py-1.5 rounded-xl md:rounded-full bg-brand-teal/10 border border-brand-teal/20 text-brand-teal text-[10px] md:text-xs font-bold tracking-widest uppercase mb-6 w-fit">
             <div className="flex items-center gap-2">
               <Shield className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />
               <span>Designed for Regulatory Compliance</span>
@@ -37,7 +37,7 @@ export default function SecurityCenter() {
             <span className="pl-[22px] md:pl-0 opacity-90">(FFIEC/NCUA/FDIC)</span>
           </div>
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-black tracking-tight mb-8">
-            Engineered for <span className="text-brand-green">Financial Integrity.</span><br />
+            Engineered for <span className="text-brand-teal">Financial Integrity.</span><br />
             Compliant by Design.
           </h1>
           <p className="text-lg md:text-xl text-zinc-400 font-medium leading-relaxed max-w-3xl">
@@ -54,7 +54,7 @@ export default function SecurityCenter() {
           className="mb-32"
         >
           <div className="flex items-center gap-4 mb-8">
-            <Shield className="w-8 h-8 text-brand-green" />
+            <Shield className="w-8 h-8 text-brand-teal" />
             <h2 className="text-2xl md:text-4xl font-bold tracking-tight">Designed for Regulatory Compliance</h2>
           </div>
           <p className="text-lg text-zinc-400 font-medium mb-12 max-w-3xl leading-relaxed">
@@ -84,50 +84,50 @@ export default function SecurityCenter() {
             {/* Connection / Data Tunnel */}
             <div className="flex flex-col items-center justify-center py-4 lg:py-0">
               <div className="flex flex-col items-center gap-2">
-                <span className="text-[10px] font-bold text-brand-green/40 uppercase tracking-[0.3em] lg:mb-0 mb-2">Secure Data Tunnel</span>
+                <span className="text-[10px] font-bold text-brand-teal/40 uppercase tracking-[0.3em] lg:mb-0 mb-2">Secure Data Tunnel</span>
                 
                 {/* Desktop Horizontal Tunnel (hidden on mobile) */}
-                <div className="hidden lg:flex items-center gap-0 text-brand-green/50 relative">
+                <div className="hidden lg:flex items-center gap-0 text-brand-teal/50 relative">
                   {/* Moving Particle 1 */}
                   <motion.div 
-                    className="absolute w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_10px_#001A5B]"
+                    className="absolute w-1.5 h-1.5 rounded-full bg-brand-teal shadow-[0_0_10px_#001A5B]"
                     animate={{ x: [-80, 80], opacity: [0, 1, 0] }}
                     transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                   />
                   {/* Moving Particle 2 */}
                   <motion.div 
-                    className="absolute w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_10px_#001A5B]"
+                    className="absolute w-1.5 h-1.5 rounded-full bg-brand-teal shadow-[0_0_10px_#001A5B]"
                     animate={{ x: [-80, 80], opacity: [0, 1, 0] }}
                     transition={{ duration: 2, repeat: Infinity, ease: "linear", delay: 1 }}
                   />
                   
-                  <div className="w-20 h-[2px] bg-gradient-to-r from-transparent via-brand-green/30 to-transparent" />
-                  <div className="w-10 h-10 rounded-full border border-brand-green/30 flex items-center justify-center bg-brand-green/5 backdrop-blur-sm z-10">
-                    <Lock className="w-4 h-4 text-brand-green" />
+                  <div className="w-20 h-[2px] bg-gradient-to-r from-transparent via-brand-teal/30 to-transparent" />
+                  <div className="w-10 h-10 rounded-full border border-brand-teal/30 flex items-center justify-center bg-brand-teal/5 backdrop-blur-sm z-10">
+                    <Lock className="w-4 h-4 text-brand-teal" />
                   </div>
-                  <div className="w-20 h-[2px] bg-gradient-to-r from-transparent via-brand-green/30 to-transparent" />
+                  <div className="w-20 h-[2px] bg-gradient-to-r from-transparent via-brand-teal/30 to-transparent" />
                 </div>
 
                 {/* Mobile Vertical Tunnel (hidden on desktop) */}
-                <div className="flex lg:hidden flex-col items-center gap-0 text-brand-green/50 relative">
+                <div className="flex lg:hidden flex-col items-center gap-0 text-brand-teal/50 relative">
                   {/* Moving Particle 1 */}
                   <motion.div 
-                    className="absolute w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_10px_#001A5B]"
+                    className="absolute w-1.5 h-1.5 rounded-full bg-brand-teal shadow-[0_0_10px_#001A5B]"
                     animate={{ y: [-40, 40], opacity: [0, 1, 0] }}
                     transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                   />
                   {/* Moving Particle 2 */}
                   <motion.div 
-                    className="absolute w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_10px_#001A5B]"
+                    className="absolute w-1.5 h-1.5 rounded-full bg-brand-teal shadow-[0_0_10px_#001A5B]"
                     animate={{ y: [-40, 40], opacity: [0, 1, 0] }}
                     transition={{ duration: 2, repeat: Infinity, ease: "linear", delay: 1 }}
                   />
                   
-                  <div className="w-[2px] h-12 bg-gradient-to-b from-transparent via-brand-green/30 to-transparent" />
-                  <div className="w-10 h-10 rounded-full border border-brand-green/30 flex items-center justify-center bg-brand-green/5 backdrop-blur-sm z-10 my-[-4px]">
-                    <Lock className="w-4 h-4 text-brand-green" />
+                  <div className="w-[2px] h-12 bg-gradient-to-b from-transparent via-brand-teal/30 to-transparent" />
+                  <div className="w-10 h-10 rounded-full border border-brand-teal/30 flex items-center justify-center bg-brand-teal/5 backdrop-blur-sm z-10 my-[-4px]">
+                    <Lock className="w-4 h-4 text-brand-teal" />
                   </div>
-                  <div className="w-[2px] h-12 bg-gradient-to-b from-transparent via-brand-green/30 to-transparent" />
+                  <div className="w-[2px] h-12 bg-gradient-to-b from-transparent via-brand-teal/30 to-transparent" />
                 </div>
 
                 <div className="flex items-center gap-4 mt-2">
@@ -138,19 +138,19 @@ export default function SecurityCenter() {
             </div>
 
             {/* ConvergentAI Layer */}
-            <div className="p-8 rounded-3xl bg-brand-green/5 border border-brand-green/20 flex flex-col items-center text-center relative overflow-hidden group hover:bg-brand-green/[0.08] transition-all duration-500">
+            <div className="p-8 rounded-3xl bg-brand-teal/5 border border-brand-teal/20 flex flex-col items-center text-center relative overflow-hidden group hover:bg-brand-teal/[0.08] transition-all duration-500">
               <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
-                <Shield className="w-32 h-32 text-brand-green" />
+                <Shield className="w-32 h-32 text-brand-teal" />
               </div>
-              <div className="w-16 h-16 rounded-2xl bg-brand-green/10 flex items-center justify-center mb-6 relative z-10 shadow-[0_0_20px_rgba(0,26,91,0.1)] group-hover:shadow-[0_0_30px_rgba(0,26,91,0.2)] transition-all">
-                <Server className="w-8 h-8 text-brand-green" />
+              <div className="w-16 h-16 rounded-2xl bg-brand-teal/10 flex items-center justify-center mb-6 relative z-10 shadow-[0_0_20px_rgba(0,26,91,0.1)] group-hover:shadow-[0_0_30px_rgba(0,26,91,0.2)] transition-all">
+                <Server className="w-8 h-8 text-brand-teal" />
               </div>
               <h3 className="text-xl font-bold text-white mb-2 relative z-10">ConvergentAI Platform</h3>
-              <p className="text-sm font-medium text-brand-green uppercase tracking-widest mb-4 relative z-10">Tier-1 Security Engine</p>
+              <p className="text-sm font-medium text-brand-teal uppercase tracking-widest mb-4 relative z-10">Tier-1 Security Engine</p>
               <ul className="text-sm text-zinc-400 space-y-3 relative z-10 text-left w-full max-w-[200px] mx-auto">
-                <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-brand-green" /> PII Redaction (DLP)</li>
-                <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-brand-green" /> AES-256 Encryption</li>
-                <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-brand-green" /> Ephemeral Data Ops</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-brand-teal" /> PII Redaction (DLP)</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-brand-teal" /> AES-256 Encryption</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-brand-teal" /> Ephemeral Data Ops</li>
               </ul>
             </div>
           </div>
@@ -165,7 +165,7 @@ export default function SecurityCenter() {
           className="mb-32"
         >
           <div className="flex items-center gap-4 mb-8">
-            <Layers className="w-8 h-8 text-brand-green" />
+            <Layers className="w-8 h-8 text-brand-teal" />
             <h2 className="text-2xl md:text-4xl font-bold tracking-tight">Inherited Compliance Architecture</h2>
           </div>
           
@@ -256,9 +256,9 @@ export default function SecurityCenter() {
           {/* Tablet should behave like mobile (stacked), expand on large screens */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
             {/* Pillar 1 */}
-            <div className="p-8 rounded-3xl bg-gradient-to-b from-white/[0.05] to-transparent border border-white/10 hover:border-brand-green/30 transition-colors group">
-              <div className="w-14 h-14 rounded-2xl bg-brand-green/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Server className="w-7 h-7 text-brand-green" />
+            <div className="p-8 rounded-3xl bg-gradient-to-b from-white/[0.05] to-transparent border border-white/10 hover:border-brand-teal/30 transition-colors group">
+              <div className="w-14 h-14 rounded-2xl bg-brand-teal/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <Server className="w-7 h-7 text-brand-teal" />
               </div>
               <h3 className="text-xl font-bold mb-4 text-white">Logical Tenant Isolation</h3>
               <p className="text-zinc-400 font-medium leading-relaxed">
@@ -267,9 +267,9 @@ export default function SecurityCenter() {
             </div>
 
             {/* Pillar 2 */}
-            <div className="p-8 rounded-3xl bg-gradient-to-b from-white/[0.05] to-transparent border border-white/10 hover:border-brand-green/30 transition-colors group">
-              <div className="w-14 h-14 rounded-2xl bg-brand-green/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <EyeOff className="w-7 h-7 text-brand-green" />
+            <div className="p-8 rounded-3xl bg-gradient-to-b from-white/[0.05] to-transparent border border-white/10 hover:border-brand-teal/30 transition-colors group">
+              <div className="w-14 h-14 rounded-2xl bg-brand-teal/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <EyeOff className="w-7 h-7 text-brand-teal" />
               </div>
               <h3 className="text-xl font-bold mb-4 text-white">Zero-Training Policy</h3>
               <p className="text-zinc-400 font-medium leading-relaxed">
@@ -278,9 +278,9 @@ export default function SecurityCenter() {
             </div>
 
             {/* Pillar 3 */}
-            <div className="p-8 rounded-3xl bg-gradient-to-b from-white/[0.05] to-transparent border border-white/10 hover:border-brand-green/30 transition-colors group">
-              <div className="w-14 h-14 rounded-2xl bg-brand-green/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Lock className="w-7 h-7 text-brand-green" />
+            <div className="p-8 rounded-3xl bg-gradient-to-b from-white/[0.05] to-transparent border border-white/10 hover:border-brand-teal/30 transition-colors group">
+              <div className="w-14 h-14 rounded-2xl bg-brand-teal/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <Lock className="w-7 h-7 text-brand-teal" />
               </div>
               <h3 className="text-xl font-bold mb-4 text-white">Military-Grade Encryption</h3>
               <p className="text-zinc-400 font-medium leading-relaxed">
@@ -300,7 +300,7 @@ export default function SecurityCenter() {
         >
           <div>
             <div className="flex items-center gap-4 mb-6">
-              <Cpu className="w-8 h-8 text-brand-green" />
+              <Cpu className="w-8 h-8 text-brand-teal" />
               <h2 className="text-2xl md:text-4xl font-bold tracking-tight">AI Governance Framework</h2>
             </div>
             <p className="text-lg text-zinc-400 font-medium mb-8 leading-relaxed">
@@ -309,21 +309,21 @@ export default function SecurityCenter() {
             
             <ul className="space-y-6">
               <li className="flex gap-4">
-                <CheckCircle2 className="w-6 h-6 text-brand-green shrink-0 mt-1" />
+                <CheckCircle2 className="w-6 h-6 text-brand-teal shrink-0 mt-1" />
                 <div>
                   <h4 className="text-lg font-bold text-white mb-2">Real-Time PII Redaction</h4>
                   <p className="text-zinc-400">Deep integration with Google Cloud DLP automatically scrubs SSNs, account numbers, and sensitive entities from transcripts before they are stored or processed, ensuring compliance with GLBA and bank-specific privacy rules.</p>
                 </div>
               </li>
               <li className="flex gap-4">
-                <CheckCircle2 className="w-6 h-6 text-brand-green shrink-0 mt-1" />
+                <CheckCircle2 className="w-6 h-6 text-brand-teal shrink-0 mt-1" />
                 <div>
                   <h4 className="text-lg font-bold text-white mb-2">Bias & Hallucination Guardrails</h4>
                   <p className="text-zinc-400">Models are stress-tested against financial-specific datasets. Hard-coded "refusal" triggers prevent the AI from offering unapproved financial advice or rate guarantees.</p>
                 </div>
               </li>
               <li className="flex gap-4">
-                <CheckCircle2 className="w-6 h-6 text-brand-green shrink-0 mt-1" />
+                <CheckCircle2 className="w-6 h-6 text-brand-teal shrink-0 mt-1" />
                 <div>
                   <h4 className="text-lg font-bold text-white mb-2">Human-in-the-Loop Oversight</h4>
                   <p className="text-zinc-400">A Master Dashboard allows your staff to monitor active interactions in real-time, review transcripts, and instantly take control of any call if human intervention is required.</p>
@@ -333,7 +333,7 @@ export default function SecurityCenter() {
           </div>
           
           <div className="relative h-full min-h-[450px] rounded-3xl bg-zinc-900 border border-white/10 p-8 flex flex-col justify-center overflow-hidden">
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-brand-green/10 via-transparent to-transparent opacity-50" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-brand-teal/10 via-transparent to-transparent opacity-50" />
             
             <div className="relative z-10 flex flex-col gap-4">
               {/* Input Box */}
@@ -353,46 +353,46 @@ export default function SecurityCenter() {
               </div>
               
               {/* DLP Engine */}
-              <div className="p-6 rounded-2xl bg-[#051a1e] border border-brand-green/30 flex flex-col items-center justify-center gap-2 shadow-[0_0_40px_rgba(0,26,91,0.1)] relative overflow-hidden">
+              <div className="p-6 rounded-2xl bg-bg-card border border-brand-teal/30 flex flex-col items-center justify-center gap-2 shadow-[0_0_40px_rgba(0,26,91,0.1)] relative overflow-hidden">
                 <motion.div 
-                  className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-green/10 to-transparent w-full"
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-teal/10 to-transparent w-full"
                   animate={{ x: ['-100%', '100%'] }}
                   transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                 />
                 <div className="flex items-center gap-3 relative z-10">
-                  <div className="w-10 h-10 rounded-full bg-brand-green/20 flex items-center justify-center">
-                    <Activity className="w-5 h-5 text-brand-green animate-pulse" />
+                  <div className="w-10 h-10 rounded-full bg-brand-teal/20 flex items-center justify-center">
+                    <Activity className="w-5 h-5 text-brand-teal animate-pulse" />
                   </div>
                   <div>
-                    <h4 className="text-brand-green font-bold tracking-wider">DLP ENCRYPTION ENGINE</h4>
-                    <p className="text-[10px] text-brand-green/60 font-mono">SCRUBBING • ENCRYPTING • ANONYMIZING</p>
+                    <h4 className="text-brand-teal font-bold tracking-wider">DLP ENCRYPTION ENGINE</h4>
+                    <p className="text-[10px] text-brand-teal/60 font-mono">SCRUBBING • ENCRYPTING • ANONYMIZING</p>
                   </div>
                 </div>
               </div>
 
               {/* Connector 2 (The Secure Tunnel) */}
-              <div className="mx-auto w-8 h-12 bg-brand-green/5 border-x border-brand-green/20 relative group">
-                <div className="absolute inset-0 bg-brand-green/5 blur-sm" />
+              <div className="mx-auto w-8 h-12 bg-brand-teal/5 border-x border-brand-teal/20 relative group">
+                <div className="absolute inset-0 bg-brand-teal/5 blur-sm" />
                 <motion.div 
                   className="absolute top-0 left-[50%] translate-x-[-50%] flex flex-col items-center"
                   animate={{ y: [0, 48], opacity: [0, 1, 0] }}
                   transition={{ duration: 2, repeat: Infinity, ease: "linear", delay: 1 }}
                 >
-                  <div className="w-3 h-3 rounded-full bg-brand-green shadow-[0_0_15px_#001A5B]" />
-                  <Lock className="w-3 h-3 text-brand-green mt-1" />
+                  <div className="w-3 h-3 rounded-full bg-brand-teal shadow-[0_0_15px_#001A5B]" />
+                  <Lock className="w-3 h-3 text-brand-teal mt-1" />
                 </motion.div>
               </div>
 
               {/* Output Box */}
-              <div className="p-4 rounded-xl bg-[#051109] border border-brand-green/20 flex items-center justify-between relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-1 h-full bg-brand-green" />
+              <div className="p-4 rounded-xl bg-bg-card border border-brand-teal/20 flex items-center justify-between relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-1 h-full bg-brand-teal" />
                 <div className="flex flex-col">
-                  <span className="text-brand-green text-[10px] font-mono uppercase tracking-widest flex items-center gap-1">
+                  <span className="text-brand-teal text-[10px] font-mono uppercase tracking-widest flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" /> SECURED OUTPUT
                   </span>
                   <span className="text-zinc-400 text-sm italic font-medium">"My SSN is [REDACTED]"</span>
                 </div>
-                <div className="px-2 py-1 rounded bg-brand-green/10 border border-brand-green/30 text-[10px] font-bold text-brand-green tracking-tighter">
+                <div className="px-2 py-1 rounded bg-brand-teal/10 border border-brand-teal/30 text-[10px] font-bold text-brand-teal tracking-tighter">
                   AES-256
                 </div>
               </div>
@@ -419,8 +419,8 @@ export default function SecurityCenter() {
             </p>
             
             <div className="flex items-center gap-4">
-              <div className="h-3 w-3 rounded-full bg-brand-green shadow-[0_0_10px_#001A5B] animate-pulse" />
-              <span className="text-brand-green font-bold tracking-widest uppercase text-sm">Status: Audit in Progress (2026)</span>
+              <div className="h-3 w-3 rounded-full bg-brand-teal shadow-[0_0_10px_#001A5B] animate-pulse" />
+              <span className="text-brand-teal font-bold tracking-widest uppercase text-sm">Status: Audit in Progress (2026)</span>
             </div>
           </div>
         </motion.section>
@@ -442,46 +442,46 @@ export default function SecurityCenter() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Card 1: Technical Architecture & Security */}
-            <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/10 flex flex-col items-start gap-6 hover:border-brand-green/30 transition-colors group">
-              <FileText className="w-10 h-10 text-brand-green" />
+            <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/10 flex flex-col items-start gap-6 hover:border-brand-teal/30 transition-colors group">
+              <FileText className="w-10 h-10 text-brand-teal" />
               <div>
                 <h3 className="text-xl font-bold mb-2">Security Architecture & Data Sovereignty</h3>
                 <p className="text-zinc-400 text-sm mb-4">A deep dive into our bank-grade infrastructure. Learn how we utilize logical tenant isolation, AES-256 encryption, and inherited SOC 2 Type II controls to protect your institution’s data.</p>
                 <div className="flex items-center gap-2 mt-2">
-                  <span className="text-[10px] font-bold text-brand-green uppercase tracking-widest bg-brand-green/10 px-2 py-1 rounded">Target: CIOs & CISOs</span>
+                  <span className="text-[10px] font-bold text-brand-teal uppercase tracking-widest bg-brand-teal/10 px-2 py-1 rounded">Target: CIOs & CISOs</span>
                 </div>
               </div>
-              <button onClick={() => setActiveWhitepaper('security-architecture')} className="mt-auto flex items-center gap-2 text-brand-green font-bold text-sm hover:underline">
+              <button onClick={() => setActiveWhitepaper('security-architecture')} className="mt-auto flex items-center gap-2 text-brand-teal font-bold text-sm hover:underline">
                 Read Whitepaper <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </button>
             </div>
 
             {/* Card 2: AI Governance & Compliance */}
-            <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/10 flex flex-col items-start gap-6 hover:border-brand-green/30 transition-colors group">
-              <CheckCircle2 className="w-10 h-10 text-brand-green" />
+            <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/10 flex flex-col items-start gap-6 hover:border-brand-teal/30 transition-colors group">
+              <CheckCircle2 className="w-10 h-10 text-brand-teal" />
               <div>
                 <h3 className="text-xl font-bold mb-2">Responsible AI Governance Framework</h3>
                 <p className="text-zinc-400 text-sm mb-4">Explore our proactive approach to regulatory compliance. This whitepaper outlines our automated PII redaction (DLP), hallucination guardrails, and alignment with NCUA and FFIEC standards.</p>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <span className="text-[10px] font-bold text-brand-green uppercase tracking-widest bg-brand-green/10 px-2 py-1 rounded">Target: Compliance Officers & Legal</span>
+                  <span className="text-[10px] font-bold text-brand-teal uppercase tracking-widest bg-brand-teal/10 px-2 py-1 rounded">Target: Compliance Officers & Legal</span>
                 </div>
               </div>
-              <button onClick={() => setActiveWhitepaper('ai-governance')} className="mt-auto flex items-center gap-2 text-brand-green font-bold text-sm hover:underline">
+              <button onClick={() => setActiveWhitepaper('ai-governance')} className="mt-auto flex items-center gap-2 text-brand-teal font-bold text-sm hover:underline">
                 Read Framework <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </button>
             </div>
 
             {/* Card 3: Implementation Roadmap */}
-            <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/10 flex flex-col items-start gap-6 hover:border-brand-green/30 transition-colors group">
-              <Layers className="w-10 h-10 text-brand-green" />
+            <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/10 flex flex-col items-start gap-6 hover:border-brand-teal/30 transition-colors group">
+              <Layers className="w-10 h-10 text-brand-teal" />
               <div>
                 <h3 className="text-xl font-bold mb-2">The 90-Day AI Pilot Blueprint</h3>
                 <p className="text-zinc-400 text-sm mb-4">Innovation without the friction. Review our phased roadmap for deploying human-like avatars in a secure sandbox environment, designed to prove ROI while minimizing operational risk.</p>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <span className="text-[10px] font-bold text-brand-green uppercase tracking-widest bg-brand-green/10 px-2 py-1 rounded">Target: CEOs & VPs of AX</span>
+                  <span className="text-[10px] font-bold text-brand-teal uppercase tracking-widest bg-brand-teal/10 px-2 py-1 rounded">Target: CEOs & VPs of AX</span>
                 </div>
               </div>
-              <Link href="/pilot" className="mt-auto flex items-center gap-2 text-brand-green font-bold text-sm hover:underline">
+              <Link href="/pilot" className="mt-auto flex items-center gap-2 text-brand-teal font-bold text-sm hover:underline">
                 Explore Blueprint <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
@@ -494,16 +494,16 @@ export default function SecurityCenter() {
           whileInView="visible"
           viewport={{ once: true, margin: "-100px" }}
           variants={fadeUp}
-          className="mt-32 p-10 md:p-16 rounded-3xl bg-brand-green/10 border border-brand-green/20 relative overflow-hidden text-center"
+          className="mt-32 p-10 md:p-16 rounded-3xl bg-brand-teal/10 border border-brand-teal/20 relative overflow-hidden text-center"
         >
           <div className="relative z-10 max-w-3xl mx-auto">
             <h2 className="text-2xl md:text-4xl font-bold tracking-tight mb-6 text-white">How do we try it?</h2>
-            <p className="text-lg text-brand-green/80 font-medium mb-10 leading-relaxed">
+            <p className="text-lg text-brand-teal/80 font-medium mb-10 leading-relaxed">
               Ready to see ConvergentAI in action? Experience our secure, zero-leak environment firsthand.
             </p>
             <Link 
               href="/pilot"
-              className="inline-flex items-center justify-center gap-3 bg-brand-green text-white px-8 py-4 rounded-2xl text-lg font-bold hover:shadow-[0_0_30px_rgba(0,26,91,0.6)] transition-all transform hover:-translate-y-1"
+              className="inline-flex items-center justify-center gap-3 bg-button-primary-bg text-button-primary-text px-8 py-4 rounded-2xl text-lg font-bold hover:bg-button-primary-hover active:bg-button-primary-active hover:shadow-[0_0_30px_rgba(34,197,204,0.4)] transition-all transform hover:-translate-y-1"
             >
               Explore the 90-Day Pilot Program
               <ArrowRight className="w-5 h-5 transition-transform" />

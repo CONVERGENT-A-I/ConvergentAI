@@ -71,7 +71,7 @@ export default function ResearchInsights() {
   };
 
   return (
-    <section className="bg-black flex flex-col pt-12 md:pt-20 pb-24 px-8 md:px-12 lg:px-24 overflow-hidden">
+    <section className="bg-bg-secondary flex flex-col pt-12 md:pt-20 pb-24 px-8 md:px-12 lg:px-24 overflow-hidden">
       <motion.div 
         className="max-w-[1600px] mx-auto w-full"
         variants={containerVariants}
@@ -81,11 +81,11 @@ export default function ResearchInsights() {
       >
         {/* Main Headline */}
         <motion.h2 variants={itemVariants} className="text-fluid-h1 font-black text-white mb-8 tracking-tight leading-[1.1] text-balance">
-          Stop Losing Mortgage Opportunities to <span className="text-brand-green">Faster Competitors</span>
+          Stop Losing Mortgage Opportunities to <span className="text-brand-teal">Faster Competitors</span>
         </motion.h2>
 
         {/* Subheader */}
-        <motion.p variants={itemVariants} className="text-zinc-400 text-lg md:text-xl font-medium max-w-4xl mb-20 md:mb-24 text-balance opacity-80">
+        <motion.p variants={itemVariants} className="text-text-secondary text-lg md:text-xl font-medium max-w-4xl mb-20 md:mb-24 text-balance opacity-80">
           Whether you are a Credit Union, Community Bank, or Lender, your applicants expect an instant response. Capture their intent 24/7 before they click away.
         </motion.p>
 
@@ -93,12 +93,12 @@ export default function ResearchInsights() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-12 mb-24 border-b border-white/10 pb-20">
           {insights.map((insight, index) => (
             <motion.div variants={itemVariants} key={index} className="flex gap-6 items-start group">
-              <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-brand-green/10 flex items-center justify-center border border-brand-green/20 group-hover:border-brand-green/40 transition-colors">
-                <insight.icon className="w-6 h-6 text-brand-green" />
+              <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-brand-blue/10 flex items-center justify-center border border-brand-blue/20 group-hover:border-brand-blue/40 transition-colors">
+                <insight.icon className="w-6 h-6 text-brand-blue" />
               </div>
               <div className="space-y-2">
                 <h3 className="text-white text-xl md:text-2xl font-black tracking-tight">{insight.label}</h3>
-                <p className="text-zinc-400 text-base md:text-lg font-medium leading-relaxed opacity-80">{insight.text}</p>
+                <p className="text-text-secondary text-base md:text-lg font-medium leading-relaxed opacity-80">{insight.text}</p>
               </div>
             </motion.div>
           ))}
@@ -108,21 +108,21 @@ export default function ResearchInsights() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-20">
           {values.map((value, index) => (
             <motion.div variants={itemVariants} key={index} className="flex gap-5 items-start group">
-              <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center border border-white/10 group-hover:border-brand-green/30 transition-colors">
-                <value.icon className="w-5 h-5 text-brand-green/60 group-hover:text-brand-green transition-colors" />
+              <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center border border-white/10 group-hover:border-brand-teal/30 transition-colors">
+                <value.icon className="w-5 h-5 text-brand-periwinkle group-hover:text-brand-teal transition-colors" />
               </div>
               <div className="space-y-1">
                 <h4 className="text-white text-base md:text-lg font-bold tracking-tight">{value.label}</h4>
-                <p className="text-zinc-500 text-sm md:text-base font-medium leading-relaxed">{value.text}</p>
+                <p className="text-text-muted text-sm md:text-base font-medium leading-relaxed">{value.text}</p>
               </div>
             </motion.div>
           ))}
         </div>
 
         {/* Summary Footer Box */}
-        <motion.div variants={itemVariants} className="relative p-8 md:p-12 bg-[#0D0D0D] border-l-4 border-brand-green border-y border-y-white/5 border-r border-r-white/5 rounded-r-[2rem] rounded-l-sm overflow-hidden shadow-2xl">
+        <motion.div variants={itemVariants} className="relative p-8 md:p-12 bg-bg-card border-l-4 border-brand-blue border-y border-y-border-subtle border-r border-r-border-subtle rounded-r-[2rem] rounded-l-sm overflow-hidden shadow-2xl">
           {/* Subtle background glow */}
-          <div className="absolute top-0 left-0 w-32 h-full bg-brand-green/5 blur-3xl -z-10" />
+          <div className="absolute top-0 left-0 w-32 h-full bg-brand-blue/5 blur-3xl -z-10" />
           
           <p className="text-white text-lg md:text-xl lg:text-2xl font-bold leading-relaxed tracking-tight text-balance">
             ConvergentAI eliminates mortgage leakage by capturing Applicant intent 24/7 directly on your website. 
@@ -134,15 +134,15 @@ export default function ResearchInsights() {
         {/* Whitepaper Download Card */}
         <motion.div
           variants={itemVariants}
-          className="relative mt-16 p-8 md:p-10 rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.04] to-white/[0.01] backdrop-blur-sm overflow-hidden group hover:border-brand-green/30 transition-colors duration-500"
+          className="relative mt-16 p-8 md:p-10 rounded-2xl border border-border-subtle bg-bg-card backdrop-blur-sm overflow-hidden group hover:border-brand-teal/40 transition-colors duration-500"
         >
           {/* Decorative glow */}
-          <div className="absolute -top-20 -right-20 w-60 h-60 bg-brand-green/10 rounded-full blur-[100px] opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+          <div className="absolute -top-20 -right-20 w-60 h-60 bg-brand-teal/10 rounded-full blur-[100px] opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
 
           <div className="relative flex flex-col md:flex-row items-start md:items-center gap-6 md:gap-10">
             {/* Icon */}
-            <div className="flex-shrink-0 w-14 h-14 rounded-xl bg-brand-green/10 border border-brand-green/20 flex items-center justify-center group-hover:bg-brand-green/20 group-hover:border-brand-green/40 transition-all duration-500">
-              <FileDown className="w-7 h-7 text-brand-green" />
+            <div className="flex-shrink-0 w-14 h-14 rounded-xl bg-brand-blue/10 border border-brand-blue/20 flex items-center justify-center group-hover:bg-brand-blue/20 group-hover:border-brand-blue/40 transition-all duration-500">
+              <FileDown className="w-7 h-7 text-brand-blue" />
             </div>
 
             {/* Text */}
@@ -150,7 +150,7 @@ export default function ResearchInsights() {
               <h3 className="text-white text-xl md:text-2xl font-black tracking-tight">
                 The Phygital Imperative
               </h3>
-              <p className="text-zinc-400 text-sm md:text-base font-medium leading-relaxed max-w-2xl">
+              <p className="text-text-secondary text-sm md:text-base font-medium leading-relaxed max-w-2xl">
                 Download our whitepaper on bridging digital and physical touchpoints to eliminate mortgage drop-off and build lasting Applicant relationships.
               </p>
             </div>
@@ -158,7 +158,7 @@ export default function ResearchInsights() {
             {/* Download Button */}
             <button
               onClick={() => setIsGateOpen(true)}
-              className="flex-shrink-0 inline-flex items-center gap-2.5 bg-brand-green text-white px-7 py-3.5 rounded-full text-sm font-black uppercase tracking-widest hover:shadow-[0_0_30px_rgba(0,26,91,0.5)] hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer"
+              className="flex-shrink-0 inline-flex items-center gap-2.5 bg-button-primary-bg text-button-primary-text px-7 py-3.5 rounded-full text-sm font-black uppercase tracking-widest hover:bg-button-primary-hover active:bg-button-primary-active hover:shadow-[0_0_30px_rgba(34,197,204,0.4)] hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer"
             >
               <FileDown className="w-4 h-4" />
               Download

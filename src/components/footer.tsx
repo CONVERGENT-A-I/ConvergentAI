@@ -4,10 +4,10 @@ import FooterWhitepaperLink from "./footer-whitepaper-link";
 
 export default function Footer() {
   return (
-    <footer className="bg-black px-6 py-14 md:px-10 md:py-16 lg:px-16 xl:px-24">
+    <footer className="bg-bg-primary px-6 py-14 md:px-10 md:py-16 lg:px-16 xl:px-24">
       <div className="max-w-[1600px] mx-auto w-full">
         {/* Separation line at the top */}
-        <div className="w-full h-px bg-white/15 mb-12" />
+        <div className="w-full h-px bg-border-subtle mb-12" />
 
         {/* Footer content: big brand mark + balanced columns across breakpoints */}
         <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-y-10 gap-x-6 md:gap-x-8 md:gap-y-12 xl:gap-x-10 xl:gap-y-10 items-start">
@@ -30,40 +30,10 @@ export default function Footer() {
 
           {/* Social Icons */}
           <div className="flex flex-col items-center md:items-center xl:items-start text-center xl:text-left gap-4">
-            <span className="text-zinc-500 text-sm font-bold uppercase tracking-[0.2em]">
+            <span className="text-text-muted text-sm font-bold uppercase tracking-[0.2em]">
               Follow
             </span>
             <div className="flex items-center gap-4">
-              {/* Facebook */}
-              {/* <Link
-                href="https://facebook.com"
-                target="_blank"
-                aria-label="Facebook"
-                className="w-8 h-8 rounded-full bg-[#1877F2] flex items-center justify-center hover:opacity-80 transition-opacity"
-              >
-                <svg
-                  className="w-4 h-4 fill-white"
-                  viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path d="M24 12.07C24 5.41 18.63 0 12 0S0 5.41 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.04V9.41c0-3.02 1.8-4.7 4.54-4.7 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.95.93-1.95 1.88v2.27h3.32l-.53 3.49h-2.79V24C19.61 23.1 24 18.1 24 12.07z" />
-                </svg>
-              </Link> */}
-              {/* X */}
-              {/* <Link
-                href="https://x.com"
-                target="_blank"
-                aria-label="X"
-                className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
-              >
-                <svg
-                  className="w-3.5 h-3.5 fill-white"
-                  viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                </svg>
-              </Link> */}
               {/* LinkedIn */}
               <Link
                 href="https://linkedin.com"
@@ -85,24 +55,24 @@ export default function Footer() {
 
           {/* Trust, Legal & Resources */}
           <div className="flex flex-col items-center md:items-center xl:items-start text-center xl:text-left gap-3">
-            <span className="text-zinc-500 text-sm font-bold uppercase tracking-[0.2em] mb-1">
+            <span className="text-text-muted text-sm font-bold uppercase tracking-[0.2em] mb-1">
               Trust
             </span>
             <Link
               href="/security"
-              className="text-zinc-300 text-sm md:text-base font-medium hover:text-brand-green transition-colors"
+              className="text-text-secondary text-sm md:text-base font-medium hover:text-brand-teal transition-colors"
             >
               Security & Trust Center
             </Link>
             <Link
               href="/privacy"
-              className="text-zinc-300 text-sm md:text-base font-medium hover:text-brand-green transition-colors"
+              className="text-text-secondary text-sm md:text-base font-medium hover:text-brand-teal transition-colors"
             >
               Privacy Policy
             </Link>
             <Link
               href="/termsandconditions"
-              className="text-zinc-300 text-sm md:text-base font-medium hover:text-brand-green transition-colors"
+              className="text-text-secondary text-sm md:text-base font-medium hover:text-brand-teal transition-colors"
             >
               Terms & Conditions
             </Link>
@@ -110,12 +80,12 @@ export default function Footer() {
               href="https://app.termly.io/dsar/1acd48eb-09ac-4991-bd12-43b98d86a2d7"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-zinc-300 text-sm md:text-base font-medium hover:text-brand-green transition-colors"
+              className="text-text-secondary text-sm md:text-base font-medium hover:text-brand-teal transition-colors"
             >
               Data Subject Access Request (DSAR)
             </Link>
 
-            <span className="text-zinc-500 text-sm font-bold uppercase tracking-[0.2em] mt-4 mb-1">
+            <span className="text-text-muted text-sm font-bold uppercase tracking-[0.2em] mt-4 mb-1">
               Resources
             </span>
             <FooterWhitepaperLink />
@@ -123,16 +93,16 @@ export default function Footer() {
 
           {/* Right: Copyright */}
           <div className="flex flex-col items-center md:items-center xl:items-end text-center xl:text-right gap-1.5 xl:justify-self-end">
-            <span className="text-zinc-300 text-base md:text-lg xl:text-xl font-semibold tracking-wide">
+            <span className="text-text-secondary text-base md:text-lg xl:text-xl font-semibold tracking-wide">
               © 2026 ConvergentAI · All Rights Reserved.
             </span>
-            <span className="text-zinc-500 text-sm md:text-base xl:text-lg font-medium">
+            <span className="text-text-muted text-sm md:text-base xl:text-lg font-medium">
               Built for fast response, trusted guidance, and human connection in financial services.
             </span>
 
             {/* Headquarters (moved here per client feedback) */}
             <div className="mt-5 flex flex-col items-center xl:items-end gap-1">
-              <span className="text-zinc-500 text-xs font-bold uppercase tracking-[0.2em]">
+              <span className="text-text-muted text-xs font-bold uppercase tracking-[0.2em]">
                 Headquarters
               </span>
               <span className="text-white text-sm md:text-base font-semibold">
@@ -142,7 +112,7 @@ export default function Footer() {
                 href="https://mail.google.com/mail/?view=cm&fs=1&to=info@convergentai.tech"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-zinc-400 text-sm md:text-base font-medium hover:text-brand-green transition-colors duration-200"
+                className="text-text-secondary text-sm md:text-base font-medium hover:text-brand-teal transition-colors duration-200"
               >
                 info@convergentai.tech
               </Link>
@@ -151,7 +121,7 @@ export default function Footer() {
         </div>
 
         {/* Milestone 5: Trust Badges and Regulatory Disclosure */}
-        <div className="mt-16 pt-12 border-t border-white/10 flex flex-col gap-10">
+        <div className="mt-16 pt-12 border-t border-border-subtle flex flex-col gap-10">
           {/* Trust Badges */}
           <div className="flex flex-wrap justify-center md:justify-start items-center gap-8 opacity-40 hover:opacity-70 transition-opacity grayscale">
             <div className="flex items-center gap-2">
@@ -182,10 +152,10 @@ export default function Footer() {
 
           {/* Disclosure Text */}
           <div className="max-w-4xl space-y-4">
-            <p className="text-zinc-500 text-[11px] md:text-xs leading-relaxed text-center md:text-left italic">
+            <p className="text-text-muted text-[11px] md:text-xs leading-relaxed text-center md:text-left italic">
               ConvergentAI is designed to support regulated financial institution environments with secure transmission protocols, AES-256 encryption where applicable, logical tenant isolation, audit trails, configurable data handling controls, human oversight, and responsible AI governance. Infrastructure and communications providers may maintain independent certifications, including SOC 2 Type II and ISO 27001. ConvergentAI is actively pursuing its own SOC 2 Type 1 attestation.
             </p>
-            <p className="text-zinc-500 text-[11px] md:text-xs leading-relaxed text-center md:text-left italic">
+            <p className="text-text-muted text-[11px] md:text-xs leading-relaxed text-center md:text-left italic">
               ConvergentAI is a technology provider and does not directly offer financial services, banking products, lending products, rates, approvals, underwriting decisions, or financial advice. Customer interactions, product disclosures, compliance obligations, and data governance remain subject to each institution’s policies, approvals, and regulatory requirements.
             </p>
           </div>

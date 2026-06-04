@@ -1,29 +1,91 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary-navy: #001A5B;
-  --color-action-blue: #2453F3;
-  --color-intelligence-purple: #5F43D9;
-  --color-support-lavender: #8C95F1;
-  --color-digital-teal: #001A5B;
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-violet: var(--brand-violet);
+  --color-brand-periwinkle: var(--brand-periwinkle);
+  --color-brand-teal: var(--brand-teal);
 
-  /* Map the previous brand-green token to the new Digital Teal color so that 
-     all existing UI accents and triggers instantly update to the new brand guidelines */
-  --color-brand-green: #001A5B;
-  --color-background: #000000;
-  --color-foreground: #FFFFFF;
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-bg-card: var(--bg-card);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-disabled: var(--text-disabled);
+
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+
+  --color-button-primary-bg: var(--button-primary-bg);
+  --color-button-primary-hover: var(--button-primary-hover);
+  --color-button-primary-active: var(--button-primary-active);
+  --color-button-primary-text: var(--button-primary-text);
+  
+  /* Retain previous mappings to ease migration if some files use them */
+  --color-primary-navy: var(--brand-navy);
+  --color-action-blue: var(--brand-blue);
+  --color-intelligence-purple: var(--brand-violet);
+  --color-support-lavender: var(--brand-periwinkle);
+  --color-digital-teal: var(--brand-teal);
+  --color-brand-green: var(--brand-blue); /* Maps old brand green buttons to Electric Blue */
+  --color-background: var(--bg-primary);
+  --color-foreground: var(--text-primary);
 }
 
 :root {
-  --background: #000000;
-  --foreground: #ffffff;
-  --primary-navy: #001A5B;
-  --action-blue: #2453F3;
-  --intelligence-purple: #5F43D9;
-  --support-lavender: #8C95F1;
-  --digital-teal: #001A5B;
+  /* Brand */
+  --brand-navy: #001A5B;
+  --brand-blue: #2435F3;
+  --brand-violet: #5F43D9;
+  --brand-periwinkle: #8C95F1;
+  --brand-teal: #22C5CC;
+
+  /* Dark theme backgrounds */
+  --bg-primary: #020817;
+  --bg-secondary: #061234;
+  --bg-elevated: #0A1B3D;
+  --bg-card: #0B1F45;
+
+  /* Text */
+  --text-primary: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --text-muted: #94A3B8;
+  --text-disabled: #64748B;
+
+  /* CSS base theme variables */
+  --background: var(--bg-primary);
+  --foreground: var(--text-primary);
+
+  /* Actions */
+  --button-primary-bg: var(--brand-blue);
+  --button-primary-hover: var(--brand-teal);
+  --button-primary-active: var(--brand-violet);
+  --button-primary-text: #FFFFFF;
+
+  /* Links */
+  --link-default: var(--brand-periwinkle);
+  --link-hover: var(--brand-teal);
+  --link-active: var(--brand-violet);
+
+  /* Borders and focus */
+  --border-subtle: rgba(140, 149, 241, 0.18);
+  --border-strong: rgba(140, 149, 241, 0.35);
+  --focus-ring: rgba(34, 197, 204, 0.45);
+
+  /* Gradients */
+  --gradient-ai: linear-gradient(90deg, #2435F3 0%, #5F43D9 55%, #22C5CC 100%);
   
-  --brand-green: #001A5B;
+  /* Compatibility mappings */
+  --primary-navy: var(--brand-navy);
+  --action-blue: var(--brand-blue);
+  --intelligence-purple: var(--brand-violet);
+  --support-lavender: var(--brand-periwinkle);
+  --digital-teal: var(--brand-teal);
+  --brand-green: var(--brand-blue);
 }
 
 html {
@@ -37,27 +99,27 @@ html {
 }
 
 ::-webkit-scrollbar-track {
-  background: #050505;
+  background: var(--bg-primary);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #001A5B 0%, #2453F3 45%, #5F43D9 100%);
+  background: var(--brand-teal);
   border-radius: 999px;
-  border: 2px solid #050505;
+  border: 3px solid var(--bg-primary);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #00278a 0%, #4c74f5 45%, #7e66df 100%);
+  background: #1eb2b8;
 }
 
 ::-webkit-scrollbar-corner {
-  background: #050505;
+  background: var(--bg-primary);
 }
 
 /* Firefox fallback */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #00b4d8 #050505;
+  scrollbar-color: var(--brand-teal) var(--bg-primary);
 }
 
 body {

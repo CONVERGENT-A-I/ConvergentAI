@@ -47,7 +47,7 @@ export default function AIHero() {
   return (
     <section id="ai-hero" className="relative min-h-[90svh] flex items-center pt-44 md:pt-56 lg:pt-60 pb-24 md:pb-32 px-6 md:px-10 lg:px-24 overflow-hidden">
       {/* Background radial gradient */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#111111_0%,_#000000_100%)] -z-10" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--bg-secondary)_0%,_var(--bg-primary)_100%)] -z-10" />
 
       {/* Subtle Grid Pattern */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] -z-10" />
@@ -65,10 +65,10 @@ export default function AIHero() {
           <h1 className="font-black text-white leading-[1.05] tracking-tight text-balance"
             style={{ fontSize: "clamp(2.5rem, 5vw, 4.5rem)" }}>
             Grow Mortgage Volume <br className="hidden xl:block" />
-            with <span className="text-brand-green">AI Voice & Avatars</span>
+            with <span className="text-brand-teal">AI Voice & Avatars</span>
           </h1>
 
-          <p className="text-zinc-400 max-w-xl font-medium leading-relaxed opacity-90"
+          <p className="text-text-secondary max-w-xl font-medium leading-relaxed opacity-90"
             style={{ fontSize: "clamp(1rem, 1.25vw, 1.25rem)" }}>
             Elevate Applicant engagement with realistic video agents and
             interactions for mortgage and beyond. Boost conversions with human-like
@@ -79,7 +79,7 @@ export default function AIHero() {
             href="https://convergentai.neetocal.com/meeting-with-david-patten"
             target="_blank"
             rel="noopener noreferrer"
-            className="group relative bg-brand-green text-white px-10 py-5 md:px-12 md:py-6 rounded-2xl text-sm md:text-base font-black uppercase tracking-[0.2em] hover:shadow-[0_0_50px_rgba(0,26,91,0.6)] transition-all transform hover:-translate-y-1 active:scale-95 shadow-xl"
+            className="group relative bg-button-primary-bg text-button-primary-text px-10 py-5 md:px-12 md:py-6 rounded-2xl text-sm md:text-base font-black uppercase tracking-[0.2em] hover:bg-button-primary-hover active:bg-button-primary-active hover:shadow-[0_0_50px_rgba(34,197,204,0.4)] transition-all transform hover:-translate-y-1 active:scale-95 shadow-xl"
           >
             Schedule a Demo
             <div className="absolute inset-0 rounded-2xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />

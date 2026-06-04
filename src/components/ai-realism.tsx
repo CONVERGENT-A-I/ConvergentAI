@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { CheckCircle2 } from "lucide-react";
 import Image from "next/image";
@@ -77,7 +77,7 @@ export default function AIRealism() {
   return (
     <section
       id="realism"
-      className="bg-black py-24 md:py-32 px-8 md:px-12 lg:px-24 border-t border-white/5 overflow-hidden"
+      className="bg-bg-primary py-24 md:py-32 px-8 md:px-12 lg:px-24 border-t border-white/5 overflow-hidden"
     >
       <motion.div
         className="max-w-[1600px] mx-auto w-full"
@@ -100,10 +100,10 @@ export default function AIRealism() {
             />
 
             {/* Decorative Corner Accents (optional, keeping for aesthetic) */}
-            <div className="absolute top-8 left-8 w-8 h-8 border-t border-l border-brand-green/30" />
-            <div className="absolute top-8 right-8 w-8 h-8 border-t border-r border-brand-green/30" />
-            <div className="absolute bottom-8 left-8 w-8 h-8 border-b border-l border-brand-green/30" />
-            <div className="absolute bottom-8 right-8 w-8 h-8 border-b border-r border-brand-green/30" />
+            <div className="absolute top-8 left-8 w-8 h-8 border-t border-l border-brand-teal/30" />
+            <div className="absolute top-8 right-8 w-8 h-8 border-t border-r border-brand-teal/30" />
+            <div className="absolute bottom-8 left-8 w-8 h-8 border-b border-l border-brand-teal/30" />
+            <div className="absolute bottom-8 right-8 w-8 h-8 border-b border-r border-brand-teal/30" />
           </motion.div>
 
           {/* Right Side: Content */}
@@ -117,12 +117,12 @@ export default function AIRealism() {
               style={{ fontSize: "clamp(2.5rem, 4vw, 4rem)" }}
             >
               Build Agents with <br className="hidden xl:block" />
-              <span className="text-brand-green">Unmatched Realism</span>
+              <span className="text-brand-teal">Unmatched Realism</span>
             </motion.h2>
 
             <motion.p
               variants={textItemVariants}
-              className="text-zinc-400 font-medium leading-relaxed mb-12 opacity-90"
+              className="text-text-secondary font-medium leading-relaxed mb-12 opacity-90"
               style={{ fontSize: "clamp(1rem, 1.2vw, 1.2rem)" }}
             >
               Empower your institution to deliver human-like interactions at
@@ -139,9 +139,9 @@ export default function AIRealism() {
                   key={index}
                   className="flex gap-5 items-start group"
                 >
-                  <div className="mt-1 shrink-0 p-1 rounded-lg bg-brand-green/10 border border-brand-green/20 group-hover:bg-brand-green/20 transition-colors">
+                  <div className="mt-1 shrink-0 p-1 rounded-lg bg-brand-teal/10 border border-brand-teal/20 group-hover:bg-brand-teal/20 transition-colors">
                     <CheckCircle2
-                      className="w-5 h-5 text-brand-green"
+                      className="w-5 h-5 text-brand-teal"
                       strokeWidth={2.5}
                     />
                   </div>
@@ -149,7 +149,7 @@ export default function AIRealism() {
                     <h4 className="text-white font-bold text-lg md:text-xl mb-1.5 tracking-tight leading-tight">
                       {point.title}
                     </h4>
-                    <p className="text-zinc-500 font-medium leading-relaxed text-sm md:text-base opacity-80">
+                    <p className="text-text-muted font-medium leading-relaxed text-sm md:text-base opacity-80">
                       {point.description}
                     </p>
                   </div>
