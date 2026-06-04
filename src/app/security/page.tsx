@@ -20,7 +20,7 @@ export default function SecurityCenter() {
     <div className="min-h-screen bg-bg-primary text-white selection:bg-brand-teal/30">
       <Navbar />
 
-      <main className="pt-52 md:pt-72 pb-24 px-6 md:px-12 lg:px-24 max-w-[1600px] mx-auto">
+      <main className="pt-44 md:pt-52 pb-24 px-6 md:px-12 lg:px-24 max-w-[1600px] mx-auto">
         
         {/* Header Section */}
         <motion.section 
@@ -29,7 +29,7 @@ export default function SecurityCenter() {
           variants={fadeUp}
           className="max-w-4xl mb-24"
         >
-          <div className="inline-flex flex-col md:flex-row items-start md:items-center gap-0.5 md:gap-2 px-3 md:px-4 py-2 md:py-1.5 rounded-xl md:rounded-full bg-brand-teal/10 border border-brand-teal/20 text-brand-teal text-[10px] md:text-xs font-bold tracking-widest uppercase mb-6 w-fit">
+          <div className="inline-flex flex-col md:flex-row items-start md:items-center gap-0.5 md:gap-2 px-3 md:px-4 py-2 md:py-1.5 rounded-xl md:rounded-full bg-brand-teal/10 border border-brand-teal/20 text-brand-teal text-[10px] md:text-xs font-bold tracking-widest uppercase mb-10 w-fit">
             <div className="flex items-center gap-2">
               <Shield className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />
               <span>Designed for Regulatory Compliance</span>

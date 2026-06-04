@@ -54,7 +54,7 @@ export default function WhitepaperModal({ type, onClose }: WhitepaperModalProps)
               <div className="space-y-8">
                 <div>
                   <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Security Architecture & Data Sovereignty</h1>
-                  <p className="text-lg text-brand-green/80">Technical Infrastructure and Security Controls for Community Banks and Credit Unions</p>
+                  <p className="text-lg text-brand-teal/80">Technical Infrastructure and Security Controls for Community Banks and Credit Unions</p>
                 </div>
 
                 <section>
@@ -96,7 +96,7 @@ export default function WhitepaperModal({ type, onClose }: WhitepaperModalProps)
               <div className="space-y-8">
                 <div>
                   <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Responsible AI Governance</h1>
-                  <p className="text-lg text-brand-green/80">Navigating FFIEC, NCUA, and GLBA Standards in AI-Driven Voice Automation</p>
+                  <p className="text-lg text-brand-teal/80">Navigating FFIEC, NCUA, and GLBA Standards in AI-Driven Voice Automation</p>
                 </div>
 
                 <section>

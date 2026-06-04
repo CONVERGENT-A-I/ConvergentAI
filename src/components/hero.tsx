@@ -26,7 +26,7 @@ export default function Hero() {
   };
 
   return (
-    <section id="hero" className="relative min-h-[100svh] flex items-center justify-center pt-52 md:pt-72 pb-20 px-8 md:px-12 lg:px-24 overflow-hidden">
+    <section id="hero" className="relative min-h-[100svh] flex items-center justify-center pt-44 md:pt-52 pb-20 px-8 md:px-12 lg:px-24 overflow-hidden">
       {/* Background radial gradient for depth */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--bg-secondary)_0%,_var(--bg-primary)_100%)] -z-10" />
 
@@ -39,6 +39,17 @@ export default function Hero() {
         initial="hidden"
         animate="show"
       >
+        {/* Hero Trust Anchor */}
+        <motion.div variants={itemVariants} className="mb-10">
+          <Link href="/security" className="group flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-white/[0.03] border border-white/10 hover:bg-white/[0.08] hover:border-brand-teal/30 transition-all cursor-pointer backdrop-blur-sm">
+            <ShieldCheck className="w-4 h-4 text-brand-teal opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all" />
+            <span className="text-xs md:text-sm text-text-muted group-hover:text-white transition-colors">
+              Review our <span className="font-semibold text-text-primary group-hover:text-brand-teal transition-colors">Security & Compliance Standards</span>
+            </span>
+            <ArrowRight className="w-3.5 h-3.5 opacity-0 -ml-3 group-hover:opacity-100 group-hover:translate-x-1.5 transition-all text-brand-teal" />
+          </Link>
+        </motion.div>
+
         {/* Main Headline */}
         <motion.h1 variants={itemVariants} className="text-fluid-h1 font-black text-white mb-8 tracking-tight">
           Turn Customer Interest <br />
@@ -62,15 +73,6 @@ export default function Hero() {
           >
             Schedule a Demo
             <div className="absolute inset-0 rounded-2xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-          </Link>
-          
-          {/* Hero Trust Anchor */}
-          <Link href="/security" className="group flex items-center justify-center gap-2 mt-2 px-5 py-2.5 rounded-full bg-white/[0.03] border border-white/10 hover:bg-white/[0.08] hover:border-brand-teal/30 transition-all cursor-pointer backdrop-blur-sm">
-            <ShieldCheck className="w-4 h-4 text-brand-teal opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all" />
-            <span className="text-xs md:text-sm text-text-muted group-hover:text-white transition-colors">
-              Review our <span className="font-semibold text-text-primary group-hover:text-brand-teal transition-colors">Security & Compliance Standards</span>
-            </span>
-            <ArrowRight className="w-3.5 h-3.5 opacity-0 -ml-3 group-hover:opacity-100 group-hover:translate-x-1.5 transition-all text-brand-teal" />
           </Link>
         </motion.div>
 

@@ -140,8 +140,8 @@ export default function WhitepaperGateModal({ isOpen, onClose }: WhitepaperGateM
                   animate={{ opacity: 1, scale: 1 }}
                   className="flex flex-col items-center text-center py-8 gap-5"
                 >
-                  <div className="w-16 h-16 rounded-full bg-brand-green/15 flex items-center justify-center">
-                    <CheckCircle2 className="w-8 h-8 text-brand-green" />
+                  <div className="w-16 h-16 rounded-full bg-brand-teal/15 flex items-center justify-center">
+                    <CheckCircle2 className="w-8 h-8 text-brand-teal" />
                   </div>
                   <div className="space-y-2">
                     <h4 className="text-xl font-black text-white tracking-tight">Thank You!</h4>
@@ -152,7 +152,7 @@ export default function WhitepaperGateModal({ isOpen, onClose }: WhitepaperGateM
                   <a
                     href="/api/whitepaper-download"
                     download="The Phygital Imperative.docx"
-                    className="mt-4 inline-flex items-center gap-2.5 bg-brand-green text-white px-6 py-3 rounded-full text-sm font-black uppercase tracking-widest hover:shadow-[0_0_30px_rgba(0,26,91,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
+                    className="mt-4 inline-flex items-center gap-2.5 bg-brand-teal text-white px-6 py-3 rounded-full text-sm font-black uppercase tracking-widest hover:shadow-[0_0_30px_rgba(0,26,91,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
                   >
                     <FileDown className="w-4 h-4" />
                     Download Now
@@ -169,8 +169,8 @@ export default function WhitepaperGateModal({ isOpen, onClose }: WhitepaperGateM
                   {/* Title & description */}
                   <div className="mb-7 space-y-2">
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-lg bg-brand-green/10 border border-brand-green/20 flex items-center justify-center">
-                        <FileDown className="w-5 h-5 text-brand-green" />
+                      <div className="w-10 h-10 rounded-lg bg-brand-teal/10 border border-brand-teal/20 flex items-center justify-center">
+                        <FileDown className="w-5 h-5 text-brand-teal" />
                       </div>
                       <h4 className="text-lg font-black text-white tracking-tight">The Phygital Imperative</h4>
                     </div>
@@ -185,7 +185,7 @@ export default function WhitepaperGateModal({ isOpen, onClose }: WhitepaperGateM
                       <div key={field.key}>
                         <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5">
                           {field.label}
-                          {field.required && <span className="text-brand-green ml-1">*</span>}
+                          {field.required && <span className="text-brand-teal ml-1">*</span>}
                         </label>
                         <div className="relative">
                           <field.icon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
@@ -194,7 +194,7 @@ export default function WhitepaperGateModal({ isOpen, onClose }: WhitepaperGateM
                             placeholder={field.placeholder}
                             value={form[field.key as keyof typeof form]}
                             onChange={(e) => handleChange(field.key, e.target.value)}
-                            className={`w-full pl-10 pr-4 py-3 rounded-xl bg-white/[0.04] border text-white text-sm font-medium placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-green/40 focus:border-brand-green/40 transition-all ${
+                            className={`w-full pl-10 pr-4 py-3 rounded-xl bg-white/[0.04] border text-white text-sm font-medium placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-teal/40 focus:border-brand-teal/40 transition-all ${
                               errors[field.key] ? "border-red-500/60" : "border-white/10 hover:border-white/20"
                             }`}
                           />
@@ -216,7 +216,7 @@ export default function WhitepaperGateModal({ isOpen, onClose }: WhitepaperGateM
                     <button
                       type="submit"
                       disabled={status === "submitting"}
-                      className="w-full mt-2 inline-flex items-center justify-center gap-2.5 bg-brand-green text-white px-7 py-3.5 rounded-full text-sm font-black uppercase tracking-widest hover:shadow-[0_0_30px_rgba(0,26,91,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 disabled:opacity-60 disabled:pointer-events-none"
+                      className="w-full mt-2 inline-flex items-center justify-center gap-2.5 bg-brand-teal text-white px-7 py-3.5 rounded-full text-sm font-black uppercase tracking-widest hover:shadow-[0_0_30px_rgba(0,26,91,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 disabled:opacity-60 disabled:pointer-events-none"
                     >
                       {status === "submitting" ? (
                         <>

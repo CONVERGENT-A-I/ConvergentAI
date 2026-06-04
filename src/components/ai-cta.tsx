@@ -63,7 +63,7 @@ export default function AICTA() {
           initial="hidden"
           whileInView="show"
           viewport={{ once: true, margin: "-50px" }}
-          className="h-[2px] bg-brand-green/30 w-[92%] max-w-[1400px] mb-20 md:mb-28 origin-left"
+          className="h-[2px] bg-brand-teal/30 w-[92%] max-w-[1400px] mb-20 md:mb-28 origin-left"
         />
 
         <motion.div
@@ -86,7 +86,7 @@ export default function AICTA() {
               href="https://convergentai.neetocal.com/meeting-with-david-patten"
               target="_blank"
               rel="noopener noreferrer"
-              className="group relative px-10 py-5 bg-brand-green hover:bg-[#001A5B] text-white font-black text-lg md:text-xl rounded-full transition-all duration-300 hover:scale-105 hover:shadow-[0_10px_40px_rgba(0,26,91,0.4)] active:scale-95 inline-block"
+              className="group relative px-10 py-5 bg-brand-teal hover:bg-[#001A5B] text-white font-black text-lg md:text-xl rounded-full transition-all duration-300 hover:scale-105 hover:shadow-[0_10px_40px_rgba(0,26,91,0.4)] active:scale-95 inline-block"
             >
               Schedule Demo
             </Link>

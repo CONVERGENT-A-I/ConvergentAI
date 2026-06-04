@@ -13,10 +13,10 @@ export default function PilotProgram() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white selection:bg-brand-green/30">
+    <div className="min-h-screen bg-bg-primary text-white selection:bg-brand-teal/30">
       <Navbar />
 
-      <main className="pt-52 md:pt-72 pb-24 px-6 md:px-12 lg:px-24 max-w-[1600px] mx-auto">
+      <main className="pt-44 md:pt-52 pb-24 px-6 md:px-12 lg:px-24 max-w-[1600px] mx-auto">
         
         {/* Header Section */}
         <motion.section 
@@ -25,12 +25,12 @@ export default function PilotProgram() {
           variants={fadeUp}
           className="max-w-4xl mb-24"
         >
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-green/10 border border-brand-green/20 text-brand-green text-xs font-bold tracking-widest uppercase mb-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-teal/10 border border-brand-teal/20 text-brand-teal text-xs font-bold tracking-widest uppercase mb-10">
             <Rocket className="w-3.5 h-3.5" />
             90-Day Pilot Program
           </div>
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-black tracking-tight mb-8">
-            Low Risk. <span className="text-brand-green">High Reward.</span><br />
+            Low Risk. <span className="text-brand-teal">High Reward.</span><br />
             Execution-Focused.
           </h1>
           <p className="text-lg md:text-xl text-zinc-400 font-medium leading-relaxed max-w-3xl">
@@ -47,7 +47,7 @@ export default function PilotProgram() {
           className="mb-32"
         >
           <div className="flex items-center gap-4 mb-12">
-            <Target className="w-8 h-8 text-brand-green" />
+            <Target className="w-8 h-8 text-brand-teal" />
             <h2 className="text-2xl md:text-4xl font-bold tracking-tight">The 90-Day Roadmap</h2>
           </div>
           
@@ -73,12 +73,12 @@ export default function PilotProgram() {
                 items: ["Volume Scaling", "Performance Review", "ROI Reporting"]
               }
             ].map((step, idx) => (
-              <div key={idx} className="p-8 rounded-3xl bg-white/[0.02] border border-white/10 hover:border-brand-green/30 transition-colors relative overflow-hidden group">
+              <div key={idx} className="p-8 rounded-3xl bg-white/[0.02] border border-white/10 hover:border-brand-teal/30 transition-colors relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
-                  <span className="text-8xl font-black text-brand-green">{idx + 1}</span>
+                  <span className="text-8xl font-black text-brand-teal">{idx + 1}</span>
                 </div>
                 <div className="relative z-10">
-                  <div className="text-brand-green text-sm font-bold tracking-widest uppercase mb-4">{step.phase}</div>
+                  <div className="text-brand-teal text-sm font-bold tracking-widest uppercase mb-4">{step.phase}</div>
                   <h3 className="text-2xl font-bold mb-4 text-white">{step.title}</h3>
                   <p className="text-zinc-400 font-medium leading-relaxed mb-6">
                     {step.desc}
@@ -86,7 +86,7 @@ export default function PilotProgram() {
                   <ul className="space-y-3">
                     {step.items.map((item, i) => (
                       <li key={i} className="flex items-center gap-3 text-sm font-semibold text-zinc-300">
-                        <CheckCircle2 className="w-4 h-4 text-brand-green" />
+                        <CheckCircle2 className="w-4 h-4 text-brand-teal" />
                         {item}
                       </li>
                     ))}
@@ -107,7 +107,7 @@ export default function PilotProgram() {
         >
           <div>
             <div className="flex items-center gap-4 mb-6">
-               <Box className="w-8 h-8 text-brand-green" />
+               <Box className="w-8 h-8 text-brand-teal" />
                <h2 className="text-2xl md:text-4xl font-bold tracking-tight">The &quot;Sandbox&quot; Strategy</h2>
             </div>
             <p className="text-lg text-zinc-400 font-medium mb-8 leading-relaxed">
@@ -115,14 +115,14 @@ export default function PilotProgram() {
             </p>
             <ul className="space-y-6">
               <li className="flex gap-4">
-                <ShieldCheck className="w-6 h-6 text-brand-green shrink-0 mt-1" />
+                <ShieldCheck className="w-6 h-6 text-brand-teal shrink-0 mt-1" />
                 <div>
                   <h4 className="text-lg font-bold text-white mb-2">No PII Required</h4>
                   <p className="text-zinc-400">The AI handles top-of-funnel inquiries—rates, eligibility, and process questions—without ever asking for or needing sensitive Applicant data.</p>
                 </div>
               </li>
               <li className="flex gap-4">
-                <ShieldCheck className="w-6 h-6 text-brand-green shrink-0 mt-1" />
+                <ShieldCheck className="w-6 h-6 text-brand-teal shrink-0 mt-1" />
                 <div>
                   <h4 className="text-lg font-bold text-white mb-2">Zero Core Integration</h4>
                   <p className="text-zinc-400">The pilot runs independently of your institutional core. No API access to Applicant data is needed to prove the engagement value.</p>
@@ -132,28 +132,28 @@ export default function PilotProgram() {
           </div>
           
           <div className="relative h-full min-h-[450px] rounded-3xl bg-black border border-white/10 p-8 flex flex-col justify-center overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-brand-green/10 via-transparent to-transparent opacity-40" />
+             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-brand-teal/10 via-transparent to-transparent opacity-40" />
              
              <div className="relative z-10 flex flex-col items-center gap-2">
                 
                 {/* ConvergentAI Sandbox */}
-                <div className="w-full rounded-2xl bg-[#0a1f16] border border-brand-green/30 p-5 relative overflow-hidden group">
+                <div className="w-full rounded-2xl bg-bg-card border border-brand-teal/30 p-5 relative overflow-hidden group">
                    <motion.div 
-                     className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-green/10 to-transparent w-full"
+                     className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-teal/10 to-transparent w-full"
                      animate={{ x: ['-100%', '100%'] }}
                      transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
                    />
                    <div className="flex items-center justify-between relative z-10">
                       <div className="flex items-center gap-3">
-                         <div className="w-10 h-10 rounded-full bg-brand-green/20 flex items-center justify-center">
-                            <Box className="w-5 h-5 text-brand-green animate-pulse" />
+                         <div className="w-10 h-10 rounded-full bg-brand-teal/20 flex items-center justify-center">
+                            <Box className="w-5 h-5 text-brand-teal animate-pulse" />
                          </div>
                          <div className="text-left">
-                            <h4 className="text-brand-green font-bold tracking-wider text-sm">PUBLIC CLOUD SANDBOX</h4>
-                            <p className="text-[10px] text-brand-green/60 font-mono uppercase">AI Engine & Public Guidelines</p>
+                            <h4 className="text-brand-teal font-bold tracking-wider text-sm">PUBLIC CLOUD SANDBOX</h4>
+                            <p className="text-[10px] text-brand-teal/60 font-mono uppercase">AI Engine & Public Guidelines</p>
                          </div>
                       </div>
-                      <div className="hidden sm:block px-3 py-1 rounded bg-brand-green/10 border border-brand-green/20 text-[10px] font-bold text-brand-green tracking-widest">
+                      <div className="hidden sm:block px-3 py-1 rounded bg-brand-teal/10 border border-brand-teal/20 text-[10px] font-bold text-brand-teal tracking-widest">
                          ACTIVE
                       </div>
                    </div>
@@ -167,12 +167,12 @@ export default function PilotProgram() {
                       <span className="text-xs font-bold text-red-400 tracking-widest uppercase">Strict Air-Gap Separation</span>
                    </div>
                    {/* Dotted lines going down but stopping */}
-                   <div className="absolute top-0 bottom-1/2 left-[20%] w-px bg-gradient-to-b from-brand-green/30 to-transparent" />
-                   <div className="absolute top-0 bottom-1/2 right-[20%] w-px bg-gradient-to-b from-brand-green/30 to-transparent" />
+                   <div className="absolute top-0 bottom-1/2 left-[20%] w-px bg-gradient-to-b from-brand-teal/30 to-transparent" />
+                   <div className="absolute top-0 bottom-1/2 right-[20%] w-px bg-gradient-to-b from-brand-teal/30 to-transparent" />
                 </div>
 
                 {/* Credit Union Core */}
-                <div className="w-full rounded-2xl bg-[#0d1220] border border-blue-500/20 p-5 relative overflow-hidden">
+                <div className="w-full rounded-2xl bg-bg-elevated border border-blue-500/20 p-5 relative overflow-hidden">
                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,_var(--tw-gradient-stops))] from-blue-500/10 via-transparent to-transparent opacity-50" />
                    <div className="flex items-center justify-between relative z-10 opacity-70">
                       <div className="flex items-center gap-3">
@@ -207,7 +207,7 @@ export default function PilotProgram() {
           className="mb-32"
         >
           <div className="flex items-center justify-center gap-4 mb-12">
-            <LineChart className="w-8 h-8 text-brand-green" />
+            <LineChart className="w-8 h-8 text-brand-teal" />
             <h2 className="text-2xl md:text-4xl font-bold tracking-tight text-center">Clear Success Metrics</h2>
           </div>
           
@@ -219,7 +219,7 @@ export default function PilotProgram() {
                { value: "100%", label: "Compliance", desc: "Adherence to configured guardrails." }
              ].map((metric, i) => (
                <div key={i} className="p-8 rounded-3xl bg-gradient-to-b from-white/[0.05] to-transparent border border-white/10 text-center">
-                  <div className="text-4xl font-black text-brand-green mb-2">{metric.value}</div>
+                  <div className="text-4xl font-black text-brand-teal mb-2">{metric.value}</div>
                   <div className="text-lg font-bold text-white mb-2">{metric.label}</div>
                   <div className="text-sm text-zinc-400">{metric.desc}</div>
                </div>
@@ -233,16 +233,16 @@ export default function PilotProgram() {
           whileInView="visible"
           viewport={{ once: true, margin: "-100px" }}
           variants={fadeUp}
-          className="p-10 md:p-16 rounded-3xl bg-brand-green/10 border border-brand-green/20 relative overflow-hidden text-center"
+          className="p-10 md:p-16 rounded-3xl bg-brand-teal/10 border border-brand-teal/20 relative overflow-hidden text-center"
         >
           <div className="relative z-10 max-w-3xl mx-auto">
             <h2 className="text-2xl md:text-4xl font-bold tracking-tight mb-6 text-white">Is it secure?</h2>
-            <p className="text-lg text-brand-green/80 font-medium mb-10 leading-relaxed">
+            <p className="text-lg text-brand-teal/80 font-medium mb-10 leading-relaxed">
               We understand that deploying AI in a financial institution requires absolute certainty. Review our comprehensive security architecture designed for Credit Unions and Community Banks.
             </p>
             <Link 
               href="/security"
-              className="inline-flex items-center justify-center gap-3 bg-brand-green text-white px-8 py-4 rounded-2xl text-lg font-bold hover:shadow-[0_0_30px_rgba(0,26,91,0.6)] transition-all transform hover:-translate-y-1"
+              className="inline-flex items-center justify-center gap-3 bg-brand-teal text-white px-8 py-4 rounded-2xl text-lg font-bold hover:shadow-[0_0_30px_rgba(0,26,91,0.6)] transition-all transform hover:-translate-y-1"
             >
               Review Security & Trust Center
               <ArrowRight className="w-5 h-5 transition-transform" />

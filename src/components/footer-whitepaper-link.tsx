@@ -10,7 +10,7 @@ export default function FooterWhitepaperLink() {
     <>
       <button
         onClick={() => setIsGateOpen(true)}
-        className="text-zinc-300 text-sm md:text-base font-medium hover:text-brand-green transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+        className="text-zinc-300 text-sm md:text-base font-medium hover:text-brand-teal transition-colors inline-flex items-center gap-1.5 cursor-pointer"
       >
         The Phygital Imperative
         <svg className="w-3.5 h-3.5 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
