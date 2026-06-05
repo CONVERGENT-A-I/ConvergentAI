@@ -109,11 +109,10 @@ export default function ScheduleDemo() {
                 <motion.h2
                   variants={itemVariants}
                   className="font-black text-white tracking-tight leading-[1.05] mb-8"
-                  style={{ fontSize: "clamp(2.5rem, 5vw, 5rem)" }}
+                  style={{ fontSize: "clamp(2.25rem, 3.5vw, 3.5rem)" }}
                 >
-                  Eliminate Mortgage{" "}
-                  <span className="text-brand-teal">Leakage</span>{" "}
-                  Today
+                  Close More Loans with Faster{" "}
+                  <span className="text-brand-teal">Customer Engagement</span>
                 </motion.h2>
 
                 <motion.div variants={itemVariants} className="w-16 h-1 bg-gradient-to-r from-brand-blue via-brand-violet to-brand-teal rounded-full mb-8" />
@@ -123,17 +122,14 @@ export default function ScheduleDemo() {
                   className="text-text-secondary font-medium leading-relaxed mb-5"
                   style={{ fontSize: "clamp(0.95rem, 1.2vw, 1.2rem)" }}
                 >
-                  Schedule your executive demo to see how AI intent-capture
-                  turns visitors into funded loans.
+                  See how ConvergentAI can help your institution respond faster, guide applicants more effectively, and connect high-intent mortgage opportunities to the right human expert.
                 </motion.p>
                 <motion.p
                   variants={itemVariants}
                   className="text-text-muted font-medium leading-relaxed"
                   style={{ fontSize: "clamp(0.9rem, 1.1vw, 1.1rem)" }}
                 >
-                  Stop losing opportunities to competitors. Our 24/7
-                  AI-driven assistants ensure your institution is always
-                  the first to respond.
+                  Schedule a demo to explore how always-available engagement could support your loan growth goals.
                 </motion.p>
               </div>
 
