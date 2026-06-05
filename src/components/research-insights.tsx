@@ -9,23 +9,23 @@ export default function ResearchInsights() {
   const [isGateOpen, setIsGateOpen] = useState(false);
   const insights = [
     {
-      label: "90% Drop-off Rate",
-      text: "Most Applicants leave your site without completing a single mortgage application.",
+      label: "68% Drop-off Rate",
+      text: "The majority of potential customers abandon their online applications for financial services.",
       icon: TrendingDown,
     },
     {
-      label: "24/7 Intent",
-      text: "60% of mortgage and home equity research happens while your branches are closed.",
+      label: "Weekend & Evening Opportunities",
+      text: "Busy customers often research mortgage, home equity, and financial products after hours.",
       icon: Clock,
     },
     {
-      label: "First-Response Rule",
-      text: "78% of borrowers choose the first lender to respond, regardless of brand loyalty.",
+      label: "Speed-to-Lead Advantage",
+      text: "The chances of contacting a lead drop 100x in 30 minutes. Fast engagement is crucial.",
       icon: Zap,
     },
     {
-      label: "Delayed Connections",
-      text: "Applicants only successfully reach a loan officer 10% of the time during business hours.",
+      label: "Missed Connections",
+      text: "Leads lose momentum when loan officers are unable to connect at their moment of interest.",
       icon: PhoneOff,
     },
   ];
@@ -86,7 +86,7 @@ export default function ResearchInsights() {
 
         {/* Subheader */}
         <motion.p variants={itemVariants} className="text-text-secondary text-lg md:text-xl font-medium max-w-4xl mb-20 md:mb-24 text-balance opacity-80">
-          Whether you are a Credit Union, Community Bank, or Lender, your applicants expect an instant response. Capture their intent 24/7 before they click away.
+          Today’s busy mortgage applicants research on their own schedule, not yours. With ConvergentAI, you’ll be available with answers when they’re ready to start building a relationship.
         </motion.p>
 
         {/* Insights Grid */}

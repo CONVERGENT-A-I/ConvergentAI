@@ -7,22 +7,22 @@ export default function Features() {
   const features = [
     {
       title: "Mortgage Acceleration",
-      description: "Achieve higher funded mortgages with AI assistance that prevents application drop-off and automates key documentation steps.",
+      description: "Prevent drop-off with AI assistance that provides immediate answers, guided next steps, and seamless handoff to lending specialists.",
       icon: Home,
     },
     {
-      title: "Elevated AX Scores",
-      description: "Boost Applicant Experience (AX) scores by providing seamless, friction-free transitions between digital and in-branch touchpoints.",
+      title: "Elevated Customer Experience",
+      description: "Reduce friction by giving customers a responsive, continuous conversational experience between digital and in-branch touchpoints.",
       icon: UserPlus,
     },
     {
       title: "Cross-Sell Growth",
-      description: "Identify and capture cross-sell opportunities in real-time with AI monitors that analyze Applicant engagement across channels.",
+      description: "Identify relevant needs during natural conversations and route qualified opportunities to the right product team or specialist.",
       icon: Target,
     },
     {
       title: "Compliance & Security",
-      description: "Support 50-state MLO licensing, S.A.F.E. Act compliance, and emerging AI regulations with end-to-end encryption and audit trails.",
+      description: "Support 50-state Mortgage Loan Originator licensing, S.A.F.E. Act compliance, and emerging AI regulations with end-to-end encryption & audit trails.",
       icon: ShieldCheck,
     },
   ];
