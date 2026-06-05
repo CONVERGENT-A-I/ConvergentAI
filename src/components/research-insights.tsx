@@ -63,16 +63,16 @@ export default function ResearchInsights() {
 
   const itemVariants: Variants = {
     hidden: { opacity: 0, y: 30 },
-    show: { 
-      opacity: 1, 
-      y: 0, 
-      transition: { duration: 0.8, ease: "easeOut" } 
+    show: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.8, ease: "easeOut" }
     },
   };
 
   return (
     <section className="bg-bg-secondary flex flex-col pt-12 md:pt-20 pb-24 px-8 md:px-12 lg:px-24 overflow-hidden">
-      <motion.div 
+      <motion.div
         className="max-w-[1600px] mx-auto w-full"
         variants={containerVariants}
         initial="hidden"
@@ -123,11 +123,9 @@ export default function ResearchInsights() {
         <motion.div variants={itemVariants} className="relative p-8 md:p-12 bg-bg-card border-l-4 border-brand-blue border-y border-y-border-subtle border-r border-r-border-subtle rounded-r-[2rem] rounded-l-sm overflow-hidden shadow-2xl">
           {/* Subtle background glow */}
           <div className="absolute top-0 left-0 w-32 h-full bg-brand-blue/5 blur-3xl -z-10" />
-          
-          <p className="text-white text-lg md:text-xl lg:text-2xl font-bold leading-relaxed tracking-tight text-balance">
-            ConvergentAI eliminates mortgage leakage by capturing Applicant intent 24/7 directly on your website. 
-            Our AI assistant guides Applicants through complex next steps and instantly routes hot opportunities to your MLOs and branches. 
-            By ensuring your institution is always the first to respond, we secure Applicant loyalty and keep mortgage production inside your institution.
+
+          <p className="text-white text-lg md:text-xl lg:text-2xl font-bold leading-relaxed tracking-tight text-pretty">
+            ConvergentAI helps you engage customers through any channel the moment they show interest. AI avatar agents are available 24/7 through video, voice, and chat to answer questions, provide approved guidance, and connect customers to live experts when appropriate. Your team stays in control with secure interactions, human oversight, and processes designed to fit your existing workflows.
           </p>
         </motion.div>
 
@@ -151,7 +149,7 @@ export default function ResearchInsights() {
                 The Phygital Imperative
               </h3>
               <p className="text-text-secondary text-sm md:text-base font-medium leading-relaxed max-w-2xl">
-                Download our whitepaper on bridging digital and physical touchpoints to eliminate mortgage drop-off and build lasting Applicant relationships.
+                Download our whitepaper to learn how financial institutions can close the gap between customer expectations and traditional service availability to build lasting relationships and strengthen customer loyalty.
               </p>
             </div>
 
