@@ -14,7 +14,7 @@ function FeatureCard({ title, description, icon: Icon }: FeatureCardProps) {
     <div className="group relative bg-bg-card border border-border-subtle p-8 md:p-12 rounded-[2.5rem] flex flex-col items-start transition-all duration-500 hover:border-brand-teal/45 hover:bg-[#0D2654] h-full overflow-hidden">
       {/* Glow Effect */}
       <div className="absolute -inset-px bg-brand-teal/5 rounded-[2.5rem] opacity-0 group-hover:opacity-100 transition-opacity blur-2xl" />
-      
+
       {/* Icon */}
       <div className="relative z-10 w-14 h-14 bg-brand-teal/10 rounded-2xl flex items-center justify-center mb-8 border border-brand-teal/20 group-hover:scale-110 transition-transform duration-500">
         <Icon className="w-7 h-7 text-brand-teal" strokeWidth={1.5} />
@@ -37,33 +37,33 @@ function FeatureCard({ title, description, icon: Icon }: FeatureCardProps) {
 export default function FeaturesGrid() {
   const features = [
     {
-      title: "Phygital Applicant Journeys",
-      description: "Seamlessly transition Applicants from digital research to in-branch completion with unified data and context.",
+      title: "Connected Customer Journeys",
+      description: "Preserve context as customers move from digital research to specialist conversations or in-branch interactions.",
       icon: Smartphone,
     },
     {
       title: "AI-Powered BranchPortal",
-      description: "Reduce staffing overhead with conversational avatars that handle routine inquiries and guide product discovery.",
+      description: "Reduce in-branch wait times with AI-guided support that can answer questions, explore products, and connect with specialists.",
       icon: Users,
     },
     {
-      title: "eMortgage Acceleration",
-      description: "Boost online completions by over 25% and provide Applicants with exceptional experiences.",
+      title: "Mortgage & Home Equity Acceleration",
+      description: "Maintain applicant momentum with immediate answers, help completing next steps, and connection with loan officers.",
       icon: Zap,
     },
     {
       title: "Secure Omnichannel Messaging",
-      description: "Enterprise-grade protection across all channels, ensuring Applicant data remains private and compliant with institutional standards.",
+      description: "Support private, consistent communication across channels with security practices designed for regulated environments.",
       icon: Shield,
     },
     {
       title: "AI Voice & Human-Like Avatars",
-      description: "Deliver natural, 24/7 Applicant service with AI-powered voice and lifelike avatars that feel human, reduce wait times, and keep Applicants engaged across channels.",
+      description: "Provide natural, always-available interactions through voice, chat, and video avatars that are approachable and brand-aligned.",
       icon: MessageSquare,
     },
     {
       title: "Seamless Infrastructure Integration",
-      description: "Seamless integration with your existing contact center infrastructure, with minimal IT lift.",
+      description: "Connect with existing systems, teams, and workflows through an implementation model that requires minimal IT lift.",
       icon: Cpu,
     },
   ];
@@ -78,22 +78,22 @@ export default function FeaturesGrid() {
 
   const itemVariants: Variants = {
     hidden: { opacity: 0, scale: 0.9, y: 50 },
-    show: { 
-      opacity: 1, 
-      scale: 1, 
-      y: 0, 
-      transition: { 
+    show: {
+      opacity: 1,
+      scale: 1,
+      y: 0,
+      transition: {
         type: "spring",
         stiffness: 80,
         damping: 18,
         duration: 0.8
-      } 
+      }
     },
   };
 
   return (
     <section className="bg-bg-primary py-20 md:py-32 overflow-hidden">
-      <motion.div 
+      <motion.div
         className="max-w-[1400px] mx-auto w-full"
         variants={containerVariants}
         initial="hidden"
@@ -102,8 +102,8 @@ export default function FeaturesGrid() {
       >
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 lg:gap-10">
           {features.map((feature, index) => (
-            <motion.div 
-              key={index} 
+            <motion.div
+              key={index}
               variants={itemVariants}
               whileHover={{ scale: 1.02 }}
               className="h-full"
