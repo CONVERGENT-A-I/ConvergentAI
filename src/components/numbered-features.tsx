@@ -7,22 +7,22 @@ export default function NumberedFeatures() {
     {
       number: "01",
       title: "Unified Hybrid Journeys",
-      description: "Effortlessly bridge digital research with branch engagement. ConvergentAI preserves Applicant context, creating friction-free paths from screen to person."
+      description: "ConvergentAI bridges digital research, branch engagement, and human support while preserving customer context, creating a smoother path from first question to personal guidance."
     },
     {
       number: "02",
       title: "AI-Powered 24/7 Support",
-      description: "Scale Applicant services without increasing staffing overhead. Our lifelike AI avatars handle discovery and routing around the clock with consistent empathy."
+      description: "Expand customer engagement capacity around the clock with AI agents that provide approved answers, guide next steps, and route customers with consistency and care."
     },
     {
       number: "03",
       title: "Intelligent Workflow Routing",
-      description: "Equip your loan officers with advanced co-browsing and eSign tools. ConvergentAI automates routine workflows, focusing MLOs on high-value interactions."
+      description: "Identify intent, urgency, product interest, and support needs to connect customers to the right team at the right time with full context of previous conversations."
     },
     {
       number: "04",
-      title: "Enterprise Banking Security",
-      description: "Built for the highest stakes, our platform adheres to Fannie Mae and Freddie Mac requirements, ensuring total data compliance and Applicant safety."
+      title: "Security & Governance Controls",
+      description: "Support mortgage compliance workflows with secure data handling, audit trails, human oversight, and AI governance controls designed around relevant mortgage licensing, S.A.F.E. Act, Fannie Mae, Freddie Mac, and HUD requirements."
     }
   ];
 
