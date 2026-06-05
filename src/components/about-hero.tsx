@@ -44,20 +44,28 @@ export default function AboutHero() {
           <span className="text-[10px] md:text-xs font-black uppercase tracking-[0.4em] text-white/50">Our Mission</span>
         </motion.div>
 
-        {/* Main Headline - High-impact, black-weight typography */}
         <motion.h1 variants={itemVariants} className="font-black text-white mb-10 tracking-tighter text-balance w-full"
             style={{ fontSize: "clamp(2.75rem, 6.5vw, 6.5rem)", lineHeight: "1.05" }}>
-          Empowering Modern <br className="hidden md:block" /> Financial Institutions <br className="hidden md:block" />
-          <span className="text-brand-teal">Through AI Innovation</span>
+          Technology That Strengthens <br className="hidden md:block" />
+          <span className="text-brand-teal">Financial Relationships</span>
         </motion.h1>
         
         {/* Refined Subtitle */}
-        <motion.p variants={itemVariants} className="text-text-secondary font-medium max-w-[900px] mx-auto text-balance leading-relaxed opacity-90"
-           style={{ fontSize: "clamp(1.1rem, 1.35vw, 1.45rem)" }}>
-          We leverage conversational intelligence to help mortgage lenders and financial institutions 
-          scale personalized engagement to millions, acting as one unified phygital experience 
-          that builds trust and drives conversion.
-        </motion.p>
+        <motion.div 
+          variants={itemVariants} 
+          className="text-text-secondary font-medium max-w-[1000px] mx-auto leading-relaxed opacity-90 space-y-6 text-center"
+          style={{ fontSize: "clamp(1rem, 1.15vw, 1.25rem)" }}
+        >
+          <p className="text-pretty">
+            ConvergentAI helps banks, credit unions, and mortgage lenders respond to customers wherever they are, whenever they show interest. Our AI voice, chat, and avatar experiences provide immediate guidance, answer questions within set guidelines, and connect customers to the right human expert when needed. The result is faster engagement that enhances the relationship-driven service financial institutions are built on.
+          </p>
+          <p className="text-pretty">
+            Until now, there’s been a disconnect. Customers expect answers the moment they have a question, but financial decisions still require trust, context, and human connection. ConvergentAI was created to close that gap.
+          </p>
+          <p className="text-brand-teal font-black text-pretty">
+            We believe technology should strengthen relationships, not replace them.
+          </p>
+        </motion.div>
       </motion.div>
 
       {/* Scroll cue in document flow so it never overlaps the copy */}

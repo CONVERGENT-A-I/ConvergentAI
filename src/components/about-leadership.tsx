@@ -60,16 +60,15 @@ export default function AboutLeadership() {
             The Leadership
           </h2>
           <div className="text-[10px] md:text-xs font-black uppercase tracking-[0.4em] text-white/30">
-            Phygital Innovation Experts
+            Experts in Financial Technology, Mortgage, and Customer Engagement
           </div>
         </motion.div>
 
         {/* Narrative Intro */}
         <motion.div variants={itemVariants} className="mb-24 text-center max-w-4xl mx-auto">
-          <p className="text-text-secondary font-medium leading-[1.8] [font-size:clamp(1.1rem,1.4vw,1.45rem)] opacity-90 mx-auto max-w-[850px] text-pretty">
-            Our leadership team brings 30+ years of combined mortgage and technology experience
-            together with modern AI and phygital design. We understand how to empower branches,
-            contact centers, and digital teams to work as one.
+          <p className="text-text-secondary font-medium leading-[1.8] opacity-90 mx-auto max-w-[850px] text-pretty"
+             style={{ fontSize: "clamp(0.95rem, 1.15vw, 1.2rem)" }}>
+            Our leadership team brings together experience in mortgage, financial technology, AI-enabled engagement, customer communication, and operational execution. We understand the pressure financial institutions face to modernize service while preserving trust, compliance, and human connection.
           </p>
         </motion.div>
 
