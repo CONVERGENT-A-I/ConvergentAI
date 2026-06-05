@@ -6,12 +6,12 @@ import Image from "next/image";
 
 const features = [
   {
-    title: "Unified Applicant Timeline",
-    description: "View every digital touchpoint and AI interaction across all channels in one chronological mortgage journey.",
+    title: "Unified Customer Timeline",
+    description: "View digital touchpoints, AI interactions, routing events, and human conversations in one connected journey.",
   },
   {
-    title: "Real-time Co-browsing & E-sign Support",
-    description: "Instantly join Applicant sessions to guide them through complex e-sign workflows and document uploads.",
+    title: "Real-Time Co-Browsing & eSign Support",
+    description: "Join customer sessions to help with complex forms, document uploads, disclosures, or eSign workflows.",
   },
   {
     title: "Integrated Multimodal Dashboard",
@@ -19,11 +19,11 @@ const features = [
   },
   {
     title: "Mortgage Pipeline Visibility",
-    description: "Monitor LOS application status and pipeline health directly alongside live communications.",
+    description: "Monitor Loan Origination System application status and pipeline health directly alongside live communications.",
   },
   {
     title: "Instant AI-to-Human Handoff",
-    description: "Seamlessly transition high-intent Applicants from AI assistants to expert MLOs at the critical moment.",
+    description: "Seamlessly transition high-intent applicants from AI assistants to loan officers at the right moment.",
   },
 ];
 
@@ -38,16 +38,16 @@ export default function LiveAgentDashboard() {
 
   const itemVariants: Variants = {
     hidden: { opacity: 0, y: 30 },
-    show: { 
-      opacity: 1, 
-      y: 0, 
-      transition: { duration: 0.8, ease: "easeOut" } 
+    show: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.8, ease: "easeOut" }
     },
   };
 
   return (
     <section className="bg-bg-secondary py-24 md:py-32 px-8 md:px-12 lg:px-24 border-t border-white/5 overflow-hidden">
-      <motion.div 
+      <motion.div
         className="max-w-[1600px] mx-auto w-full"
         variants={containerVariants}
         initial="hidden"
@@ -65,17 +65,16 @@ export default function LiveAgentDashboard() {
               className="font-black text-white tracking-tight leading-[1.1] mb-6"
               style={{ fontSize: "clamp(2rem, 4vw, 4rem)" }}
             >
-              Human Expertise in the Digital Mortgage Final Mile
+              Human Expertise Where It Matters Most
             </motion.h2>
 
             {/* Sub-description */}
-            <motion.p 
+            <motion.p
               variants={itemVariants}
               className="text-text-secondary font-medium leading-relaxed mb-12"
               style={{ fontSize: "clamp(1rem, 1.2vw, 1.2rem)" }}
             >
-              The Unified LiveAgent Dashboard provides MLOs with deep Applicant context and real-time
-              collaboration tools to drive loan production and ensure successful eMortgage closings.
+              The LiveAgent Workspace gives loan officers and specialists the deep context and real-time collaboration tools they need to pick up and continue conversations with confidence, giving customers a smooth transition from digital guidance to personal support.
             </motion.p>
 
             {/* Feature List */}

@@ -6,15 +6,15 @@ export default function StrategicImpact() {
   const impacts = [
     {
       title: "Maximize Growth",
-      description: "Drive higher conversion with AI-guided mortgage and home equity applications.",
+      description: "Convert more high-intent visitors into qualified conversations, applications, appointments, and funded opportunities.",
     },
     {
       title: "Unified Experience",
-      description: "Seamlessly integrate digital engagement with your branch and contact center.",
+      description: "Bridge online research, branch engagement, contact center support, and specialist handoff with shared context.",
     },
     {
       title: "Lasting Loyalty",
-      description: "Build trust by instantly connecting Applicants to human experts when they need it most.",
+      description: "Give customers the immediate help they expect with access to the human experts they know and trust.",
     },
   ];
 
@@ -28,16 +28,16 @@ export default function StrategicImpact() {
 
   const itemVariants: Variants = {
     hidden: { opacity: 0, y: 30 },
-    show: { 
-      opacity: 1, 
-      y: 0, 
-      transition: { duration: 0.8, ease: "easeOut" } 
+    show: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.8, ease: "easeOut" }
     },
   };
 
   return (
     <section className="bg-bg-primary min-h-[100svh] flex flex-col justify-center py-24 px-8 md:px-12 lg:px-24 border-t border-white/5 overflow-hidden">
-      <motion.div 
+      <motion.div
         className="max-w-[1600px] mx-auto w-full text-center"
         variants={containerVariants}
         initial="hidden"
@@ -55,13 +55,12 @@ export default function StrategicImpact() {
         </motion.h2>
 
         {/* Wider Subtitle */}
-        <motion.p 
+        <motion.p
           variants={itemVariants}
           className="text-text-secondary font-medium mb-16 max-w-[1000px] mx-auto leading-relaxed"
           style={{ fontSize: "clamp(1rem, 1.5vw, 1.5rem)" }}
         >
-          ConvergentAI unifies digital and physical touchpoints to eliminate drop-off rates and
-          secure Applicant loyalty across every banking product line.
+          ConvergentAI brings digital speed and human trust into one connected experience for mortgage, home equity, and other high-value customer journeys across your institution.
         </motion.p>
 
         {/* Prominent Divider */}
@@ -100,9 +99,7 @@ export default function StrategicImpact() {
           <p className="text-text-secondary font-medium leading-relaxed opacity-80 text-balance"
             style={{ fontSize: "clamp(0.95rem, 1.2vw, 1.25rem)" }}
           >
-            Drive growth across your entire portfolio including mortgage, wealth management, SBA loans,
-            insurance, and auto loans. Unified LiveAgent and ConvergentAI provide the strategic outcomes
-            needed to scale additional lines of business with zero-latency digital engagement.
+            ConvergentAI brings speed and trust to high-value customer journeys across your institution, from mortgage and home equity to wealth management, SBA loans, insurance, auto loans, account opening, and service routing. Its scalable architecture supports high volumes of simultaneous customer interactions, helping your institution stay responsive during peak demand without slowing the customer experience.
           </p>
         </motion.div>
 
