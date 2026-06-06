@@ -8,24 +8,24 @@ import ai2 from "../../public/ai2.png";
 export default function AIRealism() {
   const points = [
     {
-      title: "Custom Persona & Digital Twins",
+      title: "Custom Personas",
       description:
-        "Choose from a library of diverse faces and voices, or generate digital twins of your institution's own Mortgage Loan Officers (MLOs) and Customer Service Representatives (CSRs).",
+        "Choose from a range of diverse AI faces, voices, and communication styles to create a brand-appropriate customer experience. You can even explore AI avatar experiences based on approved staff roles or brand ambassadors for specific use cases with appropriate consent, governance, and disclosure.",
     },
     {
       title: "Familiar Representation",
       description:
-        "Create branded digital twins of your experts so Applicants feel like they're interacting with a familiar, trusted representative—anytime, on any device.",
+        "Create AI guides that reflect your institution’s service culture and help customers feel comfortable asking questions.",
     },
     {
       title: "Behavioral Controls",
       description:
-        "Fine-tune micro-expressions and responses for a level of empathy that plain text can't reach.",
+        "Adjust tone, pacing, escalation rules, and response patterns so conversations feel clear, respectful, and helpful.",
     },
     {
-      title: "Compliant & Consistent",
+      title: "Consistent & Governed",
       description:
-        "Ensure every Applicant interaction adheres to institutional standards and guidelines across all channels.",
+        "Support approved messaging and escalation paths across channels so customers receive consistent guidance no matter when they connect.",
     },
   ];
 
@@ -116,8 +116,8 @@ export default function AIRealism() {
               className="text-white font-black tracking-tighter leading-[1.1] mb-8"
               style={{ fontSize: "clamp(2.5rem, 4vw, 4rem)" }}
             >
-              Build Agents with <br className="hidden xl:block" />
-              <span className="text-brand-teal">Unmatched Realism</span>
+              Build AI Agents That Reflect <br className="hidden xl:block" />
+              <span className="text-brand-teal">Your Brand and Service Standards</span>
             </motion.h2>
 
             <motion.p
@@ -125,10 +125,7 @@ export default function AIRealism() {
               className="text-text-secondary font-medium leading-relaxed mb-12 opacity-90"
               style={{ fontSize: "clamp(1rem, 1.2vw, 1.2rem)" }}
             >
-              Empower your institution to deliver human-like interactions at
-              digital scale. Configure your video agents' appearance, voice, and
-              behavior to match your institution's unique culture and account
-              holder needs.
+              ConvergentAI helps financial institutions create AI voice and avatar experiences that feel helpful, professional, and aligned with the way your organization serves customers. Configure the experience to support your brand standards, communication style, and approved customer journeys.
             </motion.p>
 
             {/* Bullet Points */}

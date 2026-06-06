@@ -78,7 +78,7 @@ export default function AICTA() {
             className="text-white font-black tracking-tighter leading-[1.1] max-w-4xl"
             style={{ fontSize: "clamp(2.5rem, 4.8vw, 4.2rem)" }}
           >
-            Deploy AI Voice & Avatars for Your Applicants
+            Ready to turn digital dead ends into actionable opportunities?
           </motion.h2>
 
           <motion.div variants={buttonVariants}>

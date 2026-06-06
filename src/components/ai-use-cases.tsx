@@ -6,19 +6,19 @@ export default function AIUseCases() {
   const cases = [
     {
       title: "Mortgage & Home Equity Q&A",
-      benefit: "Benefit: Reduce application abandonment by providing instant, compliant answers to complex borrower questions 24/7.",
+      benefit: "Keep every mortgage and home equity conversation moving forward to reduce application abandonment and capture more customers.",
     },
     {
-      title: "Automated Applicant Onboarding",
-      benefit: "Benefit: Higher conversion rates for new accounts with phygital guidance that replicates a face-to-face branch experience.",
+      title: "Guided Applicant Onboarding",
+      benefit: "Give every customer personalized support as they begin applications, schedule appointments, or prepare for a specialist conversation from any location.",
     },
     {
-      title: "24/7 After-Hours Engagement",
-      benefit: "Benefit: Stop mortgage leakage by capturing intent and qualifying leads while your physical branches and call centers are closed.",
+      title: "24/7 Customer Engagement",
+      benefit: "Capture interest when branches and contact centers are closed, routing qualified conversations for timely follow-up.",
     },
     {
-      title: "Intelligent Cross-Sell Conversations",
-      benefit: "Benefit: Improve Applicant lifetime value by identifying cross-sell opportunities through natural AI voice interactions across all banking lines.",
+      title: "Enhance cross-selling",
+      benefit: "Identify customer needs through natural conversation and connect relevant opportunities to the right product team or specialist.",
     },
   ];
 
@@ -87,8 +87,7 @@ export default function AIUseCases() {
             </h2>
             <p className="text-text-secondary font-medium leading-relaxed max-w-md opacity-90 text-pretty"
               style={{ fontSize: "clamp(1.1rem, 1.4vw, 1.3rem)" }}>
-              Driving tangible ROI for financial institutions through immersive phygital
-              engagement and AI automation.
+              Moving potential customers from uncertainty to confident next steps
             </p>
           </motion.div>
 
