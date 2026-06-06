@@ -10,12 +10,12 @@ export default function BranchSegment() {
     {
       src: f1,
       alt: "In-Branch AI Avatar Powered Wall System",
-      caption: "IN-BRANCH AI AVATAR POWERED WALL SYSTEM",
+      caption: "IN-BRANCH AI CONCIERGE",
     },
     {
       src: f2,
       alt: "Select Employee Group (SEG) Smartbanking Platform",
-      caption: "SELECT EMPLOYEE GROUP (SEG) SMARTBANKING PLATFORM",
+      caption: "SEG SMARTBANKING ENGAGEMENT PLATFORM",
     },
   ];
 
@@ -74,12 +74,7 @@ export default function BranchSegment() {
             BranchPortal & SEG Programs
           </h2>
           <p className="max-w-4xl text-text-secondary font-medium leading-[1.6] [font-size:clamp(1rem,1.35vw,1.45rem)]">
-            ConvergentAI's BranchPortal brings AI-powered avatars and guidance
-            into the branch, while SEG programs extend personalized mortgage and
-            Applicant education tools to select employer groups. These
-            solutions drive measurable value for financial institutions by
-            bridging the gap between digital efficiency and physical account
-            holder service.
+            ConvergentAI’s BranchPortal brings AI-powered guidance into branch, event, and employer-group settings. Customers can ask questions, explore products, get directed to next steps, and connect with human representatives when needed. BranchPortal can extend financial education and guided product discovery into SEG programs, helping institutions build relationships where members and prospects already are.
           </p>
         </motion.div>
 

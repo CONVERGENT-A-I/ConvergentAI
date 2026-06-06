@@ -16,10 +16,10 @@ export default function AboutHero() {
 
   const itemVariants: Variants = {
     hidden: { opacity: 0, y: 20 },
-    show: { 
-      opacity: 1, 
-      y: 0, 
-      transition: { duration: 0.8, ease: "easeOut" } 
+    show: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.8, ease: "easeOut" }
     },
   };
 
@@ -28,7 +28,7 @@ export default function AboutHero() {
       {/* Background depth - matching the premium convergent style */}
       <div className="absolute inset-0 bg-bg-primary -z-10" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(34,197,204,0.08),transparent_70%)] -z-10" />
-      
+
       {/* Subtle Grid Pattern Overlay */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] -z-10 opacity-60" />
 
@@ -45,22 +45,19 @@ export default function AboutHero() {
         </motion.div>
 
         <motion.h1 variants={itemVariants} className="font-black text-white mb-10 tracking-tighter text-balance w-full"
-            style={{ fontSize: "clamp(2.75rem, 6.5vw, 6.5rem)", lineHeight: "1.05" }}>
+          style={{ fontSize: "clamp(2.75rem, 6.5vw, 6.5rem)", lineHeight: "1.05" }}>
           Technology That Strengthens <br className="hidden md:block" />
           <span className="text-brand-teal">Financial Relationships</span>
         </motion.h1>
-        
+
         {/* Refined Subtitle */}
-        <motion.div 
-          variants={itemVariants} 
+        <motion.div
+          variants={itemVariants}
           className="text-text-secondary font-medium max-w-[1000px] mx-auto leading-relaxed opacity-90 space-y-6 text-center"
           style={{ fontSize: "clamp(1rem, 1.15vw, 1.25rem)" }}
         >
           <p className="text-pretty">
-            ConvergentAI helps banks, credit unions, and mortgage lenders respond to customers wherever they are, whenever they show interest. Our AI voice, chat, and avatar experiences provide immediate guidance, answer questions within set guidelines, and connect customers to the right human expert when needed. The result is faster engagement that enhances the relationship-driven service financial institutions are built on.
-          </p>
-          <p className="text-pretty">
-            Until now, there’s been a disconnect. Customers expect answers the moment they have a question, but financial decisions still require trust, context, and human connection. ConvergentAI was created to close that gap.
+            ConvergentAI helps financial institutions engage customers instantly via AI voice, chat, and avatars. Our platform provides immediate guidance within secure guidelines, seamlessly connecting users to human experts when needed. By bridging the gap between instant answers and trusted human connection, we ensure technology strengthens relationships rather than replacing them.
           </p>
           <p className="text-brand-teal font-black text-pretty">
             We believe technology should strengthen relationships, not replace them.

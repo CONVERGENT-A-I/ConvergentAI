@@ -14,7 +14,12 @@ export default function FeatureDetails() {
       ),
       description: (
         <>
-          The core intelligence layer of <span className="text-white font-bold">ConvergentAI</span>, featuring AI-powered voice and lifelike avatars that deliver natural, <span className="text-brand-teal font-bold text-base md:text-lg">24/7</span> Applicant service. Our engine facilitates virtual receptionist duties, intelligent call routing, and automated scheduling for callbacks and meetings, alongside proactive outbound calls to promote refinancing or provide loan status updates. It ensures consistent, empathetic guidance across every phygital touchpoint, reducing wait times while maintaining a human feel that keeps Applicants engaged during high-stakes banking journeys. Responses to mortgage Applicant questions are grounded in <span className="text-brand-teal font-bold">Freddie Mac and Fannie Mae</span> guidelines and operate under strict guardrails, regulations, and <span className="text-brand-teal font-bold">S.A.F.E.</span> requirements.
+          <p className="mb-6">
+            <span className="text-white font-bold">ConvergentAI’s</span> conversational AI layer supports voice, chat, and avatar-based engagement for customers who need immediate answers or guided next steps. The platform can serve as a digital concierge, product guide, appointment scheduler, routing assistant, and first-response layer for high-intent inquiries.
+          </p>
+          <p>
+            For mortgage conversations, responses can use approved institutional content aligned with relevant <span className="text-brand-teal font-bold">Fannie Mae, Freddie Mac, HUD,</span> and <span className="text-brand-teal font-bold">S.A.F.E. Act</span> requirements, with configurable guardrails, escalation paths, and human oversight to support responsible customer engagement.
+          </p>
         </>
       )
     },
@@ -27,7 +32,9 @@ export default function FeatureDetails() {
       ),
       description: (
         <>
-          A unified orchestration layer that bridges the gap between digital research and physical branch engagement. By automating the hand-off between <span className="text-white font-bold">AI avatars and human loan officers</span>, we eliminate the friction points where <span className="text-brand-teal font-bold">institutional</span> Applicants typically drop off, maximizing application completion rates through intelligent routing.
+          <p>
+            <span className="text-white font-bold">ConvergentAI</span> reduces the friction that causes high-intent customers to drop off between digital research and human support. Intelligent routing uses availability, role, product expertise, and follow-up rules to direct high-intent conversations to the right specialist with context intact.
+          </p>
         </>
       )
     },
@@ -35,25 +42,29 @@ export default function FeatureDetails() {
       title: (
         <>
           Secure <br />
-          <span className="text-white tracking-tighter tracking-tight italic">Integrations</span>
+          <span className="text-brand-teal tracking-tighter">Integrations</span>
         </>
       ),
       description: (
         <>
-          Our platform integrates seamlessly with existing <span className="text-brand-teal font-bold">core systems and CRMs</span> to perform adaptive security checks and soft credit pulls. Designed at the enterprise grade, this architecture ensures every omnichannel message and Applicant document is handled with total data integrity and regulatory compliance.
+          <p>
+            <span className="text-white font-bold">ConvergentAI</span> connects with the systems financial institutions already use, including CRM, contact center, loan origination, scheduling, and secure communication platforms. These integrations help teams verify information, manage customer interactions, support secure document workflows, and keep qualified customers moving through their journey with less friction.
+          </p>
         </>
       )
     },
     {
       title: (
         <>
-          MLO <br />
-          <span className="text-brand-teal tracking-tighter italic">Experience Tools</span>
+          Lending Team <br />
+          <span className="text-brand-teal tracking-tighter">Experience Tools</span>
         </>
       ),
       description: (
         <>
-          Equip <span className="text-brand-teal font-bold italic">MLOs</span> with tools that elevate every Applicant interaction and drive online conversions — including <span className="text-white font-bold uppercase tracking-widest text-xs md:text-sm">digital eSign, secure co-browse,</span> seamless mortgage application integration into your LOS and multiperson HD quality video communication.
+          <p>
+            Give Mortgage Loan Originators and lending specialists the tools to continue customer conversations smoothly, including secure co-browsing, digital eSign support, <span className="text-white font-bold">Loan Origination System</span> visibility, and multiperson video communication.
+          </p>
         </>
       )
     }
@@ -69,22 +80,22 @@ export default function FeatureDetails() {
 
   const itemVariants: Variants = {
     hidden: { opacity: 0, x: -50, scale: 0.95 },
-    show: { 
-      opacity: 1, 
-      x: 0, 
+    show: {
+      opacity: 1,
+      x: 0,
       scale: 1,
-      transition: { 
+      transition: {
         type: "spring",
         stiffness: 60,
         damping: 15,
         duration: 0.8
-      } 
+      }
     },
   };
 
   return (
     <section className="bg-bg-primary py-24 md:py-32 px-8 md:px-12 lg:px-24 overflow-hidden">
-      <motion.div 
+      <motion.div
         className="max-w-[1400px] mx-auto"
         variants={containerVariants}
         initial="hidden"
@@ -122,9 +133,9 @@ export default function FeatureDetails() {
                 {/* Horizontal Accent Line */}
                 <div className="w-16 h-px bg-brand-teal/40 mb-2 md:mb-4" />
 
-                <p className="text-text-secondary font-medium leading-[1.7] text-pretty" style={{ fontSize: "clamp(1rem, 1.25vw, 1.35rem)" }}>
+                <div className="text-text-secondary font-medium leading-[1.7] text-pretty" style={{ fontSize: "clamp(1rem, 1.25vw, 1.35rem)" }}>
                   {detail.description}
-                </p>
+                </div>
               </div>
             </motion.div>
           ))}
