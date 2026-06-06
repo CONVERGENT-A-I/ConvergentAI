@@ -170,7 +170,23 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
       instructions: interactiveInstructions,
     });
 
-    // Interactive "VAD" Agent 
+    // Log Gemini model capabilities — critical for diagnosing TranscriptionSynchronizer behavior
+    // If nativeTranscriptSync is false/missing, the synchronizer gates TEXT on audio playout
+    // which causes the "full text appears then audio resumes" symptom.
+    const modelCapabilities = (model as any).capabilities;
+    console.log(`[agent-debug]: 🔬 Gemini model capabilities:`, JSON.stringify(modelCapabilities));
+    console.log(`[agent-debug]: 🔬 nativeTranscriptSync = ${modelCapabilities?.nativeTranscriptSync}`);
+
+    // Interactive "VAD" Agent
+    // FIX: Removed preemptiveGeneration — it caused the agent to start speaking before VAD
+    // confirmed end-of-turn, then get interrupted by continued user audio (noise/speech),
+    // which killed the mid-stream generation. The observable symptom was Ailana speaking 2-3
+    // words, stopping, the full text appearing in chat, then audio resuming.
+    //
+    // FIX: Increased endpointing.minDelay from 200ms → 500ms and interruption.minDuration
+    // from 200ms → 500ms. The prior 200ms thresholds were too aggressive — transient
+    // network jitter, background noise, or the VAD's own tail silence during normal
+    // speech were enough to trigger false end-of-turns and false interruptions.
     const vadAgent = new voice.Agent({
       instructions: interactiveInstructions,
       vad: sessionVad,
@@ -178,12 +194,15 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
       turnHandling: {
         turnDetection: 'vad',
         endpointing: {
-          minDelay: 200, // Reduced from 300ms for ultra-fast turn recognition
+          minDelay: 300, // Increased: 200ms was causing false end-of-turns mid-response
         },
         interruption: {
-          minDuration: 200, // Reduced from 250ms for faster interruption handling
+          minDuration: 250, // Increased: 200ms was causing false interruptions on noise/jitter
         },
-        preemptiveGeneration: {},
+        // Disabled: preemptiveGeneration was the primary cause of mid-speech stops.
+        // It starts audio before VAD confirms turn-end, then noise interrupts it,
+        // killing the stream mid-sentence. { enabled: false } is the type-safe way to disable it.
+        preemptiveGeneration: { enabled: false },
       },
     });
 
@@ -198,7 +217,19 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
     });
 
     session.on(voice.AgentSessionEventTypes.AgentStateChanged, (state: any) => {
-      console.log(`[agent-debug]: Agent state changed to: ${state}`);
+      const ts = new Date().toISOString();
+      console.log(`[agent-debug]: [${ts}] 🔄 Agent state → ${state}`);
+    });
+
+    // Track generation events to identify where audio stops
+    session.on('agentSpeechStarted' as any, () => {
+      console.log(`[agent-debug]: [${new Date().toISOString()}] 🔊 Agent speech STARTED`);
+    });
+    session.on('agentSpeechCommitted' as any, () => {
+      console.log(`[agent-debug]: [${new Date().toISOString()}] ✅ Agent speech COMMITTED (full response sent)`);
+    });
+    session.on('agentSpeechInterrupted' as any, () => {
+      console.log(`[agent-debug]: [${new Date().toISOString()}] ⚡ Agent speech INTERRUPTED — this is the cut-off trigger`);
     });
 
     // // Ensure intro audio is ready before handling triggers
