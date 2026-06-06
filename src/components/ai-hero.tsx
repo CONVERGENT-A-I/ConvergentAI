@@ -16,31 +16,31 @@ export default function AIHero() {
 
   const leftVariants: Variants = {
     hidden: { opacity: 0, x: -80 },
-    show: { 
-      opacity: 1, 
-      x: 0, 
-      transition: { 
+    show: {
+      opacity: 1,
+      x: 0,
+      transition: {
         type: "spring",
         stiffness: 60,
         damping: 15,
         duration: 0.8
-      } 
+      }
     },
   };
 
   const rightVariants: Variants = {
     hidden: { opacity: 0, scale: 0.85, x: 80 },
-    show: { 
-      opacity: 1, 
-      scale: 1, 
-      x: 0, 
-      transition: { 
+    show: {
+      opacity: 1,
+      scale: 1,
+      x: 0,
+      transition: {
         type: "spring",
         stiffness: 50,
         damping: 15,
         duration: 1,
         delay: 0.2
-      } 
+      }
     },
   };
 
@@ -52,7 +52,7 @@ export default function AIHero() {
       {/* Subtle Grid Pattern */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] -z-10" />
 
-      <motion.div 
+      <motion.div
         className="max-w-[1600px] mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24 items-center"
         variants={containerVariants}
         initial="hidden"
@@ -64,15 +64,13 @@ export default function AIHero() {
 
           <h1 className="font-black text-white leading-[1.05] tracking-tight text-balance"
             style={{ fontSize: "clamp(2.5rem, 5vw, 4.5rem)" }}>
-            Grow Mortgage Volume <br className="hidden xl:block" />
-            with <span className="text-brand-teal">AI Voice & Avatars</span>
+            AI Conversations <br className="hidden xl:block" />
+            <span className="text-brand-teal">That Feel More Human</span>
           </h1>
 
           <p className="text-text-secondary max-w-xl font-medium leading-relaxed opacity-90"
             style={{ fontSize: "clamp(1rem, 1.25vw, 1.25rem)" }}>
-            Elevate Applicant engagement with realistic video agents and
-            interactions for mortgage and beyond. Boost conversions with human-like
-            conversational intelligence.
+            Give customers immediate guidance through natural voice, chat, and avatar experiences, with clear pathways to real human experts when personal support is needed.
           </p>
 
           <Link

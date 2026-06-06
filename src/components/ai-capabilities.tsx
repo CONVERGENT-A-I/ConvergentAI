@@ -6,19 +6,19 @@ export default function AICapabilities() {
   const capabilities = [
     {
       title: "Fast Response Times",
-      description: "AI that thinks as fast as your Applicants. Ensure no-lag interactions during critical mortgage queries and Applicant service requests.",
+      description: "Respond the moment customers are ready to ask a question, compare options, or take the next step.",
     },
     {
-      title: "Precise Lip Sync",
-      description: "Visual realism that builds trust. Our avatars mirror human speech patterns with pixel-perfect synchronization for authentic rapport.",
+      title: "Natural Voice and Visual Timing",
+      description: "Create smooth avatar conversations with coordinated voice, expression, and pacing for an easy-to-follow experience.",
     },
     {
       title: "Low Latency",
-      description: "Natural flow, no awkward pauses. Conversational speed that matches human expectations for frictionless Applicant engagement.",
+      description: "Reduce awkward pauses so voice and avatar interactions feel fluid, responsive, and natural.",
     },
     {
-      title: "Unmatched Realism",
-      description: "Choose the face and voice that resonate with your brand. Build video agents with unmatched realism that Applicants can speak with instantly.",
+      title: "Brand-Aligned Personas",
+      description: "Choose voice, appearance, tone, and behavior settings that reflect your institution’s brand, community, and customer expectations.",
     },
   ];
 
@@ -75,7 +75,7 @@ export default function AICapabilities() {
              Core Capabilities
            </h2>
            <div className="text-[10px] md:text-xs font-black uppercase tracking-[0.4em] text-white/30">
-             Next-Gen Conversational AI
+             Conversational AI for Trusted Financial Interactions
            </div>
         </motion.div>
 
