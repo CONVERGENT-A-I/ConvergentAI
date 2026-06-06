@@ -10,18 +10,18 @@ export default function CaseStudies() {
   const cases = [
     {
       image: f3,
-      title: "Mortgage Acceleration Rollout",
-      stat: "+25% digital mortgage completions"
+      title: "Digital Mortgage Completion",
+      description: "AI-guided mortgage support can help applicants move through digital next steps with less friction, faster answers, and clearer access to lending help.",
     },
     {
       image: f4,
-      title: "AI BranchPortal Expansion",
-      stat: "+35% engagement in non-business hours"
+      title: "After-Hours Engagement",
+      description: "Always-available AI engagement can help capture customer interest when branches and contact centers are closed, keeping high-intent conversations from going cold.",
     },
     {
       image: f5,
-      title: "Regional Applicant Growth",
-      stat: "+20% cross-sell conversion rate"
+      title: "Cross-Sell Conversion",
+      description: "Conversational engagement can help identify relevant customer needs and route qualified opportunities to the right product team or specialist.",
     }
   ];
 
@@ -99,16 +99,11 @@ export default function CaseStudies() {
 
               {/* Case Study Details */}
               <div className="px-6 space-y-4">
-                <span className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] text-white/50">
-                  Case Study
-                </span>
-
                 <h3 className="text-2xl md:text-3xl font-black text-white leading-tight tracking-tight">
                   {cs.title}
                 </h3>
-
-                <p className="text-brand-teal font-bold text-sm md:text-base tracking-wide">
-                  {cs.stat}
+                <p className="text-text-secondary font-medium leading-relaxed text-sm md:text-base opacity-80 text-pretty">
+                  {cs.description}
                 </p>
               </div>
             </motion.div>
