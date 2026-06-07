@@ -177,22 +177,16 @@ Your goal: Sound like a sharp, friendly mortgage advisor — brief, confident, a
     console.log(`[agent-debug]: 🔬 Gemini model capabilities:`, JSON.stringify(modelCapabilities));
     console.log(`[agent-debug]: 🔬 nativeTranscriptSync = ${modelCapabilities?.nativeTranscriptSync}`);
 
-    // Interactive "VAD" Agent
-    // FIX: Removed preemptiveGeneration — it caused the agent to start speaking before VAD
-    // confirmed end-of-turn, then get interrupted by continued user audio (noise/speech),
-    // which killed the mid-stream generation. The observable symptom was Ailana speaking 2-3
-    // words, stopping, the full text appearing in chat, then audio resuming.
-    //
-    // FIX: Increased endpointing.minDelay from 200ms → 500ms and interruption.minDuration
-    // from 200ms → 500ms. The prior 200ms thresholds were too aggressive — transient
-    // network jitter, background noise, or the VAD's own tail silence during normal
-    // speech were enough to trigger false end-of-turns and false interruptions.
+    // Interactive Agent
+    // FIX: Removed `vad: sessionVad` and set `turnDetection: 'realtime_llm'`.
+    // The Gemini 3.1 RealtimeModel handles turn detection server-side.
+    // Keeping local Silero VAD active caused a pipeline conflict, latency,
+    // and the warning: "turnDetection is set to vad, but the LLM is a RealtimeModel... ignoring"
     const vadAgent = new voice.Agent({
       instructions: interactiveInstructions,
-      vad: sessionVad,
       llm: model,
       turnHandling: {
-        turnDetection: 'vad',
+        turnDetection: 'realtime_llm', // Trust Gemini's built-in VAD
         endpointing: {
           minDelay: 300, // Increased: 200ms was causing false end-of-turns mid-response
         },
