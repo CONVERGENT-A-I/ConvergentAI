@@ -18,10 +18,10 @@ export default function Hero() {
 
   const itemVariants: Variants = {
     hidden: { opacity: 0, y: 20 },
-    show: { 
-      opacity: 1, 
-      y: 0, 
-      transition: { duration: 0.8, ease: "easeOut" } 
+    show: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.8, ease: "easeOut" }
     },
   };
 
@@ -33,7 +33,7 @@ export default function Hero() {
       {/* Subtle Grid Pattern */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] -z-10" />
 
-      <motion.div 
+      <motion.div
         className="max-w-7xl mx-auto flex flex-col items-center text-center"
         variants={containerVariants}
         initial="hidden"
@@ -53,7 +53,7 @@ export default function Hero() {
         {/* Main Headline */}
         <motion.h1 variants={itemVariants} className="text-fluid-h1 font-black text-white mb-8 tracking-tight">
           Turn Customer Interest <br />
-          <span className="text-brand-teal">Into Action with 24/7/365 Support</span>
+          <span className="text-brand-teal">Into Action with 24/7 Support</span>
         </motion.h1>
 
         {/* Subheadline / Description */}
