@@ -183,6 +183,7 @@ export default {
     // and the warning: "turnDetection is set to vad, but the LLM is a RealtimeModel... ignoring"
     const vadAgent = new voice.Agent({
       instructions: interactiveInstructions,
+      vad: sessionVad, // FIX: Restored local VAD for robust noise suppression & interruptions
       llm: model,
       turnHandling: {
         turnDetection: 'realtime_llm', // Trust Gemini's built-in VAD
@@ -270,7 +271,7 @@ export default {
               },
               contents: geminiContents,
               generationConfig: {
-                maxOutputTokens: 150,
+                maxOutputTokens: 200,
                 temperature: 0.6,
               },
             }),
