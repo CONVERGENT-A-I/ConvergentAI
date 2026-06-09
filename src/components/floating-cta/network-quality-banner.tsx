@@ -4,16 +4,13 @@ import { useEffect, useState } from "react";
 import { useLocalParticipant } from "@livekit/components-react";
 import { ConnectionQuality, ParticipantEvent } from "livekit-client";
 import { motion, AnimatePresence } from "framer-motion";
-import { Wifi, WifiOff } from "lucide-react";
+import { AlertTriangle, WifiOff } from "lucide-react";
 
 /**
  * NetworkQualityBanner
  *
- * Listens to LiveKit's ConnectionQualityChanged event on the local participant.
- * Shows a subtle floating pill at the top of the session when connection
- * quality degrades to Poor or Lost, so the user understands why the
- * AI's voice or video may be underperforming.
- *
+ * Thin, centered strip just below the channel-switcher header.
+ * Fades in from transparent to fully visible when quality is Poor or Lost.
  * Must be mounted inside a <LiveKitRoom> context.
  */
 export function NetworkQualityBanner() {
@@ -24,14 +21,9 @@ export function NetworkQualityBanner() {
 
   useEffect(() => {
     if (!localParticipant) return;
-
-    // Sync initial state
     setQuality(localParticipant.connectionQuality);
 
-    const onQualityChanged = (q: ConnectionQuality) => {
-      setQuality(q);
-    };
-
+    const onQualityChanged = (q: ConnectionQuality) => setQuality(q);
     localParticipant.on(ParticipantEvent.ConnectionQualityChanged, onQualityChanged);
     return () => {
       localParticipant.off(ParticipantEvent.ConnectionQualityChanged, onQualityChanged);
@@ -42,49 +34,59 @@ export function NetworkQualityBanner() {
   const isLost = quality === ConnectionQuality.Lost;
   const showBanner = isPoor || isLost;
 
+  const isRed = isLost;
+
   return (
     <AnimatePresence>
       {showBanner && (
         <motion.div
           key="network-quality-banner"
-          initial={{ opacity: 0, y: -8, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -8, scale: 0.95 }}
-          transition={{ type: "spring", stiffness: 400, damping: 30 }}
-          // Floats below the header, centred horizontally
-          className="absolute top-[62px] left-1/2 -translate-x-1/2 z-[210] pointer-events-none"
+          // Entrance: fade from fully transparent to visible
+          initial={{ opacity: 0 }}
+          animate={{
+            opacity: [0, 1, 0.75, 1], // fade in → subtle breathing
+          }}
+          exit={{ opacity: 0 }}
+          transition={{
+            duration: 1.6,
+            ease: "easeInOut",
+            times: [0, 0.4, 0.7, 1],
+          }}
+          // Centered horizontally, just below the header bar (~56px)
+          className="absolute top-[58px] left-1/2 -translate-x-1/2 z-[210] pointer-events-none"
         >
           <div
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-full border backdrop-blur-md shadow-lg text-xs font-semibold whitespace-nowrap
-              ${isLost
-                ? "bg-red-500/20 border-red-500/40 text-red-300 shadow-red-500/10"
-                : "bg-amber-500/15 border-amber-500/35 text-amber-300 shadow-amber-500/10"
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-full border backdrop-blur-md
+              ${isRed
+                ? "bg-red-950/80 border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.25)]"
+                : "bg-[#1a1000]/85 border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.25)]"
               }`}
           >
-            {/* Pulsing indicator dot */}
+            {/* Pulsing dot */}
             <motion.span
               animate={{ opacity: [1, 0.3, 1] }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-              className={`h-2 w-2 rounded-full shrink-0 ${isLost ? "bg-red-400" : "bg-amber-400"}`}
+              transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+              className={`h-1.5 w-1.5 rounded-full shrink-0 ${isRed ? "bg-red-400" : "bg-amber-400"}`}
             />
 
-            {/* Bold label */}
-            <span className={`font-black uppercase tracking-wider text-[10px] ${isLost ? "text-red-300" : "text-amber-300"}`}>
-              {isLost ? "⚠️ Connection Lost" : "⚠️ Weak Connection"}
+            {/* Icon */}
+            {isRed
+              ? <WifiOff className="h-3 w-3 text-red-400 shrink-0" />
+              : <AlertTriangle className="h-3 w-3 text-amber-400 shrink-0" />
+            }
+
+            {/* Label */}
+            <span className={`text-[10px] font-black uppercase tracking-[0.14em] ${isRed ? "text-red-400" : "text-amber-400"}`}>
+              {isRed ? "⚠️ Connection Lost" : "⚠️ Weak Connection"}
             </span>
 
-            {/* Vertical divider */}
-            <span className={`h-3.5 w-px shrink-0 ${isLost ? "bg-red-500/40" : "bg-amber-500/40"}`} />
+            {/* Divider */}
+            <span className={`h-3 w-px shrink-0 ${isRed ? "bg-red-500/40" : "bg-amber-500/40"}`} />
 
-            {/* Descriptive message */}
-            {isLost ? (
-              <WifiOff className="h-3.5 w-3.5 shrink-0 opacity-70" />
-            ) : (
-              <Wifi className="h-3.5 w-3.5 shrink-0 opacity-70" />
-            )}
-            <span className="font-medium opacity-80">
-              {isLost
-                ? "Trying to reconnect…"
+            {/* Message */}
+            <span className="text-[10px] font-medium text-white/55 whitespace-nowrap">
+              {isRed
+                ? "Reconnecting…"
                 : "Audio & video quality may be affected"}
             </span>
           </div>
