@@ -204,6 +204,7 @@ export default {
     const session = new voice.AgentSession({
       llm: model,
       userAwayTimeout: null,
+      // removed 3000ms check
     });
 
     session.on(voice.AgentSessionEventTypes.Error, (err: any) => {
