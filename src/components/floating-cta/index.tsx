@@ -38,6 +38,7 @@ import { AgentReadinessCheck } from "./agent-readiness-check";
 import { ChannelStartTrigger } from "./channel-start-trigger";
 import { MediaGuard } from "./media-guard";
 import { LoanOfficerLiveUI, LoanOfficerQueueUI } from "./loan-officer-queue";
+import { NetworkQualityBanner } from "./network-quality-banner";
 
 import VideoStage from "../video-stage";
 
@@ -943,14 +944,13 @@ export default function FloatingCTA() {
                                 }
                                 handleAIAction(m);
                               }}
-                              className={`flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 rounded-full text-[9px] sm:text-xs md:text-sm font-semibold transition-all whitespace-nowrap ${
-                                disabled ||
+                              className={`flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 rounded-full text-[9px] sm:text-xs md:text-sm font-semibold transition-all whitespace-nowrap ${disabled ||
                                 (pendingMode === "loan-officer" && m !== "loan-officer")
-                                  ? "opacity-25 text-gray-500 cursor-not-allowed"
-                                  : pendingMode === m
+                                ? "opacity-25 text-gray-500 cursor-not-allowed"
+                                : pendingMode === m
                                   ? "bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-md cursor-pointer"
                                   : "text-gray-400 hover:bg-white/10 hover:text-white cursor-pointer"
-                              }`}
+                                }`}
                             >
                               {icon}
                               <span>{label}</span>
@@ -1060,7 +1060,7 @@ export default function FloatingCTA() {
                             />
                           </motion.div>
                           <button
-                            onClick={() => {}}
+                            onClick={() => { }}
                             className="relative z-10 bg-[#0B0F19]/80 backdrop-blur-sm px-6 md:px-8 py-3 md:py-4 rounded-2xl shadow-lg border border-white/10 transform -translate-y-4 max-w-[280px] md:max-w-sm text-center cursor-pointer hover:bg-white/5 transition-colors"
                           >
                             <p className="text-gray-200 font-medium text-sm md:text-lg">
@@ -1208,6 +1208,7 @@ export default function FloatingCTA() {
                               <MloDetector onMloStatusChange={handleMloStatusChange} />
                               <MediaGuard mode={pendingMode} />
                               <ActivityTracker />
+                              <NetworkQualityBanner />
                               <ChannelStartTrigger
                                 isLivePhase={flowPhase === "live"}
                                 mode={pendingMode}
@@ -1240,17 +1241,15 @@ export default function FloatingCTA() {
                                 }
                               >
                                 <div
-                                  className={`flex-1 flex min-h-0 p-2 md:p-3 gap-2 md:gap-3 ${
-                                    pendingMode === "avatar-chat" ? "flex-col md:flex-row" : "flex-row"
-                                  }`}
+                                  className={`flex-1 flex min-h-0 p-2 md:p-3 gap-2 md:gap-3 ${pendingMode === "avatar-chat" ? "flex-col md:flex-row" : "flex-row"
+                                    }`}
                                 >
                                   {/* Left: Avatar Area */}
                                   <div
-                                    className={`relative rounded-2xl overflow-hidden bg-black shadow-xl ${
-                                      pendingMode === "avatar-chat"
-                                        ? "h-[42%] md:h-auto md:flex-1"
-                                        : "flex-1"
-                                    }`}
+                                    className={`relative rounded-2xl overflow-hidden bg-black shadow-xl ${pendingMode === "avatar-chat"
+                                      ? "h-[42%] md:h-auto md:flex-1"
+                                      : "flex-1"
+                                      }`}
                                   >
                                     {/* REC badge - only when connected and announcement started */}
                                     {isLkConnected &&
