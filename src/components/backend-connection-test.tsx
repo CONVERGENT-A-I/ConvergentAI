@@ -6,7 +6,7 @@ export default function BackendConnectionTest() {
   useEffect(() => {
     const checkConnection = async () => {
       try {
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://be.convergentai.tech" || "http://localhost:3001";
         const response = await fetch(`${backendUrl}/api/test`);
         const data = await response.json();
         if (data.status === "success") {
