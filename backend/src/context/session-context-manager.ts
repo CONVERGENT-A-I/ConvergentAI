@@ -130,12 +130,12 @@ export class SessionContextManager {
     }
   }
 
-  async maybeCompact(session: voice.AgentSession, agent: voice.Agent): Promise<boolean> {
+  async maybeCompact(session: voice.AgentSession, agent: voice.Agent, isIdle?: () => boolean): Promise<boolean> {
     if (this.compacting || !this.shouldCompact()) return false;
-    return this.compact(session, agent);
+    return this.compact(session, agent, isIdle);
   }
 
-  async compact(session: voice.AgentSession, agent: voice.Agent): Promise<boolean> {
+  async compact(session: voice.AgentSession, agent: voice.Agent, isIdle?: () => boolean): Promise<boolean> {
     if (this.compacting) return false;
     this.compacting = true;
 
@@ -160,9 +160,23 @@ export class SessionContextManager {
         return false;
       }
 
+      // Capture original item IDs to preserve newly arrived items
+      const originalItemIds = new Set(chatCtx.items.map(i => i.id));
+
       const summarized = await chatCtx._summarize(this.summarizationLlm, {
         keepLastTurns: ailanaConfig.keepRecentTurns,
       });
+
+      if (isIdle && !isIdle()) {
+        console.log('[context]: Agent is no longer idle after compact summarization. Aborting context update to prevent race conditions.');
+        return false;
+      }
+
+      // Restore any items that were added during the async summarize call
+      const newItems = session.chatCtx.items.filter(i => !originalItemIds.has(i.id));
+      if (newItems.length > 0) {
+        summarized.items.push(...newItems);
+      }
 
       this.extractSummaryFromCtx(summarized);
       await agent.updateChatCtx(summarized.copy({ excludeHandoff: true }));
@@ -199,23 +213,36 @@ export class SessionContextManager {
   async maybeRotate(
     session: voice.AgentSession,
     createAgent: () => voice.Agent,
+    isIdle?: () => boolean,
   ): Promise<boolean> {
     if (!this.shouldRotateSession()) return false;
-    return this.rotate(session, createAgent);
+    return this.rotate(session, createAgent, isIdle);
   }
 
   /**
    * Rotate: compact chat context + swap agent with SAME static instructions.
    * Summary stays in chat context only — never duplicated in instructions.
    */
-  async rotate(session: voice.AgentSession, createAgent: () => voice.Agent): Promise<boolean> {
+  async rotate(session: voice.AgentSession, createAgent: () => voice.Agent, isIdle?: () => boolean): Promise<boolean> {
     try {
       const chatCtx = session.chatCtx;
 
       if (chatCtx.items.length > 2) {
+        const originalItemIds = new Set(chatCtx.items.map(i => i.id));
         const summarized = await chatCtx._summarize(this.summarizationLlm, {
           keepLastTurns: 2,
         });
+
+        if (isIdle && !isIdle()) {
+          console.log('[context]: Agent is no longer idle after rotate summarization. Aborting context update to prevent race conditions.');
+          return false;
+        }
+
+        const newItems = session.chatCtx.items.filter(i => !originalItemIds.has(i.id));
+        if (newItems.length > 0) {
+          summarized.items.push(...newItems);
+        }
+
         this.extractSummaryFromCtx(summarized);
         const newAgent = createAgent();
         session.updateAgent(newAgent);

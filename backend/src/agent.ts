@@ -93,9 +93,12 @@ export default {
           (item: any) => item.type !== 'agent_handoff'
         );
       }
-      await contextManager.maybeCompact(session, vadAgent);
-      await contextManager.maybeRotate(session, createAgentForRotation);
+      const isIdle = () => currentAgentState === 'listening';
+      await contextManager.maybeCompact(session, vadAgent, isIdle);
+      await contextManager.maybeRotate(session, createAgentForRotation, isIdle);
     };
+
+    let currentAgentState = 'connecting';
 
     session.on(voice.AgentSessionEventTypes.Error, (err: any) => {
       if (err?.message?.includes('audio_end_ms')) return;
@@ -106,9 +109,13 @@ export default {
       const oldState = ev.oldState ?? ev;
       const newState = ev.newState ?? ev;
       if (typeof oldState === 'string' && typeof newState === 'string') {
+        currentAgentState = newState;
         console.log(`[agent-debug]: Agent state: ${oldState} → ${newState}`);
         if (newState === 'speaking' && oldState === 'thinking') {
           metrics.markAgentSpeaking();
+        }
+        if (newState === 'listening' && (session as any)._started && !voiceMuted && !isHibernating) {
+          prepareContext().catch(err => console.error('[agent-error]: Idle prepareContext failed:', err));
         }
       }
     });
@@ -118,9 +125,8 @@ export default {
       metrics.markUserTurnEnd();
       metrics.startTurn();
       contextManager.onUserTurn(ev.transcript);
-      if ((session as any)._started && !voiceMuted && !isHibernating) {
-        await prepareContext();
-      }
+      // Removed prepareContext here to prevent race conditions during interruptions.
+      // Context will be compacted when the agent goes back to 'listening' state.
     });
 
     session.on(voice.AgentSessionEventTypes.ConversationItemAdded, (ev: any) => {
@@ -240,7 +246,6 @@ export default {
 
         metrics.startTurn();
         metrics.markGenerateReply();
-        await prepareContext();
         session.generateReply({ userInput: RESUME_USER_INPUT });
         return;
       }
@@ -293,7 +298,6 @@ export default {
           await generateTextOnlyReply(messageText);
         } else {
           contextManager.onUserTurn(messageText);
-          await prepareContext();
           session.generateReply({ userInput: messageText });
         }
       } catch (err) {
