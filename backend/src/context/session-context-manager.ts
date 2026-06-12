@@ -1,6 +1,10 @@
 import { llm, type voice } from '@livekit/agents';
 import type { LLM } from '@livekit/agents-plugin-openai';
 import { ailanaConfig } from '../config/ailana-config.js';
+import {
+  getForceCompactTokenThreshold,
+  logContextBudget,
+} from './context-budget.js';
 import type { LatencyTracker } from '../metrics/latency-tracker.js';
 
 export type TurnLogEntry = {
@@ -16,6 +20,8 @@ export class SessionContextManager {
   private lastRotationAt = Date.now();
   private conversationSummary: string | null = null;
   private compacting = false;
+  /** Last input token count reported by Realtime API (includes audio + text). */
+  private lastInputTokens = 0;
 
   constructor(
     private readonly summarizationLlm: LLM,
@@ -35,6 +41,17 @@ export class SessionContextManager {
     this.turnLog.push({ role: 'assistant', text: trimmed, timestamp: Date.now() });
   }
 
+  /** Called from MetricsCollected — real token count from OpenAI Realtime. */
+  onRealtimeInputTokens(inputTokens: number): void {
+    if (inputTokens > 0) {
+      this.lastInputTokens = inputTokens;
+      logContextBudget({
+        inputTokens,
+        action: inputTokens >= getForceCompactTokenThreshold() ? 'over_latency_threshold' : 'metrics',
+      });
+    }
+  }
+
   getTurnCount(): number {
     return this.turnCount;
   }
@@ -43,7 +60,10 @@ export class SessionContextManager {
     return this.conversationSummary;
   }
 
-  /** Build OpenAI chat messages for text-only mode (summary + recent turns). */
+  getLastInputTokens(): number {
+    return this.lastInputTokens;
+  }
+
   buildTextMessages(systemPrompt: string): Array<{ role: string; content: string }> {
     const messages: Array<{ role: string; content: string }> = [
       { role: 'system', content: systemPrompt },
@@ -64,9 +84,14 @@ export class SessionContextManager {
     return messages;
   }
 
+  private shouldForceCompactByTokens(): boolean {
+    return this.lastInputTokens >= getForceCompactTokenThreshold();
+  }
+
   shouldCompact(): boolean {
     const ageMs = Date.now() - this.lastCompactAt;
     return (
+      this.shouldForceCompactByTokens() ||
       this.turnCount >= ailanaConfig.compactEveryNTurns ||
       ageMs >= ailanaConfig.compactEveryMs
     );
@@ -76,7 +101,8 @@ export class SessionContextManager {
     const ageMs = Date.now() - this.lastRotationAt;
     return (
       this.turnCount >= ailanaConfig.rotateEveryNTurns ||
-      ageMs >= ailanaConfig.rotateSessionMs
+      ageMs >= ailanaConfig.rotateSessionMs ||
+      this.lastInputTokens >= getForceCompactTokenThreshold() * 1.5
     );
   }
 
@@ -88,6 +114,20 @@ export class SessionContextManager {
       }
     }
     return Math.ceil(chars / 4);
+  }
+
+  private extractSummaryFromCtx(summarized: llm.ChatContext): void {
+    const summaryItem = summarized.items.find(
+      (item) =>
+        item.type === 'message' &&
+        item.role === 'assistant' &&
+        item.extra?.is_summary === true,
+    );
+    if (summaryItem && summaryItem.type === 'message') {
+      const raw = summaryItem.textContent ?? '';
+      const match = raw.match(/<chat_history_summary>\s*([\s\S]*?)\s*<\/chat_history_summary>/);
+      this.conversationSummary = match?.[1]?.trim() ?? raw.trim();
+    }
   }
 
   async maybeCompact(session: voice.AgentSession, agent: voice.Agent): Promise<boolean> {
@@ -102,8 +142,20 @@ export class SessionContextManager {
     try {
       const chatCtx = session.chatCtx;
       const itemsBefore = chatCtx.items.length;
+      const textTokensBefore = this.estimateTokensFromChatCtx(chatCtx);
 
-      if (itemsBefore <= ailanaConfig.keepRecentTurns * 2) {
+      logContextBudget({
+        inputTokens: this.lastInputTokens,
+        estimatedTextTokens: textTokensBefore,
+        itemCount: itemsBefore,
+        action: 'compact_start',
+      });
+
+      // Skip only if history is tiny AND tokens are low
+      if (
+        itemsBefore <= ailanaConfig.keepRecentTurns &&
+        !this.shouldForceCompactByTokens()
+      ) {
         this.lastCompactAt = Date.now();
         return false;
       }
@@ -112,34 +164,30 @@ export class SessionContextManager {
         keepLastTurns: ailanaConfig.keepRecentTurns,
       });
 
-      const summaryItem = summarized.items.find(
-        (item) =>
-          item.type === 'message' &&
-          item.role === 'assistant' &&
-          item.extra?.is_summary === true,
-      );
-
-      if (summaryItem && summaryItem.type === 'message') {
-        const raw = summaryItem.textContent ?? '';
-        const match = raw.match(/<chat_history_summary>\s*([\s\S]*?)\s*<\/chat_history_summary>/);
-        this.conversationSummary = match?.[1]?.trim() ?? raw.trim();
-      }
-
+      this.extractSummaryFromCtx(summarized);
       await agent.updateChatCtx(summarized);
 
       const itemsAfter = summarized.items.length;
+      const textTokensAfter = this.estimateTokensFromChatCtx(summarized);
+
       this.metrics.logCompaction(itemsBefore, itemsAfter);
-      this.metrics.logContextSize(itemsAfter, this.estimateTokensFromChatCtx(summarized));
+      this.metrics.logContextSize(itemsAfter, textTokensAfter);
+      logContextBudget({
+        inputTokens: this.lastInputTokens,
+        estimatedTextTokens: textTokensAfter,
+        itemCount: itemsAfter,
+        action: 'compact_done',
+      });
+
       this.lastCompactAt = Date.now();
       this.turnCount = 0;
 
       console.log(
-        `[context]: Compacted ${itemsBefore} → ${itemsAfter} items (keeping last ${ailanaConfig.keepRecentTurns} turns)`,
+        `[context]: Compacted ${itemsBefore}→${itemsAfter} items, ~${textTokensBefore}→${textTokensAfter} text tokens (last API input: ${this.lastInputTokens})`,
       );
       return true;
     } catch (err) {
       console.error('[context]: Compaction failed:', err);
-      // Prevent immediate retries on every turn by resetting the clock
       this.lastCompactAt = Date.now();
       this.turnCount = 0;
       return false;
@@ -150,52 +198,48 @@ export class SessionContextManager {
 
   async maybeRotate(
     session: voice.AgentSession,
-    createAgent: (summary: string | null) => voice.Agent,
+    createAgent: () => voice.Agent,
   ): Promise<boolean> {
     if (!this.shouldRotateSession()) return false;
     return this.rotate(session, createAgent);
   }
 
-  async rotate(
-    session: voice.AgentSession,
-    createAgent: (summary: string | null) => voice.Agent,
-  ): Promise<boolean> {
+  /**
+   * Rotate: compact chat context + swap agent with SAME static instructions.
+   * Summary stays in chat context only — never duplicated in instructions.
+   */
+  async rotate(session: voice.AgentSession, createAgent: () => voice.Agent): Promise<boolean> {
     try {
-      // Ensure we have an up-to-date summary before rotation
       const chatCtx = session.chatCtx;
-      if (chatCtx.items.length > 4) {
+
+      if (chatCtx.items.length > 2) {
         const summarized = await chatCtx._summarize(this.summarizationLlm, {
           keepLastTurns: 2,
         });
-        const summaryItem = summarized.items.find(
-          (item) =>
-            item.type === 'message' &&
-            item.role === 'assistant' &&
-            item.extra?.is_summary === true,
-        );
-        if (summaryItem && summaryItem.type === 'message') {
-          const raw = summaryItem.textContent ?? '';
-          const match = raw.match(/<chat_history_summary>\s*([\s\S]*?)\s*<\/chat_history_summary>/);
-          this.conversationSummary = match?.[1]?.trim() ?? raw.trim();
-        }
-        const newAgent = createAgent(this.conversationSummary);
+        this.extractSummaryFromCtx(summarized);
+        const newAgent = createAgent();
         session.updateAgent(newAgent);
         await newAgent.updateChatCtx(summarized);
       } else {
-        const newAgent = createAgent(this.conversationSummary);
-        session.updateAgent(newAgent);
+        session.updateAgent(createAgent());
       }
 
       this.metrics.logRotation('scheduled');
+      logContextBudget({
+        inputTokens: this.lastInputTokens,
+        itemCount: session.chatCtx.items.length,
+        action: 'rotation_done',
+      });
+
       this.lastRotationAt = Date.now();
       this.lastCompactAt = Date.now();
       this.turnCount = 0;
+      this.lastInputTokens = 0;
 
-      console.log('[context]: Session rotated with summary reseed');
+      console.log('[context]: Session rotated (static instructions, summary in chat ctx only)');
       return true;
     } catch (err) {
       console.error('[context]: Session rotation failed:', err);
-      // Prevent immediate retries on every turn by resetting the clock
       this.lastRotationAt = Date.now();
       this.lastCompactAt = Date.now();
       this.turnCount = 0;

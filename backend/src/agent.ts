@@ -9,10 +9,11 @@ import { SessionContextManager } from './context/session-context-manager.js';
 import { LatencyTracker } from './metrics/latency-tracker.js';
 import {
   buildBaseInstructions,
-  buildInteractiveInstructions,
+  buildVoiceInstructions,
   GREETING_USER_INPUT,
   RESUME_USER_INPUT,
 } from './prompts/index.js';
+import { logPromptBudget } from './context/context-budget.js';
 
 dotenv.config();
 
@@ -61,15 +62,17 @@ export default {
       },
     };
 
-    const createVadAgent = (conversationSummary?: string | null) =>
+    const createVadAgent = () =>
       new voice.Agent({
-        instructions: buildInteractiveInstructions(conversationSummary ?? undefined),
+        instructions: buildVoiceInstructions(),
         vad: sessionVad,
         llm: model,
         turnHandling,
       });
 
-    let vadAgent = createVadAgent(null);
+    let vadAgent = createVadAgent();
+    logPromptBudget('voice_static', buildVoiceInstructions());
+    logPromptBudget('text_full', buildBaseInstructions());
     let voiceMuted = false;
     let isHibernating = false;
 
@@ -78,8 +81,8 @@ export default {
       userAwayTimeout: null,
     });
 
-    const createAgentForRotation = (summary: string | null) => {
-      vadAgent = createVadAgent(summary);
+    const createAgentForRotation = () => {
+      vadAgent = createVadAgent();
       return vadAgent;
     };
 
@@ -135,6 +138,7 @@ export default {
       const m = ev.metrics;
       if (m?.type === 'realtime_model_metrics') {
         metrics.recordRealtimeMetrics(m.ttftMs ?? -1, m.inputTokens ?? 0);
+        contextManager.onRealtimeInputTokens(m.inputTokens ?? 0);
       }
     });
 
@@ -162,7 +166,7 @@ export default {
           body: JSON.stringify({
             model: ailanaConfig.textModel,
             messages: messages.slice(-24),
-            max_tokens: 200,
+            max_tokens: 280,
             temperature: 0.7,
           }),
         });
@@ -342,7 +346,7 @@ export default {
     await ctx.connect();
     console.log(`[agent]: Connected to room: ${ctx.room.name}`);
     console.log(
-      `[agent]: Ready — model=${ailanaConfig.realtimeModel}, prompt=${ailanaConfig.promptVersion}, compactEvery=${ailanaConfig.compactEveryNTurns} turns`,
+      `[agent]: Ready — model=${ailanaConfig.realtimeModel}, prompt=${ailanaConfig.promptVersion}, compact@${ailanaConfig.compactEveryNTurns} turns / ${ailanaConfig.forceCompactInputTokens} tokens`,
     );
   },
 };
