@@ -171,8 +171,8 @@ export default {
           body: JSON.stringify({
             model: ailanaConfig.textModel,
             messages: messages.slice(-24),
-            max_tokens: 280,
-            temperature: 0.7,
+            max_tokens: 200,
+            temperature: 0.6,
           }),
         });
 
