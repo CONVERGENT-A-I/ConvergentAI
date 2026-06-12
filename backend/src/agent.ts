@@ -216,6 +216,19 @@ export default {
         isHibernating = true;
         console.log(`[agent]: Agent hibernating. Initiating SIP transfer...`);
 
+        // Stop current LLM/TTS generation
+        try {
+          if ((session as any)._started) {
+            session.interrupt();
+          }
+        } catch (e) {
+          console.warn('[agent]: Failed to interrupt session:', e);
+        }
+
+        // Mute the agent's microphone track so it cannot be heard by anyone in the room
+        // (Removing invalid track?.mute() - session.interrupt() combined with setSubscribed(false) is sufficient)
+
+        // Stop listening to all current users
         for (const p of ctx.room.remoteParticipants.values()) {
           for (const pub of p.trackPublications.values()) {
             if (pub.subscribed) pub.setSubscribed(false);
@@ -237,6 +250,9 @@ export default {
       if (messageText === 'SYSTEM_RESUME_AGENT') {
         isHibernating = false;
         console.log(`[agent]: Agent waking up from hibernation.`);
+
+        // Unmute the agent's microphone track
+        // (Removed track?.unmute() as it is no longer needed)
 
         for (const p of ctx.room.remoteParticipants.values()) {
           for (const pub of p.trackPublications.values()) {
@@ -312,6 +328,18 @@ export default {
         await handleSystemMessages(msg.message, identity);
       } catch (err) {
         console.error(`[agent-error]: ChatMessage handler:`, err);
+      }
+    });
+
+    ctx.room.on(RoomEvent.TrackPublished, (pub, participant) => {
+      if (isHibernating) {
+        pub.setSubscribed(false);
+      }
+    });
+
+    ctx.room.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
+      if (isHibernating) {
+        pub.setSubscribed(false);
       }
     });
 
