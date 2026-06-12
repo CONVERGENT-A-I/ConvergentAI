@@ -6,8 +6,8 @@ export default function BackendConnectionTest() {
   useEffect(() => {
     const checkConnection = async () => {
       try {
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://be.convergentai.tech" || "http://localhost:3001";
-        const response = await fetch(`${backendUrl}/api/test`);
+        // The /api/test route is served by the Next.js app itself, not the LiveKit agent backend
+        const response = await fetch(`/api/test`);
         const data = await response.json();
         if (data.status === "success") {
           console.log("✅ [ConvergentAI] Backend Connection: SUCCESS");

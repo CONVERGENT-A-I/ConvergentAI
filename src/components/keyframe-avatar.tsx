@@ -320,8 +320,15 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
         if (!isConnectedRef.current || !sessionRef.current) return;
         const f32 = e.data;
         const i16 = new Int16Array(f32.length);
+        // Previous configuration (standard volume, commented out):
+        // for (let i = 0; i < f32.length; i++) {
+        //   const c = Math.max(-1, Math.min(1, f32[i]));
+        //   i16[i] = c < 0 ? c * 32768 : c * 32767;
+        // }
+        // New configuration (amplify voice volume to 300%):
+        const GAIN_FACTOR = 3.0; 
         for (let i = 0; i < f32.length; i++) {
-          const c = Math.max(-1, Math.min(1, f32[i]));
+          const c = Math.max(-1, Math.min(1, f32[i] * GAIN_FACTOR));
           i16[i] = c < 0 ? c * 32768 : c * 32767;
         }
         sessionRef.current.sendAudio(new Uint8Array(i16.buffer));

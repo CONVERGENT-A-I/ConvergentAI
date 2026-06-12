@@ -101,3 +101,41 @@ Verify that the conversational flow triggers human assistance smoothly:
 * **Scheduling**: *"How do I schedule a phone call or meeting with someone?"*
 * **Agent Handoff**: *"I'm stuck on this application step. Can someone join my screen or help me?"*
 * **Live Chat**: *"Are there any live representatives online right now?"*
+
+---
+
+## 8. Latency & Conversational Flow Test Scripts (Roleplay)
+Use these multi-step conversational flows to test Ailana's real-time latency, context window retention, and interruption handling. Speak these in sequence:
+
+### Flow A: The Quick Refinance Query (Rapid Fire & Context)
+*Objective: Test how quickly Ailana responds to simple queries, and how well she links pronouns like "it" to previous turns.*
+1. **User**: *"Hey Ailana, I'm thinking about refinancing my home."*
+   * *Ailana's expected response: Greet the user, confirm she can help, and ask what their main goal is (e.g., lower payment, cash-out).*
+2. **User**: *"I want to get a lower monthly payment. How does that work?"*
+   * *Ailana's expected response: Explain that refinancing replaces the current loan with a new one at a lower interest rate or longer term.*
+3. **User**: *"How much does it cost to do that?"*
+   * *Ailana's expected response: Explain closing costs (typically 2% to 5% of the loan amount).*
+4. **User**: *"Got it. Can I roll those costs into the new loan?"*
+   * *Ailana's expected response: Explain that many programs allow rolling closing costs into the loan balance, but it increases the loan size and reduces equity.*
+5. **User**: *"Okay, tell me the next step then."*
+   * *Ailana's expected response: Advise checking credit score/documentation or connecting with a specialist.*
+
+### Flow B: The First-Time Buyer Interruption Test (Active Interruption)
+*Objective: Measure the time-to-first-byte (TTFT) and test the agent's ability to handle active user interruptions mid-speech.*
+1. **User**: *"Hi, I'm a first-time homebuyer and I'm totally lost. Help me out."*
+   * *Ailana's expected response: Greet warmly, outline standard starting steps (budgeting, pre-approval).*
+2. **User**: *(Wait for Ailana to begin speaking, then interrupt her mid-sentence)*: *"Wait, how much down payment do I actually need?"*
+   * *Ailana's expected response: She should immediately stop her current speech stream, recognize the interruption, and answer the down payment question directly (e.g., stating options as low as 3% to 3.5%).*
+3. **User**: *"Is there a program specifically for people with low credit?"*
+   * *Ailana's expected response: Mention FHA loans as a common program for lower credit scores.*
+
+### Flow C: The DTI Ratio Deep Dive (Calculations & Compliance)
+*Objective: Verify how well Ailana processes complex questions, maintains conversational flow, and routes to specialists.*
+1. **User**: *"I have some credit card debt. Will that stop me from buying a house?"*
+   * *Ailana's expected response: Reassure the user that debt won't automatically stop them, but it impacts their debt-to-income (DTI) ratio.*
+2. **User**: *"What is that ratio, and how do you calculate it?"*
+   * *Ailana's expected response: Explain that DTI is monthly debt payments divided by gross monthly income, expressed as a percentage.*
+3. **User**: *"My gross income is $6,000 and my debts are $1,500. Calculate my DTI."*
+   * *Ailana's expected response: Calculate the ratio (25%) and explain that it's well within typical guidelines.*
+4. **User**: *"Great, so can you guarantee I'll get approved for a mortgage?"*
+   * *Ailana's expected response (Compliance Guardrail): Decline to guarantee approval, state that underwriting reviews multiple factors, and offer to route the conversation to a licensed Loan Officer.*

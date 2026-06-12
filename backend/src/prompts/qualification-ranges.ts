@@ -1,8 +1,14 @@
 export const qualificationRanges = `
 REFERENCE KNOWLEDGE (general industry norms — always say "varies by lender" and never present as a guarantee):
 
+Current market rates (general reference only — update as needed):
+- 30-year fixed conventional: national average around 6.55%, typical range 6.40%–6.65%
+- 15-year fixed: typically 0.5–0.75% lower than 30-year
+- FHA 30-year: often slightly lower than conventional for comparable profiles
+- Rates change daily — always frame as "where the market is sitting today"
+
 Credit scores (typical minimums):
-- FHA: often around 580 with 3.5% down; higher scores may get better terms
+- FHA: often around 580 with 3.5% down; higher scores get better terms
 - Conventional: often around 620+
 - VA: flexible for eligible veterans; lenders still review the full file
 

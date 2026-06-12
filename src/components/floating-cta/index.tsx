@@ -208,7 +208,11 @@ export default function FloatingCTA() {
         participantIdentityRef.current = `guest_${Math.floor(Math.random() * 10000)}`;
       }
 
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://be.convergentai.tech" || "http://localhost:3001";
+      const backendUrl =
+        process.env.NEXT_PUBLIC_BACKEND_URL ||
+        (process.env.NODE_ENV === "development"
+          ? "http://localhost:3001"
+          : "https://be.convergentai.tech");
       const response = await fetch(`${backendUrl}/api/get-token`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
