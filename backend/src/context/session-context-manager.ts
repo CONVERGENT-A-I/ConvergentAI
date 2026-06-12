@@ -165,7 +165,7 @@ export class SessionContextManager {
       });
 
       this.extractSummaryFromCtx(summarized);
-      await agent.updateChatCtx(summarized);
+      await agent.updateChatCtx(summarized.copy({ excludeHandoff: true }));
 
       const itemsAfter = summarized.items.length;
       const textTokensAfter = this.estimateTokensFromChatCtx(summarized);
@@ -219,9 +219,19 @@ export class SessionContextManager {
         this.extractSummaryFromCtx(summarized);
         const newAgent = createAgent();
         session.updateAgent(newAgent);
-        await newAgent.updateChatCtx(summarized);
+        if ((session as any)._chatCtx) {
+          (session as any)._chatCtx.items = (session as any)._chatCtx.items.filter(
+            (item: any) => item.type !== 'agent_handoff'
+          );
+        }
+        await newAgent.updateChatCtx(summarized.copy({ excludeHandoff: true }));
       } else {
         session.updateAgent(createAgent());
+        if ((session as any)._chatCtx) {
+          (session as any)._chatCtx.items = (session as any)._chatCtx.items.filter(
+            (item: any) => item.type !== 'agent_handoff'
+          );
+        }
       }
 
       this.metrics.logRotation('scheduled');

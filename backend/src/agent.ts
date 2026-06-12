@@ -88,6 +88,11 @@ export default {
 
     const prepareContext = async () => {
       if (!(session as any)._started) return;
+      if ((session as any)._chatCtx) {
+        (session as any)._chatCtx.items = (session as any)._chatCtx.items.filter(
+          (item: any) => item.type !== 'agent_handoff'
+        );
+      }
       await contextManager.maybeCompact(session, vadAgent);
       await contextManager.maybeRotate(session, createAgentForRotation);
     };
