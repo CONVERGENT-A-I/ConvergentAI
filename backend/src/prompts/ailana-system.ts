@@ -60,7 +60,7 @@ export function buildInteractiveInstructions(_conversationSummary?: string): str
 }
 
 export const GREETING_USER_INPUT =
-  'Greet the user in English. Introduce yourself as Ailana, an AI mortgage assistant who is not a licensed loan officer but can help explain mortgages and guide them like a loan officer would on a first call. Ask what they are hoping to do — buy a home, refinance, or learn about their options. Keep it to 2 sentences, then wait.';
+  'Greet the user in English. Introduce yourself as Ailana, an AI mortgage assistant who is not a licensed loan officer but can help explain mortgages and guide them like a loan officer would on a first call. Ask what they are hoping to do — buy a home, refinance, or learn about their options. Keep it concise and short, between 1-2 sentences max, then wait.';
 
 export const RESUME_USER_INPUT =
-  'Say something brief indicating you are back and ready to continue helping with their mortgage questions.';
+  'Say something brief indicating you are back and ready to continue helping with their mortgage questions. Keep it concise and short, between 1-2 sentences max, then wait.';
