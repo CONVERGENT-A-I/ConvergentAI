@@ -1,5 +1,5 @@
 import { type JobContext, ServerOptions, cli, voice, llm } from '@livekit/agents';
-import { RoomEvent } from '@livekit/rtc-node';
+import { RoomEvent, AudioSource, LocalAudioTrack, TrackSource, AudioFrame } from '@livekit/rtc-node';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import * as openai from '@livekit/agents-plugin-openai';
@@ -16,6 +16,55 @@ import {
 import { logPromptBudget } from './context/context-budget.js';
 
 dotenv.config();
+
+// ── TTS Intro (OpenAI / coral voice) ──────────────────────────────────────
+const OPENAI_TTS_SAMPLE_RATE = 24000;
+const OPENAI_TTS_CHANNELS = 1;
+let cachedIntroFrames: AudioFrame[] | null = null;
+
+async function prewarmIntroAudio(): Promise<void> {
+  if (cachedIntroFrames) return;
+  console.log('[agent]: 🔥 Pre-warming intro TTS audio (OpenAI coral)...');
+
+  const introTts = new openai.TTS({
+    model: 'tts-1',
+    voice: 'coral' as any,
+  });
+
+  const introText =
+    "Hello, I am Ailana. It's a pleasure to meet you. As your mortgage assistant, my goal is to make your path to homeownership as clear and straightforward as possible using our specialized AI. To ensure we are protecting your privacy and meeting our commitment to transparency, I have placed our AI Use Disclosure on your screen for you to review. Once you click, 'Agree & Get Started,' we can move forward together to find the right mortgage solution for your goals.";
+
+  const frames: AudioFrame[] = [];
+
+  // 2.5 s silence at start — gives Keyframe Avatar time to connect
+  const samplesPerFrame = OPENAI_TTS_SAMPLE_RATE / 100; // 10 ms frame
+  const emptyData = new Int16Array(samplesPerFrame * OPENAI_TTS_CHANNELS);
+  const startSilenceCount = Math.round(2.5 * 100);
+  for (let i = 0; i < startSilenceCount; i++) {
+    frames.push(new AudioFrame(emptyData, OPENAI_TTS_SAMPLE_RATE, OPENAI_TTS_CHANNELS, samplesPerFrame));
+  }
+
+  // Synthesize speech via OpenAI TTS
+  const stream = introTts.synthesize(introText);
+  for await (const audio of stream) {
+    frames.push(audio.frame);
+  }
+
+  // 1.5 s silence at end — prevents WebRTC audio cutoff
+  const endSilenceCount = Math.round(1.5 * 100);
+  for (let i = 0; i < endSilenceCount; i++) {
+    frames.push(new AudioFrame(emptyData, OPENAI_TTS_SAMPLE_RATE, OPENAI_TTS_CHANNELS, samplesPerFrame));
+  }
+
+  cachedIntroFrames = frames;
+  const totalSamples = frames.reduce((acc, f) => acc + f.samplesPerChannel, 0);
+  console.log(
+    `[agent]: ✅ Intro audio pre-cached (${frames.length} frames, ${
+      (totalSamples / OPENAI_TTS_SAMPLE_RATE).toFixed(2)
+    }s total)`,
+  );
+}
+// ──────────────────────────────────────────────────────────────────────────
 
 process.on('uncaughtException', (err) => {
   if (err?.message?.includes('audio_end_ms') || (err as any)?.context?.error?.message?.includes('audio_end_ms')) {
@@ -44,6 +93,11 @@ export default {
       minSilenceDuration: ailanaConfig.vadMinSilenceMs,
       prefixPaddingDuration: 200,
     });
+
+    // Pre-warm TTS intro audio in the background — non-blocking
+    prewarmIntroAudio().catch((err) =>
+      console.error('[agent]: ❌ Intro audio pre-warm failed:', err),
+    );
 
     const model = new openai.realtime.RealtimeModel({
       model: ailanaConfig.realtimeModel,
@@ -277,6 +331,58 @@ export default {
         return;
       }
 
+      // ── TTS Intro trigger (separate from the realtime session flow) ────────
+      if (messageText === 'SYSTEM_INTRO_TRIGGER') {
+        console.log('[agent]: 💬 [INTRO 1] Received SYSTEM_INTRO_TRIGGER — playing cached TTS...');
+
+        // If prewarm hasn't finished yet, wait for it now
+        if (!cachedIntroFrames) {
+          console.warn('[agent]: ⚠️ Intro audio not ready — waiting for prewarm...');
+          await prewarmIntroAudio().catch((err) =>
+            console.error('[agent]: ❌ Late prewarm failed:', err),
+          );
+        }
+
+        const introSource = new AudioSource(OPENAI_TTS_SAMPLE_RATE, OPENAI_TTS_CHANNELS);
+        const introTrack = LocalAudioTrack.createAudioTrack('intro-audio', introSource);
+        const introPub = await ctx.room.localParticipant?.publishTrack(introTrack, {
+          source: TrackSource.SOURCE_MICROPHONE,
+        } as any);
+
+        console.log('[agent]: 💬 [INTRO 2] Streaming pre-cached intro frames...');
+        if (cachedIntroFrames) {
+          for (const frame of cachedIntroFrames) {
+            await introSource.captureFrame(frame);
+          }
+        }
+
+        // Wait exactly as long as the audio lasts before unpublishing
+        const totalSamples = (cachedIntroFrames ?? []).reduce(
+          (acc, f) => acc + f.samplesPerChannel,
+          0,
+        );
+        const delayMs = (totalSamples / OPENAI_TTS_SAMPLE_RATE) * 1000;
+        console.log(`[agent]: ⏳ [INTRO 3] Waiting ${delayMs.toFixed(0)}ms for full playout...`);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+        if (introPub?.sid) {
+          await ctx.room.localParticipant?.unpublishTrack(introPub.sid);
+        }
+        await introSource.close();
+
+        // Notify the frontend that the intro is done
+        const donePayload = new TextEncoder().encode(
+          JSON.stringify({ message: 'SYSTEM_INTRO_DONE' }),
+        );
+        await ctx.room.localParticipant?.publishData(donePayload, {
+          topic: 'lk-chat',
+          reliable: true,
+        });
+        console.log('[agent]: ✅ [INTRO 4] Intro fully played. SYSTEM_INTRO_DONE sent.');
+        return;
+      }
+      // ──────────────────────────────────────────────────────────────────────
+
       if (messageText.startsWith('SYSTEM_CHANNEL_START')) {
         const targetMode = messageText.split(':')[1] || 'video';
         console.log(`[agent]: Channel started (${targetMode}).`);
@@ -289,11 +395,13 @@ export default {
         try {
           await session.start({ agent: vadAgent, room: ctx.room });
           (session as any)._started = true;
-          console.log(`[agent]: Realtime session started. Mode ${targetMode} ready.`);
-
-          metrics.startTurn();
-          metrics.markGenerateReply();
-          session.generateReply({ userInput: GREETING_USER_INPUT });
+          if (targetMode !== 'tts-avatar') {
+            metrics.startTurn();
+            metrics.markGenerateReply();
+            session.generateReply({ userInput: GREETING_USER_INPUT });
+          } else {
+            console.log('[agent]: Skipping greeting for tts-avatar mode.');
+          }
         } catch (err) {
           console.error(`[agent]: Failed to start session:`, err);
         }

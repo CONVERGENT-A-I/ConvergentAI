@@ -20,6 +20,7 @@ interface RoomControlsProps {
 }
 
 export function RoomControls({ onEnd, mode }: RoomControlsProps) {
+  if (mode === "tts-avatar") return null;
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled } =
     useLocalParticipant();
   const [isScreenSharing, setIsScreenSharing] = useState(false);
@@ -172,7 +173,9 @@ export function RoomControls({ onEnd, mode }: RoomControlsProps) {
   // In voice mode, video is also disabled
   const isChat = mode === "avatar-chat";
   const isVoice = mode === "voice";
-  const controls = allControls;
+  const controls = mode === "tts-avatar"
+    ? allControls.filter((c) => c.label === "End")
+    : allControls;
 
   return (
     <div className="flex items-center justify-center gap-1 sm:gap-2 md:gap-4 px-1">

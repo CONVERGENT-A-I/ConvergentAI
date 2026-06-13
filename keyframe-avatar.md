@@ -46,24 +46,6 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
   const processorRef = useRef<AudioWorkletNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
 
-  // References to track unified media streams for mobile speakerphone routing
-  const videoTrackRef = useRef<MediaStreamTrack | null>(null);
-  const audioTrackRef = useRef<MediaStreamTrack | null>(null);
-
-  const updateSrcObject = useCallback(() => {
-    if (!videoRef.current) return;
-    const tracks: MediaStreamTrack[] = [];
-    if (videoTrackRef.current) tracks.push(videoTrackRef.current);
-    if (audioTrackRef.current) tracks.push(audioTrackRef.current);
-
-    if (tracks.length > 0) {
-      videoRef.current.srcObject = new MediaStream(tracks);
-      videoRef.current
-        .play()
-        .catch((e) => console.warn("[KeyframeAvatar] Unified play failed:", e));
-    }
-  }, []);
-
   const [status, setStatus] = useState<"connecting" | "connected" | "error">("connecting");
 
   // ── Detect agent's audio MediaStream (for lip-sync) ─────────────────────
@@ -79,13 +61,15 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
 
     if (!agent) return undefined;
 
-    const pub = (() => {
-      const publications = agent
+    let pub = agent
+      .getTrackPublications()
+      .find((p) => p.trackName === 'intro-audio' && p.isSubscribed);
+
+    if (!pub) {
+      pub = agent
         .getTrackPublications()
-        .filter((p) => p.source === Track.Source.Microphone && p.isSubscribed);
-      const intro = publications.find((p) => p.trackName === "intro-audio" || p.track?.name === "intro-audio");
-      return intro || publications[0];
-    })();
+        .find((p) => p.source === Track.Source.Microphone && p.isSubscribed);
+    }
 
     const stream = (pub?.track as any)?.mediaStream as MediaStream | undefined;
     return stream;
@@ -129,32 +113,20 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
         participantToken: keyframeMetadata.participant_token,
         agentIdentity: targetIdentity,
 
-        // Previous configuration (separate audio/video elements, commented out):
-        // onVideoTrack: (track) => {
-        //   if (cancelled || !videoRef.current) return;
-        //   console.log("[KeyframeAvatar] ✅ Video track received");
-        //   videoRef.current.srcObject = new MediaStream([track]);
-        //   videoRef.current
-        //     .play()
-        //     .catch((e) => console.warn("[KeyframeAvatar] Video autoplay:", e));
-        // },
-        // onAudioTrack: (track) => {
-        //   console.log("[KeyframeAvatar] ✅ Audio track received from Keyframe");
-        //   if (cancelled || !audioRef.current) return;
-        //   audioRef.current.srcObject = new MediaStream([track]);
-        //   audioRef.current.play().catch((e) => console.warn("[KeyframeAvatar] Audio playback failed:", e));
-        // },
         onVideoTrack: (track) => {
           if (cancelled || !videoRef.current) return;
           console.log("[KeyframeAvatar] ✅ Video track received");
-          videoTrackRef.current = track;
-          updateSrcObject();
+          videoRef.current.srcObject = new MediaStream([track]);
+          videoRef.current
+            .play()
+            .catch((e) => console.warn("[KeyframeAvatar] Video autoplay:", e));
         },
 
         onAudioTrack: (track) => {
           console.log("[KeyframeAvatar] ✅ Audio track received from Keyframe");
-          audioTrackRef.current = track;
-          updateSrcObject();
+          if (cancelled || !audioRef.current) return;
+          audioRef.current.srcObject = new MediaStream([track]);
+          audioRef.current.play().catch((e) => console.warn("[KeyframeAvatar] Audio playback failed:", e));
         },
 
         onStateChange: (state) => {
@@ -255,26 +227,6 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
     };
   }, [keyframeMetadata]);
 
-  // Keep setting the happy emotion periodically when connected to ensure it stays constant
-  useEffect(() => {
-    if (status !== "connected" || !sessionRef.current) return;
-
-    const emotionInterval = setInterval(() => {
-      if (sessionRef.current && isConnectedRef.current) {
-        try {
-          // @ts-ignore
-          sessionRef.current.setEmotion("happy");
-        } catch (e) {
-          console.warn("[KeyframeAvatar] Failed to set periodic emotion:", e);
-        }
-      }
-    }, 3000);
-
-    return () => {
-      clearInterval(emotionInterval);
-    };
-  }, [status]);
-
   // ── Helpers ──────────────────────────────────────────────────────────────
   function tearDownAudioPipe() {
     try { sourceRef.current?.disconnect(); } catch (_) { }
@@ -354,15 +306,8 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
         if (!isConnectedRef.current || !sessionRef.current) return;
         const f32 = e.data;
         const i16 = new Int16Array(f32.length);
-        // Previous configuration (standard volume, commented out):
-        // for (let i = 0; i < f32.length; i++) {
-        //   const c = Math.max(-1, Math.min(1, f32[i]));
-        //   i16[i] = c < 0 ? c * 32768 : c * 32767;
-        // }
-        // New configuration (amplify voice volume to 300%):
-        const GAIN_FACTOR = 3.0; 
         for (let i = 0; i < f32.length; i++) {
-          const c = Math.max(-1, Math.min(1, f32[i] * GAIN_FACTOR));
+          const c = Math.max(-1, Math.min(1, f32[i]));
           i16[i] = c < 0 ? c * 32768 : c * 32767;
         }
         sessionRef.current.sendAudio(new Uint8Array(i16.buffer));
@@ -390,10 +335,11 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
         ref={videoRef}
         autoPlay
         playsInline
+        muted
         className="absolute inset-0 w-full h-full object-contain"
       />
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      {/* <audio ref={audioRef} autoPlay /> */}
+      <audio ref={audioRef} autoPlay />
 
       {/* Connecting overlay */}
       {status === "connecting" && (
