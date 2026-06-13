@@ -4,6 +4,7 @@ import React from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
+import friendlyAvatar from "../../../public/friendly_ai_avatar_v2.png";
 
 interface ActionButtonProps {
   onClick: () => void;
@@ -23,7 +24,7 @@ export function ActionButton({ onClick }: ActionButtonProps) {
       >
         <div className="relative h-10 w-10 md:h-14 md:w-14 rounded-full bg-white/25 flex items-center justify-center overflow-hidden border-2 border-white/50 backdrop-blur-sm shadow-[0_0_12px_rgba(0,212,245,0.4)]">
           <Image
-            src="/friendly_ai_avatar_v2.png"
+            src={friendlyAvatar}
             alt="Ailana"
             fill
             sizes="(max-width: 768px) 40px, 56px"

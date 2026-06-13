@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { Send } from "lucide-react";
+import friendlyAvatar from "../../public/friendly_ai_avatar_v2.png";
 
 interface ChatMessage {
   id: string;
@@ -180,7 +181,7 @@ export default function LiveChatPanel() {
       {/* Header */}
       <div className="flex items-center gap-4 px-6 py-4 border-b border-white/5 bg-gradient-to-r from-[#0a0a0a] to-[#0f111a] shrink-0 relative z-10 shadow-md">
         <div className="relative h-11 w-11 rounded-full overflow-hidden border-2 border-[#00b4d8]/40 shrink-0 shadow-[0_0_15px_rgba(0,180,216,0.3)]">
-          <Image src="/friendly_ai_avatar_v2.png" alt="Ailana AI" fill sizes="44px" className="object-cover" />
+          <Image src={friendlyAvatar} alt="Ailana AI" fill sizes="44px" className="object-cover" />
           <div className="absolute inset-0 rounded-full border border-white/20 pointer-events-none" />
         </div>
         <div className="flex flex-col">
@@ -212,7 +213,7 @@ export default function LiveChatPanel() {
           <div key={msg.id} className={`flex gap-3 max-w-[85%] ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}>
             {msg.role === 'assistant' && (
               <div className="relative h-8 w-8 rounded-full overflow-hidden border border-[#00b4d8]/40 shrink-0 mt-1 shadow-[0_0_10px_rgba(0,180,216,0.2)]">
-                <Image src="/friendly_ai_avatar_v2.png" alt="AI" fill sizes="32px" className="object-cover" />
+                <Image src={friendlyAvatar} alt="AI" fill sizes="32px" className="object-cover" />
               </div>
             )}
             <div className={`flex flex-col gap-1 w-full ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
@@ -242,7 +243,7 @@ export default function LiveChatPanel() {
         {isTyping && (
           <div className="flex gap-3 max-w-[85%] mr-auto items-end">
             <div className="relative h-8 w-8 rounded-full overflow-hidden border border-[#00b4d8]/40 shrink-0 shadow-[0_0_10px_rgba(0,180,216,0.2)]">
-              <Image src="/friendly_ai_avatar_v2.png" alt="AI" fill sizes="32px" className="object-cover" />
+              <Image src={friendlyAvatar} alt="AI" fill sizes="32px" className="object-cover" />
             </div>
             <div className="px-5 py-3.5 rounded-[24px] rounded-tl-[4px] bg-[#161a2b] border border-[#00b4d8]/20 flex gap-2 items-center shadow-[0_8px_20px_rgba(0,0,0,0.4)]">
               <span className="h-2 w-2 rounded-full bg-[#00b4d8] animate-bounce shadow-[0_0_8px_rgba(0,180,216,0.6)]" style={{ animationDelay: '0ms' }} />

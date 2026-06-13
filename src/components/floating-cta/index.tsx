@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams } from "next/navigation";
+import friendlyAvatar from "../../../public/friendly_ai_avatar_v2.png";
 import { LiveKitRoom, RoomAudioRenderer } from "@livekit/components-react";
 import {
   X,
@@ -1056,7 +1057,7 @@ export default function FloatingCTA() {
                             className="origin-bottom relative z-10 w-32 h-32 md:w-44 md:h-44 mb-8 rounded-full overflow-hidden border-[6px] md:border-8 border-[#0B0F19] shadow-[0_0_40px_rgba(0,180,216,0.3)]"
                           >
                             <Image
-                              src="/friendly_ai_avatar_v2.png"
+                              src={friendlyAvatar}
                               alt="AI Assistant"
                               fill
                               sizes="(max-width: 768px) 128px, 176px"
