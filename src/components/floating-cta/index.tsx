@@ -39,8 +39,6 @@ import { ChannelStartTrigger } from "./channel-start-trigger";
 import { MediaGuard } from "./media-guard";
 import { LoanOfficerLiveUI, LoanOfficerQueueUI } from "./loan-officer-queue";
 import { NetworkQualityBanner } from "./network-quality-banner";
-import { TtsIntroTrigger } from "./tts-intro-trigger";
-import { TtsActionButton } from "./tts-action-button";
 
 import VideoStage from "../video-stage";
 
@@ -901,7 +899,7 @@ export default function FloatingCTA() {
                     </div>
 
                     {/* Center: Mode Switcher (live phase only) */}
-                    {flowPhase === "live" && isLkConnected && isAgentReady && pendingMode !== "tts-avatar" && (
+                    {flowPhase === "live" && isLkConnected && isAgentReady && (
                       <div className="flex items-center bg-white/5 rounded-full p-0.5 sm:p-1 border border-white/10 shadow-sm backdrop-blur-md">
                         {[
                           {
@@ -1219,17 +1217,6 @@ export default function FloatingCTA() {
                                 isLivePhase={flowPhase === "live"}
                                 mode={pendingMode}
                                 isAnnouncementComplete={isAnnouncementComplete}
-                              />
-
-                              {/* ── TTS Intro Trigger (separate entity, tts-avatar mode only) ── */}
-                              <TtsIntroTrigger
-                                isLivePhase={flowPhase === "live"}
-                                mode={pendingMode}
-                                onIntroDone={() => {
-                                  // Switch to standard interactive video mode after intro
-                                  setPendingMode("video");
-                                  setIsAnnouncementComplete(true);
-                                }}
                               />
 
                               {/* Fallback Notification Overlay */}
@@ -1573,20 +1560,6 @@ export default function FloatingCTA() {
             setPendingMode("intro-avatar");
             fetchToken("intro-avatar");
           }
-        }}
-      />
-
-      {/* ── TTS Avatar Button (separate entity — fixed above main CTA) ── */}
-      <TtsActionButton
-        onClick={() => {
-          setIsOpen(true);
-          setFlowPhase("live");
-          flowPhaseRef.current = "live";
-          setPendingMode("tts-avatar");
-          // Skip the compliance announcement for the TTS intro flow
-          setIsAnnouncementStarted(true);
-          setIsAnnouncementComplete(true);
-          fetchToken("tts-avatar");
         }}
       />
     </>

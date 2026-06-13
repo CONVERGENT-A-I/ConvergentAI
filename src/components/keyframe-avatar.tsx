@@ -79,13 +79,9 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
 
     if (!agent) return undefined;
 
-    const pub = (() => {
-      const publications = agent
-        .getTrackPublications()
-        .filter((p) => p.source === Track.Source.Microphone && p.isSubscribed);
-      const intro = publications.find((p) => p.trackName === "intro-audio" || p.track?.name === "intro-audio");
-      return intro || publications[0];
-    })();
+    const pub = agent
+      .getTrackPublications()
+      .find((p) => p.source === Track.Source.Microphone && p.isSubscribed);
 
     const stream = (pub?.track as any)?.mediaStream as MediaStream | undefined;
     return stream;
