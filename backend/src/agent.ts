@@ -58,7 +58,7 @@ export default {
         minDelay: ailanaConfig.vadEndpointMinDelayMs,
       },
       interruption: {
-        minDuration: 250,
+        minDuration: ailanaConfig.vadInterruptMinDurationMs,
       },
     };
 

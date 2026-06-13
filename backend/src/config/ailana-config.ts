@@ -22,6 +22,8 @@ export const ailanaConfig = {
   /** Force compact when Realtime reports input tokens above this (latency-safe threshold) */
   forceCompactInputTokens: envInt('AILANA_FORCE_COMPACT_INPUT_TOKENS', 6000),
 
-  vadMinSilenceMs: envInt('AILANA_VAD_MIN_SILENCE_MS', 250),
-  vadEndpointMinDelayMs: envInt('AILANA_VAD_ENDPOINT_MIN_DELAY_MS', 250),
+  vadMinSilenceMs: envInt('AILANA_VAD_MIN_SILENCE_MS', 350),
+  vadEndpointMinDelayMs: envInt('AILANA_VAD_ENDPOINT_MIN_DELAY_MS', 350),
+  vadInterruptMinDurationMs: envInt('AILANA_VAD_INTERRUPT_MIN_DURATION_MS', 350),
 };
+
