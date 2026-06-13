@@ -46,6 +46,24 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
   const processorRef = useRef<AudioWorkletNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
 
+  // References to track unified media streams for mobile speakerphone routing
+  const videoTrackRef = useRef<MediaStreamTrack | null>(null);
+  const audioTrackRef = useRef<MediaStreamTrack | null>(null);
+
+  const updateSrcObject = useCallback(() => {
+    if (!videoRef.current) return;
+    const tracks: MediaStreamTrack[] = [];
+    if (videoTrackRef.current) tracks.push(videoTrackRef.current);
+    if (audioTrackRef.current) tracks.push(audioTrackRef.current);
+
+    if (tracks.length > 0) {
+      videoRef.current.srcObject = new MediaStream(tracks);
+      videoRef.current
+        .play()
+        .catch((e) => console.warn("[KeyframeAvatar] Unified play failed:", e));
+    }
+  }, []);
+
   const [status, setStatus] = useState<"connecting" | "connected" | "error">("connecting");
 
   // ── Detect agent's audio MediaStream (for lip-sync) ─────────────────────
@@ -107,20 +125,32 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
         participantToken: keyframeMetadata.participant_token,
         agentIdentity: targetIdentity,
 
+        // Previous configuration (separate audio/video elements, commented out):
+        // onVideoTrack: (track) => {
+        //   if (cancelled || !videoRef.current) return;
+        //   console.log("[KeyframeAvatar] ✅ Video track received");
+        //   videoRef.current.srcObject = new MediaStream([track]);
+        //   videoRef.current
+        //     .play()
+        //     .catch((e) => console.warn("[KeyframeAvatar] Video autoplay:", e));
+        // },
+        // onAudioTrack: (track) => {
+        //   console.log("[KeyframeAvatar] ✅ Audio track received from Keyframe");
+        //   if (cancelled || !audioRef.current) return;
+        //   audioRef.current.srcObject = new MediaStream([track]);
+        //   audioRef.current.play().catch((e) => console.warn("[KeyframeAvatar] Audio playback failed:", e));
+        // },
         onVideoTrack: (track) => {
           if (cancelled || !videoRef.current) return;
           console.log("[KeyframeAvatar] ✅ Video track received");
-          videoRef.current.srcObject = new MediaStream([track]);
-          videoRef.current
-            .play()
-            .catch((e) => console.warn("[KeyframeAvatar] Video autoplay:", e));
+          videoTrackRef.current = track;
+          updateSrcObject();
         },
 
         onAudioTrack: (track) => {
           console.log("[KeyframeAvatar] ✅ Audio track received from Keyframe");
-          if (cancelled || !audioRef.current) return;
-          audioRef.current.srcObject = new MediaStream([track]);
-          audioRef.current.play().catch((e) => console.warn("[KeyframeAvatar] Audio playback failed:", e));
+          audioTrackRef.current = track;
+          updateSrcObject();
         },
 
         onStateChange: (state) => {
@@ -356,11 +386,10 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
         ref={videoRef}
         autoPlay
         playsInline
-        muted
         className="absolute inset-0 w-full h-full object-contain"
       />
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      <audio ref={audioRef} autoPlay />
+      {/* <audio ref={audioRef} autoPlay /> */}
 
       {/* Connecting overlay */}
       {status === "connecting" && (
