@@ -72,7 +72,7 @@ export class SessionContextManager {
     if (this.conversationSummary) {
       messages.push({
         role: 'system',
-        content: `Earlier in this session:\n${this.conversationSummary}`,
+        content: `<chat_history_summary>\n${this.conversationSummary}\n</chat_history_summary>`,
       });
     }
 
