@@ -59,7 +59,7 @@ export function ActionButton({ onClick }: ActionButtonProps) {
             </h3>
 
             {/* Description (desktop-only for spacing) */}
-            <p className="hidden md:block text-[10px] text-white-400 font-medium mt-1 leading-none tracking-normal">
+            <p className="hidden md:block text-[10px] text-white/70 font-medium mt-1 leading-none tracking-normal">
               Instant answers. Expert guidance. Any time.
             </p>
           </div>
