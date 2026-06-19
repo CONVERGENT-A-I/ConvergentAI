@@ -11,6 +11,7 @@
   "dependencies": {
     "@keyframelabs/elements": "^0.5.1",
     "@keyframelabs/react": "^0.1.0",
+    "@livekit/agents-plugin-cartesia": "^1.4.7",
     "@livekit/components-react": "^2.9.20",
     "@livekit/components-styles": "^1.2.0",
     "@prisma/client": "^6.19.3",

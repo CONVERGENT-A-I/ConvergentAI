@@ -1,9 +1,9 @@
-import { type JobContext, ServerOptions, cli, voice, llm } from '@livekit/agents';
+import { type JobContext, ServerOptions, cli, voice, llm, inference } from '@livekit/agents';
 import { RoomEvent } from '@livekit/rtc-node';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import * as openai from '@livekit/agents-plugin-openai';
-import * as silero from '@livekit/agents-plugin-silero';
+import * as cartesia from '@livekit/agents-plugin-cartesia';
 import { ailanaConfig } from './config/ailana-config.js';
 import { SessionContextManager } from './context/session-context-manager.js';
 import { LatencyTracker } from './metrics/latency-tracker.js';
@@ -22,6 +22,10 @@ process.on('uncaughtException', (err) => {
     console.warn('[agent]: Suppressed known OpenAI audio_end_ms crash.');
     return;
   }
+  if (err?.message?.includes('powershell.exe') || err?.message?.includes('pidusage') || err?.message?.includes('ENOENT') && err?.message?.includes('powershell')) {
+    console.warn('[agent]: Suppressed pidusage powershell spawn crash.');
+    return;
+  }
   console.error('[agent]: Uncaught Exception:', err);
   process.exit(1);
 });
@@ -30,27 +34,36 @@ export default {
   async entry(ctx: JobContext) {
     console.log(`[agent]: Receiving job for room: ${ctx.room.name}`);
 
-    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_openai_api_key_here') {
+    if (!ailanaConfig.useCascadedPipeline && (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_openai_api_key_here')) {
       console.error('[agent]: CRITICAL: OPENAI_API_KEY is missing in backend/.env');
       return;
     }
 
     const metrics = new LatencyTracker();
-    const summarizationLlm = new openai.LLM({ model: ailanaConfig.summarizationModel });
+    const summarizationLlm = ailanaConfig.useCascadedPipeline
+      ? new openai.LLM({
+          model: 'llama-3.3-70b-versatile',
+          baseURL: 'https://api.groq.com/openai/v1',
+          apiKey: ailanaConfig.groqApiKey,
+        })
+      : new openai.LLM({ model: ailanaConfig.summarizationModel });
     const contextManager = new SessionContextManager(summarizationLlm, metrics);
 
     console.log(`[agent]: Loading VAD (minSilence=${ailanaConfig.vadMinSilenceMs}ms)...`);
-    const sessionVad = await silero.VAD.load({
+    const sessionVad = new inference.VAD({
+      model: 'silero',
       minSilenceDuration: ailanaConfig.vadMinSilenceMs,
       prefixPaddingDuration: 200,
     });
 
-    const model = new openai.realtime.RealtimeModel({
-      model: ailanaConfig.realtimeModel,
-      voice: ailanaConfig.realtimeVoice,
-      modalities: ['audio', 'text'],
-      turnDetection: null,
-    });
+    const model = ailanaConfig.useCascadedPipeline
+      ? undefined
+      : new openai.realtime.RealtimeModel({
+          model: ailanaConfig.realtimeModel,
+          voice: ailanaConfig.realtimeVoice,
+          modalities: ['audio', 'text'],
+          turnDetection: null,
+        });
 
     const turnHandling = {
       turnDetection: 'vad' as const,
@@ -62,13 +75,47 @@ export default {
       },
     };
 
-    const createVadAgent = () =>
-      new voice.Agent({
+    const createVadAgent = () => {
+      if (ailanaConfig.useCascadedPipeline) {
+        console.log('[agent]: Creating Cascaded agent (Groq LLM + Cartesia STT/TTS)...');
+        return new voice.Agent({
+          instructions: buildVoiceInstructions(),
+          stt: new cartesia.STT({
+            apiKey: ailanaConfig.cartesiaKey,
+            model: 'ink-2',
+          }),
+          vad: sessionVad,
+          llm: new openai.LLM({
+            model: 'llama-3.3-70b-versatile',
+            baseURL: 'https://api.groq.com/openai/v1',
+            apiKey: ailanaConfig.groqApiKey,
+          }),
+          tts: new cartesia.TTS({
+            apiKey: ailanaConfig.cartesiaKey,
+            voice: ailanaConfig.cartesiaVoiceId,
+            model: 'sonic-3.5',
+          }),
+          turnHandling: {
+            turnDetection: 'stt' as const,
+            endpointing: {
+              minDelay: ailanaConfig.vadEndpointMinDelayMs,
+            },
+            interruption: {
+              minDuration: ailanaConfig.vadInterruptMinDurationMs,
+              mode: 'vad' as const,
+            },
+          } as any,
+        });
+      }
+
+      console.log('[agent]: Creating legacy OpenAI Realtime VAD agent...');
+      return new voice.Agent({
         instructions: buildVoiceInstructions(),
         vad: sessionVad,
-        llm: model,
-        turnHandling,
+        llm: model!,
+        turnHandling: turnHandling as any,
       });
+    };
 
     let vadAgent = createVadAgent();
     logPromptBudget('voice_static', buildVoiceInstructions());
@@ -77,7 +124,7 @@ export default {
     let isHibernating = false;
 
     const session = new voice.AgentSession({
-      llm: model,
+      llm: (ailanaConfig.useCascadedPipeline ? undefined : model) as any,
       userAwayTimeout: null,
     });
 
@@ -122,6 +169,7 @@ export default {
 
     session.on(voice.AgentSessionEventTypes.UserInputTranscribed, async (ev: any) => {
       if (!ev.isFinal || !ev.transcript?.trim()) return;
+      console.log(`[agent-debug]: User input transcribed (isFinal=true): "${ev.transcript}"`);
       metrics.markUserTurnEnd();
       metrics.startTurn();
       contextManager.onUserTurn(ev.transcript);
@@ -131,6 +179,7 @@ export default {
 
     session.on(voice.AgentSessionEventTypes.ConversationItemAdded, (ev: any) => {
       const item = ev.item as llm.ChatMessage;
+      console.log(`[agent-debug]: Conversation item added: role=${item?.role}, content="${item?.textContent}"`);
       if (item?.role === 'assistant' && item.textContent) {
         contextManager.onAgentTurn(item.textContent);
       }
@@ -150,6 +199,9 @@ export default {
       if (m?.type === 'realtime_model_metrics') {
         metrics.recordRealtimeMetrics(m.ttftMs ?? -1, m.inputTokens ?? 0);
         contextManager.onRealtimeInputTokens(m.inputTokens ?? 0);
+      } else if (m?.type === 'llm_metrics') {
+        metrics.recordRealtimeMetrics(m.ttftMs ?? -1, m.promptTokens ?? 0);
+        contextManager.onRealtimeInputTokens(m.promptTokens ?? 0);
       }
     });
 
@@ -159,7 +211,7 @@ export default {
       console.log(`[agent]: Text-only reply for "${userMessage}"...`);
 
       try {
-        const apiKey = process.env.OPENAI_API_KEY;
+        const apiKey = ailanaConfig.useCascadedPipeline ? ailanaConfig.groqApiKey : process.env.OPENAI_API_KEY;
         if (!apiKey) return;
 
         const systemPrompt = buildBaseInstructions(
@@ -168,14 +220,17 @@ export default {
         const messages = contextManager.buildTextMessages(systemPrompt);
         messages.push({ role: 'user', content: userMessage });
 
-        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        const baseURL = ailanaConfig.useCascadedPipeline ? 'https://api.groq.com/openai/v1' : 'https://api.openai.com/v1';
+        const modelName = ailanaConfig.useCascadedPipeline ? 'llama-3.3-70b-versatile' : ailanaConfig.textModel;
+
+        const res = await fetch(`${baseURL}/chat/completions`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${apiKey}`,
           },
           body: JSON.stringify({
-            model: ailanaConfig.textModel,
+            model: modelName,
             messages: messages.slice(-24),
             max_tokens: 200,
             temperature: 0.6,
@@ -288,7 +343,6 @@ export default {
 
         try {
           await session.start({ agent: vadAgent, room: ctx.room });
-          (session as any)._started = true;
           console.log(`[agent]: Realtime session started. Mode ${targetMode} ready.`);
 
           metrics.startTurn();
@@ -304,7 +358,6 @@ export default {
         console.log(`[agent]: Generating reply for: "${messageText}"`);
         if (!(session as any)._started) {
           await session.start({ agent: vadAgent, room: ctx.room });
-          (session as any)._started = true;
         }
 
         metrics.startTurn();
@@ -382,8 +435,11 @@ export default {
 
     await ctx.connect();
     console.log(`[agent]: Connected to room: ${ctx.room.name}`);
+    const activeModelName = ailanaConfig.useCascadedPipeline
+      ? 'cascade-livekit-inference (Llama-3.3-70b + Cartesia)'
+      : ailanaConfig.realtimeModel;
     console.log(
-      `[agent]: Ready — model=${ailanaConfig.realtimeModel}, prompt=${ailanaConfig.promptVersion}, compact@${ailanaConfig.compactEveryNTurns} turns / ${ailanaConfig.forceCompactInputTokens} tokens`,
+      `[agent]: Ready — model=${activeModelName}, prompt=${ailanaConfig.promptVersion}, compact@${ailanaConfig.compactEveryNTurns} turns / ${ailanaConfig.forceCompactInputTokens} tokens`,
     );
   },
 };

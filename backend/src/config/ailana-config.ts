@@ -25,5 +25,10 @@ export const ailanaConfig = {
   vadMinSilenceMs: envInt('AILANA_VAD_MIN_SILENCE_MS', 350),
   vadEndpointMinDelayMs: envInt('AILANA_VAD_ENDPOINT_MIN_DELAY_MS', 350),
   vadInterruptMinDurationMs: envInt('AILANA_VAD_INTERRUPT_MIN_DURATION_MS', 350),
+
+  useCascadedPipeline: process.env.USE_CASCADED_PIPELINE === 'true',
+  groqApiKey: process.env.GROQ_API_KEY ?? '',
+  cartesiaKey: process.env.CARTESIA_KEY ?? '',
+  cartesiaVoiceId: process.env.AILANA_VOICE_ID ?? 'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4',
 };
 
