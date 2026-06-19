@@ -34,19 +34,12 @@ export default {
   async entry(ctx: JobContext) {
     console.log(`[agent]: Receiving job for room: ${ctx.room.name}`);
 
-    if (!ailanaConfig.useCascadedPipeline && (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_openai_api_key_here')) {
-      console.error('[agent]: CRITICAL: OPENAI_API_KEY is missing in backend/.env');
-      return;
-    }
-
     const metrics = new LatencyTracker();
-    const summarizationLlm = ailanaConfig.useCascadedPipeline
-      ? new openai.LLM({
-          model: 'llama-3.3-70b-versatile',
-          baseURL: 'https://api.groq.com/openai/v1',
-          apiKey: ailanaConfig.groqApiKey,
-        })
-      : new openai.LLM({ model: ailanaConfig.summarizationModel });
+    const summarizationLlm = new openai.LLM({
+      model: 'llama-3.3-70b-versatile',
+      baseURL: 'https://api.groq.com/openai/v1',
+      apiKey: ailanaConfig.groqApiKey,
+    });
     const contextManager = new SessionContextManager(summarizationLlm, metrics);
 
     console.log(`[agent]: Loading VAD (minSilence=${ailanaConfig.vadMinSilenceMs}ms)...`);
@@ -56,64 +49,35 @@ export default {
       prefixPaddingDuration: 200,
     });
 
-    const model = ailanaConfig.useCascadedPipeline
-      ? undefined
-      : new openai.realtime.RealtimeModel({
-          model: ailanaConfig.realtimeModel,
-          voice: ailanaConfig.realtimeVoice,
-          modalities: ['audio', 'text'],
-          turnDetection: null,
-        });
-
-    const turnHandling = {
-      turnDetection: 'vad' as const,
-      endpointing: {
-        minDelay: ailanaConfig.vadEndpointMinDelayMs,
-      },
-      interruption: {
-        minDuration: ailanaConfig.vadInterruptMinDurationMs,
-      },
-    };
-
     const createVadAgent = () => {
-      if (ailanaConfig.useCascadedPipeline) {
-        console.log('[agent]: Creating Cascaded agent (Groq LLM + Cartesia STT/TTS)...');
-        return new voice.Agent({
-          instructions: buildVoiceInstructions(),
-          stt: new cartesia.STT({
-            apiKey: ailanaConfig.cartesiaKey,
-            model: 'ink-2',
-          }),
-          vad: sessionVad,
-          llm: new openai.LLM({
-            model: 'llama-3.3-70b-versatile',
-            baseURL: 'https://api.groq.com/openai/v1',
-            apiKey: ailanaConfig.groqApiKey,
-          }),
-          tts: new cartesia.TTS({
-            apiKey: ailanaConfig.cartesiaKey,
-            voice: ailanaConfig.cartesiaVoiceId,
-            model: 'sonic-3.5',
-          }),
-          turnHandling: {
-            turnDetection: 'stt' as const,
-            endpointing: {
-              minDelay: ailanaConfig.vadEndpointMinDelayMs,
-            },
-            interruption: {
-              minDuration: ailanaConfig.vadInterruptMinDurationMs,
-              mode: 'vad' as const,
-            },
-          } as any,
-        });
-      }
-
-      console.log('[agent]: Creating legacy OpenAI Realtime VAD agent...');
+      console.log('[agent]: Creating Cascaded agent (Groq LLM + Cartesia STT/TTS)...');
       return new voice.Agent({
         instructions: buildVoiceInstructions(),
+        stt: new cartesia.STT({
+          apiKey: ailanaConfig.cartesiaKey,
+          model: 'ink-2',
+        }),
         vad: sessionVad,
-        llm: model!,
-        turnHandling: turnHandling as any,
+        llm: new openai.LLM({
+          model: 'llama-3.3-70b-versatile',
+          baseURL: 'https://api.groq.com/openai/v1',
+          apiKey: ailanaConfig.groqApiKey,
+        }),
+        tts: new cartesia.TTS({
+          apiKey: ailanaConfig.cartesiaKey,
+          voice: ailanaConfig.cartesiaVoiceId,
+          model: 'sonic-3.5',
+        }),
+        turnHandling: {
+          turnDetection: 'stt' as const,
+          endpointing: {
+            minDelay: ailanaConfig.vadEndpointMinDelayMs,
+          },
+          interruption: {
+            minDuration: ailanaConfig.vadInterruptMinDurationMs,
+            mode: 'vad' as const,
+          },
+        } as any,
       });
     };
 
@@ -124,7 +88,6 @@ export default {
     let isHibernating = false;
 
     const session = new voice.AgentSession({
-      llm: (ailanaConfig.useCascadedPipeline ? undefined : model) as any,
       userAwayTimeout: null,
     });
 
@@ -211,7 +174,7 @@ export default {
       console.log(`[agent]: Text-only reply for "${userMessage}"...`);
 
       try {
-        const apiKey = ailanaConfig.useCascadedPipeline ? ailanaConfig.groqApiKey : process.env.OPENAI_API_KEY;
+        const apiKey = ailanaConfig.groqApiKey;
         if (!apiKey) return;
 
         const systemPrompt = buildBaseInstructions(
@@ -220,8 +183,8 @@ export default {
         const messages = contextManager.buildTextMessages(systemPrompt);
         messages.push({ role: 'user', content: userMessage });
 
-        const baseURL = ailanaConfig.useCascadedPipeline ? 'https://api.groq.com/openai/v1' : 'https://api.openai.com/v1';
-        const modelName = ailanaConfig.useCascadedPipeline ? 'llama-3.3-70b-versatile' : ailanaConfig.textModel;
+        const baseURL = 'https://api.groq.com/openai/v1';
+        const modelName = 'llama-3.3-70b-versatile';
 
         const res = await fetch(`${baseURL}/chat/completions`, {
           method: 'POST',
@@ -435,9 +398,7 @@ export default {
 
     await ctx.connect();
     console.log(`[agent]: Connected to room: ${ctx.room.name}`);
-    const activeModelName = ailanaConfig.useCascadedPipeline
-      ? 'cascade-livekit-inference (Llama-3.3-70b + Cartesia)'
-      : ailanaConfig.realtimeModel;
+    const activeModelName = 'cascade-livekit-inference (Llama-3.3-70b + Cartesia)';
     console.log(
       `[agent]: Ready — model=${activeModelName}, prompt=${ailanaConfig.promptVersion}, compact@${ailanaConfig.compactEveryNTurns} turns / ${ailanaConfig.forceCompactInputTokens} tokens`,
     );
