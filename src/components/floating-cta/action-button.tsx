@@ -4,7 +4,6 @@ import React from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import friendlyAvatar from "../../../public/friendly_ai_avatar_v2.png";
-import logoIcon from "../../../public/newassets/ConvergentAI_logo_package/ConvergentAI_icon_mark_reverse.svg";
 
 interface ActionButtonProps {
   onClick: () => void;
@@ -62,25 +61,6 @@ export function ActionButton({ onClick }: ActionButtonProps) {
             <p className="hidden md:block text-[10px] text-white/70 font-medium mt-1 leading-none tracking-normal">
               Instant answers. Expert guidance. Any time.
             </p>
-          </div>
-
-          {/* Vertical Divider */}
-          <div className="h-6 md:h-10 w-[1px] bg-white/10 shrink-0 mx-0.5 md:mx-1" />
-
-          {/* Right Section: Logo and Chat Now */}
-          <div className="flex flex-col items-center justify-center gap-0.5 md:gap-1 shrink-0">
-            <div className="relative h-6 w-6 md:h-8 md:w-8 rounded-full flex items-center justify-center border border-[#00d4f5]/30 bg-white/5 shadow-[0_0_8px_rgba(0,212,245,0.15)]">
-              <Image
-                src={logoIcon}
-                alt="Logo Icon"
-                fill
-                sizes="(max-width: 768px) 16px, 24px"
-                className="object-contain p-0.5 md:p-1"
-              />
-            </div>
-            <div className="flex items-center gap-0.5 text-[6.5px] md:text-[8.5px] font-black text-[#00d4f5] tracking-wider uppercase">
-              Chat Now
-            </div>
           </div>
         </div>
       </motion.div>
