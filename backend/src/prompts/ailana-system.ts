@@ -1,9 +1,6 @@
-import { complianceResponses } from './compliance-responses.js';
-import { coreVoiceInstructions } from './core-instructions.js';
-import { mortgagePlaybook } from './mortgage-playbook.js';
-import { mvpScope } from './mvp-scope.js';
-import { qualificationRanges } from './qualification-ranges.js';
-import { topicGuidance } from './topic-guidance.js';
+import { buildStage1Instructions } from './stage1-greeting.js';
+import { buildLayer3TurnContext } from './layer3-context.js';
+import type { BorrowerProfile } from './layer3-context.js';
 
 /**
  * Layer 1: Static System Prompt
@@ -50,65 +47,40 @@ PROHIBITED PHRASES (never use):
 }
 
 /**
- * Layer 2: Voice Stage Instructions (remaining voice instructions)
+ * Layer 2 Stage selector
  */
-export function buildLayer2Voice(): string {
-  return `
-${coreVoiceInstructions}
-
-VOICE MODE: Natural phone call. One question at a time. Calm pace. Patient loan officer tone.
-`.trim();
+export function buildLayer2(stage: string = '1'): string {
+  if (stage === '1') {
+    return buildStage1Instructions();
+  }
+  // Fallback to Stage 1 for now until future stages are implemented
+  return buildStage1Instructions();
 }
 
 /**
- * Layer 2: Base/Text Stage Instructions (remaining base instructions)
+ * Assemble prompt: Layer 1 + Layer 2 + Layer 3
  */
-export function buildLayer2Base(): string {
-  return `
-AUDIENCE: Assume layperson unless they show expertise.
-
-${mvpScope}
-
-PLAIN LANGUAGE: Explain every acronym. Ask to rephrase if unclear.
-
-${mortgagePlaybook}
-
-${topicGuidance}
-
-${qualificationRanges}
-
-${complianceResponses}
-`.trim();
+export function buildSessionPrompt(profile: BorrowerProfile, outstandingFields: string[], stage: string = '1'): string {
+  const L1 = buildLayer1();
+  const L2 = buildLayer2(stage);
+  const L3 = buildLayer3TurnContext(profile, outstandingFields);
+  return `${L1}\n\n${L2}\n\n${L3}`.trim();
 }
 
-/**
- * Full instructions for text-only chat (can include session summary).
- * Not sent to Realtime on every turn — voice uses static buildVoiceInstructions().
- */
+/** Legacy aliases/wrappers mapped to the new Stage 1 three-layer system */
+export function buildVoiceInstructions(): string {
+  const defaultProfile: BorrowerProfile = {};
+  const defaultOutstanding = ['name', 'mortgage goal', 'timeline', 'property state'];
+  return buildSessionPrompt(defaultProfile, defaultOutstanding, '1');
+}
+
 export function buildBaseInstructions(conversationSummary?: string): string {
   const summaryBlock = conversationSummary
     ? `\nCONVERSATION SO FAR:\n${conversationSummary}\n`
     : '';
-
-  const L1 = buildLayer1();
-  const L2 = buildLayer2Base();
-
-  return `${L1}\n${summaryBlock}\n${L2}`.trim();
+  return `${buildVoiceInstructions()}\n${summaryBlock}`.trim();
 }
 
-/**
- * Static Realtime voice instructions — NO session summary injected here.
- * Summary lives only in chat context (via compaction) to avoid duplicating tokens
- * and re-sending a growing instruction block every turn.
- */
-export function buildVoiceInstructions(): string {
-  const L1 = buildLayer1();
-  const L2 = buildLayer2Voice();
-
-  return `${L1}\n\n${L2}`.trim();
-}
-
-/** @deprecated alias — use buildVoiceInstructions for Realtime */
 export function buildInteractiveInstructions(_conversationSummary?: string): string {
   return buildVoiceInstructions();
 }
