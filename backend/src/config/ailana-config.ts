@@ -28,6 +28,6 @@ export const ailanaConfig = {
 
   groqApiKey: process.env.GROQ_API_KEY ?? '',
   cartesiaKey: process.env.CARTESIA_KEY ?? '',
-  cartesiaVoiceId: process.env.AILANA_VOICE_ID ?? 'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4',
+  cartesiaVoiceId: process.env.AILANA_VOICE_ID ?? '11af83e2-23eb-452f-956e-7fee218ccb5c',
 };
 

@@ -86,6 +86,7 @@ export default {
     logPromptBudget('text_full', buildBaseInstructions());
     let voiceMuted = false;
     let isHibernating = false;
+    let greetingGenerated = false;
 
     const session = new voice.AgentSession({
       userAwayTimeout: null,
@@ -299,8 +300,18 @@ export default {
         const targetMode = messageText.split(':')[1] || 'video';
         console.log(`[agent]: Channel started (${targetMode}).`);
 
+        if (greetingGenerated) {
+          console.log(`[agent]: Greeting already generated. Ignoring duplicate start signal.`);
+          return;
+        }
+
+        greetingGenerated = true;
+
         if ((session as any)._started) {
-          console.log(`[agent]: Session already started.`);
+          console.log(`[agent]: Session already started. Generating greeting now...`);
+          metrics.startTurn();
+          metrics.markGenerateReply();
+          session.generateReply({ userInput: GREETING_USER_INPUT });
           return;
         }
 
@@ -398,6 +409,17 @@ export default {
 
     await ctx.connect();
     console.log(`[agent]: Connected to room: ${ctx.room.name}`);
+
+    // Pre-start the session so WebRTC audio tracks are established
+    // before the client sends SYSTEM_CHANNEL_START. This minimizes greeting latency.
+    try {
+      console.log(`[agent]: Pre-starting session on connect...`);
+      await session.start({ agent: vadAgent, room: ctx.room });
+      console.log(`[agent]: Realtime session pre-started successfully.`);
+    } catch (err) {
+      console.error(`[agent]: Failed to pre-start session on connect:`, err);
+    }
+
     const activeModelName = 'cascade-livekit-inference (Llama-3.3-70b + Cartesia)';
     console.log(
       `[agent]: Ready — model=${activeModelName}, prompt=${ailanaConfig.promptVersion}, compact@${ailanaConfig.compactEveryNTurns} turns / ${ailanaConfig.forceCompactInputTokens} tokens`,

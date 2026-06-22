@@ -45,9 +45,9 @@ import VideoStage from "../video-stage";
 
 export default function FloatingCTA() {
   const [isOpen, setIsOpen] = useState(false);
-  const [hasAgreed, setHasAgreed] = useState(false);
+  const [hasAgreed, setHasAgreed] = useState(true);
   const [flowPhase, setFlowPhase] = useState<FlowPhase>("idle");
-  const [isIntroComplete, setIsIntroComplete] = useState(false);
+  const [isIntroComplete, setIsIntroComplete] = useState(true);
   const [token, setToken] = useState<string | null>(null);
   const [lkUrl, setLkUrl] = useState<string | null>(null);
   const [keyframeMetaData, setKeyframeMetaData] = useState<any>(null);
@@ -59,8 +59,8 @@ export default function FloatingCTA() {
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [isIntroBlurring, setIsIntroBlurring] = useState(true);
   const [complianceChecked, setComplianceChecked] = useState(false);
-  const [isAnnouncementStarted, setIsAnnouncementStarted] = useState(false);
-  const [isAnnouncementComplete, setIsAnnouncementComplete] = useState(false);
+  const [isAnnouncementStarted, setIsAnnouncementStarted] = useState(true);
+  const [isAnnouncementComplete, setIsAnnouncementComplete] = useState(true);
   const [isFallbackMode, setIsFallbackMode] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string>("");
   const [isOffline, setIsOffline] = useState(false);
@@ -77,6 +77,7 @@ export default function FloatingCTA() {
   const inactivityWatchdogRef = useRef<NodeJS.Timeout | null>(null);
   const inactivityCountdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastActivityAtRef = useRef<number>(Date.now());
+  const hasOpenedRef = useRef(false);
   const searchParams = useSearchParams();
 
   // Suppress harmless internal LiveKit warnings that cause Next.js error overlays in dev mode during widget lifecycle
@@ -367,6 +368,12 @@ export default function FloatingCTA() {
     }
   }, [searchParams]);
 
+  // Pre-fetch LiveKit token and Keyframe metadata on mount to skip connection delay
+  useEffect(() => {
+    if (isFetchingRef.current || token) return;
+    fetchToken("video");
+  }, []);
+
   // Centralised session reset — nukes all LiveKit / flow state so the
   // intro → compliance → live flow can replay cleanly.
   const resetSession = () => {
@@ -380,12 +387,12 @@ export default function FloatingCTA() {
     setIsVideoReady(false);
     setIsIntroBlurring(true);
     setKeyframeMetaData(null);
-    setHasAgreed(false);
-    setIsIntroComplete(false);
-    setComplianceChecked(false);
+    setHasAgreed(true);
+    setIsIntroComplete(true);
+    setComplianceChecked(true);
     setPendingMode("video");
-    setIsAnnouncementStarted(false);
-    setIsAnnouncementComplete(false);
+    setIsAnnouncementStarted(true);
+    setIsAnnouncementComplete(true);
     setConnectionStatus("");
     setIsOffline(false);
     setShowEndCallConfirm(false);
@@ -447,8 +454,12 @@ export default function FloatingCTA() {
 
   // Reset ALL session state when modal closes
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      hasOpenedRef.current = true;
+    } else if (!isOpen && hasOpenedRef.current) {
       resetSession();
+      hasOpenedRef.current = false;
+      fetchToken("video"); // Pre-fetch a new token for the next connection
     }
   }, [isOpen]);
 
@@ -1075,8 +1086,8 @@ export default function FloatingCTA() {
                         </motion.div>
                       )}
 
-                      {/* ── Independent Intro Video Flow (Shows immediately with blur) ── */}
-                      {flowPhase === "intro" && (
+                      {/* ── Independent Intro Video Flow (Commented Out) ── */}
+                      {/* flowPhase === "intro" && (
                         <motion.div
                           key="intro-video-stage"
                           initial={{ opacity: 0 }}
@@ -1145,7 +1156,7 @@ export default function FloatingCTA() {
                             )}
                           </AnimatePresence>
                         </motion.div>
-                      )}
+                      ) */}
 
                       {flowPhase === "connecting" && (
                         <motion.div
@@ -1555,11 +1566,10 @@ export default function FloatingCTA() {
         onClick={() => {
           setIsOpen(true);
           if (flowPhaseRef.current === "idle") {
-            setFlowPhase("intro");
-            flowPhaseRef.current = "intro";
-            setIsIntroComplete(false);
-            setPendingMode("intro-avatar");
-            fetchToken("intro-avatar");
+            setFlowPhase("connecting");
+            flowPhaseRef.current = "connecting";
+            setPendingMode("video");
+            fetchToken("video");
           }
         }}
       />
