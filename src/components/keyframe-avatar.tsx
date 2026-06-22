@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createClient, type PersonaSession, SAMPLE_RATE } from "@keyframelabs/sdk";
 import { Loader2 } from "lucide-react";
-import { useParticipants } from "@livekit/components-react";
-import { Track } from "livekit-client";
+import { useParticipants, useRoomContext } from "@livekit/components-react";
+import { Track, RoomEvent } from "livekit-client";
 
 interface KeyframeMetadata {
   server_url: string;
@@ -160,12 +160,11 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
             isConnectedRef.current = true;
             setStatus("connected");
 
-            // Set base emotion to happy (smile) as per user request
+            // Set base emotion to neutral (natural resting face)
             if (sessionRef.current) {
-              console.log("[KeyframeAvatar] 😊 Setting emotion to happy");
+              console.log("[KeyframeAvatar] 😐 Setting initial emotion to neutral");
               try {
-                // @ts-ignore - setEmotion exists in latest SDK but might missing from local types
-                sessionRef.current.setEmotion("happy");
+                sessionRef.current.setEmotion("neutral");
               } catch (e) {
                 console.warn("[KeyframeAvatar] Failed to set initial emotion:", e);
               }
@@ -251,25 +250,50 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
     };
   }, [keyframeMetadata]);
 
-  // Keep setting the happy emotion periodically when connected to ensure it stays constant
-  useEffect(() => {
-    if (status !== "connected" || !sessionRef.current) return;
+  // ── Dynamic emotion receiver: listen for AVATAR_EMOTION from backend ──
+  const room = useRoomContext();
+  const lastEmotionRef = useRef<string>("neutral");
 
-    const emotionInterval = setInterval(() => {
-      if (sessionRef.current && isConnectedRef.current) {
-        try {
-          // @ts-ignore
-          sessionRef.current.setEmotion("happy");
-        } catch (e) {
-          console.warn("[KeyframeAvatar] Failed to set periodic emotion:", e);
-        }
+  useEffect(() => {
+    if (status !== "connected" || !sessionRef.current || !room) return;
+
+    const applyEmotion = (emotion: string) => {
+      // Only call setEmotion if it actually changed (avoid redundant API calls)
+      if (emotion === lastEmotionRef.current) return;
+      if (!sessionRef.current || !isConnectedRef.current) return;
+
+      const validEmotions = ["neutral", "happy", "sad", "angry"] as const;
+      if (!validEmotions.includes(emotion as any)) return;
+
+      try {
+        sessionRef.current.setEmotion(emotion as typeof validEmotions[number]);
+        lastEmotionRef.current = emotion;
+        console.log(`[KeyframeAvatar] 🎭 Emotion → ${emotion}`);
+      } catch (e) {
+        console.warn("[KeyframeAvatar] Failed to set emotion:", e);
       }
-    }, 3000);
+    };
+
+    // Handler for binary data channel messages from the backend agent
+    // The backend uses publishData() which fires RoomEvent.DataReceived
+    const handleData = (payload: Uint8Array, participant: any, _kind: any, topic?: string) => {
+      if (topic !== "avatar_emotion") return;
+      try {
+        const msg = JSON.parse(new TextDecoder().decode(payload));
+        if (msg.type === "AVATAR_EMOTION" && msg.emotion) {
+          applyEmotion(msg.emotion);
+        }
+      } catch {
+        // Ignore malformed payloads
+      }
+    };
+
+    room.on(RoomEvent.DataReceived, handleData);
 
     return () => {
-      clearInterval(emotionInterval);
+      room.off(RoomEvent.DataReceived, handleData);
     };
-  }, [status]);
+  }, [status, room]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   function tearDownAudioPipe() {

@@ -14,6 +14,7 @@ import {
   RESUME_USER_INPUT,
 } from './prompts/index.js';
 import { logPromptBudget } from './context/context-budget.js';
+import { evaluateEmotion } from './utils/avatar-emotion-engine.js';
 
 dotenv.config();
 
@@ -109,7 +110,11 @@ export default {
       await contextManager.maybeRotate(session, createAgentForRotation, isIdle);
     };
 
-    let currentAgentState = 'connecting';
+    let currentAgentState = 'initializing';
+
+    // Emotion tracking state
+    let emotionEvalInterval: NodeJS.Timeout | null = null;
+    let lastBroadcastedEmotion = 'neutral';
 
     session.on(voice.AgentSessionEventTypes.Error, (err: any) => {
       if (err?.message?.includes('audio_end_ms')) return;
@@ -122,11 +127,67 @@ export default {
       if (typeof oldState === 'string' && typeof newState === 'string') {
         currentAgentState = newState;
         console.log(`[agent-debug]: Agent state: ${oldState} → ${newState}`);
-        if (newState === 'speaking' && oldState === 'thinking') {
-          metrics.markAgentSpeaking();
+        
+        if (newState === 'speaking') {
+          if (oldState === 'thinking') {
+            metrics.markAgentSpeaking();
+          }
+          
+          // Avatar emotion: Start polling the streaming LLM text to react mid-sentence
+          if (emotionEvalInterval) clearInterval(emotionEvalInterval);
+          emotionEvalInterval = setInterval(() => {
+            try {
+              const items = session.chatCtx?.items || [];
+              const lastAssistantItem = items.slice().reverse().find(
+                (i): i is llm.ChatMessage => i.type === 'message' && i.role === 'assistant'
+              );
+              if (lastAssistantItem?.textContent) {
+                const emotion = evaluateEmotion(lastAssistantItem.textContent);
+                if (emotion !== lastBroadcastedEmotion) {
+                  lastBroadcastedEmotion = emotion;
+                  const emotionPayload = new TextEncoder().encode(JSON.stringify({
+                    type: 'AVATAR_EMOTION',
+                    emotion,
+                  }));
+                  ctx.room.localParticipant?.publishData(emotionPayload, {
+                    reliable: true,
+                    topic: 'avatar_emotion',
+                  });
+                  console.log(`[agent-debug]: Avatar emotion → ${emotion} (mid-stream)`);
+                }
+              }
+            } catch (e) {
+              // Ignore polling errors
+            }
+          }, 500);
+        } else {
+          // If not speaking (e.g. listening, thinking, idle), stop polling
+          if (emotionEvalInterval) {
+            clearInterval(emotionEvalInterval);
+            emotionEvalInterval = null;
+          }
         }
+
         if (newState === 'listening' && (session as any)._started && !voiceMuted && !isHibernating) {
           prepareContext().catch(err => console.error('[agent-error]: Idle prepareContext failed:', err));
+
+          // Avatar emotion: return to neutral resting face when idle
+          try {
+            if (lastBroadcastedEmotion !== 'neutral') {
+              lastBroadcastedEmotion = 'neutral';
+              const neutralPayload = new TextEncoder().encode(JSON.stringify({
+                type: 'AVATAR_EMOTION',
+                emotion: 'neutral',
+              }));
+              ctx.room.localParticipant?.publishData(neutralPayload, {
+                reliable: true,
+                topic: 'avatar_emotion',
+              });
+              console.log(`[agent-debug]: Avatar emotion → neutral (idle)`);
+            }
+          } catch (e) {
+            // Non-critical — don't break agent flow
+          }
         }
       }
     });
