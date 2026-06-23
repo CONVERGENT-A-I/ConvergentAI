@@ -376,11 +376,13 @@ export default {
 
         greetingGenerated = true;
 
+        const greetingText = "Hi, my name is Ailana and I am an AI mortgage assistant who can respond to all of your mortgage questions and provide other services. What questions do you have for me today?";
+
         if ((session as any)._started) {
           console.log(`[agent]: Session already started. Generating greeting now...`);
           metrics.startTurn();
-          metrics.markGenerateReply();
-          session.generateReply({ userInput: GREETING_USER_INPUT });
+          metrics.markAgentSpeaking();
+          session.say(greetingText, { addToChatCtx: true });
           return;
         }
 
@@ -389,8 +391,8 @@ export default {
           console.log(`[agent]: Realtime session started. Mode ${targetMode} ready.`);
 
           metrics.startTurn();
-          metrics.markGenerateReply();
-          session.generateReply({ userInput: GREETING_USER_INPUT });
+          metrics.markAgentSpeaking();
+          session.say(greetingText, { addToChatCtx: true });
         } catch (err) {
           console.error(`[agent]: Failed to start session:`, err);
         }
@@ -485,6 +487,14 @@ export default {
       console.log(`[agent]: Pre-starting session on connect...`);
       await session.start({ agent: vadAgent, room: ctx.room });
       console.log(`[agent]: Realtime session pre-started successfully.`);
+
+      // Send SYSTEM_AGENT_READY to the client so it knows the session is fully start-completed
+      const readyPayload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_AGENT_READY" }));
+      await ctx.room.localParticipant?.publishData(readyPayload, {
+        reliable: true,
+        topic: "lk-chat",
+      });
+      console.log(`[agent]: Sent SYSTEM_AGENT_READY signal.`);
     } catch (err) {
       console.error(`[agent]: Failed to pre-start session on connect:`, err);
     }
