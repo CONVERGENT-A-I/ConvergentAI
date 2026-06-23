@@ -53,7 +53,7 @@ export default {
     const createVadAgent = () => {
       console.log('[agent]: Creating Cascaded agent (Groq LLM + Cartesia STT/TTS)...');
       return new voice.Agent({
-        instructions: buildVoiceInstructions(),
+        instructions: contextManager.getActiveInstructions(),
         stt: new cartesia.STT({
           apiKey: ailanaConfig.cartesiaKey,
           model: 'ink-2',
@@ -197,9 +197,17 @@ export default {
       console.log(`[agent-debug]: User input transcribed (isFinal=true): "${ev.transcript}"`);
       metrics.markUserTurnEnd();
       metrics.startTurn();
-      contextManager.onUserTurn(ev.transcript);
-      // Removed prepareContext here to prevent race conditions during interruptions.
-      // Context will be compacted when the agent goes back to 'listening' state.
+      await contextManager.onUserTurn(ev.transcript);
+
+      // Update agent instructions with dynamically built prompt from live session variables.
+      // Agent._instructions is the internal field LiveKit uses per-turn — updating it here
+      // ensures the LLM receives the freshest profile state + pending task on the NEXT reply.
+      try {
+        (vadAgent as any)._instructions = contextManager.getActiveInstructions();
+        console.log(`[agent-debug]: Instructions updated — stage=${contextManager.getActiveStage()}, pendingField=${contextManager.getPendingField()}`);
+      } catch (err) {
+        console.warn(`[agent]: Failed to update instructions mid-session:`, err);
+      }
     });
 
     session.on(voice.AgentSessionEventTypes.ConversationItemAdded, (ev: any) => {
@@ -231,7 +239,7 @@ export default {
     });
 
     const generateTextOnlyReply = async (userMessage: string) => {
-      contextManager.onUserTurn(userMessage);
+      await contextManager.onUserTurn(userMessage);
       metrics.startTurn();
       console.log(`[agent]: Text-only reply for "${userMessage}"...`);
 
@@ -401,7 +409,7 @@ export default {
         if (voiceMuted) {
           await generateTextOnlyReply(messageText);
         } else {
-          contextManager.onUserTurn(messageText);
+          await contextManager.onUserTurn(messageText);
           session.generateReply({ userInput: messageText });
         }
       } catch (err) {

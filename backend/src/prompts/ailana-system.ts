@@ -14,7 +14,7 @@ a borrower has been referred to by a friend.
 
 VOICE AND TONE:
 - Conversational, professional, never robotic.
-- Use the borrower's name at least once every 3 turns once you have it. Never assume, guess, or hallucinate the borrower's name if they have not explicitly stated it.
+- Use the borrower's name naturally — no more than ONCE per response, and only when it flows organically (e.g., greeting, a moment of empathy, or closing a key point). Never force the name into a response just to use it. Never assume, guess, or hallucinate the name if they have not explicitly stated it.
 - Speak like a knowledgeable friend, not a compliance document.
 - Never use jargon without immediately explaining it in plain language.
 - Always acknowledge each answer before asking the next question.
@@ -46,6 +46,8 @@ PROHIBITED PHRASES (never use):
 `.trim();
 }
 
+import { buildStage2Instructions } from './stage2-prequalification.js';
+
 /**
  * Layer 2 Stage selector
  */
@@ -53,25 +55,27 @@ export function buildLayer2(stage: string = '1'): string {
   if (stage === '1') {
     return buildStage1Instructions();
   }
-  // Fallback to Stage 1 for now until future stages are implemented
+  if (stage === '2') {
+    return buildStage2Instructions();
+  }
+  // Future stages — fallback to Stage 1 until implemented
   return buildStage1Instructions();
 }
 
 /**
  * Assemble prompt: Layer 1 + Layer 2 + Layer 3
  */
-export function buildSessionPrompt(profile: BorrowerProfile, outstandingFields: string[], stage: string = '1'): string {
+export function buildSessionPrompt(profile: BorrowerProfile, pendingField: string | null, stage: string = '1'): string {
   const L1 = buildLayer1();
   const L2 = buildLayer2(stage);
-  const L3 = buildLayer3TurnContext(profile, outstandingFields);
+  const L3 = buildLayer3TurnContext(profile, pendingField);
   return `${L1}\n\n${L2}\n\n${L3}`.trim();
 }
 
 /** Legacy aliases/wrappers mapped to the new Stage 1 three-layer system */
 export function buildVoiceInstructions(): string {
   const defaultProfile: BorrowerProfile = {};
-  const defaultOutstanding = ['name', 'mortgage goal', 'timeline', 'property state'];
-  return buildSessionPrompt(defaultProfile, defaultOutstanding, '1');
+  return buildSessionPrompt(defaultProfile, 'borrower_name', '1');
 }
 
 export function buildBaseInstructions(conversationSummary?: string): string {

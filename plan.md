@@ -1,10 +1,37 @@
 # Layer 2 & 3 Prompt Restructuring Plan
 
-This plan details the stages to implement Layer 2 & Layer 3 prompts, ensuring clean data collection and removing legacy redundancies step-by-step. We leverage instructions and stages from [PromptMigrationPlan.md](file:///c:/Users/Sherry/Documents/Convergent_AI/PromptMigrationPlan.md).
+This plan details the stages to implement Layer 2 & Layer 3 prompts, ensuring clean data collection and removing legacy redundancies step-by-step. We leverage instructions and stages from [PromptMigrationPlan.md](file:///c:/Users/Sherry/Documents/Convergent_AI/PromptMigrationPlan.md) and establish strict architectural separation of concerns.
 
 ---
 
-## Stage 1: Legacy Prompt Cleanup & Greeting/Intent Discovery (Current Stage)
+## Architectural Guardrails & Rules (System-Wide)
+
+To guarantee compliance, prevent conversational looping, and ensure high reliability, the system strictly follows these 20 guardrails:
+
+1. **State-Controlled Transitions**: Stage transitions are driven entirely by backend logic, not LLM completion signals.
+2. **Explicit Confirmation Tracking**: Distinguish between extracted values and confirmed values (e.g., `borrower_name` vs `borrower_name_confirmed`).
+3. **Structured Extraction Layer**: User transcripts are analyzed by a structured extraction routine rather than relying on the LLM conversational agent to manage data storage.
+4. **Current Objective Tracking**: Inject the active pending field (e.g., `timeline`) into Layer 3 to prevent the model from jumping ahead or stacking questions.
+5. **Corrections & Re-confirmation Handling**: Overwriting old values resets confirmation states, forcing the LLM to reconfirm the new input.
+6. **Verbatim Compliance Delivery**: Legally sensitive scripts (like the soft pull consent) are served directly from backend buffers, bypassing LLM paraphrasing risks.
+7. **Tool vs. LLM Authority Separation**: The backend owns State, Variables, and Handoffs. The LLM owns Tone, Explanations, and Conversational flow.
+8. **Product Eligibility Rules Engine**: Run eligibility calculations in backend code; the LLM merely reads and explains the list of qualified options from the state block.
+9. **No-Approval Guardrails**: Layer 1 strictly prohibits making credit decisions or stating "you are approved" or "you qualify".
+10. **Explicit SAFE Act Escalation Triggers**: Define precise trigger rules for immediate MLO transfer (rate locks, manual underwriting request, binding terms).
+11. **Confidence Validation**: Require high STT confidence; low-confidence inputs trigger confirmation prompts before saving.
+12. **Contradiction Detection**: Compare inputs (e.g., changing purchase to refinance mid-conversation) and prompt the user to resolve conflicts.
+13. **Retry Limits**: Track attempts to gather a field. If the user repeatedly declines or fails to provide an answer, mark it as "declined" and move on.
+14. **Context Window Management**: Limit context sent to the model to: Layer 1 + Layer 2 + active profile variables + rolling summary + last 4 turns. Never send the full raw transcript.
+15. **Handoff Package Construction**: Build a structured, machine-readable JSON package of all collected data when transferring to a human MLO.
+16. **Explicit Consent State Machine**: Persist soft pull consent states (`pending | accepted | declined`) explicitly in the session state.
+17. **Session Recovery**: Session states are persisted to support resuming conversation seamlessly from the last completed turn.
+18. **Audit Logging**: Maintain a secure event trail of every question, answer, extraction result, confirmation, stage advance, and handoff.
+19. **Security Boundaries (Secure Fields)**: Highly sensitive fields (e.g., SSN, account numbers) are entered via secure UI redirects. Voice capture is strictly forbidden.
+20. **Regression Framework**: Build regression scripts to run automated sanity checks for happy path, compliance triggers, and exceptions.
+
+---
+
+## Stage 1: Legacy Prompt Cleanup & Greeting/Intent Discovery ✅ DONE
 
 ### Goal
 - Clean up legacy files and establish Layer 1 (Static System Prompt) + Layer 2 (Stage 1 Greeting & Intent Discovery) + Layer 3 (Dynamic Turn Context) assembly structure.
@@ -29,12 +56,12 @@ This plan details the stages to implement Layer 2 & Layer 3 prompts, ensuring cl
   ```
 
 ### Tool Calling & Variables (Layer 3 Context Block)
-- Track variables: `borrower_name`, `mortgage_goal`, `timeline`, `property_state`.
+- Track variables: `borrower_name` (plus `borrower_name_confirmed`), `mortgage_goal` (plus confirmed), `timeline`, `property_state`.
 - Format variables dynamically into the turn context template:
   ```
   === BORROWER PROFILE ===
-  Name:                  {{borrower_name | 'not yet collected'}}
-  Goal:                  {{mortgage_goal | 'not yet collected'}}
+  Name:                  {{borrower_name | 'not yet collected'}} (Confirmed: {{borrower_name_confirmed}})
+  Goal:                  {{mortgage_goal | 'not yet collected'}} (Confirmed: {{mortgage_goal_confirmed}})
   Timeline:              {{timeline | 'not yet collected'}}
   Property state:        {{property_state | 'not yet collected'}}
   === END PROFILE ===
@@ -56,7 +83,7 @@ This plan details the stages to implement Layer 2 & Layer 3 prompts, ensuring cl
 
 ---
 
-## Stage 2: Pre-Qualification Discovery
+## Stage 2: Pre-Qualification Discovery ✅ DONE
 
 ### Goal
 - Implement Stage 2 Pre-Qualification Discovery logic.
@@ -83,7 +110,7 @@ This plan details the stages to implement Layer 2 & Layer 3 prompts, ensuring cl
   ```
 
 ### Tool Calling & Variables (Layer 3 Context Block)
-- Variables to track: `gross_monthly_income`, `monthly_debt`, `credit_range`, `down_payment`, `property_value`.
+- Variables to track: `gross_monthly_income` (confirmed), `monthly_debt` (confirmed), `credit_range` (confirmed), `down_payment` (confirmed), `property_value` (confirmed).
 - Implement dynamic `confirmation_instruction` in Layer 3 when a new financial field is extracted:
   ```
   CONFIRM THIS TURN: You mentioned [value] as [field].
