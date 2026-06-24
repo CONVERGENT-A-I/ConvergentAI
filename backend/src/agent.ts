@@ -15,6 +15,7 @@ import {
 } from './prompts/index.js';
 import { logPromptBudget } from './context/context-budget.js';
 import { evaluateEmotion } from './utils/avatar-emotion-engine.js';
+import { BackchannelEngine } from './utils/backchannel-engine.js';
 
 dotenv.config();
 
@@ -92,6 +93,8 @@ export default {
     const session = new voice.AgentSession({
       userAwayTimeout: null,
     });
+    
+    const backchannelEngine = new BackchannelEngine();
 
     const createAgentForRotation = () => {
       vadAgent = createVadAgent();
@@ -114,7 +117,7 @@ export default {
 
     // Emotion tracking state
     let emotionEvalInterval: NodeJS.Timeout | null = null;
-    let lastBroadcastedEmotion = 'neutral';
+    let lastBroadcastedEmotion = 'happy';
 
     session.on(voice.AgentSessionEventTypes.Error, (err: any) => {
       if (err?.message?.includes('audio_end_ms')) return;
@@ -169,21 +172,22 @@ export default {
         }
 
         if (newState === 'listening' && (session as any)._started && !voiceMuted && !isHibernating) {
+          backchannelEngine.reset();
           prepareContext().catch(err => console.error('[agent-error]: Idle prepareContext failed:', err));
 
-          // Avatar emotion: return to neutral resting face when idle
+          // Avatar emotion: return to happy resting face when idle
           try {
-            if (lastBroadcastedEmotion !== 'neutral') {
-              lastBroadcastedEmotion = 'neutral';
-              const neutralPayload = new TextEncoder().encode(JSON.stringify({
+            if (lastBroadcastedEmotion !== 'happy') {
+              lastBroadcastedEmotion = 'happy';
+              const happyPayload = new TextEncoder().encode(JSON.stringify({
                 type: 'AVATAR_EMOTION',
-                emotion: 'neutral',
+                emotion: 'happy',
               }));
-              ctx.room.localParticipant?.publishData(neutralPayload, {
+              ctx.room.localParticipant?.publishData(happyPayload, {
                 reliable: true,
                 topic: 'avatar_emotion',
               });
-              console.log(`[agent-debug]: Avatar emotion → neutral (idle)`);
+              console.log(`[agent-debug]: Avatar emotion → happy (idle)`);
             }
           } catch (e) {
             // Non-critical — don't break agent flow
@@ -193,8 +197,16 @@ export default {
     });
 
     session.on(voice.AgentSessionEventTypes.UserInputTranscribed, async (ev: any) => {
-      if (!ev.isFinal || !ev.transcript?.trim()) return;
+      if (!ev.isFinal) {
+        if (ev.transcript?.trim()) {
+          backchannelEngine.onInterimTranscript(ev.transcript, session);
+        }
+        return;
+      }
+      if (!ev.transcript?.trim()) return;
+      
       console.log(`[agent-debug]: User input transcribed (isFinal=true): "${ev.transcript}"`);
+      backchannelEngine.reset();
       metrics.markUserTurnEnd();
       metrics.startTurn();
       await contextManager.onUserTurn(ev.transcript);

@@ -160,11 +160,11 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
             isConnectedRef.current = true;
             setStatus("connected");
 
-            // Set base emotion to neutral (natural resting face)
+            // Set base emotion to happy (natural resting face for Ailana)
             if (sessionRef.current) {
-              console.log("[KeyframeAvatar] 😐 Setting initial emotion to neutral");
+              console.log("[KeyframeAvatar] 😊 Setting initial emotion to happy");
               try {
-                sessionRef.current.setEmotion("neutral");
+                sessionRef.current.setEmotion("happy");
               } catch (e) {
                 console.warn("[KeyframeAvatar] Failed to set initial emotion:", e);
               }
@@ -252,7 +252,7 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
 
   // ── Dynamic emotion receiver: listen for AVATAR_EMOTION from backend ──
   const room = useRoomContext();
-  const lastEmotionRef = useRef<string>("neutral");
+  const lastEmotionRef = useRef<string>("happy");
 
   useEffect(() => {
     if (status !== "connected" || !sessionRef.current || !room) return;

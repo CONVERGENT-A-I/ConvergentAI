@@ -61,7 +61,6 @@ export function evaluateEmotion(text: string): KeyframesEmotion {
     return 'happy';
   }
 
-  // Default: calm, attentive, neutral — breaks the constant-smile loop
-  return 'neutral';
+  // Default: friendly smile
+  return 'happy';
 }
-
