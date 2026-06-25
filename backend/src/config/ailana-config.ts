@@ -27,7 +27,18 @@ export const ailanaConfig = {
   vadInterruptMinDurationMs: envInt('AILANA_VAD_INTERRUPT_MIN_DURATION_MS', 350),
 
   groqApiKey: process.env.GROQ_API_KEY ?? '',
+  openaiApiKey: process.env.OPENAI_API_KEY ?? '',
   cartesiaKey: process.env.CARTESIA_KEY ?? '',
   cartesiaVoiceId: process.env.AILANA_VOICE_ID ?? '11af83e2-23eb-452f-956e-7fee218ccb5c',
 };
+
+export function getDynamicGroqApiKey(): string {
+  const raw = process.env.GROQ_API_KEY ?? '';
+  const keys = raw.split(',').map(k => k.trim()).filter(Boolean);
+  if (keys.length === 0) return '';
+  const randomIndex = Math.floor(Math.random() * keys.length);
+  const selectedKey = keys[randomIndex] ?? '';
+  console.log(`[config]: Selected rotated Groq API key ending in: ...${selectedKey.slice(-4)}`);
+  return selectedKey;
+}
 

@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import * as openai from '@livekit/agents-plugin-openai';
 import * as cartesia from '@livekit/agents-plugin-cartesia';
-import { ailanaConfig } from './config/ailana-config.js';
+import { ailanaConfig, getDynamicGroqApiKey } from './config/ailana-config.js';
 import { SessionContextManager } from './context/session-context-manager.js';
 import { LatencyTracker } from './metrics/latency-tracker.js';
 import {
@@ -36,11 +36,13 @@ export default {
   async entry(ctx: JobContext) {
     console.log(`[agent]: Receiving job for room: ${ctx.room.name}`);
 
+    const sessionGroqApiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
+
     const metrics = new LatencyTracker();
     const summarizationLlm = new openai.LLM({
       model: 'llama-3.3-70b-versatile',
       baseURL: 'https://api.groq.com/openai/v1',
-      apiKey: ailanaConfig.groqApiKey,
+      apiKey: sessionGroqApiKey,
     });
     const contextManager = new SessionContextManager(summarizationLlm, metrics);
 
@@ -63,7 +65,7 @@ export default {
         llm: new openai.LLM({
           model: 'llama-3.3-70b-versatile',
           baseURL: 'https://api.groq.com/openai/v1',
-          apiKey: ailanaConfig.groqApiKey,
+          apiKey: sessionGroqApiKey,
         }),
         tts: new cartesia.TTS({
           apiKey: ailanaConfig.cartesiaKey,
@@ -256,7 +258,7 @@ export default {
       console.log(`[agent]: Text-only reply for "${userMessage}"...`);
 
       try {
-        const apiKey = ailanaConfig.groqApiKey;
+        const apiKey = sessionGroqApiKey;
         if (!apiKey) return;
 
         const systemPrompt = buildBaseInstructions(

@@ -35,6 +35,16 @@ export interface BorrowerProfile {
 
   // Active transition bridge phrase to output next response
   bridge_to_say?: 'stage1_to_stage2' | 'stage2_to_stage3' | null;
+
+  // ── Stage 3 / 3A ─────────────────────────────────────────────────────────
+  eligible_products?: string[] | null;
+  soft_pull_consent?: 'pending' | 'accepted' | 'declined' | null;
+  prefilled_fields_confirmed?: {
+    name_address?: boolean;
+    employer?: boolean;
+    accounts?: boolean;
+    credit_range?: boolean;
+  };
 }
 
 // Human-readable field labels used in the confirmation ask
@@ -80,10 +90,30 @@ export function buildLayer3TurnContext(
     '=== END STAGE 2 ===',
   ].join('\n');
 
+  // ── Stage 3 eligibility & consent block ──────────────────────────────────
+  const productsList = profile.eligible_products && profile.eligible_products.length > 0
+    ? profile.eligible_products.join(', ')
+    : 'None / Not determined';
+
+  const stage3Block = [
+    '=== BORROWER PROFILE (Stage 3 — Eligibility & Consent) ===',
+    `Eligible products: ${productsList}`,
+    `Soft pull consent: ${profile.soft_pull_consent ?? 'not yet asked'}`,
+    `Prefilled fields confirmed:`,
+    `  - Name & Address: ${!!profile.prefilled_fields_confirmed?.name_address}`,
+    `  - Employer:       ${!!profile.prefilled_fields_confirmed?.employer}`,
+    `  - Accounts:       ${!!profile.prefilled_fields_confirmed?.accounts}`,
+    `  - Credit range:   ${!!profile.prefilled_fields_confirmed?.credit_range} (Reference the user's numeric score and clarify if it is Excellent, Good, Fair, etc., for their understanding. Do NOT say a bucket name, use descriptive ranges.)`,
+    '=== END STAGE 3 ===',
+  ].join('\n');
+
   // ── Current task line ─────────────────────────────────────────────────────
-  const taskLine = pendingField
-    ? `CURRENT TASK:\nCollect ${pendingField}\n\nDO NOT ASK FOR ANY OTHER FIELD.`
-    : 'CURRENT TASK:\nAll fields for this stage collected.';
+  let taskLine = '';
+  if (pendingField) {
+    taskLine = `CURRENT TASK:\nCollect ${pendingField}\n\nDO NOT ASK FOR ANY OTHER FIELD.`;
+  } else {
+    taskLine = 'CURRENT TASK:\nAll fields for this stage collected.';
+  }
 
   // ── Confirmation instruction (only when a field was just extracted) ────────
   let confirmBlock = '';
@@ -104,5 +134,12 @@ export function buildLayer3TurnContext(
     bridgeBlock = `\n\nBRIDGE INSTRUCTION:\nStart your response by saying EXACTLY: "Let me walk you through the options that look like the strongest fit."`;
   }
 
-  return [stage1Block, stage2Block, taskLine + confirmBlock + bridgeBlock].join('\n\n');
+  // ── Verbatim Consent Instruction ──────────────────────────────────────────
+  let consentBlock = '';
+  if (profile.soft_pull_consent === 'pending') {
+    consentBlock = `\n\nCONSENT INSTRUCTION:\nYou MUST speak the following disclosure EXACTLY word-for-word, do NOT paraphrase or change anything:\n"Before we proceed — this is a soft pull, not a hard inquiry. It will not affect your credit score in any way. You are the one authorizing it — not us pulling it on our behalf. Your data is used only to pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?"`;
+  }
+
+  return [stage1Block, stage2Block, stage3Block, taskLine + confirmBlock + bridgeBlock + consentBlock].join('\n\n');
 }
+

@@ -1,9 +1,8 @@
 import { OpenAI } from 'openai';
 import { ailanaConfig } from '../config/ailana-config.js';
 
-const groqClient = new OpenAI({
-  baseURL: 'https://api.groq.com/openai/v1',
-  apiKey: ailanaConfig.groqApiKey,
+const openaiClient = new OpenAI({
+  apiKey: ailanaConfig.openaiApiKey,
 });
 
 export interface ExtractionResult {
@@ -40,8 +39,8 @@ You MUST reply with a JSON object only.`;
 User input: "${userInput}"`;
 
   try {
-    const response = await groqClient.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+    const response = await openaiClient.chat.completions.create({
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -95,8 +94,8 @@ Return a JSON object with:
 User response: "${userInput}"`;
 
   try {
-    const response = await groqClient.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+    const response = await openaiClient.chat.completions.create({
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },

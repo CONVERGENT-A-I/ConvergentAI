@@ -47,6 +47,7 @@ PROHIBITED PHRASES (never use):
 }
 
 import { buildStage2Instructions } from './stage2-prequalification.js';
+import { buildStage3Instructions, buildStage3AInstructions } from './stage3-guidance.js';
 
 /**
  * Layer 2 Stage selector
@@ -58,9 +59,16 @@ export function buildLayer2(stage: string = '1'): string {
   if (stage === '2') {
     return buildStage2Instructions();
   }
+  if (stage === '3') {
+    return buildStage3Instructions();
+  }
+  if (stage === '3A') {
+    return buildStage3AInstructions();
+  }
   // Future stages — fallback to Stage 1 until implemented
   return buildStage1Instructions();
 }
+
 
 /**
  * Assemble prompt: Layer 1 + Layer 2 + Layer 3

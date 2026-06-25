@@ -55,10 +55,81 @@ export class SessionContextManager {
     this.turnLog.push({ role: 'user', text: trimmed, timestamp: Date.now() });
     this.turnCount += 1;
 
+    if (!this.currentPendingField && this.activeStage !== '3' && this.activeStage !== '3a' && this.activeStage !== '3A') {
+      return;
+    }
+
     if (this.activeStage === '1') {
       await this.runStage1Extraction(trimmed);
     } else if (this.activeStage === '2') {
       await this.runStage2Extraction(trimmed);
+    } else if (this.activeStage === '3') {
+      await this.runStage3Extraction(trimmed);
+    } else if (this.activeStage === '3A') {
+      await this.runStage3AExtraction(trimmed);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Stage 3 & 3A extraction and validation
+  // ─────────────────────────────────────────────────────────────────────────
+
+  private async runStage3Extraction(text: string): Promise<void> {
+    const lastQuestion = this.getLastAssistantUtterance();
+
+    if (this.currentPendingField === 'product_selection_feedback') {
+      // LLM prompts "Does that make sense or do you have questions?"
+      // We look to see if they say they want to proceed, or have no questions, or ask a question.
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'ready_to_proceed',
+        'whether the user is ready to move forward or has no more questions',
+        'string',
+        'If the user indicates they want to proceed, have no questions, say "yes", "makes sense", "let\'s go", "sure", or similar, extract value as "yes". If they ask a mortgage/product related question, extract value as "question". If not sure, return null.'
+      );
+
+      if (res.value === 'yes') {
+        this.advanceWorkflow();
+      }
+    }
+  }
+
+  private async runStage3AExtraction(text: string): Promise<void> {
+    const lastQuestion = this.getLastAssistantUtterance();
+
+    if (this.currentPendingField === 'soft_pull_authorization') {
+      const decision = await classifyConfirmation(text, lastQuestion, 'soft_pull_consent', 'Do you authorize the soft credit inquiry on that basis?');
+      if (decision === 'yes') {
+        this.profile.soft_pull_consent = 'accepted';
+        this.profile.prefilled_fields_confirmed = {};
+        this.advanceWorkflow();
+      } else if (decision === 'no') {
+        this.profile.soft_pull_consent = 'declined';
+        this.advanceWorkflow();
+      }
+    } else if (
+      this.currentPendingField === 'prefill_name_address' ||
+      this.currentPendingField === 'prefill_employer' ||
+      this.currentPendingField === 'prefill_accounts' ||
+      this.currentPendingField === 'prefill_credit_range'
+    ) {
+      // Walkthrough confirmations
+      const step = this.currentPendingField;
+      const decision = await classifyConfirmation(text, lastQuestion, step, 'Does that look right or is anything out of date?');
+      
+      const confirmed = this.profile.prefilled_fields_confirmed || {};
+      if (step === 'prefill_name_address') {
+        confirmed.name_address = true;
+      } else if (step === 'prefill_employer') {
+        confirmed.employer = true;
+      } else if (step === 'prefill_accounts') {
+        confirmed.accounts = true;
+      } else if (step === 'prefill_credit_range') {
+        confirmed.credit_range = true;
+      }
+      this.profile.prefilled_fields_confirmed = confirmed;
+      this.advanceWorkflow();
     }
   }
 
@@ -207,17 +278,17 @@ export class SessionContextManager {
         text,
         lastQuestion,
         'credit_score',
-        'credit score',
-        'string',
-        'Extract the credit score number or tier mentioned by the user. If they provide a specific number (e.g. 720 or 750), extract that exact number. If they only know a range or rating tier (e.g. Good, Excellent, or 700-750), extract that range/tier. If they decline, skip, or say they don\'t know, set "declined" to true.'
+        'credit score number',
+        'number',
+        'Extract the credit score as a number (e.g. 720, 680). If they only mention a tier or range (e.g. Excellent or 700-750), return null. We strictly require an actual numeric credit score value. If they decline, skip, or say they don\'t know, set "declined" to true.'
       );
 
       if (res.declined) {
         this.commitStage2Value(field, null, true);
-      } else if (res.value) {
+      } else if (res.value !== null) {
         this.profile.pending_confirm_field = 'credit_range';
-        this.profile.pending_confirm_value = res.value as string;
-        console.log(`[context-manager] Stage2: extracted credit score=${res.value}, awaiting confirm`);
+        this.profile.pending_confirm_value = String(res.value);
+        console.log(`[context-manager] Stage2: extracted credit score number=${res.value}, awaiting confirm`);
       }
     }
   }
@@ -293,6 +364,56 @@ export class SessionContextManager {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
+   * Calculate borrower eligibility for loan products.
+   */
+  private calculateEligibility(): void {
+    const products: string[] = [];
+    const income = this.profile.gross_monthly_income ?? 0;
+    const debt = this.profile.monthly_debt ?? 0;
+    const propertyValue = this.profile.property_value ?? 0;
+    const downPayment = this.profile.down_payment ?? 0;
+
+    // Estimate credit score as a number
+    let creditScore = 700; // Default
+    if (this.profile.credit_range) {
+      const match = this.profile.credit_range.match(/\d+/);
+      if (match) {
+        creditScore = parseInt(match[0], 10);
+      } else {
+        const rating = this.profile.credit_range.toLowerCase();
+        if (rating.includes('excellent')) creditScore = 750;
+        else if (rating.includes('good')) creditScore = 700;
+        else if (rating.includes('fair')) creditScore = 640;
+        else if (rating.includes('poor')) creditScore = 580;
+      }
+    }
+
+    const loanAmount = propertyValue - downPayment;
+    const ltv = propertyValue > 0 ? (loanAmount / propertyValue) * 100 : 0;
+    const dti = income > 0 ? (debt / income) * 100 : 0;
+
+    // Rules engine
+    // Conventional Loan: Credit Score >= 620, DTI <= 45%, LTV <= 97%
+    if (creditScore >= 620 && dti <= 45 && ltv <= 97) {
+      products.push('Conventional Fixed Rate (Reliable, popular option with standard requirements)');
+    }
+    // FHA Loan: Credit Score >= 580, DTI <= 50%, LTV <= 96.5%
+    if (creditScore >= 580 && dti <= 50 && ltv <= 96.5) {
+      products.push('FHA Loan (Great for buyers with lower credit or smaller down payments)');
+    }
+    // USDA Loan (assume rural or fallback): Credit Score >= 640, DTI <= 41%
+    if (creditScore >= 640 && dti <= 41) {
+      products.push('USDA Rural Home Loan (Zero down payment option for qualified properties)');
+    }
+
+    if (products.length === 0) {
+      products.push('Specialized Assistance Programs (Custom credit union portfolio options)');
+    }
+
+    this.profile.eligible_products = products;
+  }
+
+  /**
    * Advance workflow stage and pending objective sequentially.
    * Called ONLY after a field is confirmed (or declined). LLM never calls this.
    */
@@ -324,11 +445,43 @@ export class SessionContextManager {
     } else if (!this.profile.property_value_confirmed) {
       this.currentPendingField = 'property_value';
     // ── Stage 2 → Stage 3 transition ────────────────────────────────────────
-    } else {
-      this.currentPendingField = null;
+    } else if (this.activeStage === '2') {
+      this.calculateEligibility();
+      this.currentPendingField = 'product_selection_feedback';
       this.activeStage = '3';
       this.profile.bridge_to_say = 'stage2_to_stage3';
       console.log('[context-manager]: ✅ Transitioning to STAGE 3 Product Guidance!');
+    // ── Stage 3 / 3A Transitions ─────────────────────────────────────────────
+    } else if (this.activeStage === '3') {
+      if (this.currentPendingField === 'product_selection_feedback') {
+        this.currentPendingField = 'soft_pull_authorization';
+        this.activeStage = '3A';
+        this.profile.soft_pull_consent = 'pending';
+        console.log('[context-manager]: ✅ Transitioning to STAGE 3A Soft Pull Consent!');
+      }
+    } else if (this.activeStage === '3A') {
+      const confirmed = this.profile.prefilled_fields_confirmed || {};
+      if (this.profile.soft_pull_consent === 'accepted') {
+        if (!confirmed.name_address) {
+          this.currentPendingField = 'prefill_name_address';
+        } else if (!confirmed.employer) {
+          this.currentPendingField = 'prefill_employer';
+        } else if (!confirmed.accounts) {
+          this.currentPendingField = 'prefill_accounts';
+        } else if (!confirmed.credit_range) {
+          this.currentPendingField = 'prefill_credit_range';
+        } else {
+          // Finished prefilled walkthrough, go to Stage 3B (Application completion)
+          this.currentPendingField = 'remaining_1003_fields';
+          this.activeStage = '3B';
+          console.log('[context-manager]: ✅ Prefills confirmed! Transitioning to STAGE 3B!');
+        }
+      } else if (this.profile.soft_pull_consent === 'declined') {
+        // Go straight to Stage 3B manual completion
+        this.currentPendingField = 'remaining_1003_fields';
+        this.activeStage = '3B';
+        console.log('[context-manager]: ✅ Consent declined. Transitioning to STAGE 3B (manual)!');
+      }
     }
   }
 
