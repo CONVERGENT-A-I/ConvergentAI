@@ -26,8 +26,8 @@ export const ailanaConfig = {
   vadEndpointMinDelayMs: envInt('AILANA_VAD_ENDPOINT_MIN_DELAY_MS', 350),
   vadInterruptMinDurationMs: envInt('AILANA_VAD_INTERRUPT_MIN_DURATION_MS', 350),
 
-  groqApiKey: process.env.GROQ_API_KEY ?? '',
-  openaiApiKey: process.env.OPENAI_API_KEY ?? '',
+  get groqApiKey() { return process.env.GROQ_API_KEY ?? ''; },
+  get openaiApiKey() { return process.env.OPENAI_API_KEY ?? ''; },
   cartesiaKey: process.env.CARTESIA_KEY ?? '',
   cartesiaVoiceId: process.env.AILANA_VOICE_ID ?? '11af83e2-23eb-452f-956e-7fee218ccb5c',
 };

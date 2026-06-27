@@ -1,9 +1,15 @@
 import { OpenAI } from 'openai';
 import { ailanaConfig } from '../config/ailana-config.js';
 
-const openaiClient = new OpenAI({
-  apiKey: ailanaConfig.openaiApiKey,
-});
+let _openaiClient: OpenAI | null = null;
+function getOpenAIClient(): OpenAI {
+  if (!_openaiClient) {
+    _openaiClient = new OpenAI({
+      apiKey: ailanaConfig.openaiApiKey,
+    });
+  }
+  return _openaiClient;
+}
 
 export interface ExtractionResult {
   value: string | number | null;
@@ -39,7 +45,8 @@ You MUST reply with a JSON object only.`;
 User input: "${userInput}"`;
 
   try {
-    const response = await openaiClient.chat.completions.create({
+    const client = getOpenAIClient();
+    const response = await client.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
@@ -94,7 +101,8 @@ Return a JSON object with:
 User response: "${userInput}"`;
 
   try {
-    const response = await openaiClient.chat.completions.create({
+    const client = getOpenAIClient();
+    const response = await client.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },

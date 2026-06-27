@@ -200,9 +200,10 @@ export default {
 
     session.on(voice.AgentSessionEventTypes.UserInputTranscribed, async (ev: any) => {
       if (!ev.isFinal) {
-        if (ev.transcript?.trim()) {
-          backchannelEngine.onInterimTranscript(ev.transcript, session);
-        }
+        // Backchannel engine is disabled to prevent turn-taking orchestrator locks
+        // if (ev.transcript?.trim()) {
+        //   backchannelEngine.onInterimTranscript(ev.transcript, session);
+        // }
         return;
       }
       if (!ev.transcript?.trim()) return;
@@ -212,16 +213,7 @@ export default {
       metrics.markUserTurnEnd();
       metrics.startTurn();
       await contextManager.onUserTurn(ev.transcript);
-
-      // Update agent instructions with dynamically built prompt from live session variables.
-      // Agent._instructions is the internal field LiveKit uses per-turn — updating it here
-      // ensures the LLM receives the freshest profile state + pending task on the NEXT reply.
-      try {
-        (vadAgent as any)._instructions = contextManager.getActiveInstructions();
-        console.log(`[agent-debug]: Instructions updated — stage=${contextManager.getActiveStage()}, pendingField=${contextManager.getPendingField()}`);
-      } catch (err) {
-        console.warn(`[agent]: Failed to update instructions mid-session:`, err);
-      }
+      updateSessionInstructions();
     });
 
     session.on(voice.AgentSessionEventTypes.ConversationItemAdded, (ev: any) => {
@@ -252,8 +244,34 @@ export default {
       }
     });
 
+    const updateSessionInstructions = () => {
+      try {
+        const activeInstructions = contextManager.getActiveInstructions();
+        (vadAgent as any)._instructions = activeInstructions;
+        
+        const chatCtx = session.chatCtx;
+        const systemItem = chatCtx.items.find(
+          (item) => item.type === 'message' && (item as llm.ChatMessage).role === 'system'
+        ) as llm.ChatMessage | undefined;
+        if (systemItem) {
+          systemItem.content = [activeInstructions];
+          console.log(`[agent-debug]: System instruction message in session.chatCtx updated.`);
+        } else {
+          chatCtx.items.unshift(new llm.ChatMessage({
+            role: 'system',
+            content: activeInstructions
+          }));
+          console.log(`[agent-debug]: System instruction message prepended to session.chatCtx.`);
+        }
+        console.log(`[agent-debug]: Instructions updated — stage=${contextManager.getActiveStage()}, pendingField=${contextManager.getPendingField()}`);
+      } catch (err) {
+        console.warn(`[agent]: Failed to update instructions mid-session:`, err);
+      }
+    };
+
     const generateTextOnlyReply = async (userMessage: string) => {
       await contextManager.onUserTurn(userMessage);
+      updateSessionInstructions();
       metrics.startTurn();
       console.log(`[agent]: Text-only reply for "${userMessage}"...`);
 
@@ -261,9 +279,7 @@ export default {
         const apiKey = sessionGroqApiKey;
         if (!apiKey) return;
 
-        const systemPrompt = buildBaseInstructions(
-          contextManager.getConversationSummary() ?? undefined,
-        );
+        const systemPrompt = contextManager.getActiveInstructions();
         const messages = contextManager.buildTextMessages(systemPrompt);
         messages.push({ role: 'user', content: userMessage });
 
@@ -426,6 +442,7 @@ export default {
           await generateTextOnlyReply(messageText);
         } else {
           await contextManager.onUserTurn(messageText);
+          updateSessionInstructions();
           session.generateReply({ userInput: messageText });
         }
       } catch (err) {
