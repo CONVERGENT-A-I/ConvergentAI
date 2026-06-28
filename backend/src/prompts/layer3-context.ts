@@ -124,17 +124,46 @@ export function buildLayer3TurnContext(
     ? profile.eligible_products.join(', ')
     : 'None / Not determined';
 
+  // Get credit score category text based on the numeric score confirmed in Stage 2
+  let creditScoreNum = 700;
+  if (profile.credit_range) {
+    const m = profile.credit_range.match(/\d+/);
+    if (m) creditScoreNum = parseInt(m[0], 10);
+  }
+  let creditRangeCategory = 'Good';
+  let creditRangeLimits = '670 to 739';
+  if (creditScoreNum >= 740) {
+    creditRangeCategory = 'Excellent';
+    creditRangeLimits = '740 to 850';
+  } else if (creditScoreNum >= 670) {
+    creditRangeCategory = 'Good';
+    creditRangeLimits = '670 to 739';
+  } else if (creditScoreNum >= 580) {
+    creditRangeCategory = 'Fair';
+    creditRangeLimits = '580 to 669';
+  } else {
+    creditRangeCategory = 'Poor';
+    creditRangeLimits = '300 to 579';
+  }
+
   const stage3Block = [
     '=== BORROWER PROFILE (Stage 3 — Eligibility & Consent) ===',
     `Eligible products: ${productsList}`,
     `Soft pull consent: ${profile.soft_pull_consent ?? 'not yet asked'}`,
+    profile.soft_pull_consent === 'accepted' ? [
+      `MOCK PRE-FILLED DATA RETRIEVED VIA SOFT PULL:`,
+      `  - Full Name & Address to confirm: John Doe, 1234 Maple Avenue, Suite 100, Los Angeles, CA 90012`,
+      `  - Employer to confirm: Nexus Technologies LLC Corp`,
+      `  - Accounts Summary to confirm: 2 open active credit cards, 1 auto loan, and no negative accounts or late payments in the last 24 months`,
+      `  - Credit Range Category to confirm: ${creditRangeCategory} range (which is ${creditRangeLimits})`,
+    ].join('\n') : '',
     `Prefilled fields confirmed:`,
     `  - Name & Address: ${!!profile.prefilled_fields_confirmed?.name_address}`,
     `  - Employer:       ${!!profile.prefilled_fields_confirmed?.employer}`,
     `  - Accounts:       ${!!profile.prefilled_fields_confirmed?.accounts}`,
-    `  - Credit range:   ${!!profile.prefilled_fields_confirmed?.credit_range} (Reference the user's numeric score and clarify if it is Excellent, Good, Fair, etc., for their understanding. Do NOT say a bucket name, use descriptive ranges.)`,
+    `  - Credit range:   ${!!profile.prefilled_fields_confirmed?.credit_range}`,
     '=== END STAGE 3 ===',
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 
   // ── Stage 3B application completion block ─────────────────────────────────
   const stage3BBlock = [

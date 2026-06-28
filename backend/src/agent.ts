@@ -280,14 +280,21 @@ export default {
         (vadAgent as any)._instructions = activeInstructions;
         
         const chatCtx = session.chatCtx;
-        const systemItem = chatCtx.items.find(
+        const systemItem = (chatCtx.items.find(
+          (item) => item.type === 'message' && (item as llm.ChatMessage).id === 'lk.agent_task.instructions'
+        ) || chatCtx.items.find(
           (item) => item.type === 'message' && (item as llm.ChatMessage).role === 'system'
-        ) as llm.ChatMessage | undefined;
+        )) as llm.ChatMessage | undefined;
         if (systemItem) {
           systemItem.content = [activeInstructions];
+          // Ensure it has the correct ID so the LiveKit SDK updates it correctly
+          if ((systemItem as any).id !== 'lk.agent_task.instructions') {
+            (systemItem as any).id = 'lk.agent_task.instructions';
+          }
           console.log(`[agent-debug]: System instruction message in session.chatCtx updated.`);
         } else {
           chatCtx.items.unshift(new llm.ChatMessage({
+            id: 'lk.agent_task.instructions',
             role: 'system',
             content: activeInstructions
           }));

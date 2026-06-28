@@ -61,7 +61,7 @@ export class SessionContextManager {
     this.turnLog.push({ role: 'user', text: trimmed, timestamp: Date.now() });
     this.turnCount += 1;
 
-    if (!this.currentPendingField && this.activeStage !== '3' && this.activeStage !== '3a' && this.activeStage !== '3A') {
+    if (!this.currentPendingField && !['3', '3A', '3B'].includes(this.activeStage.toUpperCase())) {
       return;
     }
 
