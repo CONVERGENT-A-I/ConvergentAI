@@ -262,7 +262,7 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
       if (emotion === lastEmotionRef.current) return;
       if (!sessionRef.current || !isConnectedRef.current) return;
 
-      const validEmotions = ["neutral", "happy", "sad", "angry"] as const;
+      const validEmotions = ["neutral", "happy"] as const;
       if (!validEmotions.includes(emotion as any)) return;
 
       try {

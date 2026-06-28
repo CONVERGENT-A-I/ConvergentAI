@@ -12,7 +12,7 @@
  * inline with the conversation pipeline — no external API calls needed.
  */
 
-export type KeyframesEmotion = 'neutral' | 'happy' | 'sad';
+export type KeyframesEmotion = 'neutral' | 'happy';
 
 // ── Pattern banks ──────────────────────────────────────────────────────────
 // These are tuned to match Ailana's actual conversational style as a warm,
@@ -37,10 +37,11 @@ const EMPATHY_PATTERN =
  * the appropriate Keyframes emotion state.
  *
  * Priority order:
- *   1. Empathy / concern → 'sad'  (softened, caring expression)
+ * Priority order:
+ *   1. Empathy / concern → 'neutral'  (calm, serious expression)
  *   2. Warmth / greeting → 'happy'  (friendly smile)
  *   3. Success / affirmation → 'happy'  (warm smile)
- *   4. Default → 'neutral'  (natural resting face — attentive, not smiling)
+ *   4. Default → 'happy'  (natural resting face — smiling)
  */
 export function evaluateEmotion(text: string): KeyframesEmotion {
   const lower = text.toLowerCase();
@@ -48,7 +49,7 @@ export function evaluateEmotion(text: string): KeyframesEmotion {
   // Empathy triggers take priority — we never want the avatar smiling
   // while discussing financial hardship or complexity.
   if (EMPATHY_PATTERN.test(lower)) {
-    return 'sad';
+    return 'neutral';
   }
 
   // Warmth & greeting triggers — friendly, approachable smile
