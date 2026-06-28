@@ -45,6 +45,26 @@ export interface BorrowerProfile {
     accounts?: boolean;
     credit_range?: boolean;
   };
+
+  // ── Stage 3B ──────────────────────────────────────────────────────────────
+  marital_status?: 'married' | 'separated' | 'unmarried' | null;
+  marital_status_confirmed?: boolean;
+  co_borrower?: 'yes' | 'no' | null;
+  co_borrower_confirmed?: boolean;
+  dependents?: number | null;
+  dependents_confirmed?: boolean;
+  ssn_confirmed?: boolean;
+  employment_position?: string | null;
+  employment_years?: number | null;
+  self_employed?: boolean | null;
+  employment_confirmed?: boolean;
+  checking_savings_balance?: number | null;
+  checking_savings_confirmed?: boolean;
+  declarations_bankruptcy?: boolean | null;
+  declarations_foreclosure?: boolean | null;
+  declarations_confirmed?: boolean;
+  hmda_completed?: boolean;
+  ready_to_submit?: boolean;
 }
 
 // Human-readable field labels used in the confirmation ask
@@ -54,6 +74,15 @@ const FIELD_LABELS: Record<string, string> = {
   credit_range: 'credit score',
   down_payment: 'down payment amount',
   property_value: 'estimated home purchase price',
+  marital_status: 'marital status',
+  co_borrower: 'co-borrower status',
+  dependents: 'number of dependents',
+  ssn_confirm: 'Social Security Number',
+  employment_details: 'employment details',
+  checking_savings: 'checking and savings balance',
+  declarations: 'declarations',
+  hmda: 'voluntary HMDA questions',
+  submit_confirmation: 'submission confirmation',
 };
 
 export function buildLayer3TurnContext(
@@ -68,7 +97,7 @@ export function buildLayer3TurnContext(
 
   // ── Stage 1 profile block ─────────────────────────────────────────────────
   const stage1Block = [
-    '=== BORROWER PROFILE (Stage 1) ===',
+    '=== BORROWER PROFILE (Stage 1 — Discovery) ===',
     `Name:           ${profile.borrower_name ?? 'not yet collected'} (Confirmed: ${!!profile.borrower_name_confirmed})`,
     `Goal:           ${profile.mortgage_goal ?? 'not yet collected'} (Confirmed: ${!!profile.mortgage_goal_confirmed})`,
     `Timeline:       ${profile.timeline ?? 'not yet collected'} (Confirmed: ${!!profile.timeline_confirmed})`,
@@ -76,12 +105,12 @@ export function buildLayer3TurnContext(
     '=== END STAGE 1 ===',
   ].join('\n');
 
-  // ── Stage 2 financial profile block ──────────────────────────────────────
-  const fmt = (v: number | null | undefined) =>
-    v == null ? 'not yet collected' : `$${v.toLocaleString()}`;
+  const fmt = (val?: number | null) =>
+    val != null ? `$${val.toLocaleString()}` : 'not yet collected';
 
+  // ── Stage 2 profile block ─────────────────────────────────────────────────
   const stage2Block = [
-    '=== BORROWER PROFILE (Stage 2 — Financial) ===',
+    '=== BORROWER PROFILE (Stage 2 — Pre-Qualification) ===',
     `Gross monthly income:  ${fmt(profile.gross_monthly_income)} (Confirmed: ${!!profile.gross_monthly_income_confirmed})`,
     `Monthly debt:          ${fmt(profile.monthly_debt)} (Confirmed: ${!!profile.monthly_debt_confirmed})`,
     `Credit score:          ${profile.credit_range ?? 'not yet collected'} (Confirmed: ${!!profile.credit_range_confirmed})`,
@@ -105,6 +134,24 @@ export function buildLayer3TurnContext(
     `  - Accounts:       ${!!profile.prefilled_fields_confirmed?.accounts}`,
     `  - Credit range:   ${!!profile.prefilled_fields_confirmed?.credit_range} (Reference the user's numeric score and clarify if it is Excellent, Good, Fair, etc., for their understanding. Do NOT say a bucket name, use descriptive ranges.)`,
     '=== END STAGE 3 ===',
+  ].join('\n');
+
+  // ── Stage 3B application completion block ─────────────────────────────────
+  const stage3BBlock = [
+    '=== BORROWER PROFILE (Stage 3B — Application Completion) ===',
+    `Marital status:      ${profile.marital_status ?? 'not yet collected'}`,
+    `Spouse co-borrower:  ${profile.co_borrower ?? 'not yet collected'}`,
+    `Dependents count:    ${profile.dependents !== undefined && profile.dependents !== null ? profile.dependents : 'not yet collected'}`,
+    `SSN typed on screen: ${profile.ssn_confirmed ? 'Yes' : 'No'}`,
+    `Employment Title:    ${profile.employment_position ?? 'not yet collected'}`,
+    `Employment Years:    ${profile.employment_years !== undefined && profile.employment_years !== null ? profile.employment_years : 'not yet collected'}`,
+    `Self Employed:       ${profile.self_employed !== undefined && profile.self_employed !== null ? (profile.self_employed ? 'Yes' : 'No') : 'not yet collected'}`,
+    `Checking/Savings:    ${profile.checking_savings_balance !== undefined && profile.checking_savings_balance !== null ? `$${profile.checking_savings_balance.toLocaleString()}` : 'not yet collected'}`,
+    `Bankruptcy:          ${profile.declarations_bankruptcy !== undefined && profile.declarations_bankruptcy !== null ? (profile.declarations_bankruptcy ? 'Yes' : 'No') : 'not yet collected'}`,
+    `Foreclosure:         ${profile.declarations_foreclosure !== undefined && profile.declarations_foreclosure !== null ? (profile.declarations_foreclosure ? 'Yes' : 'No') : 'not yet collected'}`,
+    `HMDA Demographics:  ${profile.hmda_completed ? 'Completed' : 'Not yet collected'}`,
+    `Ready to Submit:     ${profile.ready_to_submit ? 'Yes' : 'No'}`,
+    '=== END STAGE 3B ===',
   ].join('\n');
 
   // ── Current task line ─────────────────────────────────────────────────────
@@ -143,6 +190,5 @@ export function buildLayer3TurnContext(
     consentBlock = `\n\nCONSENT INSTRUCTION:\nYou MUST speak the following disclosure EXACTLY word-for-word, do NOT paraphrase or change anything:\n"Before we proceed — this is a soft pull, not a hard inquiry. It will not affect your credit score in any way. You are the one authorizing it — not us pulling it on our behalf. Your data is used only to pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?"`;
   }
 
-  return [stage1Block, stage2Block, stage3Block, taskLine + confirmBlock + bridgeBlock + consentBlock].join('\n\n');
+  return [stage1Block, stage2Block, stage3Block, stage3BBlock, taskLine + confirmBlock + bridgeBlock + consentBlock].join('\n\n');
 }
-

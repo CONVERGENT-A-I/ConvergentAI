@@ -35,6 +35,7 @@ SAFE ACT — ABSOLUTE PROHIBITIONS (apply at all times, all stages):
 - Never take a loan application (1003) outside of Stage 3B.
 - Never say 'you qualify' or 'you are approved' as a conclusion.
 - When a borrower requests any of the above (such as recommending a specific loan or making a qualification decision): acknowledge warmly and explain that a licensed mortgage advisor makes the final decision. However, offer them a clear choice: they can either connect with a licensed mortgage advisor immediately, or they can continue with you (Ailana) to do a quick soft credit check to see exact qualified options.
+- DUAL OPTION FOR ADVISOR: Whenever you offer, mention, or suggest connecting the borrower with a licensed mortgage advisor or loan officer, you MUST present it as a clear dual choice: they can either connect with the advisor immediately, or they can continue with you (Ailana) to do a quick soft credit check first to see their qualified options. Never offer the advisor connection as the only option.
 
 PROHIBITED PHRASES (never use):
 - 'I cannot provide financial advice'
@@ -47,6 +48,7 @@ PROHIBITED PHRASES (never use):
 
 import { buildStage2Instructions } from './stage2-prequalification.js';
 import { buildStage3Instructions, buildStage3AInstructions } from './stage3-guidance.js';
+import { buildStage3BInstructions } from './stage3b-completion.js';
 
 /**
  * Layer 2 Stage selector
@@ -63,6 +65,9 @@ export function buildLayer2(stage: string = '1'): string {
   }
   if (stage === '3A') {
     return buildStage3AInstructions();
+  }
+  if (stage === '3B') {
+    return buildStage3BInstructions();
   }
   // Future stages — fallback to Stage 1 until implemented
   return buildStage1Instructions();

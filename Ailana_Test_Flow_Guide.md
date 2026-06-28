@@ -129,10 +129,57 @@ This guide provides an exemplary conversation script and verification checklist 
 
 ---
 
+### 🎬 Stage 3B: Mortgage Application Completion (1003)
+*Goal: Collect Marital Status ➔ Co-borrower status ➔ Dependents ➔ SSN redirect ➔ Employment title/years/self-employed ➔ Checking/Savings balance ➔ Bankruptcy/Foreclosure declaration ➔ HMDA demographic check ➔ Submit Authorization.*
+
+43. **Ailana asks**:
+    *"Would you like to proceed with the application or would you like me to connect you with a licensed mortgage advisor to discuss further?"*
+44. **You say**:
+    *"I want to proceed with the application."*
+45. **Ailana should respond**:
+    *   Acknowledge choice and ask marital status: *"Can you please tell me about your marital status?"*
+46. **You say**:
+    *"I am married."*
+47. **Ailana should respond**:
+    *   Acknowledge and ask if spouse is co-borrower: *"Will your spouse be a co-borrower on this mortgage loan?"*
+48. **You say**:
+    *"No, my spouse will not be a co-borrower."*
+49. **Ailana should respond**:
+    *   Acknowledge and ask dependents: *"How many dependents do you have?"*
+50. **You say**:
+    *"I have no dependents."*
+51. **Ailana should respond with Secure SSN entry instructions**:
+    *   *Redirect script*: *"For your Social Security number, I'll ask you to type that directly into the secure field on your screen rather than saying it out loud — that keeps it protected end-to-end. Take your time and just let me know when you've entered it."*
+52. **You say**:
+    *"Okay, I've entered it."*
+53. **Ailana should respond**:
+    *   Acknowledge and ask for employment title, years, self-employed status: *"Can you tell me your current job title, how many years you've been working there, and if you are self-employed?"*
+54. **You say**:
+    *"I am a software engineer, have worked here for 4 years, and I am not self-employed."*
+55. **Ailana should respond**:
+    *   Acknowledge and ask checking/savings balance: *"How much cash balance do you have available in your checking and savings accounts?"*
+56. **You say**:
+    *"I have 25,000 dollars."*
+57. **Ailana should respond**:
+    *   Acknowledge and ask standard declarations (bankruptcy/foreclosure): *"These next few questions are standard on every mortgage application... In the past seven years, have you had a bankruptcy, foreclosure, or short sale on any property?"*
+58. **You say**:
+    *"No bankruptcy or foreclosure."*
+59. **Ailana should respond**:
+    *   Acknowledge and explain voluntary nature of HMDA details: *"These last questions are required by federal law but entirely optional for you to answer... they are used for fair lending monitoring... Would you like to provide your race, sex, and ethnicity, or skip these?"*
+60. **You say**:
+    *"I prefer not to answer."*
+61. **Ailana should respond with Stage Completion Submit query**:
+    *   *Submission script*: *"Sohail, your application is complete. I am going to submit this to our underwriting system for review. This typically takes just a few minutes. I will share the result with you as soon as it comes back, and one of our licensed loan officers will be in touch to walk you through the next steps. Ready to submit?"*
+62. **You say**:
+    *"Yes, submit it."*
+
+---
+
 ## 🔍 Validation Checklist (What to watch for)
 
 *   [ ] **Zero Latency (Groq Check)**: Every voice response should begin speaking within **1.0 second** of you finishing your statement.
 *   [ ] **Immediate Confirmation**: In Stage 2, Ailana should ask the *"Just to confirm — you mentioned..."* question *immediately* on the very next turn following a new numeric answer.
-*   [ ] **DTI/LTV Calculations**: The down payment should be correctly registered as **$67,500** (15% of $450k).
+*   [ ] **DTI/LTV Calculations**: The down payment should be correctly registered as **$67,500** (15% of $450k) or calculated appropriately for percentages.
 *   [ ] **Verbatim Scripting**: In Stage 3A, Ailana MUST read the consent disclosure word-for-word without any paraphrasing.
-*   [ ] **Clean Stage transitions**: No "optional summary" prompts at the end of Stage 1 or Stage 2.
+*   [ ] **SSN Secure Masking**: In Stage 3B, Ailana must NEVER ask you to read your SSN aloud, and must direct you to type it in on-screen.
+*   [ ] **Clean Stage transitions**: No "optional summary" prompts at the end of Stage 1 or Stage 2, and clean advancement into Stage 3B and Stage 4.

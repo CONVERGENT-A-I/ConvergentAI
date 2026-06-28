@@ -310,8 +310,13 @@ export default {
         if (!apiKey) return;
 
         const systemPrompt = contextManager.getActiveInstructions();
-        const messages = contextManager.buildTextMessages(systemPrompt);
-        messages.push({ role: 'user', content: userMessage });
+        const chatMessages = contextManager.buildTextMessages(systemPrompt);
+        
+        // Ensure system prompt is always at index 0 and conversation history is sliced safely
+        const systemMessage = chatMessages[0];
+        const historyMessages = chatMessages.slice(1);
+        const slicedHistory = historyMessages.slice(-23); // keep up to 23 recent turns
+        const messages = [systemMessage, ...slicedHistory, { role: 'user', content: userMessage }];
 
         const baseURL = 'https://api.groq.com/openai/v1';
         const modelName = 'llama-3.3-70b-versatile';
@@ -324,7 +329,7 @@ export default {
           },
           body: JSON.stringify({
             model: modelName,
-            messages: messages.slice(-24),
+            messages: messages,
             max_tokens: 200,
             temperature: 0.6,
           }),

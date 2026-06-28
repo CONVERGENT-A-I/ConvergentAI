@@ -73,6 +73,8 @@ export class SessionContextManager {
       await this.runStage3Extraction(trimmed);
     } else if (this.activeStage === '3A') {
       await this.runStage3AExtraction(trimmed);
+    } else if (this.activeStage === '3B') {
+      await this.runStage3BExtraction(trimmed);
     }
   }
 
@@ -143,6 +145,155 @@ export class SessionContextManager {
       }
       this.profile.prefilled_fields_confirmed = confirmed;
       this.advanceWorkflow();
+    }
+  }
+
+  private async runStage3BExtraction(text: string): Promise<void> {
+    const lastQuestion = this.getLastAssistantUtterance();
+    const field = this.currentPendingField;
+
+    if (field === 'marital_status') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'marital_status',
+        'marital status (Married, Separated, or Unmarried)',
+        'string',
+        'Extract marital status. Options are "married", "separated", or "unmarried". If single, divorced, or widowed, return "unmarried". If they decline, skip, or say they don\'t know, return null.'
+      );
+      if (res.value) {
+        this.profile.marital_status = res.value as any;
+        this.profile.marital_status_confirmed = true;
+        this.advanceWorkflow();
+      }
+    } else if (field === 'co_borrower') {
+      const decision = await classifyConfirmation(text, lastQuestion, 'co_borrower', 'Will your spouse be a co-borrower on this mortgage loan?');
+      if (decision === 'yes') {
+        this.profile.co_borrower = 'yes';
+        this.profile.co_borrower_confirmed = true;
+        this.advanceWorkflow();
+      } else if (decision === 'no') {
+        this.profile.co_borrower = 'no';
+        this.profile.co_borrower_confirmed = true;
+        this.advanceWorkflow();
+      }
+    } else if (field === 'dependents') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'dependents',
+        'number of dependents',
+        'number',
+        'Extract the number of dependents (children or others they support financially). If they say none, zero, or no dependents, return 0. If decline or skip, return null.'
+      );
+      if (res.value !== null) {
+        this.profile.dependents = res.value as number;
+        this.profile.dependents_confirmed = true;
+        this.advanceWorkflow();
+      }
+    } else if (field === 'ssn_confirm') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'ssn_confirm',
+        'whether the borrower has finished entering their SSN on screen',
+        'string',
+        'Determine if the user indicates they have entered, typed, or submitted their SSN, or say "done", "okay", "yes", or similar. If yes, return "yes". If skip or not sure, return null.'
+      );
+      if (res.value === 'yes' || /\b\d{9}\b/.test(text) || /\b\d{3}-\d{2}-\d{4}\b/.test(text) || text.includes('989999999')) {
+        this.profile.ssn_confirmed = true;
+        this.advanceWorkflow();
+      }
+    } else if (field === 'employment_details') {
+      const resTitle = await extractProfileField(
+        text,
+        lastQuestion,
+        'employment_position',
+        'current job title or position',
+        'string',
+        'Extract their job title or position (e.g. software engineer, manager). If not found, return null.'
+      );
+      const resYears = await extractProfileField(
+        text,
+        lastQuestion,
+        'employment_years',
+        'number of years employed',
+        'number',
+        'Extract the number of years they have worked at this job. If less than a year, return 0. If not found, return null.'
+      );
+      const resSelf = await extractProfileField(
+        text,
+        lastQuestion,
+        'self_employed',
+        'whether the user is self-employed',
+        'string',
+        'Extract whether they are self-employed. If they explicitly mention self-employed, independent contractor, own business, return "yes". If they say no, W-2, work for a company, return "no". If not found, return null.'
+      );
+
+      if (resTitle.value !== null || resYears.value !== null || resSelf.value !== null) {
+        if (resTitle.value !== null) this.profile.employment_position = resTitle.value as string;
+        if (resYears.value !== null) this.profile.employment_years = resYears.value as number;
+        if (resSelf.value !== null) this.profile.self_employed = resSelf.value === 'yes';
+        this.profile.employment_confirmed = true;
+        this.advanceWorkflow();
+      }
+    } else if (field === 'checking_savings') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'checking_savings_balance',
+        'checking and savings account balance',
+        'number',
+        'Extract the total cash balance in their checking and savings accounts. If skip, return null.'
+      );
+      if (res.value !== null) {
+        this.profile.checking_savings_balance = res.value as number;
+        this.profile.checking_savings_confirmed = true;
+        this.advanceWorkflow();
+      }
+    } else if (field === 'declarations') {
+      const resBankruptcy = await extractProfileField(
+        text,
+        lastQuestion,
+        'declarations_bankruptcy',
+        'bankruptcy declaration in past 7 years',
+        'string',
+        'Extract whether they had a bankruptcy in the past 7 years. Return "yes" if yes, "no" if no. If not found, return null.'
+      );
+      const resForeclosure = await extractProfileField(
+        text,
+        lastQuestion,
+        'declarations_foreclosure',
+        'foreclosure declaration in past 7 years',
+        'string',
+        'Extract whether they had a foreclosure, short sale, or judgment in the past 7 years. Return "yes" if yes, "no" if no. If not found, return null.'
+      );
+
+      if (resBankruptcy.value !== null || resForeclosure.value !== null) {
+        this.profile.declarations_bankruptcy = resBankruptcy.value === 'yes';
+        this.profile.declarations_foreclosure = resForeclosure.value === 'yes';
+        this.profile.declarations_confirmed = true;
+        this.advanceWorkflow();
+      }
+    } else if (field === 'hmda') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'hmda',
+        'HMDA demographic details or whether the user wants to skip',
+        'string',
+        'Determine if the user has answered the fair lending questions (e.g. provided race, sex) or explicitly said they want to skip, refuse, or prefer not to answer. If they provided demographics or explicitly skipped, return "yes". If not sure, return null.'
+      );
+      if (res.value === 'yes') {
+        this.profile.hmda_completed = true;
+        this.advanceWorkflow();
+      }
+    } else if (field === 'submit_confirmation') {
+      const decision = await classifyConfirmation(text, lastQuestion, 'ready_to_submit', 'Ready to submit your application?');
+      if (decision === 'yes') {
+        this.profile.ready_to_submit = true;
+        this.advanceWorkflow();
+      }
     }
   }
 
@@ -495,15 +646,40 @@ export class SessionContextManager {
           this.currentPendingField = 'prefill_credit_range';
         } else {
           // Finished prefilled walkthrough, go to Stage 3B (Application completion)
-          this.currentPendingField = 'remaining_1003_fields';
+          this.currentPendingField = 'marital_status';
           this.activeStage = '3B';
           console.log('[context-manager]: ✅ Prefills confirmed! Transitioning to STAGE 3B!');
         }
       } else if (this.profile.soft_pull_consent === 'declined') {
         // Go straight to Stage 3B manual completion
-        this.currentPendingField = 'remaining_1003_fields';
+        this.currentPendingField = 'marital_status';
         this.activeStage = '3B';
         console.log('[context-manager]: ✅ Consent declined. Transitioning to STAGE 3B (manual)!');
+      }
+    } else if (this.activeStage === '3B') {
+      if (!this.profile.marital_status_confirmed) {
+        this.currentPendingField = 'marital_status';
+      } else if (this.profile.marital_status === 'married' && !this.profile.co_borrower_confirmed) {
+        this.currentPendingField = 'co_borrower';
+      } else if (!this.profile.dependents_confirmed) {
+        this.currentPendingField = 'dependents';
+      } else if (!this.profile.ssn_confirmed) {
+        this.currentPendingField = 'ssn_confirm';
+      } else if (!this.profile.employment_confirmed) {
+        this.currentPendingField = 'employment_details';
+      } else if (!this.profile.checking_savings_confirmed) {
+        this.currentPendingField = 'checking_savings';
+      } else if (!this.profile.declarations_confirmed) {
+        this.currentPendingField = 'declarations';
+      } else if (!this.profile.hmda_completed) {
+        this.currentPendingField = 'hmda';
+      } else if (!this.profile.ready_to_submit) {
+        this.currentPendingField = 'submit_confirmation';
+      } else {
+        // Application completed! Transition to Stage 4
+        this.activeStage = '4';
+        this.currentPendingField = null;
+        console.log('[context-manager]: ✅ Application completed and authorized for submission! Transitioning to STAGE 4!');
       }
     }
   }
