@@ -31,6 +31,7 @@ export class SessionContextManager {
   private profile: BorrowerProfile = {};
   private activeStage: string = '1';
   private currentPendingField: string | null = 'borrower_name';
+  private lastProcessedInput: string | null = null;
 
   constructor(
     private readonly summarizationLlm: LLM,
@@ -52,6 +53,11 @@ export class SessionContextManager {
   async onUserTurn(text: string): Promise<void> {
     const trimmed = text.trim();
     if (!trimmed || trimmed.startsWith('SYSTEM_')) return;
+    if (trimmed === this.lastProcessedInput) {
+      console.log(`[context-manager]: Input "${trimmed}" already processed. Skipping duplicate onUserTurn.`);
+      return;
+    }
+    this.lastProcessedInput = trimmed;
     this.turnLog.push({ role: 'user', text: trimmed, timestamp: Date.now() });
     this.turnCount += 1;
 
@@ -78,6 +84,13 @@ export class SessionContextManager {
     const lastQuestion = this.getLastAssistantUtterance();
 
     if (this.currentPendingField === 'product_selection_feedback') {
+      const lowerText = text.toLowerCase();
+      if (lowerText.includes('soft pull') || lowerText.includes('credit check') || lowerText.includes('authorize') || lowerText.includes('soft check')) {
+        console.log('[context-manager]: Heuristic matched for soft pull consent. Advancing workflow to Stage 3A!');
+        this.advanceWorkflow();
+        return;
+      }
+
       // LLM prompts "Does that make sense or do you have questions?"
       // We look to see if they say they want to proceed, or have no questions, or ask a question.
       const res = await extractProfileField(
@@ -138,6 +151,7 @@ export class SessionContextManager {
     if (!trimmed) return;
     this.turnLog.push({ role: 'assistant', text: trimmed, timestamp: Date.now() });
     this.profile.bridge_to_say = null;
+    this.lastProcessedInput = null;
   }
 
   private getLastAssistantUtterance(): string | null {
@@ -240,13 +254,22 @@ export class SessionContextManager {
                       : field === 'down_payment' ? 'down payment savings'
                       : 'purchase property value';
 
+      let instruction = 'Extract the single total dollar amount. If the user declines, skips, says they don\'t know, or don\'t want to answer, set "declined" to true.';
+      if (field === 'down_payment') {
+        const propertyValue = this.profile.property_value;
+        const pctInstruction = propertyValue 
+          ? `If the user specifies a percentage (e.g. "15%"), calculate that percentage of the property value ($${propertyValue}) and return it as the final integer dollar amount.`
+          : '';
+        instruction += ` ${pctInstruction}`;
+      }
+
       const res = await extractProfileField(
         text,
         lastQuestion,
         field,
         fieldDesc,
         'number',
-        'Extract the single total dollar amount. If the user declines, skips, says they don\'t know, or don\'t want to answer, set "declined" to true.'
+        instruction
       );
 
       if (res.declined) {

@@ -1,15 +1,10 @@
 import { OpenAI } from 'openai';
-import { ailanaConfig } from '../config/ailana-config.js';
+import { ailanaConfig, getDynamicGroqApiKey } from '../config/ailana-config.js';
 
-let _openaiClient: OpenAI | null = null;
-function getOpenAIClient(): OpenAI {
-  if (!_openaiClient) {
-    _openaiClient = new OpenAI({
-      apiKey: ailanaConfig.openaiApiKey,
-    });
-  }
-  return _openaiClient;
-}
+const openaiClient = new OpenAI({
+  apiKey: ailanaConfig.groqApiKey,
+  baseURL: 'https://api.groq.com/openai/v1',
+});
 
 export interface ExtractionResult {
   value: string | number | null;
@@ -45,9 +40,9 @@ You MUST reply with a JSON object only.`;
 User input: "${userInput}"`;
 
   try {
-    const client = getOpenAIClient();
-    const response = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
+    openaiClient.apiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
+    const response = await openaiClient.chat.completions.create({
+      model: 'llama-3.1-8b-instant',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -101,9 +96,9 @@ Return a JSON object with:
 User response: "${userInput}"`;
 
   try {
-    const client = getOpenAIClient();
-    const response = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
+    openaiClient.apiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
+    const response = await openaiClient.chat.completions.create({
+      model: 'llama-3.1-8b-instant',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },

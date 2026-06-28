@@ -17,6 +17,42 @@ import { logPromptBudget } from './context/context-budget.js';
 import { evaluateEmotion } from './utils/avatar-emotion-engine.js';
 import { BackchannelEngine } from './utils/backchannel-engine.js';
 
+class AilanaVoiceAgent extends voice.Agent {
+  constructor(
+    options: voice.AgentOptions<any>,
+    private contextManager: SessionContextManager,
+    private updateInstructions: () => void
+  ) {
+    super(options);
+  }
+
+  override async onUserTurnCompleted(chatCtx: any, userMessage: any): Promise<void> {
+    console.log(`[agent-hook]: onUserTurnCompleted hook triggered with message: "${userMessage?.textContent}"`);
+    if (userMessage?.textContent) {
+      await this.contextManager.onUserTurn(userMessage.textContent);
+    }
+    
+    // Update original instructions in the session
+    this.updateInstructions();
+
+    // Update local mutable chatCtx copy to align the LLM prompt for the current generation
+    const activeInstructions = this.contextManager.getActiveInstructions();
+    const systemItem = chatCtx.items.find(
+      (item: any) => item.type === 'message' && item.role === 'system'
+    );
+    if (systemItem) {
+      systemItem.content = [activeInstructions];
+      console.log(`[agent-hook]: Local mutable chatCtx system instructions updated.`);
+    } else {
+      chatCtx.items.unshift(new llm.ChatMessage({
+        role: 'system',
+        content: activeInstructions
+      }));
+      console.log(`[agent-hook]: Local mutable chatCtx system instructions prepended.`);
+    }
+  }
+}
+
 dotenv.config();
 
 process.on('uncaughtException', (err) => {
@@ -55,7 +91,7 @@ export default {
 
     const createVadAgent = () => {
       console.log('[agent]: Creating Cascaded agent (Groq LLM + Cartesia STT/TTS)...');
-      return new voice.Agent({
+      return new AilanaVoiceAgent({
         instructions: contextManager.getActiveInstructions(),
         stt: new cartesia.STT({
           apiKey: ailanaConfig.cartesiaKey,
@@ -82,7 +118,7 @@ export default {
             mode: 'vad' as const,
           },
         } as any,
-      });
+      }, contextManager, updateSessionInstructions);
     };
 
     let vadAgent = createVadAgent();
@@ -200,10 +236,6 @@ export default {
 
     session.on(voice.AgentSessionEventTypes.UserInputTranscribed, async (ev: any) => {
       if (!ev.isFinal) {
-        // Backchannel engine is disabled to prevent turn-taking orchestrator locks
-        // if (ev.transcript?.trim()) {
-        //   backchannelEngine.onInterimTranscript(ev.transcript, session);
-        // }
         return;
       }
       if (!ev.transcript?.trim()) return;
@@ -212,8 +244,6 @@ export default {
       backchannelEngine.reset();
       metrics.markUserTurnEnd();
       metrics.startTurn();
-      await contextManager.onUserTurn(ev.transcript);
-      updateSessionInstructions();
     });
 
     session.on(voice.AgentSessionEventTypes.ConversationItemAdded, (ev: any) => {
@@ -244,7 +274,7 @@ export default {
       }
     });
 
-    const updateSessionInstructions = () => {
+    function updateSessionInstructions() {
       try {
         const activeInstructions = contextManager.getActiveInstructions();
         (vadAgent as any)._instructions = activeInstructions;
@@ -441,6 +471,7 @@ export default {
         if (voiceMuted) {
           await generateTextOnlyReply(messageText);
         } else {
+          // For typed inputs in voice session, we run extraction and update instructions BEFORE calling generateReply
           await contextManager.onUserTurn(messageText);
           updateSessionInstructions();
           session.generateReply({ userInput: messageText });

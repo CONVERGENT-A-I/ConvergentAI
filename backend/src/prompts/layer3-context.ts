@@ -109,7 +109,10 @@ export function buildLayer3TurnContext(
 
   // ── Current task line ─────────────────────────────────────────────────────
   let taskLine = '';
-  if (pendingField) {
+  if (profile.pending_confirm_field && profile.pending_confirm_value) {
+    const label = FIELD_LABELS[profile.pending_confirm_field] ?? profile.pending_confirm_field;
+    taskLine = `CURRENT TASK:\nConfirm the value of "${profile.pending_confirm_value}" for ${label}. Do NOT ask for the next field yet.`;
+  } else if (pendingField) {
     taskLine = `CURRENT TASK:\nCollect ${pendingField}\n\nDO NOT ASK FOR ANY OTHER FIELD.`;
   } else {
     taskLine = 'CURRENT TASK:\nAll fields for this stage collected.';
