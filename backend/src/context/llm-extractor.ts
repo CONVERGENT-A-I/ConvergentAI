@@ -42,7 +42,7 @@ User input: "${userInput}"`;
   try {
     openaiClient.apiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
     const response = await openaiClient.chat.completions.create({
-      model: 'llama-3.1-8b-instant',
+      model: 'llama-3.3-70b-versatile',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -98,7 +98,7 @@ User response: "${userInput}"`;
   try {
     openaiClient.apiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
     const response = await openaiClient.chat.completions.create({
-      model: 'llama-3.1-8b-instant',
+      model: 'llama-3.3-70b-versatile',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },

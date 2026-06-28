@@ -39,6 +39,7 @@ export interface BorrowerProfile {
   // ── Stage 3 / 3A ─────────────────────────────────────────────────────────
   eligible_products?: string[] | null;
   soft_pull_consent?: 'pending' | 'accepted' | 'declined' | null;
+  employer?: string | null;
   prefilled_fields_confirmed?: {
     name_address?: boolean;
     employer?: boolean;
@@ -94,7 +95,8 @@ const FIELD_LABELS: Record<string, string> = {
 
 export function buildLayer3TurnContext(
   profile: BorrowerProfile,
-  pendingField: string | null
+  pendingField: string | null,
+  stage: string = '1'
 ): string {
   // ── Property state display ────────────────────────────────────────────────
   const propertyStateDisplay =
@@ -160,9 +162,9 @@ export function buildLayer3TurnContext(
     profile.soft_pull_consent === 'accepted' ? [
       `MOCK PRE-FILLED DATA RETRIEVED VIA SOFT PULL:`,
       `  - Full Name & Address to confirm: John Doe, 1234 Maple Avenue, Suite 100, Los Angeles, CA 90012`,
-      `  - Employer to confirm: Nexus Technologies LLC Corp`,
+      `  - Employer to confirm: ${profile.employer || 'Nexus Technologies LLC Corp'}`,
       `  - Accounts Summary to confirm: 2 open active credit cards, 1 auto loan, and no negative accounts or late payments in the last 24 months`,
-      `  - Credit Range Category to confirm: ${creditRangeCategory} range (which is ${creditRangeLimits})`,
+      `  - Credit Range Category to confirm: ${profile.credit_range ? (profile.credit_range + ' range') : (creditRangeCategory + ' range (' + creditRangeLimits + ')')}`,
     ].join('\n') : '',
     `Prefilled fields confirmed:`,
     `  - Name & Address: ${!!profile.prefilled_fields_confirmed?.name_address}`,
@@ -234,5 +236,21 @@ export function buildLayer3TurnContext(
     consentBlock = `\n\nCONSENT INSTRUCTION:\nYou MUST speak the following disclosure EXACTLY word-for-word, do NOT paraphrase or change anything:\n"Before we proceed — this is a soft pull, not a hard inquiry. It will not affect your credit score in any way. You are the one authorizing it — not us pulling it on our behalf. Your data is used only to pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?"`;
   }
 
-  return [stage1Block, stage2Block, stage3Block, stage3BBlock, stage4Block, taskLine + confirmBlock + bridgeBlock + consentBlock].join('\n\n');
+  const blocks: string[] = [];
+  blocks.push(stage1Block);
+  if (stage === '2' || stage === '3' || stage === '3A' || stage === '3B' || stage === '4' || stage === '5') {
+    blocks.push(stage2Block);
+  }
+  if (stage === '3' || stage === '3A' || stage === '3B' || stage === '4' || stage === '5') {
+    blocks.push(stage3Block);
+  }
+  if (stage === '3B' || stage === '4' || stage === '5') {
+    blocks.push(stage3BBlock);
+  }
+  if (stage === '4' || stage === '5') {
+    blocks.push(stage4Block);
+  }
+  blocks.push(taskLine + confirmBlock + bridgeBlock + consentBlock);
+
+  return blocks.filter(Boolean).join('\n\n');
 }

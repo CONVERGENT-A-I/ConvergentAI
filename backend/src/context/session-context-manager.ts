@@ -131,11 +131,54 @@ export class SessionContextManager {
       this.currentPendingField === 'prefill_accounts' ||
       this.currentPendingField === 'prefill_credit_range'
     ) {
-      // Walkthrough confirmations
       const step = this.currentPendingField;
       const decision = await classifyConfirmation(text, lastQuestion, step, 'Does that look right or is anything out of date?');
       
       const confirmed = this.profile.prefilled_fields_confirmed || {};
+      
+      if (decision === 'no') {
+        if (step === 'prefill_employer') {
+          const res = await extractProfileField(
+            text,
+            lastQuestion,
+            'employer_correction',
+            'corrected employer name',
+            'string',
+            'Extract the corrected employer name mentioned by the user (e.g. "Hexler Tech"). If not found, return null.'
+          );
+          if (res.value) {
+            this.profile.employer = res.value as string;
+            console.log(`[context-manager]: Corrected employer to ${res.value}`);
+          }
+        } else if (step === 'prefill_name_address') {
+          const resName = await extractProfileField(
+            text,
+            lastQuestion,
+            'name_correction',
+            'corrected borrower name',
+            'string',
+            'Extract the corrected borrower full name. If not found, return null.'
+          );
+          if (resName.value) {
+            this.profile.borrower_name = resName.value as string;
+            console.log(`[context-manager]: Corrected borrower name to ${resName.value}`);
+          }
+        } else if (step === 'prefill_credit_range') {
+          const resCredit = await extractProfileField(
+            text,
+            lastQuestion,
+            'credit_correction',
+            'corrected credit score or range',
+            'string',
+            'Extract the corrected credit score or range. If not found, return null.'
+          );
+          if (resCredit.value) {
+            this.profile.credit_range = resCredit.value as string;
+            console.log(`[context-manager]: Corrected credit range to ${resCredit.value}`);
+          }
+        }
+      }
+
       if (step === 'prefill_name_address') {
         confirmed.name_address = true;
       } else if (step === 'prefill_employer') {

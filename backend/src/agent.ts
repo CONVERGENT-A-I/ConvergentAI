@@ -37,14 +37,20 @@ class AilanaVoiceAgent extends voice.Agent {
 
     // Update local mutable chatCtx copy to align the LLM prompt for the current generation
     const activeInstructions = this.contextManager.getActiveInstructions();
-    const systemItem = chatCtx.items.find(
+    const systemItem = (chatCtx.items.find(
+      (item: any) => item.type === 'message' && item.id === 'lk.agent_task.instructions'
+    ) || chatCtx.items.find(
       (item: any) => item.type === 'message' && item.role === 'system'
-    );
+    )) as llm.ChatMessage | undefined;
     if (systemItem) {
       systemItem.content = [activeInstructions];
+      if ((systemItem as any).id !== 'lk.agent_task.instructions') {
+        (systemItem as any).id = 'lk.agent_task.instructions';
+      }
       console.log(`[agent-hook]: Local mutable chatCtx system instructions updated.`);
     } else {
       chatCtx.items.unshift(new llm.ChatMessage({
+        id: 'lk.agent_task.instructions',
         role: 'system',
         content: activeInstructions
       }));
@@ -72,13 +78,11 @@ export default {
   async entry(ctx: JobContext) {
     console.log(`[agent]: Receiving job for room: ${ctx.room.name}`);
 
-    const sessionGroqApiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
-
     const metrics = new LatencyTracker();
     const summarizationLlm = new openai.LLM({
       model: 'llama-3.3-70b-versatile',
       baseURL: 'https://api.groq.com/openai/v1',
-      apiKey: sessionGroqApiKey,
+      apiKey: getDynamicGroqApiKey() || ailanaConfig.groqApiKey,
     });
     const contextManager = new SessionContextManager(summarizationLlm, metrics);
 
@@ -89,25 +93,30 @@ export default {
       prefixPaddingDuration: 200,
     });
 
+    console.log(`[agent]: Loading Cartesia STT/TTS (ink-2 / sonic-3.5)...`);
+    const sessionStt = new cartesia.STT({
+      apiKey: ailanaConfig.cartesiaKey,
+      model: 'ink-2',
+    });
+
+    const sessionTts = new cartesia.TTS({
+      apiKey: ailanaConfig.cartesiaKey,
+      voice: ailanaConfig.cartesiaVoiceId,
+      model: 'sonic-3.5',
+    });
+
     const createVadAgent = () => {
       console.log('[agent]: Creating Cascaded agent (Groq LLM + Cartesia STT/TTS)...');
       return new AilanaVoiceAgent({
         instructions: contextManager.getActiveInstructions(),
-        stt: new cartesia.STT({
-          apiKey: ailanaConfig.cartesiaKey,
-          model: 'ink-2',
-        }),
+        stt: sessionStt,
         vad: sessionVad,
         llm: new openai.LLM({
           model: 'llama-3.3-70b-versatile',
           baseURL: 'https://api.groq.com/openai/v1',
-          apiKey: sessionGroqApiKey,
+          apiKey: getDynamicGroqApiKey() || ailanaConfig.groqApiKey,
         }),
-        tts: new cartesia.TTS({
-          apiKey: ailanaConfig.cartesiaKey,
-          voice: ailanaConfig.cartesiaVoiceId,
-          model: 'sonic-3.5',
-        }),
+        tts: sessionTts,
         turnHandling: {
           turnDetection: 'stt' as const,
           endpointing: {
@@ -116,6 +125,9 @@ export default {
           interruption: {
             minDuration: ailanaConfig.vadInterruptMinDurationMs,
             mode: 'vad' as const,
+          },
+          preemptiveGeneration: {
+            enabled: false,
           },
         } as any,
       }, contextManager, updateSessionInstructions);
@@ -313,7 +325,7 @@ export default {
       console.log(`[agent]: Text-only reply for "${userMessage}"...`);
 
       try {
-        const apiKey = sessionGroqApiKey;
+        const apiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
         if (!apiKey) return;
 
         const systemPrompt = contextManager.getActiveInstructions();

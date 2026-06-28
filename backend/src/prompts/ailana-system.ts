@@ -50,6 +50,7 @@ import { buildStage2Instructions } from './stage2-prequalification.js';
 import { buildStage3Instructions, buildStage3AInstructions } from './stage3-guidance.js';
 import { buildStage3BInstructions } from './stage3b-completion.js';
 import { buildStage4Instructions } from './stage4-underwriting.js';
+import { buildStage5Instructions } from './stage5-escalation.js';
 
 /**
  * Layer 2 Stage selector
@@ -73,6 +74,9 @@ export function buildLayer2(stage: string = '1', profile: BorrowerProfile = {}):
   if (stage === '4') {
     return buildStage4Instructions(profile);
   }
+  if (stage === '5') {
+    return buildStage5Instructions();
+  }
   // Future stages — fallback to Stage 1 until implemented
   return buildStage1Instructions();
 }
@@ -84,7 +88,7 @@ export function buildLayer2(stage: string = '1', profile: BorrowerProfile = {}):
 export function buildSessionPrompt(profile: BorrowerProfile, pendingField: string | null, stage: string = '1'): string {
   const L1 = buildLayer1();
   const L2 = buildLayer2(stage, profile);
-  const L3 = buildLayer3TurnContext(profile, pendingField);
+  const L3 = buildLayer3TurnContext(profile, pendingField, stage);
   return `${L1}\n\n${L2}\n\n${L3}`.trim();
 }
 
