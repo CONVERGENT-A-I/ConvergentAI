@@ -49,11 +49,12 @@ PROHIBITED PHRASES (never use):
 import { buildStage2Instructions } from './stage2-prequalification.js';
 import { buildStage3Instructions, buildStage3AInstructions } from './stage3-guidance.js';
 import { buildStage3BInstructions } from './stage3b-completion.js';
+import { buildStage4Instructions } from './stage4-underwriting.js';
 
 /**
  * Layer 2 Stage selector
  */
-export function buildLayer2(stage: string = '1'): string {
+export function buildLayer2(stage: string = '1', profile: BorrowerProfile = {}): string {
   if (stage === '1') {
     return buildStage1Instructions();
   }
@@ -69,6 +70,9 @@ export function buildLayer2(stage: string = '1'): string {
   if (stage === '3B') {
     return buildStage3BInstructions();
   }
+  if (stage === '4') {
+    return buildStage4Instructions(profile);
+  }
   // Future stages — fallback to Stage 1 until implemented
   return buildStage1Instructions();
 }
@@ -79,7 +83,7 @@ export function buildLayer2(stage: string = '1'): string {
  */
 export function buildSessionPrompt(profile: BorrowerProfile, pendingField: string | null, stage: string = '1'): string {
   const L1 = buildLayer1();
-  const L2 = buildLayer2(stage);
+  const L2 = buildLayer2(stage, profile);
   const L3 = buildLayer3TurnContext(profile, pendingField);
   return `${L1}\n\n${L2}\n\n${L3}`.trim();
 }

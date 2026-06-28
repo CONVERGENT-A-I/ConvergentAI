@@ -65,6 +65,11 @@ export interface BorrowerProfile {
   declarations_confirmed?: boolean;
   hmda_completed?: boolean;
   ready_to_submit?: boolean;
+
+  // ── Stage 4 ──────────────────────────────────────────────────────────────
+  aus_status?: 'waiting' | 'approve' | 'refer' | 'timeout' | null;
+  aus_confirmed?: boolean;
+  checklist_discussed?: boolean;
 }
 
 // Human-readable field labels used in the confirmation ask
@@ -83,6 +88,8 @@ const FIELD_LABELS: Record<string, string> = {
   declarations: 'declarations',
   hmda: 'voluntary HMDA questions',
   submit_confirmation: 'submission confirmation',
+  aus_status: 'automated underwriting status',
+  checklist_discussed: 'documentation checklist confirmation',
 };
 
 export function buildLayer3TurnContext(
@@ -183,6 +190,14 @@ export function buildLayer3TurnContext(
     '=== END STAGE 3B ===',
   ].join('\n');
 
+  // ── Stage 4 automated underwriting block ──────────────────────────────────
+  const stage4Block = [
+    '=== BORROWER PROFILE (Stage 4 — Underwriting & Checklist) ===',
+    `AUS Status:          ${profile.aus_status ?? 'not yet submitted'}`,
+    `Checklist Discussed: ${profile.checklist_discussed ? 'Yes' : 'No'}`,
+    '=== END STAGE 4 ===',
+  ].join('\n');
+
   // ── Current task line ─────────────────────────────────────────────────────
   let taskLine = '';
   if (profile.pending_confirm_field && profile.pending_confirm_value) {
@@ -219,5 +234,5 @@ export function buildLayer3TurnContext(
     consentBlock = `\n\nCONSENT INSTRUCTION:\nYou MUST speak the following disclosure EXACTLY word-for-word, do NOT paraphrase or change anything:\n"Before we proceed — this is a soft pull, not a hard inquiry. It will not affect your credit score in any way. You are the one authorizing it — not us pulling it on our behalf. Your data is used only to pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?"`;
   }
 
-  return [stage1Block, stage2Block, stage3Block, stage3BBlock, taskLine + confirmBlock + bridgeBlock + consentBlock].join('\n\n');
+  return [stage1Block, stage2Block, stage3Block, stage3BBlock, stage4Block, taskLine + confirmBlock + bridgeBlock + consentBlock].join('\n\n');
 }

@@ -75,6 +75,8 @@ export class SessionContextManager {
       await this.runStage3AExtraction(trimmed);
     } else if (this.activeStage === '3B') {
       await this.runStage3BExtraction(trimmed);
+    } else if (this.activeStage === '4') {
+      await this.runStage4Extraction(trimmed);
     }
   }
 
@@ -295,6 +297,62 @@ export class SessionContextManager {
         this.advanceWorkflow();
       }
     }
+  }
+
+  private async runStage4Extraction(text: string): Promise<void> {
+    const lastQuestion = this.getLastAssistantUtterance();
+    const field = this.currentPendingField;
+
+    if (field === 'aus_processing') {
+      // Simulate waiting turn processing. Once the borrower asks for status or says anything, we calculate result.
+      const decision = this.runUnderwritingRules();
+      this.profile.aus_status = decision;
+      this.profile.aus_confirmed = true;
+      this.advanceWorkflow();
+    } else if (field === 'checklist_acknowledgement') {
+      const decision = await classifyConfirmation(text, lastQuestion, 'checklist_discussed', 'Do you understand the list and have these documents available?');
+      if (decision === 'yes') {
+        this.profile.checklist_discussed = true;
+        this.advanceWorkflow();
+      }
+    }
+  }
+
+  private runUnderwritingRules(): 'approve' | 'refer' | 'timeout' {
+    const text = this.turnLog[this.turnLog.length - 1]?.text?.toLowerCase() ?? '';
+    if (text.includes('timeout') || text.includes('system delay') || text.includes('system timeout')) {
+      return 'timeout';
+    }
+
+    const income = this.profile.gross_monthly_income ?? 0;
+    const debt = this.profile.monthly_debt ?? 0;
+    const propertyValue = this.profile.property_value ?? 0;
+    const downPayment = this.profile.down_payment ?? 0;
+
+    let creditScore = 700; // Default
+    if (this.profile.credit_range) {
+      const match = this.profile.credit_range.match(/\d+/);
+      if (match) {
+        creditScore = parseInt(match[0], 10);
+      }
+    }
+
+    const loanAmount = propertyValue - downPayment;
+    const ltv = propertyValue > 0 ? (loanAmount / propertyValue) * 100 : 0;
+    const dti = income > 0 ? (debt / income) * 100 : 0;
+
+    // Trigger refer if bankruptcy/foreclosure declared, or high DTI/LTV ratios, or low credit
+    if (
+      this.profile.declarations_bankruptcy ||
+      this.profile.declarations_foreclosure ||
+      dti > 45 ||
+      ltv > 97 ||
+      creditScore < 620
+    ) {
+      return 'refer';
+    }
+
+    return 'approve';
   }
 
   onAgentTurn(text: string): void {
@@ -678,8 +736,20 @@ export class SessionContextManager {
       } else {
         // Application completed! Transition to Stage 4
         this.activeStage = '4';
-        this.currentPendingField = null;
+        this.currentPendingField = 'aus_processing';
+        this.profile.aus_status = 'waiting';
         console.log('[context-manager]: ✅ Application completed and authorized for submission! Transitioning to STAGE 4!');
+      }
+    } else if (this.activeStage === '4') {
+      if (this.profile.aus_status === 'waiting') {
+        this.currentPendingField = 'aus_processing';
+      } else if (!this.profile.checklist_discussed) {
+        this.currentPendingField = 'checklist_acknowledgement';
+      } else {
+        // All Stage 4 completed! Transition to Stage 5 (Escalation compliance)
+        this.activeStage = '5';
+        this.currentPendingField = null;
+        console.log('[context-manager]: ✅ Document checklist acknowledged! Transitioning to STAGE 5 (MLO Escalation)!');
       }
     }
   }

@@ -175,6 +175,23 @@ This guide provides an exemplary conversation script and verification checklist 
 
 ---
 
+### 🎬 Stage 4: Underwriting Handoff & Checklist
+*Goal: Await simulated underwriting system status ➔ Present Conditional Approval or Referral ➔ Walk through required checklist of income/asset documents.*
+
+63. **Ailana should respond with Underwriting Wait status**:
+    *   *Waiting script*: *"I've submitted your application. Now, we wait for the underwriting system to review it. This should only take a few minutes. Once the review is complete, one of our licensed loan officers will reach out to you to discuss the next steps. Would you like me to connect you with a licensed loan officer now, or would you prefer to wait for them to reach out to you after the review is complete?"*
+64. **You say**:
+    *"What is the status of my review?"*
+65. **Ailana should respond with Underwriting Decision & Document Checklist**:
+    *   *If Happy Path (Approved)*: *"Excellent news! The system has returned a conditional approval for your Conventional Fixed Rate loan. To move your application to the final underwriting review, we will need to gather a few documents: (1) your most recent 2 years of Tax Returns and W-2s, (2) your last 30 days of paystubs, and (3) your most recent 60 days of bank statements. Does that make sense, and do you have these documents available?"*
+    *   *If Manual Review (Referred)*: *"Thank you for your patience. The system has indicated that your application requires a manual review by one of our licensed loan officers. This is very common and simply means we need a human eye to review your profile. To help speed this up, you can get a headstart by preparing the following documents: (1) your most recent 2 years of Tax Returns and W-2s, (2) your last 30 days of paystubs, and (3) your most recent 60 days of bank statements. Does that make sense, and do you have these documents available?"*
+66. **You say**:
+    *"Yes, I have these documents ready."*
+67. **Ailana should respond**:
+    *   Acknowledge and transition to next steps.
+
+---
+
 ## 🔍 Validation Checklist (What to watch for)
 
 *   [ ] **Zero Latency (Groq Check)**: Every voice response should begin speaking within **1.0 second** of you finishing your statement.
@@ -182,4 +199,5 @@ This guide provides an exemplary conversation script and verification checklist 
 *   [ ] **DTI/LTV Calculations**: The down payment should be correctly registered as **$67,500** (15% of $450k) or calculated appropriately for percentages.
 *   [ ] **Verbatim Scripting**: In Stage 3A, Ailana MUST read the consent disclosure word-for-word without any paraphrasing.
 *   [ ] **SSN Secure Masking**: In Stage 3B, Ailana must NEVER ask you to read your SSN aloud, and must direct you to type it in on-screen.
+*   [ ] **AUS Processing & Sub-Prompts**: In Stage 4, Ailana must dynamically load the conditional approval or manual referral sub-prompts based on your financial ratios.
 *   [ ] **Clean Stage transitions**: No "optional summary" prompts at the end of Stage 1 or Stage 2, and clean advancement into Stage 3B and Stage 4.
