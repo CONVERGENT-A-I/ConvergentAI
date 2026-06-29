@@ -73,8 +73,11 @@ export interface BorrowerProfile {
   checklist_discussed?: boolean;
 }
 
-// Human-readable field labels used in the confirmation ask
 const FIELD_LABELS: Record<string, string> = {
+  borrower_name: 'name',
+  mortgage_goal: 'mortgage goal',
+  timeline: 'timeline',
+  property_state: 'property state',
   gross_monthly_income: 'gross monthly income',
   monthly_debt: 'total monthly debt payments',
   credit_range: 'credit score',
@@ -96,7 +99,8 @@ const FIELD_LABELS: Record<string, string> = {
 export function buildLayer3TurnContext(
   profile: BorrowerProfile,
   pendingField: string | null,
-  stage: string = '1'
+  stage: string = '1',
+  isLowConfidence: boolean = false
 ): string {
   // ── Property state display ────────────────────────────────────────────────
   const propertyStateDisplay =
@@ -236,6 +240,12 @@ export function buildLayer3TurnContext(
     consentBlock = `\n\nCONSENT INSTRUCTION:\nYou MUST speak the following disclosure EXACTLY word-for-word, do NOT paraphrase or change anything:\n"Before we proceed — this is a soft pull, not a hard inquiry. It will not affect your credit score in any way. You are the one authorizing it — not us pulling it on our behalf. Your data is used only to pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?"`;
   }
 
+  // ── Low Confidence Instruction ────────────────────────────────────────────
+  let lowConfidenceBlock = '';
+  if (isLowConfidence) {
+    lowConfidenceBlock = `\n\nLOW CONFIDENCE DETECTED:\nThe borrower's last speech was recorded with low audio recognition confidence and was likely garbled or misheard.\nSay EXACTLY: "I'm sorry, I didn't quite catch that. Could you please repeat?"\nDo NOT ask any other question, do NOT confirm fields, do NOT advance stages. Simply prompt for repeat and stop.`;
+  }
+
   const blocks: string[] = [];
   blocks.push(stage1Block);
   if (stage === '2' || stage === '3' || stage === '3A' || stage === '3B' || stage === '4' || stage === '5') {
@@ -250,7 +260,7 @@ export function buildLayer3TurnContext(
   if (stage === '4' || stage === '5') {
     blocks.push(stage4Block);
   }
-  blocks.push(taskLine + confirmBlock + bridgeBlock + consentBlock);
+  blocks.push(taskLine + confirmBlock + bridgeBlock + consentBlock + lowConfidenceBlock);
 
   return blocks.filter(Boolean).join('\n\n');
 }

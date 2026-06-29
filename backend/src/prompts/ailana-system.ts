@@ -85,10 +85,10 @@ export function buildLayer2(stage: string = '1', profile: BorrowerProfile = {}):
 /**
  * Assemble prompt: Layer 1 + Layer 2 + Layer 3
  */
-export function buildSessionPrompt(profile: BorrowerProfile, pendingField: string | null, stage: string = '1'): string {
+export function buildSessionPrompt(profile: BorrowerProfile, pendingField: string | null, stage: string = '1', isLowConfidence: boolean = false): string {
   const L1 = buildLayer1();
   const L2 = buildLayer2(stage, profile);
-  const L3 = buildLayer3TurnContext(profile, pendingField, stage);
+  const L3 = buildLayer3TurnContext(profile, pendingField, stage, isLowConfidence);
   return `${L1}\n\n${L2}\n\n${L3}`.trim();
 }
 

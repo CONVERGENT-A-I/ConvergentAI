@@ -32,6 +32,8 @@ export class SessionContextManager {
   private activeStage: string = '1';
   private currentPendingField: string | null = 'borrower_name';
   private lastProcessedInput: string | null = null;
+  private lowConfidence = false;
+  private fieldAttempts: Record<string, number> = {};
 
   constructor(
     private readonly summarizationLlm: LLM,
@@ -53,6 +55,10 @@ export class SessionContextManager {
   async onUserTurn(text: string): Promise<void> {
     const trimmed = text.trim();
     if (!trimmed || trimmed.startsWith('SYSTEM_')) return;
+    if (this.lowConfidence) {
+      console.log('[context-manager]: Low confidence detected. Skipping data extraction for this turn.');
+      return;
+    }
     if (trimmed === this.lastProcessedInput) {
       console.log(`[context-manager]: Input "${trimmed}" already processed. Skipping duplicate onUserTurn.`);
       return;
@@ -60,6 +66,30 @@ export class SessionContextManager {
     this.lastProcessedInput = trimmed;
     this.turnLog.push({ role: 'user', text: trimmed, timestamp: Date.now() });
     this.turnCount += 1;
+
+    // 1. Handle global pending confirmations first (excluding Stage 2 which has local loop logic)
+    const handled = await this.handleGlobalConfirmation(trimmed);
+    if (handled) {
+      return;
+    }
+
+    // 2. Check if the user is correcting an already confirmed field
+    const corrected = await this.checkForGlobalCorrections(trimmed);
+    if (corrected) {
+      return;
+    }
+
+    // 3. Track attempts for the current pending field
+    if (this.currentPendingField) {
+      const attempts = (this.fieldAttempts[this.currentPendingField] || 0) + 1;
+      this.fieldAttempts[this.currentPendingField] = attempts;
+      console.log(`[context-manager] Attempt count for "${this.currentPendingField}" is ${attempts}`);
+      if (attempts >= 3) {
+        console.log(`[context-manager] Max attempts reached for "${this.currentPendingField}". Declining field.`);
+        this.declineCurrentField();
+        return;
+      }
+    }
 
     if (!this.currentPendingField && !['3', '3A', '3B'].includes(this.activeStage.toUpperCase())) {
       return;
@@ -799,7 +829,11 @@ export class SessionContextManager {
 
   /** Get active instructions assembled using active profile variables */
   getActiveInstructions(): string {
-    return buildSessionPrompt(this.profile, this.currentPendingField, this.activeStage);
+    return buildSessionPrompt(this.profile, this.currentPendingField, this.activeStage, this.lowConfidence);
+  }
+
+  setLowConfidenceFlag(value: boolean): void {
+    this.lowConfidence = value;
   }
 
   /** Called from MetricsCollected — real token count from OpenAI Realtime. */
@@ -1036,5 +1070,170 @@ export class SessionContextManager {
       this.turnCount = 0;
       return false;
     }
+  }
+
+  private async handleGlobalConfirmation(text: string): Promise<boolean> {
+    if (!this.profile.pending_confirm_field || this.profile.pending_confirm_value == null) {
+      return false;
+    }
+    // Only intercept if we are NOT in Stage 2 (Stage 2 handles its own confirmation flow inside runStage2Extraction)
+    if (this.activeStage === '2') {
+      return false;
+    }
+
+    const field = this.profile.pending_confirm_field;
+    const rawValue = this.profile.pending_confirm_value;
+    const lastQuestion = this.getLastAssistantUtterance();
+
+    const decision = await classifyConfirmation(text, lastQuestion, field, rawValue);
+    if (decision === 'yes') {
+      console.log(`[context-manager] Global: ${field} confirmed → ${rawValue}`);
+      this.commitGlobalValue(field, rawValue);
+      this.advanceWorkflow();
+      return true;
+    } else if (decision === 'no') {
+      console.log(`[context-manager] Global: ${field} correction incoming — resetting pending`);
+      this.profile.pending_confirm_field = null;
+      this.profile.pending_confirm_value = null;
+      await this.checkForGlobalCorrections(text);
+      return true;
+    }
+    return false;
+  }
+
+  private commitGlobalValue(field: string, rawValue: string): void {
+    this.profile.pending_confirm_field = null;
+    this.profile.pending_confirm_value = null;
+
+    const isNumeric = ['gross_monthly_income', 'monthly_debt', 'down_payment', 'property_value'].includes(field);
+    const numVal = isNumeric ? this.parseDollarString(rawValue) : null;
+
+    if (field === 'gross_monthly_income') {
+      this.profile.gross_monthly_income = numVal;
+      this.profile.gross_monthly_income_confirmed = true;
+    } else if (field === 'monthly_debt') {
+      this.profile.monthly_debt = numVal;
+      this.profile.monthly_debt_confirmed = true;
+    } else if (field === 'credit_range') {
+      this.profile.credit_range = rawValue;
+      this.profile.credit_range_confirmed = true;
+    } else if (field === 'down_payment') {
+      this.profile.down_payment = numVal;
+      this.profile.down_payment_confirmed = true;
+    } else if (field === 'property_value') {
+      this.profile.property_value = numVal;
+      this.profile.property_value_confirmed = true;
+    } else if (field === 'borrower_name') {
+      this.profile.borrower_name = rawValue;
+      this.profile.borrower_name_confirmed = true;
+    } else if (field === 'mortgage_goal') {
+      this.profile.mortgage_goal = rawValue;
+      this.profile.mortgage_goal_confirmed = true;
+    } else if (field === 'timeline') {
+      this.profile.timeline = rawValue;
+      this.profile.timeline_confirmed = true;
+    } else if (field === 'property_state') {
+      this.profile.property_state = rawValue;
+      this.profile.property_state_confirmed = true;
+    }
+  }
+
+  private async checkForGlobalCorrections(text: string): Promise<boolean> {
+    const lower = text.toLowerCase();
+    // Keywords indicating potential change or correction
+    const keywords = ['change', 'correct', 'instead', 'wrong', 'mistake', 'actually', 'update', 'not ', 'no, '];
+    const hasKeyword = keywords.some(k => lower.includes(k));
+    if (!hasKeyword) return false;
+
+    // Get list of fields that are already confirmed
+    const confirmedFields: string[] = [];
+    if (this.profile.borrower_name_confirmed) confirmedFields.push('borrower_name');
+    if (this.profile.mortgage_goal_confirmed) confirmedFields.push('mortgage_goal');
+    if (this.profile.timeline_confirmed) confirmedFields.push('timeline');
+    if (this.profile.property_state_confirmed) confirmedFields.push('property_state');
+    if (this.profile.gross_monthly_income_confirmed) confirmedFields.push('gross_monthly_income');
+    if (this.profile.monthly_debt_confirmed) confirmedFields.push('monthly_debt');
+    if (this.profile.credit_range_confirmed) confirmedFields.push('credit_range');
+    if (this.profile.down_payment_confirmed) confirmedFields.push('down_payment');
+    if (this.profile.property_value_confirmed) confirmedFields.push('property_value');
+
+    if (confirmedFields.length === 0) return false;
+
+    console.log(`[context-manager] Global: Checking potential correction against confirmed fields: ${confirmedFields.join(', ')}`);
+    const lastQuestion = this.getLastAssistantUtterance();
+
+    const res = await extractProfileField(
+      text,
+      lastQuestion,
+      'global_correction',
+      'correction of previously shared details',
+      'string',
+      `The currently confirmed fields are: ${confirmedFields.join(', ')}.
+      Determine if the user is correcting or changing one of these fields.
+      If yes, return the field name and new value separated by a colon, exactly like "field_name:new_value" (e.g., "gross_monthly_income:8500" or "mortgage_goal:refinance").
+      If no correction/change is found, return null.`
+    );
+
+    if (res.value && typeof res.value === 'string' && res.value.includes(':')) {
+      const parts = res.value.split(':');
+      const field = parts[0]?.trim();
+      const newVal = parts.slice(1).join(':')?.trim();
+      if (field && newVal && confirmedFields.includes(field)) {
+        console.log(`[context-manager] Global: Correction detected for ${field} to ${newVal}`);
+        this.profile.pending_confirm_field = field;
+        this.profile.pending_confirm_value = newVal;
+
+        // Reset confirmed flag
+        (this.profile as any)[`${field}_confirmed`] = false;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private declineCurrentField(): void {
+    if (!this.currentPendingField) return;
+    const field = this.currentPendingField;
+    this.fieldAttempts[field] = 0;
+
+    if (field === 'borrower_name') {
+      this.profile.borrower_name = 'Valued Member';
+      this.profile.borrower_name_confirmed = true;
+    } else if (field === 'mortgage_goal') {
+      this.profile.mortgage_goal = 'purchase';
+      this.profile.mortgage_goal_confirmed = true;
+    } else if (field === 'timeline') {
+      this.profile.timeline = 'flexible';
+      this.profile.timeline_confirmed = true;
+    } else if (field === 'property_state') {
+      this.profile.property_state = 'Texas';
+      this.profile.property_state_confirmed = true;
+    } else if (['gross_monthly_income', 'monthly_debt', 'credit_range', 'down_payment', 'property_value'].includes(field)) {
+      this.commitStage2Value(field, null, true);
+      return;
+    } else if (field === 'soft_pull_authorization') {
+      this.profile.soft_pull_consent = 'declined';
+    } else if (field === 'prefill_name_address' || field === 'prefill_employer' || field === 'prefill_accounts' || field === 'prefill_credit_range') {
+      const confirmed = this.profile.prefilled_fields_confirmed || {};
+      if (field === 'prefill_name_address') confirmed.name_address = true;
+      if (field === 'prefill_employer') confirmed.employer = true;
+      if (field === 'prefill_accounts') confirmed.accounts = true;
+      if (field === 'prefill_credit_range') confirmed.credit_range = true;
+      this.profile.prefilled_fields_confirmed = confirmed;
+    } else if (this.activeStage === '3B') {
+      if (field === 'marital_status') this.profile.marital_status = 'unmarried';
+      if (field === 'dependents') this.profile.dependents = 0;
+      if (field === 'ssn_confirm') this.profile.ssn_confirmed = true;
+      if (field === 'employment_details') {
+        this.profile.employment_position = 'Not specified';
+        this.profile.employment_years = 0;
+      }
+      if (field === 'checking_savings') this.profile.checking_savings_balance = 0;
+      if (field === 'declarations') this.profile.declarations_confirmed = true;
+      if (field === 'hmda') this.profile.hmda_completed = true;
+      if (field === 'submit_confirmation') this.profile.ready_to_submit = true;
+    }
+
+    this.advanceWorkflow();
   }
 }

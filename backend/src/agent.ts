@@ -16,6 +16,56 @@ import {
 import { logPromptBudget } from './context/context-budget.js';
 import { evaluateEmotion } from './utils/avatar-emotion-engine.js';
 import { BackchannelEngine } from './utils/backchannel-engine.js';
+import { OpenAI } from 'openai';
+
+// Proxy client for Cerebras with transparent fallback to Groq on 429
+const groqClient = new OpenAI({
+  apiKey: getDynamicGroqApiKey() || ailanaConfig.groqApiKey,
+  baseURL: 'https://api.groq.com/openai/v1',
+});
+
+const cerebrasClient = new OpenAI({
+  apiKey: ailanaConfig.cerebrasApiKey,
+  baseURL: ailanaConfig.cerebrasBaseUrl,
+});
+
+const originalCerebrasCreate = cerebrasClient.chat.completions.create.bind(cerebrasClient.chat.completions);
+
+cerebrasClient.chat.completions.create = (async function (body: any, options: any) {
+  try {
+    console.log(`[cerebras-proxy]: Sending request to Cerebras: model=${body.model}`);
+    return await originalCerebrasCreate(body, options);
+  } catch (err: any) {
+    const statusCode = err?.status ?? err?.statusCode;
+    console.warn(`[cerebras-proxy]: Cerebras API error (status: ${statusCode}):`, err?.message ?? err);
+
+    if (statusCode === 429 || (err?.message && err.message.includes('429'))) {
+      console.warn(`[cerebras-proxy]: 429 Rate Limit Exceeded. Falling back to Groq Llama-3.3-70b!`);
+      const fallbackBody = {
+        ...body,
+        model: 'llama-3.3-70b-versatile',
+      };
+      // Remove Cerebras specific parameters that Groq doesn't support
+      delete fallbackBody.reasoning_effort;
+      delete fallbackBody.reasoning_format;
+
+      groqClient.apiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
+      return await groqClient.chat.completions.create(fallbackBody, options);
+    }
+    throw err;
+  }
+} as any);
+
+class CerebrasLLM extends openai.LLM {
+  override chat(args: any) {
+    args.extraKwargs = {
+      ...args.extraKwargs,
+      reasoning_effort: ailanaConfig.cerebrasReasoningEffort,
+      reasoning_format: 'hidden',
+    };
+    return super.chat(args);
+  }
+}
 
 class AilanaVoiceAgent extends voice.Agent {
   constructor(
@@ -27,11 +77,20 @@ class AilanaVoiceAgent extends voice.Agent {
   }
 
   override async onUserTurnCompleted(chatCtx: any, userMessage: any): Promise<void> {
-    console.log(`[agent-hook]: onUserTurnCompleted hook triggered with message: "${userMessage?.textContent}"`);
+    const confidence = userMessage?.transcriptConfidence;
+    console.log(`[agent-hook]: onUserTurnCompleted hook triggered with message: "${userMessage?.textContent}" (confidence: ${confidence})`);
+
+    if (confidence !== undefined && confidence !== null && confidence < 0.6) {
+      console.log(`[agent-hook]: Low confidence transcript detected (${confidence} < 0.6). Flagging low confidence.`);
+      this.contextManager.setLowConfidenceFlag(true);
+    } else {
+      this.contextManager.setLowConfidenceFlag(false);
+    }
+
     if (userMessage?.textContent) {
       await this.contextManager.onUserTurn(userMessage.textContent);
     }
-    
+
     // Update original instructions in the session
     this.updateInstructions();
 
@@ -106,15 +165,14 @@ export default {
     });
 
     const createVadAgent = () => {
-      console.log('[agent]: Creating Cascaded agent (Groq LLM + Cartesia STT/TTS)...');
+      console.log('[agent]: Creating Cascaded agent (Cerebras LLM + Cartesia STT/TTS)...');
       return new AilanaVoiceAgent({
         instructions: contextManager.getActiveInstructions(),
         stt: sessionStt,
         vad: sessionVad,
-        llm: new openai.LLM({
-          model: 'llama-3.3-70b-versatile',
-          baseURL: 'https://api.groq.com/openai/v1',
-          apiKey: getDynamicGroqApiKey() || ailanaConfig.groqApiKey,
+        llm: new CerebrasLLM({
+          model: 'gpt-oss-120b',
+          client: cerebrasClient,
         }),
         tts: sessionTts,
         turnHandling: {
@@ -143,7 +201,7 @@ export default {
     const session = new voice.AgentSession({
       userAwayTimeout: null,
     });
-    
+
     const backchannelEngine = new BackchannelEngine();
 
     const createAgentForRotation = () => {
@@ -180,12 +238,12 @@ export default {
       if (typeof oldState === 'string' && typeof newState === 'string') {
         currentAgentState = newState;
         console.log(`[agent-debug]: Agent state: ${oldState} → ${newState}`);
-        
+
         if (newState === 'speaking') {
           if (oldState === 'thinking') {
             metrics.markAgentSpeaking();
           }
-          
+
           // Avatar emotion: Start polling the streaming LLM text to react mid-sentence
           if (emotionEvalInterval) clearInterval(emotionEvalInterval);
           emotionEvalInterval = setInterval(() => {
@@ -251,7 +309,7 @@ export default {
         return;
       }
       if (!ev.transcript?.trim()) return;
-      
+
       console.log(`[agent-debug]: User input transcribed (isFinal=true): "${ev.transcript}"`);
       backchannelEngine.reset();
       metrics.markUserTurnEnd();
@@ -290,7 +348,7 @@ export default {
       try {
         const activeInstructions = contextManager.getActiveInstructions();
         (vadAgent as any)._instructions = activeInstructions;
-        
+
         const chatCtx = session.chatCtx;
         const systemItem = (chatCtx.items.find(
           (item) => item.type === 'message' && (item as llm.ChatMessage).id === 'lk.agent_task.instructions'
@@ -325,43 +383,26 @@ export default {
       console.log(`[agent]: Text-only reply for "${userMessage}"...`);
 
       try {
-        const apiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
-        if (!apiKey) return;
-
         const systemPrompt = contextManager.getActiveInstructions();
         const chatMessages = contextManager.buildTextMessages(systemPrompt);
-        
+
         // Ensure system prompt is always at index 0 and conversation history is sliced safely
         const systemMessage = chatMessages[0];
         const historyMessages = chatMessages.slice(1);
         const slicedHistory = historyMessages.slice(-23); // keep up to 23 recent turns
         const messages = [systemMessage, ...slicedHistory, { role: 'user', content: userMessage }];
 
-        const baseURL = 'https://api.groq.com/openai/v1';
-        const modelName = 'llama-3.3-70b-versatile';
+        console.log(`[agent]: Dispatching text-only reply to Cerebras client proxy...`);
+        const completion = await cerebrasClient.chat.completions.create({
+          model: 'gpt-oss-120b',
+          messages: messages as any,
+          max_tokens: 500,
+          temperature: 0.6,
+          reasoning_effort: ailanaConfig.cerebrasReasoningEffort,
+          reasoning_format: 'hidden',
+        } as any);
 
-        const res = await fetch(`${baseURL}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model: modelName,
-            messages: messages,
-            max_tokens: 200,
-            temperature: 0.6,
-          }),
-        });
-
-        if (!res.ok) {
-          const errBody = await res.text().catch(() => '');
-          console.error(`[agent]: Text-only API error: ${res.status} — ${errBody}`);
-          return;
-        }
-
-        const data = await res.json();
-        const reply = data.choices?.[0]?.message?.content?.trim();
+        const reply = completion.choices?.[0]?.message?.content?.trim();
 
         if (reply) {
           contextManager.onAgentTurn(reply);
@@ -585,7 +626,7 @@ export default {
       console.error(`[agent]: Failed to pre-start session on connect:`, err);
     }
 
-    const activeModelName = 'cascade-livekit-inference (Llama-3.3-70b + Cartesia)';
+    const activeModelName = 'cascade-livekit-inference (Cerebras GPT-OSS 120B + Cartesia)';
     console.log(
       `[agent]: Ready — model=${activeModelName}, prompt=${ailanaConfig.promptVersion}, compact@${ailanaConfig.compactEveryNTurns} turns / ${ailanaConfig.forceCompactInputTokens} tokens`,
     );
