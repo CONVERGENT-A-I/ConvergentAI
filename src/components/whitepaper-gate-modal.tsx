@@ -88,7 +88,7 @@ export default function WhitepaperGateModal({ isOpen, onClose }: WhitepaperGateM
   const fields = [
     { key: "name", label: "Full Name", placeholder: "Jane Smith", icon: User, required: true },
     { key: "title", label: "Title", placeholder: "VP of Lending", icon: Briefcase, required: true },
-    { key: "organization", label: "Institution / Organization", placeholder: "First Community Credit Union", icon: Building2, required: true },
+    { key: "organization", label: "Institution / Organization", placeholder: "e.g. Community Bank or Credit Union", icon: Building2, required: true },
     { key: "email", label: "Email", placeholder: "jane@example.com", icon: Mail, type: "email", required: true },
     { key: "phone", label: "Phone (optional)", placeholder: "(555) 123-4567", icon: Phone, type: "tel", required: false },
   ];

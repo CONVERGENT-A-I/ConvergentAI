@@ -501,7 +501,7 @@ export default {
 
         greetingGenerated = true;
 
-        const greetingText = "Hi, my name is Ailana and I am an AI mortgage assistant who can respond to all of your mortgage questions and provide other services. What questions do you have for me today?";
+        const greetingText = "Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?";
 
         if ((session as any)._started) {
           console.log(`[agent]: Session already started. Generating greeting now...`);

@@ -55,7 +55,7 @@ function TypewriterText({ text, onUpdate, onComplete }: { text: string; onUpdate
 
 export default function LiveChatPanel() {
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: '0', role: 'assistant', text: "Hi! I'm Ailana, your AI mortgage assistant. How can I help you today?", time: formatMsgTime(), isStreaming: false },
+    { id: '0', role: 'assistant', text: "Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?", time: formatMsgTime(), isStreaming: false },
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);

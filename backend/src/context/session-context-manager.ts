@@ -117,16 +117,7 @@ export class SessionContextManager {
   private async runStage3Extraction(text: string): Promise<void> {
     const lastQuestion = this.getLastAssistantUtterance();
 
-    if (this.currentPendingField === 'product_selection_feedback') {
-      const lowerText = text.toLowerCase();
-      if (lowerText.includes('soft pull') || lowerText.includes('credit check') || lowerText.includes('authorize') || lowerText.includes('soft check')) {
-        console.log('[context-manager]: Heuristic matched for soft pull consent. Advancing workflow to Stage 3A!');
-        this.advanceWorkflow();
-        return;
-      }
-
-      // LLM prompts "Does that make sense or do you have questions?"
-      // We look to see if they say they want to proceed, or have no questions, or ask a question.
+    if (this.currentPendingField === 'product_fit_walkthrough') {
       const res = await extractProfileField(
         text,
         lastQuestion,
@@ -138,6 +129,85 @@ export class SessionContextManager {
 
       if (res.value === 'yes') {
         this.advanceWorkflow();
+      }
+    } else if (this.currentPendingField === 'program_comparison_interest') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'program_comparison_interest',
+        'whether the user wants to walk through a comparison of the loan programs',
+        'string',
+        'Extract "yes" or "no". If they want a comparison, return "yes". If not, return "no". If not found, return null.'
+      );
+      if (res.value === 'yes' || res.value === 'no') {
+        this.profile.program_comparison_interest = res.value;
+        this.profile.program_comparison_interest_confirmed = true;
+        this.advanceWorkflow();
+      }
+    } else if (this.currentPendingField === 'financial_priority') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'financial_priority',
+        'whether the user prioritizes lower monthly payments or a faster payoff with less interest',
+        'string',
+        'Extract "low_payment", "faster_payoff", or "balanced". If they prefer keeping payment low, return "low_payment". If they prefer paying off fast/saving interest, return "faster_payoff". If both or balanced, return "balanced". If not found, return null.'
+      );
+      if (res.value === 'low_payment' || res.value === 'faster_payoff' || res.value === 'balanced') {
+        this.profile.financial_priority = res.value;
+        this.profile.financial_priority_confirmed = true;
+        this.advanceWorkflow();
+      }
+    } else if (this.currentPendingField === 'home_horizon') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'home_horizon',
+        'whether this is a long-term home or a short-term starting point',
+        'string',
+        'Extract "long_term" or "short_term". If they plan to stay long term, return "long_term". If they plan to move or sell soon, return "short_term". If not found, return null.'
+      );
+      if (res.value === 'long_term' || res.value === 'short_term') {
+        this.profile.home_horizon = res.value;
+        this.profile.home_horizon_confirmed = true;
+        this.advanceWorkflow();
+      }
+    } else if (this.currentPendingField === 'stage3_closing_offer') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'stage3_closing_offer',
+        'whether the user wants to proceed with the eligibility review now',
+        'string',
+        'Extract "yes", "no", or "explain". If they say yes, sure, okay, let\'s do it, return "yes". If they say no, not yet, prefer not to, return "no". If they ask what it involves, return "explain". If not sure, return null.'
+      );
+
+      if (res.value === 'yes') {
+        this.activeStage = '3A';
+        this.currentPendingField = 'soft_pull_authorization';
+        this.profile.soft_pull_consent = 'pending';
+        console.log('[context-manager]: ✅ stage3_closing_offer accepted! Transitioning to STAGE 3A Soft Pull Consent!');
+      } else if (res.value === 'no') {
+        this.currentPendingField = 'advisor_connection_offer';
+        console.log('[context-manager]: stage3_closing_offer declined. Transitioning to advisor_connection_offer.');
+      } else if (res.value === 'explain') {
+        console.log('[context-manager]: stage3_closing_offer explanation requested.');
+      }
+    } else if (this.currentPendingField === 'advisor_connection_offer') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'advisor_connection_offer',
+        'whether they want to be connected with a human mortgage advisor',
+        'string',
+        'Extract "yes" or "no". If they want to speak to a person, advisor, officer, human, return "yes". If not, return "no". If not found, return null.'
+      );
+      if (res.value === 'yes') {
+        this.activeStage = '5';
+        this.currentPendingField = null;
+        console.log('[context-manager]: ✅ Connected to human advisor! Transitioning to STAGE 5 Escalation.');
+      } else if (res.value === 'no') {
+        console.log('[context-manager]: Advisor connection declined.');
       }
     }
   }
@@ -239,17 +309,6 @@ export class SessionContextManager {
       if (res.value) {
         this.profile.marital_status = res.value as any;
         this.profile.marital_status_confirmed = true;
-        this.advanceWorkflow();
-      }
-    } else if (field === 'co_borrower') {
-      const decision = await classifyConfirmation(text, lastQuestion, 'co_borrower', 'Will your spouse be a co-borrower on this mortgage loan?');
-      if (decision === 'yes') {
-        this.profile.co_borrower = 'yes';
-        this.profile.co_borrower_confirmed = true;
-        this.advanceWorkflow();
-      } else if (decision === 'no') {
-        this.profile.co_borrower = 'no';
-        this.profile.co_borrower_confirmed = true;
         this.advanceWorkflow();
       }
     } else if (field === 'dependents') {
@@ -397,9 +456,9 @@ export class SessionContextManager {
       return 'timeout';
     }
 
-    const income = this.profile.gross_monthly_income ?? 0;
+    const income = (this.profile.gross_annual_income ?? 0) / 12;
     const debt = this.profile.monthly_debt ?? 0;
-    const propertyValue = this.profile.property_value ?? 0;
+    const targetPrice = this.profile.target_price ?? 0;
     const downPayment = this.profile.down_payment ?? 0;
 
     let creditScore = 700; // Default
@@ -410,8 +469,8 @@ export class SessionContextManager {
       }
     }
 
-    const loanAmount = propertyValue - downPayment;
-    const ltv = propertyValue > 0 ? (loanAmount / propertyValue) * 100 : 0;
+    const loanAmount = targetPrice - downPayment;
+    const ltv = targetPrice > 0 ? (loanAmount / targetPrice) * 100 : 0;
     const dti = income > 0 ? (debt / income) * 100 : 0;
 
     // Trigger refer if bankruptcy/foreclosure declared, or high DTI/LTV ratios, or low credit
@@ -472,13 +531,41 @@ export class SessionContextManager {
         text,
         lastQuestion,
         'mortgage_goal',
-        "Whether they want to purchase/buy a new home, or refinance an existing mortgage",
+        "Whether they want to purchase/buy a new home, refinance an existing mortgage, or explore a home equity option",
         'string',
-        'Extract either "purchase" or "refinance". Only return one of these two strings (all lowercase) if clearly indicated. Otherwise return null.'
+        'Extract "purchase", "refinance", or "equity". Only return one of these three strings (all lowercase) if clearly indicated. Otherwise return null.'
       );
-      if (res.value === 'purchase' || res.value === 'refinance') {
+      if (res.value === 'purchase' || res.value === 'refinance' || res.value === 'equity') {
         this.profile.mortgage_goal = res.value;
         this.profile.mortgage_goal_confirmed = true;
+        this.advanceWorkflow();
+      }
+    } else if (this.currentPendingField === 'occupancy') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'occupancy',
+        "Whether they are looking for a primary residence, second home, or investment property",
+        'string',
+        'Extract "primary", "secondary", or "investment". If they say "for myself and family to live in", "home for myself", etc., extract "primary". If they say "rental", "investment", etc., extract "investment". If not found, return null.'
+      );
+      if (res.value === 'primary' || res.value === 'secondary' || res.value === 'investment') {
+        this.profile.occupancy = res.value;
+        this.profile.occupancy_confirmed = true;
+        this.advanceWorkflow();
+      }
+    } else if (this.currentPendingField === 'existing_relationship') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'existing_relationship',
+        "Whether they have worked with this lending institution before",
+        'string',
+        'Extract "yes" or "no". If they say they have worked with us before or have an existing mortgage, return "yes". If they say it is their first time, return "no". If not found, return null.'
+      );
+      if (res.value === 'yes' || res.value === 'no') {
+        this.profile.existing_relationship = res.value;
+        this.profile.existing_relationship_confirmed = true;
         this.advanceWorkflow();
       }
     } else if (this.currentPendingField === 'timeline') {
@@ -495,22 +582,18 @@ export class SessionContextManager {
         this.profile.timeline_confirmed = true;
         this.advanceWorkflow();
       }
-    } else if (this.currentPendingField === 'property_state') {
+    } else if (this.currentPendingField === 'co_borrower') {
       const res = await extractProfileField(
         text,
         lastQuestion,
-        'property_state',
-        "The US state where they are buying/refinancing (e.g. California or CA)",
+        'co_borrower',
+        "Whether anyone else will be applying with them on the loan",
         'string',
-        'Identify the US state mentioned. Return the standard full state name (e.g. "California", "Texas"). If the user explicitly declines, skips, says they don\'t mind, have no preference, are open to anywhere, don\'t know, or similar, set "declined" to true and value to null.'
+        'Extract "yes" or "no". If they mention a spouse, partner, or family member applying with them, return "yes". If they say "no", "just me", "myself alone", return "no". If not found, return null.'
       );
-      if (res.declined) {
-        this.profile.property_state = 'not_specified';
-        this.profile.property_state_confirmed = true;
-        this.advanceWorkflow();
-      } else if (res.value) {
-        this.profile.property_state = res.value as string;
-        this.profile.property_state_confirmed = true;
+      if (res.value === 'yes' || res.value === 'no') {
+        this.profile.co_borrower = res.value;
+        this.profile.co_borrower_confirmed = true;
         this.advanceWorkflow();
       }
     }
@@ -531,16 +614,42 @@ export class SessionContextManager {
     const field = this.currentPendingField;
     const lastQuestion = this.getLastAssistantUtterance();
 
-    if (field === 'gross_monthly_income' || field === 'down_payment' || field === 'property_value') {
-      const fieldDesc = field === 'gross_monthly_income' ? 'gross monthly income'
+    if (field === 'stage2_closing_offer') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'stage2_closing_offer',
+        'whether the user wants to proceed with the eligibility review or explore first',
+        'string',
+        'Extract "yes", "no", or "explain". If they say yes, sure, okay, let\'s do it, go ahead, return "yes". If they say no, not yet, continue exploring, explore first, return "no". If they ask what does it involve, what is it, explain, what does that mean, return "explain". If not sure, return null.'
+      );
+
+      if (res.value === 'yes') {
+        this.activeStage = '3A';
+        this.currentPendingField = 'soft_pull_authorization';
+        this.profile.soft_pull_consent = 'pending';
+        console.log('[context-manager]: ✅ stage2_closing_offer accepted! Transitioning to STAGE 3A Soft Pull Consent!');
+      } else if (res.value === 'no') {
+        this.activeStage = '3';
+        this.currentPendingField = 'product_fit_walkthrough';
+        this.profile.bridge_to_say = 'stage2_to_stage3';
+        console.log('[context-manager]: ❌ stage2_closing_offer declined! Transitioning to STAGE 3 Product Guidance!');
+      } else if (res.value === 'explain') {
+        console.log('[context-manager]: stage2_closing_offer explanation requested.');
+      }
+      return;
+    }
+
+    if (field === 'gross_annual_income' || field === 'down_payment' || field === 'target_price') {
+      const fieldDesc = field === 'gross_annual_income' ? 'gross annual household income'
                       : field === 'down_payment' ? 'down payment savings'
-                      : 'purchase property value';
+                      : 'target purchase price';
 
       let instruction = 'Extract the single total dollar amount. If the user declines, skips, says they don\'t know, or don\'t want to answer, set "declined" to true.';
       if (field === 'down_payment') {
-        const propertyValue = this.profile.property_value;
-        const pctInstruction = propertyValue 
-          ? `If the user specifies a percentage (e.g. "15%"), calculate that percentage of the property value ($${propertyValue}) and return it as the final integer dollar amount.`
+        const targetPrice = this.profile.target_price;
+        const pctInstruction = targetPrice 
+          ? `If the user specifies a percentage (e.g. "15%"), calculate that percentage of the target price ($${targetPrice}) and return it as the final integer dollar amount.`
           : '';
         instruction += ` ${pctInstruction}`;
       }
@@ -583,17 +692,94 @@ export class SessionContextManager {
         text,
         lastQuestion,
         'credit_score',
-        'credit score number',
-        'number',
-        'Extract the credit score as a number (e.g. 720, 680). If they only mention a tier or range (e.g. Excellent or 700-750), return null. We strictly require an actual numeric credit score value. If they decline, skip, or say they don\'t know, set "declined" to true.'
+        'credit score number or general tier/range',
+        'string',
+        'Extract the credit score number (e.g. 720) or range/tier (e.g. "Excellent", "680-700"). If they decline, skip, or say they don\'t know, set "declined" to true.'
       );
 
       if (res.declined) {
-        this.commitStage2Value(field, null, true);
-      } else if (res.value !== null) {
-        this.profile.pending_confirm_field = 'credit_range';
-        this.profile.pending_confirm_value = String(res.value);
-        console.log(`[context-manager] Stage2: extracted credit score number=${res.value}, awaiting confirm`);
+        this.profile.credit_range = null;
+        this.profile.credit_range_confirmed = true;
+        this.advanceWorkflow();
+      } else if (res.value) {
+        this.profile.credit_range = String(res.value);
+        this.profile.credit_range_confirmed = true;
+        this.advanceWorkflow();
+      }
+    } else if (field === 'rent_own') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'rent_own',
+        "Whether they rent, own, or own and plan to sell their current home",
+        'string',
+        'Extract "rent", "own", or "own_selling". If they own and plan to sell as part of this transaction, return "own_selling". If they own but do not mention selling, return "own". If they rent, return "rent". If not found, return null.'
+      );
+      if (res.value === 'rent' || res.value === 'own' || res.value === 'own_selling') {
+        this.profile.rent_own = res.value;
+        this.profile.rent_own_confirmed = true;
+        this.advanceWorkflow();
+      }
+    } else if (field === 'realtor_status') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'realtor_status',
+        "Whether they have connected with a real estate agent",
+        'string',
+        'Extract "yes" or "no". If they have an agent/realtor, return "yes". If not, return "no". If not found, return null.'
+      );
+      if (res.value === 'yes' || res.value === 'no') {
+        this.profile.realtor_status = res.value;
+        this.profile.realtor_status_confirmed = true;
+        this.advanceWorkflow();
+      }
+    } else if (field === 'property_type') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'property_type',
+        "The type of property they are considering (single-family, condo, townhome, multi-family, or other)",
+        'string',
+        'Extract "single_family", "condo", "townhome", "multi_family", or "other". If not found, return null.'
+      );
+      if (res.value === 'single_family' || res.value === 'condo' || res.value === 'townhome' || res.value === 'multi_family' || res.value === 'other') {
+        this.profile.property_type = res.value;
+        this.profile.property_type_confirmed = true;
+        this.advanceWorkflow();
+      }
+    } else if (field === 'military_rural') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'military_rural',
+        "Whether they are a current/former military service member, or buying in a rural/suburban area",
+        'string',
+        'Determine if they have military service, rural property location, both, or neither. Return "military", "rural", "both", or "neither". If they say they are a veteran, active duty, guard/reserve, set military. If they are buying in a rural/suburban area, set rural. If both, return "both". If neither, return "neither". If not found, return null.'
+      );
+      if (res.value === 'military' || res.value === 'rural' || res.value === 'both' || res.value === 'neither') {
+        this.profile.military_rural = res.value;
+        this.profile.military_rural_confirmed = true;
+        this.advanceWorkflow();
+      }
+    } else if (field === 'job_tenure_type') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'job_tenure_type',
+        "How long they have been with their current employer and their income type (salary, hourly, commission, self-employed)",
+        'string',
+        'Extract a concise summary of employment stability and income type (e.g. "5 years, W2 salary" or "2 years, self-employed"). If they mention self-employment, independent contractor, W-2, hourly, etc. include that. If not found, return null.'
+      );
+      if (res.value) {
+        this.profile.job_tenure_type = res.value as string;
+        this.profile.job_tenure_type_confirmed = true;
+        if (res.value.toLowerCase().includes('self-employed') || res.value.toLowerCase().includes('independent contractor') || res.value.toLowerCase().includes('own business')) {
+          this.profile.self_employed = true;
+        } else if (res.value.toLowerCase().includes('w2') || res.value.toLowerCase().includes('salary') || res.value.toLowerCase().includes('w-2')) {
+          this.profile.self_employed = false;
+        }
+        this.advanceWorkflow();
       }
     }
   }
@@ -626,21 +812,18 @@ export class SessionContextManager {
 
     const numVal = rawValue ? this.parseDollarString(rawValue) : null;
 
-    if (field === 'gross_monthly_income') {
-      this.profile.gross_monthly_income = declined ? null : numVal;
-      this.profile.gross_monthly_income_confirmed = true;
+    if (field === 'gross_annual_income') {
+      this.profile.gross_annual_income = declined ? null : numVal;
+      this.profile.gross_annual_income_confirmed = true;
     } else if (field === 'monthly_debt') {
       this.profile.monthly_debt = declined ? null : numVal;
       this.profile.monthly_debt_confirmed = true;
-    } else if (field === 'credit_range') {
-      this.profile.credit_range = declined ? null : rawValue;
-      this.profile.credit_range_confirmed = true;
     } else if (field === 'down_payment') {
       this.profile.down_payment = declined ? null : numVal;
       this.profile.down_payment_confirmed = true;
-    } else if (field === 'property_value') {
-      this.profile.property_value = declined ? null : numVal;
-      this.profile.property_value_confirmed = true;
+    } else if (field === 'target_price') {
+      this.profile.target_price = declined ? null : numVal;
+      this.profile.target_price_confirmed = true;
     }
 
     this.advanceWorkflow();
@@ -655,11 +838,11 @@ export class SessionContextManager {
 
   private fieldLabel(field: string): string {
     const labels: Record<string, string> = {
-      gross_monthly_income: 'gross monthly income',
+      gross_annual_income: 'gross annual household income',
       monthly_debt: 'total monthly debt payments',
       credit_range: 'credit score',
       down_payment: 'down payment',
-      property_value: 'estimated home purchase price',
+      target_price: 'target purchase price',
     };
     return labels[field] ?? field;
   }
@@ -673,9 +856,9 @@ export class SessionContextManager {
    */
   private calculateEligibility(): void {
     const products: string[] = [];
-    const income = this.profile.gross_monthly_income ?? 0;
+    const income = (this.profile.gross_annual_income ?? 0) / 12;
     const debt = this.profile.monthly_debt ?? 0;
-    const propertyValue = this.profile.property_value ?? 0;
+    const propertyValue = this.profile.target_price ?? 0;
     const downPayment = this.profile.down_payment ?? 0;
 
     // Estimate credit score as a number
@@ -706,13 +889,23 @@ export class SessionContextManager {
     if (creditScore >= 580 && dti <= 50 && ltv <= 96.5) {
       products.push('FHA Loan (Great for buyers with lower credit or smaller down payments)');
     }
+    // VA Loan: Military service indicated, DTI <= 50%
+    if (
+      (this.profile.military_rural === 'military' || this.profile.military_rural === 'both') &&
+      dti <= 50
+    ) {
+      products.push('VA Loan (Zero down payment, no PMI — for eligible service members)');
+    }
     // USDA Loan (assume rural or fallback): Credit Score >= 640, DTI <= 41%
-    if (creditScore >= 640 && dti <= 41) {
+    if (
+      (this.profile.military_rural === 'rural' || this.profile.military_rural === 'both') &&
+      creditScore >= 640 && dti <= 41
+    ) {
       products.push('USDA Rural Home Loan (Zero down payment option for qualified properties)');
     }
 
     if (products.length === 0) {
-      products.push('Specialized Assistance Programs (Custom credit union portfolio options)');
+      products.push('Specialized Assistance Programs (Custom institution-specific portfolio options)');
     }
 
     this.profile.eligible_products = products;
@@ -728,41 +921,57 @@ export class SessionContextManager {
       this.currentPendingField = 'borrower_name';
     } else if (!this.profile.mortgage_goal_confirmed) {
       this.currentPendingField = 'mortgage_goal';
+    } else if (!this.profile.occupancy_confirmed) {
+      this.currentPendingField = 'occupancy';
+    } else if (!this.profile.existing_relationship_confirmed) {
+      this.currentPendingField = 'existing_relationship';
     } else if (!this.profile.timeline_confirmed) {
       this.currentPendingField = 'timeline';
-    } else if (!this.profile.property_state_confirmed) {
-      this.currentPendingField = 'property_state';
+    } else if (!this.profile.co_borrower_confirmed) {
+      this.currentPendingField = 'co_borrower';
     // ── Stage 1 → Stage 2 transition ────────────────────────────────────────
     } else if (this.activeStage === '1') {
       this.activeStage = '2';
-      this.currentPendingField = 'gross_monthly_income';
+      this.currentPendingField = 'gross_annual_income';
       this.profile.bridge_to_say = 'stage1_to_stage2';
       console.log('[context-manager]: ✅ Transitioning to STAGE 2 Pre-Qualification Discovery!');
     // ── Stage 2 ──────────────────────────────────────────────────────────────
-    } else if (!this.profile.gross_monthly_income_confirmed) {
-      this.currentPendingField = 'gross_monthly_income';
+    } else if (!this.profile.gross_annual_income_confirmed) {
+      this.currentPendingField = 'gross_annual_income';
     } else if (!this.profile.monthly_debt_confirmed) {
       this.currentPendingField = 'monthly_debt';
     } else if (!this.profile.credit_range_confirmed) {
       this.currentPendingField = 'credit_range';
     } else if (!this.profile.down_payment_confirmed) {
       this.currentPendingField = 'down_payment';
-    } else if (!this.profile.property_value_confirmed) {
-      this.currentPendingField = 'property_value';
+    } else if (!this.profile.rent_own_confirmed) {
+      this.currentPendingField = 'rent_own';
+    } else if (!this.profile.realtor_status_confirmed) {
+      this.currentPendingField = 'realtor_status';
+    } else if (!this.profile.target_price_confirmed) {
+      this.currentPendingField = 'target_price';
+    } else if (!this.profile.property_type_confirmed) {
+      this.currentPendingField = 'property_type';
+    } else if (!this.profile.military_rural_confirmed) {
+      this.currentPendingField = 'military_rural';
+    } else if (!this.profile.job_tenure_type_confirmed) {
+      this.currentPendingField = 'job_tenure_type';
     // ── Stage 2 → Stage 3 transition ────────────────────────────────────────
     } else if (this.activeStage === '2') {
       this.calculateEligibility();
-      this.currentPendingField = 'product_selection_feedback';
-      this.activeStage = '3';
-      this.profile.bridge_to_say = 'stage2_to_stage3';
-      console.log('[context-manager]: ✅ Transitioning to STAGE 3 Product Guidance!');
+      this.currentPendingField = 'stage2_closing_offer';
+      console.log('[context-manager]: ✅ Transitioning to STAGE 2 Closing Transition!');
     // ── Stage 3 / 3A Transitions ─────────────────────────────────────────────
     } else if (this.activeStage === '3') {
-      if (this.currentPendingField === 'product_selection_feedback') {
-        this.currentPendingField = 'soft_pull_authorization';
-        this.activeStage = '3A';
-        this.profile.soft_pull_consent = 'pending';
-        console.log('[context-manager]: ✅ Transitioning to STAGE 3A Soft Pull Consent!');
+      if (!this.profile.program_comparison_interest_confirmed) {
+        this.currentPendingField = 'program_comparison_interest';
+      } else if (!this.profile.financial_priority_confirmed) {
+        this.currentPendingField = 'financial_priority';
+      } else if (!this.profile.home_horizon_confirmed) {
+        this.currentPendingField = 'home_horizon';
+      } else {
+        this.currentPendingField = 'stage3_closing_offer';
+        console.log('[context-manager]: ✅ Transitioning to STAGE 3 Closing Transition!');
       }
     } else if (this.activeStage === '3A') {
       const confirmed = this.profile.prefilled_fields_confirmed || {};
@@ -790,8 +999,6 @@ export class SessionContextManager {
     } else if (this.activeStage === '3B') {
       if (!this.profile.marital_status_confirmed) {
         this.currentPendingField = 'marital_status';
-      } else if (this.profile.marital_status === 'married' && !this.profile.co_borrower_confirmed) {
-        this.currentPendingField = 'co_borrower';
       } else if (!this.profile.dependents_confirmed) {
         this.currentPendingField = 'dependents';
       } else if (!this.profile.ssn_confirmed) {
@@ -1105,12 +1312,12 @@ export class SessionContextManager {
     this.profile.pending_confirm_field = null;
     this.profile.pending_confirm_value = null;
 
-    const isNumeric = ['gross_monthly_income', 'monthly_debt', 'down_payment', 'property_value'].includes(field);
+    const isNumeric = ['gross_annual_income', 'monthly_debt', 'down_payment', 'target_price'].includes(field);
     const numVal = isNumeric ? this.parseDollarString(rawValue) : null;
 
-    if (field === 'gross_monthly_income') {
-      this.profile.gross_monthly_income = numVal;
-      this.profile.gross_monthly_income_confirmed = true;
+    if (field === 'gross_annual_income') {
+      this.profile.gross_annual_income = numVal;
+      this.profile.gross_annual_income_confirmed = true;
     } else if (field === 'monthly_debt') {
       this.profile.monthly_debt = numVal;
       this.profile.monthly_debt_confirmed = true;
@@ -1120,21 +1327,42 @@ export class SessionContextManager {
     } else if (field === 'down_payment') {
       this.profile.down_payment = numVal;
       this.profile.down_payment_confirmed = true;
-    } else if (field === 'property_value') {
-      this.profile.property_value = numVal;
-      this.profile.property_value_confirmed = true;
+    } else if (field === 'target_price') {
+      this.profile.target_price = numVal;
+      this.profile.target_price_confirmed = true;
     } else if (field === 'borrower_name') {
       this.profile.borrower_name = rawValue;
       this.profile.borrower_name_confirmed = true;
     } else if (field === 'mortgage_goal') {
       this.profile.mortgage_goal = rawValue;
       this.profile.mortgage_goal_confirmed = true;
+    } else if (field === 'occupancy') {
+      this.profile.occupancy = rawValue as any;
+      this.profile.occupancy_confirmed = true;
+    } else if (field === 'existing_relationship') {
+      this.profile.existing_relationship = rawValue as any;
+      this.profile.existing_relationship_confirmed = true;
     } else if (field === 'timeline') {
       this.profile.timeline = rawValue;
       this.profile.timeline_confirmed = true;
-    } else if (field === 'property_state') {
-      this.profile.property_state = rawValue;
-      this.profile.property_state_confirmed = true;
+    } else if (field === 'co_borrower') {
+      this.profile.co_borrower = rawValue as any;
+      this.profile.co_borrower_confirmed = true;
+    } else if (field === 'rent_own') {
+      this.profile.rent_own = rawValue as any;
+      this.profile.rent_own_confirmed = true;
+    } else if (field === 'realtor_status') {
+      this.profile.realtor_status = rawValue as any;
+      this.profile.realtor_status_confirmed = true;
+    } else if (field === 'property_type') {
+      this.profile.property_type = rawValue as any;
+      this.profile.property_type_confirmed = true;
+    } else if (field === 'military_rural') {
+      this.profile.military_rural = rawValue as any;
+      this.profile.military_rural_confirmed = true;
+    } else if (field === 'job_tenure_type') {
+      this.profile.job_tenure_type = rawValue;
+      this.profile.job_tenure_type_confirmed = true;
     }
   }
 
@@ -1149,13 +1377,20 @@ export class SessionContextManager {
     const confirmedFields: string[] = [];
     if (this.profile.borrower_name_confirmed) confirmedFields.push('borrower_name');
     if (this.profile.mortgage_goal_confirmed) confirmedFields.push('mortgage_goal');
+    if (this.profile.occupancy_confirmed) confirmedFields.push('occupancy');
+    if (this.profile.existing_relationship_confirmed) confirmedFields.push('existing_relationship');
     if (this.profile.timeline_confirmed) confirmedFields.push('timeline');
-    if (this.profile.property_state_confirmed) confirmedFields.push('property_state');
-    if (this.profile.gross_monthly_income_confirmed) confirmedFields.push('gross_monthly_income');
+    if (this.profile.co_borrower_confirmed) confirmedFields.push('co_borrower');
+    if (this.profile.gross_annual_income_confirmed) confirmedFields.push('gross_annual_income');
     if (this.profile.monthly_debt_confirmed) confirmedFields.push('monthly_debt');
     if (this.profile.credit_range_confirmed) confirmedFields.push('credit_range');
     if (this.profile.down_payment_confirmed) confirmedFields.push('down_payment');
-    if (this.profile.property_value_confirmed) confirmedFields.push('property_value');
+    if (this.profile.rent_own_confirmed) confirmedFields.push('rent_own');
+    if (this.profile.realtor_status_confirmed) confirmedFields.push('realtor_status');
+    if (this.profile.target_price_confirmed) confirmedFields.push('target_price');
+    if (this.profile.property_type_confirmed) confirmedFields.push('property_type');
+    if (this.profile.military_rural_confirmed) confirmedFields.push('military_rural');
+    if (this.profile.job_tenure_type_confirmed) confirmedFields.push('job_tenure_type');
 
     if (confirmedFields.length === 0) return false;
 
@@ -1170,7 +1405,7 @@ export class SessionContextManager {
       'string',
       `The currently confirmed fields are: ${confirmedFields.join(', ')}.
       Determine if the user is correcting or changing one of these fields.
-      If yes, return the field name and new value separated by a colon, exactly like "field_name:new_value" (e.g., "gross_monthly_income:8500" or "mortgage_goal:refinance").
+      If yes, return the field name and new value separated by a colon, exactly like "field_name:new_value" (e.g., "gross_annual_income:85000" or "mortgage_goal:refinance").
       If no correction/change is found, return null.`
     );
 
@@ -1202,14 +1437,31 @@ export class SessionContextManager {
     } else if (field === 'mortgage_goal') {
       this.profile.mortgage_goal = 'purchase';
       this.profile.mortgage_goal_confirmed = true;
+    } else if (field === 'occupancy') {
+      this.profile.occupancy = 'primary';
+      this.profile.occupancy_confirmed = true;
+    } else if (field === 'existing_relationship') {
+      this.profile.existing_relationship = 'no';
+      this.profile.existing_relationship_confirmed = true;
     } else if (field === 'timeline') {
       this.profile.timeline = 'flexible';
       this.profile.timeline_confirmed = true;
-    } else if (field === 'property_state') {
-      this.profile.property_state = 'Texas';
-      this.profile.property_state_confirmed = true;
-    } else if (['gross_monthly_income', 'monthly_debt', 'credit_range', 'down_payment', 'property_value'].includes(field)) {
-      this.commitStage2Value(field, null, true);
+    } else if (field === 'co_borrower') {
+      this.profile.co_borrower = 'no';
+      this.profile.co_borrower_confirmed = true;
+    } else if (['gross_annual_income', 'monthly_debt', 'credit_range', 'down_payment', 'target_price', 'rent_own', 'realtor_status', 'property_type', 'military_rural', 'job_tenure_type'].includes(field)) {
+      if (['gross_annual_income', 'monthly_debt', 'down_payment', 'target_price'].includes(field)) {
+        this.commitStage2Value(field, null, true);
+      } else {
+        if (field === 'credit_range') this.profile.credit_range = null;
+        if (field === 'rent_own') this.profile.rent_own = 'rent';
+        if (field === 'realtor_status') this.profile.realtor_status = 'no';
+        if (field === 'property_type') this.profile.property_type = 'single_family';
+        if (field === 'military_rural') this.profile.military_rural = 'neither';
+        if (field === 'job_tenure_type') this.profile.job_tenure_type = 'not specified';
+        (this.profile as any)[`${field}_confirmed`] = true;
+        this.advanceWorkflow();
+      }
       return;
     } else if (field === 'soft_pull_authorization') {
       this.profile.soft_pull_consent = 'declined';

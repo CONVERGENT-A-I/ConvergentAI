@@ -6,7 +6,7 @@ Each change is structured as **Problem → Solution → Result** to eliminate am
 
 ---
 
-## Stage 1: Core Configuration, Branding Neutralization, and Greeting Reconciliation
+## Stage 1: Core Configuration, Branding Neutralization, and Greeting Reconciliation [DONE] ✅
 
 This stage touches the foundational constants and configuration values that propagate throughout the entire system. No stage logic or state machine changes occur here — only static text, config values, and response length rules.
 
@@ -145,7 +145,7 @@ The compliance guardrails now exactly mirror the 8-item Compliance Reference Sum
 
 ---
 
-## Stage 2: Stage 1 Field Expansion — Occupancy, Relationship, and Co-Borrower
+## Stage 2: Stage 1 Field Expansion — Occupancy, Relationship, and Co-Borrower [DONE] ✅
 
 This stage modifies the Stage 1 discovery flow to collect the fields required by DavidNEWDoc.md Section 1B (Q9-Q13) instead of the current 4-field set.
 
@@ -315,7 +315,7 @@ The LLM's Stage 1 instruction set matches the DavidNEWDoc.md Section 1B field se
 
 ---
 
-## Stage 3: Stage 2 Field Expansion and Income Terminology Change
+## Stage 3: Stage 2 Field Expansion and Income Terminology Change [DONE] ✅
 
 This stage extends the pre-qualification discovery to cover all 10 fields from DavidNEWDoc.md Section 2B (Q35-Q44), and changes the income field from monthly to annual per the document.
 
@@ -507,7 +507,7 @@ The LLM sees the full state of all 10 Stage 2 fields on every turn, enabling it 
 
 ---
 
-## Stage 4: Stage 2 Closing Transition and Stage 3 Product Guidance Alignment
+## Stage 4: Stage 2 Closing Transition and Stage 3 Product Guidance Alignment [DONE] ✅
 
 This stage implements the critical **Stage 2 Closing Transition Prompt** (the first eligibility review offer) and aligns Stage 3's educational Q&A flow with DavidNEWDoc.md Sections 3A and 3B.
 
@@ -613,7 +613,7 @@ Product eligibility recommendations are more accurate because they account for V
 
 ---
 
-## Stage 5: Stage 3A/3B Alignment and Bridge Phrase Updates
+## Stage 5: Stage 3A/3B Alignment and Bridge Phrase Updates [DONE] ✅
 
 This stage fine-tunes the post-eligibility-review flow (Stage 3A) and the application completion flow (Stage 3B) to use institution-neutral language and align with v6.0 compliance.
 
@@ -672,7 +672,7 @@ No duplicate data collection. Stage 3B skips straight to marital status → depe
 
 ---
 
-## Stage 6: Verification & End-to-End Testing
+## Stage 6: Verification & End-to-End Testing [DONE] ✅
 
 ---
 

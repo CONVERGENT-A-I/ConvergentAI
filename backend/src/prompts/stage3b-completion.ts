@@ -2,7 +2,7 @@
  * Layer 2 Stage 3B: Mortgage Application Completion (1003)
  */
 export function buildStage3BInstructions(): string {
-  const creditUnion = process.env.CREDIT_UNION_NAME || 'First Community Credit Union';
+  const institution = process.env.CREDIT_UNION_NAME || 'your lending institution';
 
   return `
 STAGE: Mortgage application completion (1003).

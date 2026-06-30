@@ -32,7 +32,7 @@ export const ailanaConfig = {
   cartesiaVoiceId: process.env.AILANA_VOICE_ID ?? '11af83e2-23eb-452f-956e-7fee218ccb5c',
   get cerebrasApiKey() { return process.env.CEREBRAS_API_KEY ?? ''; },
   cerebrasBaseUrl: process.env.CEREBRAS_BASE_URL ?? 'https://api.cerebras.ai/v1',
-  cerebrasReasoningEffort: process.env.CEREBRAS_REASONING_EFFORT ?? 'medium',
+  cerebrasReasoningEffort: process.env.CEREBRAS_REASONING_EFFORT ?? 'low',
 };
 
 export function getDynamicGroqApiKey(): string {

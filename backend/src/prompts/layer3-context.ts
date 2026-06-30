@@ -6,15 +6,21 @@ export interface BorrowerProfile {
   mortgage_goal?: string | null;
   mortgage_goal_confirmed?: boolean;
 
+  occupancy?: 'primary' | 'secondary' | 'investment' | null;
+  occupancy_confirmed?: boolean;
+
+  existing_relationship?: 'yes' | 'no' | null;
+  existing_relationship_confirmed?: boolean;
+
   timeline?: string | null;
   timeline_confirmed?: boolean;
 
-  property_state?: string | null;
-  property_state_confirmed?: boolean;
+  co_borrower?: 'yes' | 'no' | null;
+  co_borrower_confirmed?: boolean;
 
   // ── Stage 2 ──────────────────────────────────────────────────────────────
-  gross_monthly_income?: number | null;
-  gross_monthly_income_confirmed?: boolean;
+  gross_annual_income?: number | null;
+  gross_annual_income_confirmed?: boolean;
 
   monthly_debt?: number | null;
   monthly_debt_confirmed?: boolean;
@@ -25,8 +31,23 @@ export interface BorrowerProfile {
   down_payment?: number | null;
   down_payment_confirmed?: boolean;
 
-  property_value?: number | null;
-  property_value_confirmed?: boolean;
+  rent_own?: 'rent' | 'own' | 'own_selling' | null;
+  rent_own_confirmed?: boolean;
+
+  realtor_status?: 'yes' | 'no' | null;
+  realtor_status_confirmed?: boolean;
+
+  target_price?: number | null;
+  target_price_confirmed?: boolean;
+
+  property_type?: 'single_family' | 'condo' | 'townhome' | 'multi_family' | 'other' | null;
+  property_type_confirmed?: boolean;
+
+  military_rural?: 'military' | 'rural' | 'both' | 'neither' | null;
+  military_rural_confirmed?: boolean;
+
+  job_tenure_type?: string | null;
+  job_tenure_type_confirmed?: boolean;
 
   // When a Stage 2 field is extracted but NOT yet confirmed by the borrower,
   // these hold the raw extracted values so the LLM can issue the confirmation ask.
@@ -38,6 +59,12 @@ export interface BorrowerProfile {
 
   // ── Stage 3 / 3A ─────────────────────────────────────────────────────────
   eligible_products?: string[] | null;
+  program_comparison_interest?: 'yes' | 'no' | null;
+  program_comparison_interest_confirmed?: boolean;
+  financial_priority?: 'low_payment' | 'faster_payoff' | 'balanced' | null;
+  financial_priority_confirmed?: boolean;
+  home_horizon?: 'long_term' | 'short_term' | null;
+  home_horizon_confirmed?: boolean;
   soft_pull_consent?: 'pending' | 'accepted' | 'declined' | null;
   employer?: string | null;
   prefilled_fields_confirmed?: {
@@ -50,8 +77,6 @@ export interface BorrowerProfile {
   // ── Stage 3B ──────────────────────────────────────────────────────────────
   marital_status?: 'married' | 'separated' | 'unmarried' | null;
   marital_status_confirmed?: boolean;
-  co_borrower?: 'yes' | 'no' | null;
-  co_borrower_confirmed?: boolean;
   dependents?: number | null;
   dependents_confirmed?: boolean;
   ssn_confirmed?: boolean;
@@ -76,15 +101,21 @@ export interface BorrowerProfile {
 const FIELD_LABELS: Record<string, string> = {
   borrower_name: 'name',
   mortgage_goal: 'mortgage goal',
+  occupancy: 'occupancy type',
+  existing_relationship: 'existing relationship status',
   timeline: 'timeline',
-  property_state: 'property state',
-  gross_monthly_income: 'gross monthly income',
+  co_borrower: 'co-borrower status',
+  gross_annual_income: 'gross annual household income',
   monthly_debt: 'total monthly debt payments',
   credit_range: 'credit score',
   down_payment: 'down payment amount',
-  property_value: 'estimated home purchase price',
+  rent_own: 'housing status',
+  realtor_status: 'real estate agent connection status',
+  target_price: 'target purchase price',
+  property_type: 'property type',
+  military_rural: 'military service or rural property status',
+  job_tenure_type: 'employment tenure and income type',
   marital_status: 'marital status',
-  co_borrower: 'co-borrower status',
   dependents: 'number of dependents',
   ssn_confirm: 'Social Security Number',
   employment_details: 'employment details',
@@ -92,6 +123,9 @@ const FIELD_LABELS: Record<string, string> = {
   declarations: 'declarations',
   hmda: 'voluntary HMDA questions',
   submit_confirmation: 'submission confirmation',
+  program_comparison_interest: 'program comparison interest',
+  financial_priority: 'financial priority',
+  home_horizon: 'home horizon status',
   aus_status: 'automated underwriting status',
   checklist_discussed: 'documentation checklist confirmation',
 };
@@ -102,19 +136,15 @@ export function buildLayer3TurnContext(
   stage: string = '1',
   isLowConfidence: boolean = false
 ): string {
-  // ── Property state display ────────────────────────────────────────────────
-  const propertyStateDisplay =
-    profile.property_state === 'not_specified'
-      ? 'not specified (borrower is open to any state — do NOT invent a state name)'
-      : (profile.property_state ?? 'not yet collected');
-
   // ── Stage 1 profile block ─────────────────────────────────────────────────
   const stage1Block = [
     '=== BORROWER PROFILE (Stage 1 — Discovery) ===',
-    `Name:           ${profile.borrower_name ?? 'not yet collected'} (Confirmed: ${!!profile.borrower_name_confirmed})`,
-    `Goal:           ${profile.mortgage_goal ?? 'not yet collected'} (Confirmed: ${!!profile.mortgage_goal_confirmed})`,
-    `Timeline:       ${profile.timeline ?? 'not yet collected'} (Confirmed: ${!!profile.timeline_confirmed})`,
-    `Property state: ${propertyStateDisplay} (Confirmed: ${!!profile.property_state_confirmed})`,
+    `Name:                  ${profile.borrower_name ?? 'not yet collected'} (Confirmed: ${!!profile.borrower_name_confirmed})`,
+    `Goal:                  ${profile.mortgage_goal ?? 'not yet collected'} (Confirmed: ${!!profile.mortgage_goal_confirmed})`,
+    `Occupancy:             ${profile.occupancy ?? 'not yet collected'} (Confirmed: ${!!profile.occupancy_confirmed})`,
+    `Existing Relationship: ${profile.existing_relationship ?? 'not yet collected'} (Confirmed: ${!!profile.existing_relationship_confirmed})`,
+    `Timeline:              ${profile.timeline ?? 'not yet collected'} (Confirmed: ${!!profile.timeline_confirmed})`,
+    `Co-Borrower:           ${profile.co_borrower ?? 'not yet collected'} (Confirmed: ${!!profile.co_borrower_confirmed})`,
     '=== END STAGE 1 ===',
   ].join('\n');
 
@@ -124,11 +154,16 @@ export function buildLayer3TurnContext(
   // ── Stage 2 profile block ─────────────────────────────────────────────────
   const stage2Block = [
     '=== BORROWER PROFILE (Stage 2 — Pre-Qualification) ===',
-    `Gross monthly income:  ${fmt(profile.gross_monthly_income)} (Confirmed: ${!!profile.gross_monthly_income_confirmed})`,
+    `Gross annual income:   ${fmt(profile.gross_annual_income)} (Confirmed: ${!!profile.gross_annual_income_confirmed})`,
     `Monthly debt:          ${fmt(profile.monthly_debt)} (Confirmed: ${!!profile.monthly_debt_confirmed})`,
     `Credit score:          ${profile.credit_range ?? 'not yet collected'} (Confirmed: ${!!profile.credit_range_confirmed})`,
     `Down payment:          ${fmt(profile.down_payment)} (Confirmed: ${!!profile.down_payment_confirmed})`,
-    `Property value:        ${fmt(profile.property_value)} (Confirmed: ${!!profile.property_value_confirmed})`,
+    `Rent/Own status:       ${profile.rent_own ?? 'not yet collected'} (Confirmed: ${!!profile.rent_own_confirmed})`,
+    `Realtor status:        ${profile.realtor_status ?? 'not yet collected'} (Confirmed: ${!!profile.realtor_status_confirmed})`,
+    `Target price:          ${fmt(profile.target_price)} (Confirmed: ${!!profile.target_price_confirmed})`,
+    `Property type:         ${profile.property_type ?? 'not yet collected'} (Confirmed: ${!!profile.property_type_confirmed})`,
+    `Military/Rural status: ${profile.military_rural ?? 'not yet collected'} (Confirmed: ${!!profile.military_rural_confirmed})`,
+    `Job tenure/type:       ${profile.job_tenure_type ?? 'not yet collected'} (Confirmed: ${!!profile.job_tenure_type_confirmed})`,
     '=== END STAGE 2 ===',
   ].join('\n');
 
@@ -161,8 +196,11 @@ export function buildLayer3TurnContext(
 
   const stage3Block = [
     '=== BORROWER PROFILE (Stage 3 — Eligibility & Consent) ===',
-    `Eligible products: ${productsList}`,
-    `Soft pull consent: ${profile.soft_pull_consent ?? 'not yet asked'}`,
+    `Eligible products:           ${productsList}`,
+    `Comparison Walkthrough:     ${profile.program_comparison_interest ?? 'not yet collected'}`,
+    `Financial priority:          ${profile.financial_priority ?? 'not yet collected'}`,
+    `Home horizon:                ${profile.home_horizon ?? 'not yet collected'}`,
+    `Soft pull consent:           ${profile.soft_pull_consent ?? 'not yet asked'}`,
     profile.soft_pull_consent === 'accepted' ? [
       `MOCK PRE-FILLED DATA RETRIEVED VIA SOFT PULL:`,
       `  - Full Name & Address to confirm: John Doe, 1234 Maple Avenue, Suite 100, Los Angeles, CA 90012`,
@@ -229,9 +267,15 @@ export function buildLayer3TurnContext(
   // ── Stage transition bridge instruction ───────────────────────────────────
   let bridgeBlock = '';
   if (profile.bridge_to_say === 'stage1_to_stage2') {
-    bridgeBlock = `\n\nBRIDGE INSTRUCTION:\nStart your response by saying EXACTLY: "That gives me a solid picture. I'd like to ask a few questions about your financial situation so I can point you toward the right options." then proceed to ask for ${pendingField}.`;
+    bridgeBlock = `\n\nBRIDGE INSTRUCTION:\nStart your response by saying EXACTLY: "That gives me a great starting point. Now I would like to spend a few minutes exploring your financial picture — income, current debts, credit profile, and a few other details — so I can map out the loan programs that may be most relevant to your situation." then proceed to ask for ${pendingField}.`;
   } else if (profile.bridge_to_say === 'stage2_to_stage3') {
-    bridgeBlock = `\n\nBRIDGE INSTRUCTION:\nStart your response by saying EXACTLY: "Let me walk you through the options that look like the strongest fit."`;
+    bridgeBlock = `\n\nBRIDGE INSTRUCTION:\nStart your response by saying EXACTLY: "Based on what you have shared, I can walk you through the loan programs that may be most relevant to your situation and answer any questions you have about the process."`;
+  }
+
+  // ── Stage 2 Closing Offer Instruction ──────────────────────────────────────
+  let stage2ClosingBlock = '';
+  if (pendingField === 'stage2_closing_offer') {
+    stage2ClosingBlock = `\n\nSTAGE 2 CLOSING OFFER INSTRUCTION:\nYou must deliver the following closing transition offer EXACTLY word-for-word:\n"We have covered a lot of great ground together, and I now have a solid picture of your financial starting point. Based on what you have shared, I can begin walking you through the loan programs that may be most relevant to your situation. Before we do that — when you are ready, the natural next step is to submit your information for an initial eligibility review. This gives you real, meaningful feedback on your conditional eligibility — including an estimated payment range — before connecting with a licensed mortgage advisor. The payment estimate is generated by the eligibility review using a current representative rate from our rate sheet — so it reflects actual market conditions, not a rough guess. Would you like to move forward with that now, or would you prefer to continue exploring your options first?"\n\nIf the borrower asks what it involves, say EXACTLY:\n"It is a brief review of the financial information you have shared today. The system will apply a current market rate from our rate sheet as part of the automated eligibility process, and return your conditional eligibility result along with an estimated payment range. Before we proceed, you will be presented with a short disclosure explaining exactly what is included and asked for your authorization. There is no obligation, and the initial review does not affect your credit score."`;
   }
 
   // ── Verbatim Consent Instruction ──────────────────────────────────────────
@@ -260,7 +304,7 @@ export function buildLayer3TurnContext(
   if (stage === '4' || stage === '5') {
     blocks.push(stage4Block);
   }
-  blocks.push(taskLine + confirmBlock + bridgeBlock + consentBlock + lowConfidenceBlock);
+  blocks.push(taskLine + confirmBlock + bridgeBlock + stage2ClosingBlock + consentBlock + lowConfidenceBlock);
 
   return blocks.filter(Boolean).join('\n\n');
 }
