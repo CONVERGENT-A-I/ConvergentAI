@@ -59,8 +59,7 @@ export default function FloatingCTA() {
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [isIntroBlurring, setIsIntroBlurring] = useState(true);
   const [complianceChecked, setComplianceChecked] = useState(false);
-  const [isAnnouncementStarted, setIsAnnouncementStarted] = useState(true);
-  const [isAnnouncementComplete, setIsAnnouncementComplete] = useState(true);
+
   const [isFallbackMode, setIsFallbackMode] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string>("");
   const [isOffline, setIsOffline] = useState(false);
@@ -391,8 +390,6 @@ export default function FloatingCTA() {
     setIsIntroComplete(true);
     setComplianceChecked(true);
     setPendingMode("video");
-    setIsAnnouncementStarted(true);
-    setIsAnnouncementComplete(true);
     setConnectionStatus("");
     setIsOffline(false);
     setShowEndCallConfirm(false);
@@ -400,7 +397,6 @@ export default function FloatingCTA() {
     participantIdentityRef.current = null;
     isFetchingRef.current = false;
     setIsSubmitting(false);
-    hasAnnouncedRef.current = false;
     setMloParticipantJoined(false);
     setMloParticipantName(null);
     setMloCallSeconds(0);
@@ -426,11 +422,7 @@ export default function FloatingCTA() {
     setIsOffline(false);
     setShowEndCallConfirm(false);
     setShowInactivityPrompt(false);
-    // Skip the recording announcement on reconnect — user already heard it.
-    // This is critical: ChannelStartTrigger won't fire until isAnnouncementComplete is true.
-    setIsAnnouncementStarted(true);
-    setIsAnnouncementComplete(true);
-    hasAnnouncedRef.current = true;
+
     participantIdentityRef.current = null;
     isFetchingRef.current = false;
     setMloCallSeconds(0);
@@ -1170,7 +1162,6 @@ export default function FloatingCTA() {
                               <ChannelStartTrigger
                                 isLivePhase={flowPhase === "live"}
                                 mode={pendingMode}
-                                isAnnouncementComplete={isAnnouncementComplete}
                               />
 
                               {/* Fallback Notification Overlay */}
@@ -1209,10 +1200,9 @@ export default function FloatingCTA() {
                                       : "flex-1"
                                       }`}
                                   >
-                                    {/* REC badge - only when connected and announcement started */}
+                                    {/* REC badge - only when connected */}
                                     {isLkConnected &&
-                                      isAgentReady &&
-                                      isAnnouncementStarted && (
+                                      isAgentReady && (
                                         <div className="absolute top-3 left-3 z-50 flex items-center gap-1.5 sm:gap-2 bg-black/50 backdrop-blur-md p-1.5 sm:px-2.5 sm:py-1 rounded-full border border-red-500/30">
                                           <motion.div
                                             animate={{ opacity: [1, 0.4, 1] }}

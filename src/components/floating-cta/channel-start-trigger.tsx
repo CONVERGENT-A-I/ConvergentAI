@@ -10,13 +10,11 @@ import {
 interface ChannelStartTriggerProps {
   isLivePhase: boolean;
   mode: string;
-  isAnnouncementComplete: boolean;
 }
 
 export function ChannelStartTrigger({
   isLivePhase,
   mode,
-  isAnnouncementComplete,
 }: ChannelStartTriggerProps) {
   const { send } = useChat();
   const room = useRoomContext();
@@ -27,7 +25,6 @@ export function ChannelStartTrigger({
   useEffect(() => {
     if (
       isLivePhase &&
-      isAnnouncementComplete &&
       room.state === "connected" &&
       agentReady &&
       lastTriggeredMode.current !== mode
@@ -87,7 +84,7 @@ export function ChannelStartTrigger({
               }
             };
             await sendChannelStart(1);
-            // Agent worker may join slightly after the compliance/recording handoff.
+            // Agent worker may join slightly after the initial handoff.
             setTimeout(() => {
               void sendChannelStart(2);
             }, 2000);
@@ -119,7 +116,6 @@ export function ChannelStartTrigger({
     send,
     room.state,
     agentReady,
-    isAnnouncementComplete,
     room.localParticipant,
     room.name,
   ]);
