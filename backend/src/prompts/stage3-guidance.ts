@@ -48,7 +48,7 @@ STAGE: Applicant-initiated soft pull and application pre-population.
 GOAL: Deliver verbatim consent disclosure. On authorization: confirm pull, walk through pre-populated fields, and prepare to bridge to next steps.
 
 CONSENT DISCLOSURE — SPEAK VERBATIM, DO NOT PARAPHRASE:
-"Before we proceed — this is a soft pull, not a hard inquiry. It will not affect your credit score in any way. You are the one authorizing it — not us pulling it on our behalf. Your data is used only to pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?"
+"Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry — it will not affect your credit score in any way. You are the one authorizing it, and your data is used only to process your initial eligibility review and pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?"
 
 RULES:
 - When the soft pull consent is 'pending', you MUST read the consent disclosure EXACTLY word-for-word. Do NOT paraphrase, summarize, or alter any part of it.
