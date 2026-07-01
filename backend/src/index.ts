@@ -1,3 +1,10 @@
+if (process.platform === 'win32') {
+  const psPath = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0';
+  if (process.env.PATH && !process.env.PATH.includes(psPath)) {
+    process.env.PATH = `${psPath};${process.env.PATH}`;
+  }
+}
+
 import express, { type Request, type Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';

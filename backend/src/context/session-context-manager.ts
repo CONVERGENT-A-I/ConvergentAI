@@ -95,18 +95,27 @@ export class SessionContextManager {
       return;
     }
 
-    if (this.activeStage === '1') {
-      await this.runStage1Extraction(trimmed);
-    } else if (this.activeStage === '2') {
-      await this.runStage2Extraction(trimmed);
-    } else if (this.activeStage === '3') {
-      await this.runStage3Extraction(trimmed);
-    } else if (this.activeStage === '3A') {
-      await this.runStage3AExtraction(trimmed);
-    } else if (this.activeStage === '3B') {
-      await this.runStage3BExtraction(trimmed);
-    } else if (this.activeStage === '4') {
-      await this.runStage4Extraction(trimmed);
+    // 4. Run the multi-extraction loop for all stages
+    let previousField: string | null = null;
+    while (this.currentPendingField && this.currentPendingField !== previousField) {
+      previousField = this.currentPendingField;
+      if (this.activeStage === '1') {
+        await this.runStage1Extraction(trimmed);
+      } else if (this.activeStage === '2') {
+        await this.runStage2Extraction(trimmed);
+      } else if (this.activeStage === '3') {
+        await this.runStage3Extraction(trimmed);
+      } else if (this.activeStage === '3A') {
+        await this.runStage3AExtraction(trimmed);
+      } else if (this.activeStage === '3B') {
+        let previousField3B: string | null = null;
+        while (this.activeStage === '3B' && this.currentPendingField && this.currentPendingField !== previousField3B) {
+          previousField3B = this.currentPendingField;
+          await this.runStage3BExtraction(trimmed);
+        }
+      } else if (this.activeStage === '4') {
+        await this.runStage4Extraction(trimmed);
+      }
     }
   }
 
@@ -323,19 +332,6 @@ export class SessionContextManager {
       if (res.value !== null) {
         this.profile.dependents = res.value as number;
         this.profile.dependents_confirmed = true;
-        this.advanceWorkflow();
-      }
-    } else if (field === 'ssn_confirm') {
-      const res = await extractProfileField(
-        text,
-        lastQuestion,
-        'ssn_confirm',
-        'whether the borrower has finished entering their SSN on screen',
-        'string',
-        'Determine if the user indicates they have entered, typed, or submitted their SSN, or say "done", "okay", "yes", or similar. If yes, return "yes". If skip or not sure, return null.'
-      );
-      if (res.value === 'yes' || /\b\d{9}\b/.test(text) || /\b\d{3}-\d{2}-\d{4}\b/.test(text) || text.includes('989999999')) {
-        this.profile.ssn_confirmed = true;
         this.advanceWorkflow();
       }
     } else if (field === 'employment_details') {
@@ -772,11 +768,12 @@ export class SessionContextManager {
         'Extract a concise summary of employment stability and income type (e.g. "5 years, W2 salary" or "2 years, self-employed"). If they mention self-employment, independent contractor, W-2, hourly, etc. include that. If not found, return null.'
       );
       if (res.value) {
+        const valStr = String(res.value).toLowerCase();
         this.profile.job_tenure_type = res.value as string;
         this.profile.job_tenure_type_confirmed = true;
-        if (res.value.toLowerCase().includes('self-employed') || res.value.toLowerCase().includes('independent contractor') || res.value.toLowerCase().includes('own business')) {
+        if (valStr.includes('self-employed') || valStr.includes('independent contractor') || valStr.includes('own business')) {
           this.profile.self_employed = true;
-        } else if (res.value.toLowerCase().includes('w2') || res.value.toLowerCase().includes('salary') || res.value.toLowerCase().includes('w-2')) {
+        } else if (valStr.includes('w2') || valStr.includes('salary') || valStr.includes('w-2')) {
           this.profile.self_employed = false;
         }
         this.advanceWorkflow();
@@ -1001,8 +998,6 @@ export class SessionContextManager {
         this.currentPendingField = 'marital_status';
       } else if (!this.profile.dependents_confirmed) {
         this.currentPendingField = 'dependents';
-      } else if (!this.profile.ssn_confirmed) {
-        this.currentPendingField = 'ssn_confirm';
       } else if (!this.profile.employment_confirmed) {
         this.currentPendingField = 'employment_details';
       } else if (!this.profile.checking_savings_confirmed) {
@@ -1475,7 +1470,6 @@ export class SessionContextManager {
     } else if (this.activeStage === '3B') {
       if (field === 'marital_status') this.profile.marital_status = 'unmarried';
       if (field === 'dependents') this.profile.dependents = 0;
-      if (field === 'ssn_confirm') this.profile.ssn_confirmed = true;
       if (field === 'employment_details') {
         this.profile.employment_position = 'Not specified';
         this.profile.employment_years = 0;

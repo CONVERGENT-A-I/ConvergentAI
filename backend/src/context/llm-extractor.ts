@@ -6,6 +6,11 @@ const openaiClient = new OpenAI({
   baseURL: ailanaConfig.cerebrasBaseUrl,
 });
 
+const groqClient = new OpenAI({
+  apiKey: getDynamicGroqApiKey() || ailanaConfig.groqApiKey,
+  baseURL: 'https://api.groq.com/openai/v1',
+});
+
 export interface ExtractionResult {
   value: string | number | null;
   declined?: boolean;
@@ -39,6 +44,8 @@ You MUST reply with a JSON object only.`;
   const userPrompt = `Assistant last question: ${lastAssistantUtterance ?? 'None'}
 User input: "${userInput}"`;
 
+  let content: string | null = null;
+
   try {
     openaiClient.apiKey = ailanaConfig.cerebrasApiKey;
     const response = await openaiClient.chat.completions.create({
@@ -49,15 +56,32 @@ User input: "${userInput}"`;
       ],
       response_format: { type: 'json_object' },
       temperature: 0.0,
-      reasoning_effort: ailanaConfig.cerebrasReasoningEffort,
-      reasoning_format: 'hidden',
-    } as any);
-
-    const content = response.choices[0]?.message?.content;
-    if (!content) {
-      return { value: null, declined: false };
+    });
+    content = response.choices[0]?.message?.content || null;
+  } catch (error: any) {
+    console.warn(`[llm-extractor] Cerebras failed for ${fieldName}, falling back to Groq:`, error?.message ?? error);
+    try {
+      groqClient.apiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
+      const response = await groqClient.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.0,
+      });
+      content = response.choices[0]?.message?.content || null;
+    } catch (groqError: any) {
+      console.error(`[llm-extractor] Groq fallback failed for ${fieldName}:`, groqError?.message ?? groqError);
     }
+  }
 
+  if (!content) {
+    return { value: null, declined: false };
+  }
+
+  try {
     const parsed = JSON.parse(content);
     let value = parsed.value;
     const declined = !!parsed.declined;
@@ -75,8 +99,8 @@ User input: "${userInput}"`;
     }
 
     return { value, declined };
-  } catch (error) {
-    console.error(`[llm-extractor] Error extracting ${fieldName}:`, error);
+  } catch (parseError) {
+    console.error(`[llm-extractor] Failed to parse content for ${fieldName}:`, parseError);
     return { value: null, declined: false };
   }
 }
@@ -97,6 +121,8 @@ Return a JSON object with:
   const userPrompt = `Assistant confirmation question: ${lastAssistantUtterance ?? 'None'}
 User response: "${userInput}"`;
 
+  let content: string | null = null;
+
   try {
     openaiClient.apiKey = ailanaConfig.cerebrasApiKey;
     const response = await openaiClient.chat.completions.create({
@@ -107,21 +133,37 @@ User response: "${userInput}"`;
       ],
       response_format: { type: 'json_object' },
       temperature: 0.0,
-      reasoning_effort: ailanaConfig.cerebrasReasoningEffort,
-      reasoning_format: 'hidden',
-    } as any);
+    });
+    content = response.choices[0]?.message?.content || null;
+  } catch (error: any) {
+    console.warn(`[llm-extractor] Cerebras classify failed for ${fieldName}, falling back to Groq:`, error?.message ?? error);
+    try {
+      groqClient.apiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
+      const response = await groqClient.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.0,
+      });
+      content = response.choices[0]?.message?.content || null;
+    } catch (groqError: any) {
+      console.error(`[llm-extractor] Groq classify fallback failed for ${fieldName}:`, groqError?.message ?? groqError);
+    }
+  }
 
-    const content = response.choices[0]?.message?.content;
-    if (content) {
+  if (content) {
+    try {
       const parsed = JSON.parse(content);
       if (parsed.decision === 'yes' || parsed.decision === 'no' || parsed.decision === 'ambiguous') {
         return parsed.decision;
       }
+    } catch (parseError) {
+      console.error('[llm-extractor] Failed to parse confirmation decision:', parseError);
     }
-    return 'ambiguous';
-  } catch (error) {
-    console.error('[llm-extractor] Error in classifyConfirmation:', error);
-    return 'ambiguous';
   }
+  return 'ambiguous';
 }
 

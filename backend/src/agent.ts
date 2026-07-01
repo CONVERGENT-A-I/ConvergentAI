@@ -1,3 +1,10 @@
+if (process.platform === 'win32') {
+  const psPath = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0';
+  if (process.env.PATH && !process.env.PATH.includes(psPath)) {
+    process.env.PATH = `${psPath};${process.env.PATH}`;
+  }
+}
+
 import { type JobContext, ServerOptions, cli, voice, llm, inference } from '@livekit/agents';
 import { RoomEvent } from '@livekit/rtc-node';
 import dotenv from 'dotenv';
@@ -390,7 +397,7 @@ export default {
         const systemMessage = chatMessages[0];
         const historyMessages = chatMessages.slice(1);
         const slicedHistory = historyMessages.slice(-23); // keep up to 23 recent turns
-        const messages = [systemMessage, ...slicedHistory, { role: 'user', content: userMessage }];
+        const messages = [systemMessage, ...slicedHistory];
 
         console.log(`[agent]: Dispatching text-only reply to Cerebras client proxy...`);
         const completion = await cerebrasClient.chat.completions.create({

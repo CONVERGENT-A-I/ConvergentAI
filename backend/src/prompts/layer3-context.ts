@@ -79,7 +79,6 @@ export interface BorrowerProfile {
   marital_status_confirmed?: boolean;
   dependents?: number | null;
   dependents_confirmed?: boolean;
-  ssn_confirmed?: boolean;
   employment_position?: string | null;
   employment_years?: number | null;
   self_employed?: boolean | null;
@@ -117,7 +116,6 @@ const FIELD_LABELS: Record<string, string> = {
   job_tenure_type: 'employment tenure and income type',
   marital_status: 'marital status',
   dependents: 'number of dependents',
-  ssn_confirm: 'Social Security Number',
   employment_details: 'employment details',
   checking_savings: 'checking and savings balance',
   declarations: 'declarations',
@@ -222,7 +220,6 @@ export function buildLayer3TurnContext(
     `Marital status:      ${profile.marital_status ?? 'not yet collected'}`,
     `Spouse co-borrower:  ${profile.co_borrower ?? 'not yet collected'}`,
     `Dependents count:    ${profile.dependents !== undefined && profile.dependents !== null ? profile.dependents : 'not yet collected'}`,
-    `SSN typed on screen: ${profile.ssn_confirmed ? 'Yes' : 'No'}`,
     `Employment Title:    ${profile.employment_position ?? 'not yet collected'}`,
     `Employment Years:    ${profile.employment_years !== undefined && profile.employment_years !== null ? profile.employment_years : 'not yet collected'}`,
     `Self Employed:       ${profile.self_employed !== undefined && profile.self_employed !== null ? (profile.self_employed ? 'Yes' : 'No') : 'not yet collected'}`,
@@ -305,6 +302,24 @@ export function buildLayer3TurnContext(
     blocks.push(stage4Block);
   }
   blocks.push(taskLine + confirmBlock + bridgeBlock + stage2ClosingBlock + consentBlock + lowConfidenceBlock);
+
+  const vaEligibilityReferenceBlock = `
+=== VA ELIGIBILITY DETAIL — PROMPT REFERENCE ===
+[This section is background knowledge for you. Draw from it conversationally only when the borrower asks a relevant follow-up after the default Q31 response.]
+Active duty: 90 continuous days on active duty.
+Veterans — wartime: 90 days active duty during a designated wartime period.
+Veterans — peacetime: 181 days of continuous active duty.
+Discharge character: Must be other than dishonorable. General, under honorable conditions, and other-than-honorable discharges may qualify through a VA character of discharge determination process.
+Service-connected disability: Discharge due to service-connected disability qualifies regardless of time-in-service.
+National Guard and Reserve: Six years of Selected Reserve or National Guard service, or federal active duty under Title 10 orders for 90+ days.
+Surviving spouses: Unremarried surviving spouse of veteran who died in service or from a service-connected disability. Spouses of MIA/POW service members may also be eligible.
+VA Funding Fee: Varies by down payment, first vs. subsequent use, and military category. Veterans with service-connected disability rating of 10%+ or active-duty Purple Heart recipients are exempt.
+Entitlement: Full entitlement = no loan limit, no down payment required regardless of purchase price, subject to lender guidelines. Partial entitlement applies if prior VA loan is outstanding.
+Certificate of Eligibility (COE): Confirmed electronically by licensed advisor during application or DD-214.
+=== END VA ELIGIBILITY REFERENCE ===
+`.trim();
+
+  blocks.push(vaEligibilityReferenceBlock);
 
   return blocks.filter(Boolean).join('\n\n');
 }
