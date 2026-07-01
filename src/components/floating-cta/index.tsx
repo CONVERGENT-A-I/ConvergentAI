@@ -659,65 +659,7 @@ export default function FloatingCTA() {
     };
   }, [isOpen]);
 
-  const hasAnnouncedRef = useRef(false);
 
-  useEffect(() => {
-    if (flowPhase === "live" && isLkConnected && typeof window !== "undefined") {
-      if (hasAnnouncedRef.current) return;
-
-      const announce = () => {
-        if (hasAnnouncedRef.current) return;
-        hasAnnouncedRef.current = true;
-
-        const announcement = new SpeechSynthesisUtterance(
-          "This session is being recorded for regulatory and compliance purposes."
-        );
-        const voices = window.speechSynthesis.getVoices();
-
-        const femaleVoice = voices.find((v) =>
-          v.name.includes("Google US English")
-        );
-
-        if (femaleVoice) announcement.voice = femaleVoice;
-        announcement.rate = 1.0;
-        announcement.pitch = 1.15;
-        announcement.volume = 0.9;
-
-        announcement.onstart = () => {
-          setIsAnnouncementStarted(true);
-          // Pre-trigger the backend channel start so network latency
-          // overlaps with the end of the TTS audio.
-          setTimeout(() => setIsAnnouncementComplete(true), 750);
-        };
-        announcement.onend = () => {
-          setIsAnnouncementComplete(true);
-        };
-        announcement.onerror = () => {
-          setIsAnnouncementComplete(true); // fallback so session isn't stuck
-        };
-
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(announcement);
-      };
-
-      if (window.speechSynthesis.getVoices().length > 0) {
-        announce();
-      } else {
-        window.speechSynthesis.onvoiceschanged = () => {
-          announce();
-          window.speechSynthesis.onvoiceschanged = null;
-        };
-      }
-    } else {
-      hasAnnouncedRef.current = false;
-    }
-
-    return () => {
-      if (window.speechSynthesis) {
-        window.speechSynthesis.onvoiceschanged = null;
-      }
-    };
-  }, [flowPhase, isLkConnected]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
