@@ -10,7 +10,7 @@ This guide provides an exemplary conversation script and verification checklist 
 *Goal: Collect Borrower Name ➔ Mortgage Goal ➔ Timeline ➔ Property State.*
 
 1.  **Ailana (Greeting)**:
-    *"Hi, my name is Ailana and I am an AI mortgage assistant who can respond to all of your mortgage questions and provide other services. What questions do you have for me today?"*
+    *"Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?"*
 2.  **You say**:
     *"Hi, my name is Sohail and I want to buy a home."*
 3.  **Ailana should respond**:
@@ -148,29 +148,25 @@ This guide provides an exemplary conversation script and verification checklist 
     *   Acknowledge and ask dependents: *"How many dependents do you have?"*
 50. **You say**:
     *"I have no dependents."*
-51. **Ailana should respond with Secure SSN entry instructions**:
-    *   *Redirect script*: *"For your Social Security number, I'll ask you to type that directly into the secure field on your screen rather than saying it out loud — that keeps it protected end-to-end. Take your time and just let me know when you've entered it."*
-52. **You say**:
-    *"Okay, I've entered it."*
-53. **Ailana should respond**:
+51. **Ailana should respond**:
     *   Acknowledge and ask for employment title, years, self-employed status: *"Can you tell me your current job title, how many years you've been working there, and if you are self-employed?"*
-54. **You say**:
+52. **You say**:
     *"I am a software engineer, have worked here for 4 years, and I am not self-employed."*
-55. **Ailana should respond**:
+53. **Ailana should respond**:
     *   Acknowledge and ask checking/savings balance: *"How much cash balance do you have available in your checking and savings accounts?"*
-56. **You say**:
+54. **You say**:
     *"I have 25,000 dollars."*
-57. **Ailana should respond**:
+55. **Ailana should respond**:
     *   Acknowledge and ask standard declarations (bankruptcy/foreclosure): *"These next few questions are standard on every mortgage application... In the past seven years, have you had a bankruptcy, foreclosure, or short sale on any property?"*
-58. **You say**:
+56. **You say**:
     *"No bankruptcy or foreclosure."*
-59. **Ailana should respond**:
+57. **Ailana should respond**:
     *   Acknowledge and explain voluntary nature of HMDA details: *"These last questions are required by federal law but entirely optional for you to answer... they are used for fair lending monitoring... Would you like to provide your race, sex, and ethnicity, or skip these?"*
-60. **You say**:
+58. **You say**:
     *"I prefer not to answer."*
-61. **Ailana should respond with Stage Completion Submit query**:
+59. **Ailana should respond with Stage Completion Submit query**:
     *   *Submission script*: *"Sohail, your application is complete. I am going to submit this to our underwriting system for review. This typically takes just a few minutes. I will share the result with you as soon as it comes back, and one of our licensed loan officers will be in touch to walk you through the next steps. Ready to submit?"*
-62. **You say**:
+60. **You say**:
     *"Yes, submit it."*
 
 ---
@@ -178,16 +174,16 @@ This guide provides an exemplary conversation script and verification checklist 
 ### 🎬 Stage 4: Underwriting Handoff & Checklist
 *Goal: Await simulated underwriting system status ➔ Present Conditional Approval or Referral ➔ Walk through required checklist of income/asset documents.*
 
-63. **Ailana should respond with Underwriting Wait status**:
+61. **Ailana should respond with Underwriting Wait status**:
     *   *Waiting script*: *"I've submitted your application. Now, we wait for the underwriting system to review it. This should only take a few minutes. Once the review is complete, one of our licensed loan officers will reach out to you to discuss the next steps. Would you like me to connect you with a licensed loan officer now, or would you prefer to wait for them to reach out to you after the review is complete?"*
-64. **You say**:
+62. **You say**:
     *"What is the status of my review?"*
-65. **Ailana should respond with Underwriting Decision & Document Checklist**:
+63. **Ailana should respond with Underwriting Decision & Document Checklist**:
     *   *If Happy Path (Approved)*: *"Excellent news! The system has returned a conditional approval for your Conventional Fixed Rate loan. To move your application to the final underwriting review, we will need to gather a few documents: (1) your most recent 2 years of Tax Returns and W-2s, (2) your last 30 days of paystubs, and (3) your most recent 60 days of bank statements. Does that make sense, and do you have these documents available?"*
     *   *If Manual Review (Referred)*: *"Thank you for your patience. The system has indicated that your application requires a manual review by one of our licensed loan officers. This is very common and simply means we need a human eye to review your profile. To help speed this up, you can get a headstart by preparing the following documents: (1) your most recent 2 years of Tax Returns and W-2s, (2) your last 30 days of paystubs, and (3) your most recent 60 days of bank statements. Does that make sense, and do you have these documents available?"*
-66. **You say**:
+64. **You say**:
     *"Yes, I have these documents ready."*
-67. **Ailana should respond**:
+65. **Ailana should respond**:
     *   Acknowledge and transition to next steps.
 
 ---
@@ -198,6 +194,6 @@ This guide provides an exemplary conversation script and verification checklist 
 *   [ ] **Immediate Confirmation**: In Stage 2, Ailana should ask the *"Just to confirm — you mentioned..."* question *immediately* on the very next turn following a new numeric answer.
 *   [ ] **DTI/LTV Calculations**: The down payment should be correctly registered as **$67,500** (15% of $450k) or calculated appropriately for percentages.
 *   [ ] **Verbatim Scripting**: In Stage 3A, Ailana MUST read the consent disclosure word-for-word without any paraphrasing.
-*   [ ] **SSN Secure Masking**: In Stage 3B, Ailana must NEVER ask you to read your SSN aloud, and must direct you to type it in on-screen.
+*   [ ] **SSN and DOB Exclusion**: Verify that the system does not collect or require the borrower's SSN or DOB at any stage of the pre-qualification or soft pull flow.
 *   [ ] **AUS Processing & Sub-Prompts**: In Stage 4, Ailana must dynamically load the conditional approval or manual referral sub-prompts based on your financial ratios.
 *   [ ] **Clean Stage transitions**: No "optional summary" prompts at the end of Stage 1 or Stage 2, and clean advancement into Stage 3B and Stage 4.

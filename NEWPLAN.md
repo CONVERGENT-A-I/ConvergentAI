@@ -1,6 +1,6 @@
-# Technical Implementation Plan: Ailana & DavidNEWDoc.md (v6.0) Full Alignment
+# Technical Implementation Plan: Ailana & DavidNEWDoc.md (v7.0) Full Alignment
 
-This document outlines the complete, sequential implementation stages to align the Convergent AI codebase with the [DavidNEWDoc.md](file:///c:/Users/Sherry/Documents/Convergent_AI/DavidNEWDoc.md) Version 6.0 prompt reference specifications.
+This document outlines the complete, sequential implementation stages to align the Convergent AI codebase with the [DavidNEWDoc.md](file:///c:/Users/Sherry/Documents/Convergent_AI/DavidNEWDoc.md) Version 7.0 prompt reference specifications, including the removal of SSN/DOB requirements.
 
 Each change is structured as **Problem → Solution → Result** to eliminate ambiguity during implementation.
 
@@ -89,59 +89,43 @@ The greeting is identical across WebRTC audio, text chat, and the LLM instructio
 
 ---
 
-### 1.4. Expand Response Length Rules
+### 1.4. Apply Response Length Audit and Philosophy
 
 **Problem:**
-The current `buildLayer1()` response length rules (lines 24-29) impose a hard ceiling of *"Never deliver more than 5 sentences before giving the borrower a turn."* This directly conflicts with the educational depth of DavidNEWDoc.md's responses — e.g., Q31 (VA loan explanation) is 17 paragraphs long, Q47 (monthly payment) is 3 multi-sentence paragraphs, and Q57 (loan servicing) is 2 full paragraphs. The document's responses are designed to be comprehensive and educational, not compressed.
-
-The user also explicitly requested *"responses should be longer and more detailed"*.
+The prior v6.0 prompt design resulted in Ailana delivering long, detailed answers by default (such as the 17-paragraph VA loan eligibility guidelines or full bankruptcy waiting periods). This can overwhelm borrowers, especially in voice mode.
 
 **Solution:**
-Replace the RESPONSE LENGTH block in `buildLayer1()` (lines 24-29) with:
-```
-RESPONSE LENGTH:
-- Simple factual or yes/no clarifications: 1–3 sentences.
-- Discovery questions (collecting borrower data): 2–4 sentences — ask, acknowledge, and pause.
-- Educational or explanatory questions: Provide thorough, detailed responses covering all relevant aspects.
-  Use multiple paragraphs when the topic warrants it. Be comprehensive, specific, and professional.
-  After delivering the explanation, check understanding or offer a next step.
-- Product guidance: Cover each relevant product completely — benefits, trade-offs, and when it applies.
-  Pause after presenting to allow questions.
-- Compliance-sensitive topics (rates, payments, eligibility): Give the full educational context,
-  clearly state what you cannot do, and bridge to the eligibility review or licensed advisor.
-```
+Implement the Version 7.0 response length philosophy in `buildLayer1()` and individual stage prompts:
+- Enforce the **concise default response** audit for educational questions: Ailana delivers a brief, 2–3 sentence default response.
+- Move complex, specific guidelines (such as the FHA/Conventional waiting periods for Q21, or service categories/funding fees for Q31) to **follow-up handling slots** in the LLM instruction templates. These details are only output dynamically if the borrower shares their specific scenario or asks a direct follow-up question.
 
 **Result:**
-The LLM is no longer artificially constrained to 5-sentence responses. It can deliver the full educational depth shown in DavidNEWDoc.md Sections 1A, 2A, and 3A while still pausing for the borrower after each major topic. Discovery collection turns remain concise.
+Ailana's default replies remain short and conversational. Detailed information is gated behind borrower engagement and follow-up, providing a natural conversational flow.
 
 ---
 
-### 1.5. Align SAFE Act Dual-Option Language
+### 1.5. Align SAFE Act and Compliance Reference Summary (v7.0)
 
 **Problem:**
-The current system prompt (lines 37-38) includes a "DUAL OPTION FOR ADVISOR" rule that forces Ailana to always present a soft credit check as an alternative to connecting with a licensed advisor. DavidNEWDoc.md does not mandate this dual framing at all times — it positions the soft pull/eligibility review as an explicit transition point at the end of Stage 2 and Stage 3, not as a competing option every time an advisor is mentioned. The current dual-option rule can create confusion when the borrower simply asks to speak with a human.
+The compliance boundaries need to match the updated Version 7.0 list, which includes the new credit reporting service (CRS) API updates that do not require SSN or DOB for the initial soft pull/eligibility review.
 
 **Solution:**
-Rewrite the SAFE Act section (lines 31-38) to match v6.0's compliance framework (lines 627-641):
+Rewrite the SAFE Act and Compliance reference block in `buildLayer1()` (matching v7.0 compliance summary and the SSN/DOB exclusion):
 ```
 SAFE ACT — ABSOLUTE PROHIBITIONS (apply at all times, all stages):
-- Never quote a specific interest rate, APR, or specific pricing.
-- Never issue or imply pre-approval or render a credit decision.
-- Never say 'you qualify' or 'you are approved' as a conclusion.
-- Never calculate or estimate a monthly payment directly — payment estimates come from the
-  eligibility review system, not from you.
-- Never direct a borrower toward a specific loan product based on their financial profile.
-  Present educational comparisons only.
-- Soft pull consent is handled by a separate formal disclosure flow — you invite, the disclosure
-  system obtains consent.
-- If a borrower requests a rate quote, specific product recommendation, credit decision, or any
-  guidance requiring a licensed originator, immediately offer to connect them with a licensed
-  mortgage loan officer.
-- You must disclose your AI nature at first contact and whenever directly asked.
+- Never quote a specific interest rate, APR, discount point costs, or fee amounts.
+- Never calculate or estimate a monthly payment directly — payment estimates are produced only by the AUS eligibility review system.
+- Never direct a borrower toward a specific loan product. Present educational comparisons only.
+- Never tell a borrower they are approved, qualified, or disqualified. Framing is always conditional.
+- Soft pull consent is handled via a separate formal disclosure flow — you invite, the disclosure system obtains consent.
+- Immediately offer to connect with a licensed mortgage loan officer (MLO) if a borrower requests a rate quote, product recommendation, credit decision, or licensed guidance.
+- Disclose your AI nature at first contact and whenever directly asked.
+- Use "your lending institution" as the standard placeholder to remain institution-neutral.
+- Do NOT collect or require the borrower's Social Security Number (SSN) or Date of Birth (DOB) for the initial soft pull / eligibility review, as the latest CRS API does not require them.
 ```
 
 **Result:**
-The compliance guardrails now exactly mirror the 8-item Compliance Reference Summary from DavidNEWDoc.md (lines 623-641). The forced dual-option framing is removed; the soft pull invitation is handled organically at the Stage 2 and Stage 3 closing transitions (covered in Stages 3-4 below).
+The LLM matches all 9 compliance items of the Version 7.0 summary, and specifically excludes SSN and DOB from the soft pull data gathering scope.
 
 ---
 
@@ -668,7 +652,22 @@ Since `co_borrower` is now collected in Stage 1 (per 2.2 above), the Stage 3B ex
 - The Stage 3B prompt in `stage3b-completion.ts` should not ask for co-borrower status since it was already collected.
 
 **Result:**
-No duplicate data collection. Stage 3B skips straight to marital status → dependents → SSN → employment → etc.
+No duplicate data collection. Stage 3B skips straight to marital status ➔ dependents ➔ employment.
+
+---
+
+### 5.4. Eliminate SSN and DOB from all Workflows (Compliance v7.0)
+
+**Problem:**
+Historically, the state machine and prompting instructions requested the borrower's SSN (redirected to an on-screen secure input) and DOB. Per v7.0 CRS integration, these are no longer required for soft pulling or eligibility reviews. Having them in the flow violates minimization and compliance.
+
+**Solution:**
+- Remove all instructions referencing SSN secure redirection and entry from [stage3b-completion.ts](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/prompts/stage3b-completion.ts).
+- Remove the `ssn_confirm` and `ssn_confirmed` fields from the borrower profile state machine and checking logic in [session-context-manager.ts](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/context/session-context-manager.ts).
+- Modify the Stage 3B state check inside `advanceWorkflow()` so it transitions directly from `dependents_confirmed` to `job_title_confirmed` (or equivalent employment variables).
+
+**Result:**
+No dialog block or secure fields are presented to collect SSN or DOB. The borrower completes the pre-qualification and formal application flows without these sensitive fields.
 
 ---
 
@@ -707,7 +706,7 @@ The state machine now has more fields and branching paths. We need to verify tha
 - Confirm the LLM delivers educational responses of appropriate length.
 
 **Result:**
-Full end-to-end validation that the conversational flow matches DavidNEWDoc.md v6.0 specification.
+Full end-to-end validation that the conversational flow matches DavidNEWDoc.md v7.0 specification, excluding SSN and DOB.
 
 ---
 
@@ -716,12 +715,13 @@ Full end-to-end validation that the conversational flow matches DavidNEWDoc.md v
 | File | Changes |
 |---|---|
 | `backend/src/config/ailana-config.ts` | Reasoning effort → `'low'` |
-| `backend/src/prompts/ailana-system.ts` | Branding neutral, greeting, response length, SAFE Act rules |
-| `backend/src/prompts/stage1-greeting.ts` | 6-field sequence, v6.0 greeting |
-| `backend/src/prompts/stage2-prequalification.ts` | 10-field sequence, annual income |
-| `backend/src/prompts/stage3-guidance.ts` | Section 3A/3B flow, closing transition, consent language |
+| `backend/src/prompts/ailana-system.ts` | Branding neutral, greeting, v7.0 response length/philosophy, SAFE Act rules |
+| `backend/src/prompts/stage1-greeting.ts` | 6-field sequence, v7.0 greeting |
+| `backend/src/prompts/stage2-prequalification.ts` | 10-field sequence, annual income, v7.0 audited short default options and follow-up slots |
+| `backend/src/prompts/stage3-guidance.ts` | Section 3A/3B flow, closing transition, consent language, v7.0 audited short default options |
 | `backend/src/prompts/layer3-context.ts` | BorrowerProfile interface, display blocks, field labels |
-| `backend/src/context/session-context-manager.ts` | Extraction logic, advanceWorkflow, eligibility engine |
+| `backend/src/context/session-context-manager.ts` | Extraction logic, advanceWorkflow, eligibility engine, SSN/DOB removal |
 | `backend/src/agent.ts` | Greeting text constant |
 | `src/components/live-chat-panel.tsx` | Frontend greeting text |
-| `backend/src/prompts/stage3b-completion.ts` | Remove co_borrower (moved to Stage 1) |
+| `backend/src/prompts/stage3b-completion.ts` | Remove co_borrower (moved to Stage 1), remove SSN/DOB scripts |
+| `Ailana_Test_Flow_Guide.md` | Align test scripts and validation checklist to v7.0 and SSN/DOB exclusion |
