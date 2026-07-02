@@ -1,11 +1,9 @@
 name: Deploy CONVERGENT-AI to GCP VM
 
 on:
-  # dev: auto-deploy on every push
   push:
     branches:
       - dev
-  # main (production): manual only
   workflow_dispatch:
     inputs:
       target:
@@ -17,19 +15,18 @@ on:
           - production
           - dev
 
-# Prevent overlapping deploys to the same environment
 concurrency:
   group: deploy-${{ github.ref_name }}-${{ github.event.inputs.target || 'auto' }}
   cancel-in-progress: false
+
+env:
+  GH_OWNER: HasanKamal121
+  GH_REPO: ConvergentAI
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      # ---- Resolve environment -> branch + app dir (single source of truth) ----
-      # Rules:
-      #  - push to dev            -> dev (auto)
-      #  - manual dispatch input  -> production or dev (as chosen)
       - name: Resolve target
         id: env
         run: |
@@ -37,21 +34,19 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             TARGET="${{ github.event.inputs.target }}"
           else
-            TARGET="dev"   # push trigger only fires on dev branch
+            TARGET="dev"
           fi
-
-          # git_dir  = where the repo lives (git pull happens here)
-          # compose_dir = where `docker compose` runs (holds compose file/.env)
+          # git_dir = PARENT folder that holds ConvergentAI/ (and docker/)
           if [ "$TARGET" = "production" ]; then
-            echo "branch=main"                                                      
-            echo "git_dir=/opt/convergent-ai/convergent-prod"  
-            echo "compose_dir=/opt/convergent-ai/convergent-prod"                               
-            echo "env_name=production"                                              
+            echo "branch=main"                                       >> "$GITHUB_OUTPUT"
+            echo "git_dir=/opt/convergent-ai/convergent-prod"        >> "$GITHUB_OUTPUT"
+            echo "compose_dir=/opt/convergent-ai/convergent-prod"    >> "$GITHUB_OUTPUT"
+            echo "env_name=production"                               >> "$GITHUB_OUTPUT"
           else
-            echo "branch=dev"                                                     
-            echo "git_dir=/opt/convergent-ai/convergent-dev"   
-            echo "compose_dir=/opt/convergent-ai/convergent-dev/docker"                          
-            echo "env_name=dev"                                                   
+            echo "branch=dev"                                            >> "$GITHUB_OUTPUT"
+            echo "git_dir=/opt/convergent-ai/convergent-dev"            >> "$GITHUB_OUTPUT"
+            echo "compose_dir=/opt/convergent-ai/convergent-dev/docker" >> "$GITHUB_OUTPUT"
+            echo "env_name=dev"                                         >> "$GITHUB_OUTPUT"
           fi
 
       - name: Auth to Google Cloud
@@ -62,52 +57,80 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Deploy Docker app to GCP VM (${{ steps.env.outputs.env_name }})
+      # Render the remote script LOCALLY with values already substituted.
+      # The clone URL embeds the PAT from a GitHub Secret (never hardcoded on VM).
+      - name: Render remote deploy script
+        id: script
         env:
           BRANCH: ${{ steps.env.outputs.branch }}
           GIT_DIR: ${{ steps.env.outputs.git_dir }}
           COMPOSE_DIR: ${{ steps.env.outputs.compose_dir }}
+          GH_PAT: ${{ secrets.GH_PAT }}
         run: |
+          set -euo pipefail
+          CLONE_URL="https://x-access-token:${GH_PAT}@github.com/${GH_OWNER}/${GH_REPO}.git"
+
+          cat > remote_deploy.sh <<REMOTE
+          #!/usr/bin/env bash
+          set -euo pipefail
+          BRANCH="${BRANCH}"
+          GIT_DIR="${GIT_DIR}"
+          COMPOSE_DIR="${COMPOSE_DIR}"
+          REPO_DIR="\${GIT_DIR}/${GH_REPO}"
+
+          echo "==> Target branch : \${BRANCH}"
+          echo "==> Git dir       : \${GIT_DIR}"
+          echo "==> Repo dir      : \${REPO_DIR}"
+          echo "==> Compose dir   : \${COMPOSE_DIR}"
+
+          mkdir -p "\${GIT_DIR}"
+
+          # ---- 1) Fresh clone every run: remove old checkout, clone branch ----
+          echo "==> Removing old checkout: \${REPO_DIR}"
+          rm -rf "\${REPO_DIR}"
+          echo "==> Cloning \${BRANCH} ..."
+          git clone --depth 1 --branch "\${BRANCH}" "${CLONE_URL}" "\${REPO_DIR}"
+          # scrub token from git config so it isn't left on disk
+          git -C "\${REPO_DIR}" remote set-url origin "https://github.com/${GH_OWNER}/${GH_REPO}.git"
+          echo "==> Checked out: \$(git -C "\${REPO_DIR}" rev-parse --short HEAD) on \${BRANCH}"
+
+          # ---- 2) Locate compose file ----
+          cd "\${COMPOSE_DIR}"
+          if   [ -f docker-compose.yaml ]; then COMPOSE="-f docker-compose.yaml"
+          elif [ -f docker-compose.yml  ]; then COMPOSE="-f docker-compose.yml"
+          elif [ -f docker/docker-compose.yaml ]; then COMPOSE="-f docker/docker-compose.yaml"
+          else
+            echo "No docker-compose file under \${COMPOSE_DIR}" >&2
+            ls -la "\${COMPOSE_DIR}" >&2
+            exit 1
+          fi
+          echo "==> Compose dir: \$(pwd)  file: \${COMPOSE}"
+
+          dc() { docker compose \${COMPOSE} "\$@" || docker-compose \${COMPOSE} "\$@"; }
+
+          echo "==> Docker usage BEFORE"
+          docker system df || true
+          echo "==> Stop old containers"
+          dc down || true
+          echo "==> Rebuild + recreate"
+          dc up -d --build
+          echo "==> Verify"
+          docker ps | grep convergent || true
+          echo "==> Cleanup"
+          docker builder prune -a -f || true
+          docker image prune -f || true
+          docker container prune -f || true
+          REMOTE
+
+          echo "----- rendered remote_deploy.sh (token masked) -----"
+          sed 's#x-access-token:[^@]*@#x-access-token:***@#g' remote_deploy.sh
+
+      - name: Deploy to GCP VM (${{ steps.env.outputs.env_name }})
+        run: |
+          set -euo pipefail
           gcloud compute ssh convergent-ai \
             --zone us-east1-b \
             --project ailana-488814 \
             --tunnel-through-iap \
             --quiet \
-            --command="sudo BRANCH='${BRANCH}' GIT_DIR='${GIT_DIR}' COMPOSE_DIR='${COMPOSE_DIR}' bash -s" <<'EOF'
-          set -euo pipefail
-          echo "==> Target branch : ${BRANCH}"
-          echo "==> Git directory : ${GIT_DIR}"
-          echo "==> Compose dir   : ${COMPOSE_DIR}"
-  
-          sudo cd ${GIT_DIR}
-          sudo ls -la
-
-          # 1) Clone source code
-          echo "==> Clone latest code (${BRANCH})"
-          sudo rm -f ConvergentAI
-          git clone ${{ secrets.GIT_REPO }} -b ${BRANCH}
-
-          # 2) Re-Deploy
-          sudo cd ${COMPOSE_DIR}
-          sudo ls -la 
-          echo "Docker usage BEFORE deploy"
-          sudo docker system df || true
-          sudo docker builder du || true
-          echo "Stop old containers"
-          sudo docker compose down || docker-compose down
-
-          echo "Rebuild and recreate containers"
-          sudo docker compose up -d --build || docker-compose up -d --build
-
-          echo "Verify containers"
-          sudo docker ps | grep convergent
-
-          echo "Cleanup Docker build cache"
-          sudo docker builder prune -a -f
-
-          echo "Cleanup dangling images"
-          sudo docker image prune -f
-
-          echo "Cleanup stopped containers"
-          sudo docker container prune -f
-          EOF
+            --command="sudo bash -s" < remote_deploy.sh
