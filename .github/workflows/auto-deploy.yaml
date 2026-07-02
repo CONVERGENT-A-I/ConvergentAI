@@ -80,12 +80,18 @@ jobs:
           echo "==> Compose dir   : ${COMPOSE_DIR}"
 
           # 1) Update source code
-          cd "${GIT_DIR}"
-          git config --global --add safe.directory "${GIT_DIR}"
           echo "==> Pull latest code (${BRANCH})"
-          git fetch origin "${BRANCH}"
-          git checkout "${BRANCH}"
-          git reset --hard "origin/${BRANCH}"
+          # Mark repo safe FIRST (running under sudo -> /root HOME; git 2.35+ blocks
+          # 'dubious ownership' otherwise, which surfaces as 'not a git repository').
+          git config --global --add safe.directory "${GIT_DIR}" || true
+          git -C "${GIT_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+            echo "ERROR: ${GIT_DIR} is not a git repo (under sudo). Ownership/safe.directory?" >&2
+            ls -la "${GIT_DIR}/.git" >&2 || true
+            exit 1
+          }
+          git -C "${GIT_DIR}" fetch origin "${BRANCH}"
+          git -C "${GIT_DIR}" checkout "${BRANCH}"
+          git -C "${GIT_DIR}" reset --hard "origin/${BRANCH}"
 
           # 2) Locate compose file in the compose dir
           cd "${COMPOSE_DIR}"
