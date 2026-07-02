@@ -19,6 +19,10 @@ concurrency:
   group: deploy-${{ github.ref_name }}-${{ github.event.inputs.target || 'auto' }}
   cancel-in-progress: false
 
+env:
+  GH_OWNER: HasanKamal121
+  GH_REPO: ConvergentAI
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -32,16 +36,17 @@ jobs:
           else
             TARGET="dev"
           fi
+          # git_dir = PARENT folder that holds ConvergentAI/ (and docker/)
           if [ "$TARGET" = "production" ]; then
-            echo "branch=main"                                 >> "$GITHUB_OUTPUT"
-            echo "git_dir=/opt/convergent-ai/ConvergentAI"     >> "$GITHUB_OUTPUT"
-            echo "compose_dir=/opt/convergent-ai/ConvergentAI" >> "$GITHUB_OUTPUT"
-            echo "env_name=production"                         >> "$GITHUB_OUTPUT"
+            echo "branch=main"                                       >> "$GITHUB_OUTPUT"
+            echo "git_dir=/opt/convergent-ai/convergent-prod"        >> "$GITHUB_OUTPUT"
+            echo "compose_dir=/opt/convergent-ai/convergent-prod"    >> "$GITHUB_OUTPUT"
+            echo "env_name=production"                               >> "$GITHUB_OUTPUT"
           else
-            echo "branch=dev"                                                     >> "$GITHUB_OUTPUT"
-            echo "git_dir=/opt/convergent-ai/convergent-dev/ConvergentAI"         >> "$GITHUB_OUTPUT"
-            echo "compose_dir=/opt/convergent-ai/convergent-dev/docker"           >> "$GITHUB_OUTPUT"
-            echo "env_name=dev"                                                   >> "$GITHUB_OUTPUT"
+            echo "branch=dev"                                            >> "$GITHUB_OUTPUT"
+            echo "git_dir=/opt/convergent-ai/convergent-dev"            >> "$GITHUB_OUTPUT"
+            echo "compose_dir=/opt/convergent-ai/convergent-dev/docker" >> "$GITHUB_OUTPUT"
+            echo "env_name=dev"                                         >> "$GITHUB_OUTPUT"
           fi
 
       - name: Auth to Google Cloud
@@ -52,38 +57,42 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      # Build the remote script LOCALLY with values already substituted, then
-      # pipe it to the VM. No env passing through sudo (which is what broke it).
+      # Render the remote script LOCALLY with values already substituted.
+      # The clone URL embeds the PAT from a GitHub Secret (never hardcoded on VM).
       - name: Render remote deploy script
         id: script
         env:
           BRANCH: ${{ steps.env.outputs.branch }}
           GIT_DIR: ${{ steps.env.outputs.git_dir }}
           COMPOSE_DIR: ${{ steps.env.outputs.compose_dir }}
+          GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           set -euo pipefail
+          CLONE_URL="https://x-access-token:${GH_PAT}@github.com/${GH_OWNER}/${GH_REPO}.git"
+
           cat > remote_deploy.sh <<REMOTE
           #!/usr/bin/env bash
           set -euo pipefail
           BRANCH="${BRANCH}"
           GIT_DIR="${GIT_DIR}"
           COMPOSE_DIR="${COMPOSE_DIR}"
+          REPO_DIR="\${GIT_DIR}/${GH_REPO}"
 
           echo "==> Target branch : \${BRANCH}"
-          echo "==> Git directory : \${GIT_DIR}"
+          echo "==> Git dir       : \${GIT_DIR}"
+          echo "==> Repo dir      : \${REPO_DIR}"
           echo "==> Compose dir   : \${COMPOSE_DIR}"
 
-          # ---- 1) Update code ----
-          git config --global --add safe.directory "\${GIT_DIR}" || true
-          if ! git -C "\${GIT_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-            echo "ERROR: \${GIT_DIR} is not a git repo" >&2
-            ls -la "\${GIT_DIR}" >&2 || true
-            exit 1
-          fi
-          echo "==> Pull latest code (\${BRANCH})"
-          git -C "\${GIT_DIR}" fetch origin "\${BRANCH}"
-          git -C "\${GIT_DIR}" checkout "\${BRANCH}"
-          git -C "\${GIT_DIR}" reset --hard "origin/\${BRANCH}"
+          mkdir -p "\${GIT_DIR}"
+
+          # ---- 1) Fresh clone every run: remove old checkout, clone branch ----
+          echo "==> Removing old checkout: \${REPO_DIR}"
+          rm -rf "\${REPO_DIR}"
+          echo "==> Cloning \${BRANCH} ..."
+          git clone --depth 1 --branch "\${BRANCH}" "${CLONE_URL}" "\${REPO_DIR}"
+          # scrub token from git config so it isn't left on disk
+          git -C "\${REPO_DIR}" remote set-url origin "https://github.com/${GH_OWNER}/${GH_REPO}.git"
+          echo "==> Checked out: \$(git -C "\${REPO_DIR}" rev-parse --short HEAD) on \${BRANCH}"
 
           # ---- 2) Locate compose file ----
           cd "\${COMPOSE_DIR}"
@@ -103,22 +112,23 @@ jobs:
           docker system df || true
           echo "==> Stop old containers"
           dc down || true
+          export DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1
           echo "==> Rebuild + recreate"
           dc up -d --build
           echo "==> Verify"
           docker ps | grep convergent || true
-          echo "==> Cleanup"
-          docker builder prune -a -f || true
+          echo "==> Cleanup (keep recent build cache for fast rebuilds)"
+          docker builder prune -f --filter "until=72h" || true
           docker image prune -f || true
           docker container prune -f || true
           REMOTE
-          echo "----- rendered remote_deploy.sh -----"
-          cat remote_deploy.sh
+
+          echo "----- rendered remote_deploy.sh (token masked) -----"
+          sed 's#x-access-token:[^@]*@#x-access-token:***@#g' remote_deploy.sh
 
       - name: Deploy to GCP VM (${{ steps.env.outputs.env_name }})
         run: |
           set -euo pipefail
-          # Pipe the fully-rendered script to a root shell on the VM via stdin.
           gcloud compute ssh convergent-ai \
             --zone us-east1-b \
             --project ailana-488814 \
