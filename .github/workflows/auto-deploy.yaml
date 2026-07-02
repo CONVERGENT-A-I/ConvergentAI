@@ -43,15 +43,15 @@ jobs:
           # git_dir  = where the repo lives (git pull happens here)
           # compose_dir = where `docker compose` runs (holds compose file/.env)
           if [ "$TARGET" = "production" ]; then
-            echo "branch=main"                                            >> "$GITHUB_OUTPUT"
-            echo "git_dir=/opt/convergent-ai/ConvergentAI"                >> "$GITHUB_OUTPUT"
-            echo "compose_dir=/opt/convergent-ai/ConvergentAI"            >> "$GITHUB_OUTPUT"
-            echo "env_name=production"                                    >> "$GITHUB_OUTPUT"
+            echo "branch=main"                                                      
+            echo "git_dir=/opt/convergent-ai/convergent-prod"  
+            echo "compose_dir=/opt/convergent-ai/convergent-prod"                               
+            echo "env_name=production"                                              
           else
-            echo "branch=dev"                                                     >> "$GITHUB_OUTPUT"
-            echo "git_dir=/opt/convergent-ai/convergent-dev/ConvergentAI"         >> "$GITHUB_OUTPUT"
-            echo "compose_dir=/opt/convergent-ai/convergent-dev/docker"           >> "$GITHUB_OUTPUT"
-            echo "env_name=dev"                                                   >> "$GITHUB_OUTPUT"
+            echo "branch=dev"                                                     
+            echo "git_dir=/opt/convergent-ai/convergent-dev"   
+            echo "compose_dir=/opt/convergent-ai/convergent-dev/docker"                          
+            echo "env_name=dev"                                                   
           fi
 
       - name: Auth to Google Cloud
@@ -78,50 +78,36 @@ jobs:
           echo "==> Target branch : ${BRANCH}"
           echo "==> Git directory : ${GIT_DIR}"
           echo "==> Compose dir   : ${COMPOSE_DIR}"
+  
+          sudo cd ${GIT_DIR}
+          sudo ls -la
 
-          # 1) Update source code
-          echo "==> Pull latest code (${BRANCH})"
-          # Mark repo safe FIRST (running under sudo -> /root HOME; git 2.35+ blocks
-          # 'dubious ownership' otherwise, which surfaces as 'not a git repository').
-          git config --global --add safe.directory "${GIT_DIR}" || true
-          git -C "${GIT_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
-            echo "ERROR: ${GIT_DIR} is not a git repo (under sudo). Ownership/safe.directory?" >&2
-            ls -la "${GIT_DIR}/.git" >&2 || true
-            exit 1
-          }
-          git -C "${GIT_DIR}" fetch origin "${BRANCH}"
-          git -C "${GIT_DIR}" checkout "${BRANCH}"
-          git -C "${GIT_DIR}" reset --hard "origin/${BRANCH}"
+          # 1) Clone source code
+          echo "==> Clone latest code (${BRANCH})"
+          sudo rm -f ConvergentAI
+          git clone ${{ secrets.GIT_REPO }} -b ${BRANCH}
 
-          # 2) Locate compose file in the compose dir
-          cd "${COMPOSE_DIR}"
-          if   [ -f docker-compose.yaml ]; then COMPOSE="-f docker-compose.yaml"
-          elif [ -f docker-compose.yml  ]; then COMPOSE="-f docker-compose.yml"
-          elif [ -f docker/docker-compose.yaml ]; then COMPOSE="-f docker/docker-compose.yaml"
-          else
-            echo "No docker-compose file found under ${COMPOSE_DIR}" >&2
-            ls -la "${COMPOSE_DIR}" >&2
-            exit 1
-          fi
-          echo "==> Compose dir: $(pwd)  file: ${COMPOSE}"
+          # 2) Re-Deploy
+          sudo cd ${COMPOSE_DIR}
+          sudo ls -la 
+          echo "Docker usage BEFORE deploy"
+          sudo docker system df || true
+          sudo docker builder du || true
+          echo "Stop old containers"
+          sudo docker compose down || docker-compose down
 
-          # docker compose (v2) with docker-compose (v1) fallback
-          dc() { docker compose $COMPOSE "$@" || docker-compose $COMPOSE "$@"; }
+          echo "Rebuild and recreate containers"
+          sudo docker compose up -d --build || docker-compose up -d --build
 
-          echo "==> Docker usage BEFORE deploy"
-          docker system df || true
+          echo "Verify containers"
+          sudo docker ps | grep convergent
 
-          echo "==> Stop old containers"
-          dc down || true
+          echo "Cleanup Docker build cache"
+          sudo docker builder prune -a -f
 
-          echo "==> Rebuild and recreate containers"
-          dc up -d --build
+          echo "Cleanup dangling images"
+          sudo docker image prune -f
 
-          echo "==> Verify containers"
-          docker ps | grep convergent || true
-
-          echo "==> Cleanup"
-          docker builder prune -a -f || true
-          docker image prune -f || true
-          docker container prune -f || true
+          echo "Cleanup stopped containers"
+          sudo docker container prune -f
           EOF
