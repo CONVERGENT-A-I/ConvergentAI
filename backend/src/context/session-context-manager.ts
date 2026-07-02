@@ -67,6 +67,12 @@ export class SessionContextManager {
     this.turnLog.push({ role: 'user', text: trimmed, timestamp: Date.now() });
     this.turnCount += 1;
 
+    // Handle Stage 2 pending confirmations local loop directly on this turn
+    if (this.activeStage === '2' && this.profile.pending_confirm_field && this.profile.pending_confirm_value != null) {
+      await this.handleStage2Confirmation(trimmed);
+      return;
+    }
+
     // 1. Handle global pending confirmations first (excluding Stage 2 which has local loop logic)
     const handled = await this.handleGlobalConfirmation(trimmed);
     if (handled) {
@@ -351,24 +357,30 @@ export class SessionContextManager {
       });
     }
     if (!this.profile.employment_confirmed) {
-      fieldsToExtract.push({
-        name: 'employment_position',
-        description: 'current job title or position',
-        expectedType: 'string',
-        additionalInstructions: 'Extract their job title or position (e.g. software engineer, manager). If not found, return null.',
-      });
-      fieldsToExtract.push({
-        name: 'employment_years',
-        description: 'number of years employed',
-        expectedType: 'number',
-        additionalInstructions: 'Extract the number of years they have worked at this job. If less than a year, return 0. If not found, return null.',
-      });
-      fieldsToExtract.push({
-        name: 'self_employed',
-        description: 'whether the user is self-employed',
-        expectedType: 'string',
-        additionalInstructions: 'Extract whether they are self-employed. If they explicitly mention self-employed, independent contractor, own business, return "yes". If they say no, W-2, work for a company, return "no". If not found, return null.',
-      });
+      if (this.profile.employment_position === undefined) {
+        fieldsToExtract.push({
+          name: 'employment_position',
+          description: 'current job title or position',
+          expectedType: 'string',
+          additionalInstructions: 'Extract their job title or position (e.g. software engineer, manager). If not found, return null.',
+        });
+      }
+      if (this.profile.employment_years === undefined) {
+        fieldsToExtract.push({
+          name: 'employment_years',
+          description: 'number of years employed',
+          expectedType: 'number',
+          additionalInstructions: 'Extract the number of years they have worked at this job. If less than a year, return 0. If not found, return null.',
+        });
+      }
+      if (this.profile.self_employed === undefined) {
+        fieldsToExtract.push({
+          name: 'self_employed',
+          description: 'whether the user is self-employed',
+          expectedType: 'string',
+          additionalInstructions: 'Extract whether they are self-employed. If they explicitly mention self-employed, independent contractor, own business, return "yes". If they say no, W-2, work for a company, return "no". If not found, return null.',
+        });
+      }
     }
     if (!this.profile.checking_savings_confirmed) {
       fieldsToExtract.push({
@@ -379,18 +391,22 @@ export class SessionContextManager {
       });
     }
     if (!this.profile.declarations_confirmed) {
-      fieldsToExtract.push({
-        name: 'declarations_bankruptcy',
-        description: 'bankruptcy declaration in past 7 years',
-        expectedType: 'string',
-        additionalInstructions: 'Extract whether they had a bankruptcy in the past 7 years. Return "yes" if yes, "no" if no. If not found, return null.',
-      });
-      fieldsToExtract.push({
-        name: 'declarations_foreclosure',
-        description: 'foreclosure declaration in past 7 years',
-        expectedType: 'string',
-        additionalInstructions: 'Extract whether they had a foreclosure, short sale, or judgment in the past 7 years. Return "yes" if yes, "no" if no. If not found, return null.',
-      });
+      if (this.profile.declarations_bankruptcy === undefined) {
+        fieldsToExtract.push({
+          name: 'declarations_bankruptcy',
+          description: 'bankruptcy declaration in past 7 years',
+          expectedType: 'string',
+          additionalInstructions: 'Extract whether they had a bankruptcy in the past 7 years. Return "yes" if yes, "no" if no. If they say "no", "never", "none", or deny having these declaration issues, return "no". If not found, return null.',
+        });
+      }
+      if (this.profile.declarations_foreclosure === undefined) {
+        fieldsToExtract.push({
+          name: 'declarations_foreclosure',
+          description: 'foreclosure declaration in past 7 years',
+          expectedType: 'string',
+          additionalInstructions: 'Extract whether they had a foreclosure, short sale, or judgment in the past 7 years. Return "yes" if yes, "no" if no. If they say "no", "never", "none", or deny having these declaration issues, return "no". If they only deny bankruptcy, also return "no" (as they are answering the joint declarations question). If not found, return null.',
+        });
+      }
     }
     if (!this.profile.hmda_completed) {
       fieldsToExtract.push({
@@ -422,15 +438,29 @@ export class SessionContextManager {
     }
 
     // Employment
-    if (extractionResults.employment_position || extractionResults.employment_years || extractionResults.self_employed) {
-      const title = extractionResults.employment_position?.value;
-      const years = extractionResults.employment_years?.value;
-      const self = extractionResults.self_employed?.value;
+    const title = extractionResults.employment_position?.value;
+    const years = extractionResults.employment_years?.value;
+    const self = extractionResults.self_employed?.value;
 
-      if (title !== null || years !== null || self !== null) {
-        if (title !== null) this.profile.employment_position = title as string;
-        if (years !== null) this.profile.employment_years = years as number;
-        if (self !== null) this.profile.self_employed = self === 'yes';
+    if (title !== undefined && title !== null) {
+      this.profile.employment_position = title as string;
+      anyUpdates = true;
+    }
+    if (years !== undefined && years !== null) {
+      this.profile.employment_years = years as number;
+      anyUpdates = true;
+    }
+    if (self !== undefined && self !== null) {
+      this.profile.self_employed = self === 'yes';
+      anyUpdates = true;
+    }
+
+    if (
+      this.profile.employment_position !== undefined &&
+      this.profile.employment_years !== undefined &&
+      this.profile.self_employed !== undefined
+    ) {
+      if (!this.profile.employment_confirmed) {
         this.profile.employment_confirmed = true;
         anyUpdates = true;
       }
@@ -443,13 +473,23 @@ export class SessionContextManager {
     }
 
     // Declarations
-    if (extractionResults.declarations_bankruptcy || extractionResults.declarations_foreclosure) {
-      const bankruptcy = extractionResults.declarations_bankruptcy?.value;
-      const foreclosure = extractionResults.declarations_foreclosure?.value;
+    const bankruptcy = extractionResults.declarations_bankruptcy?.value;
+    const foreclosure = extractionResults.declarations_foreclosure?.value;
 
-      if (bankruptcy !== null || foreclosure !== null) {
-        this.profile.declarations_bankruptcy = bankruptcy === 'yes';
-        this.profile.declarations_foreclosure = foreclosure === 'yes';
+    if (bankruptcy !== undefined && bankruptcy !== null) {
+      this.profile.declarations_bankruptcy = bankruptcy === 'yes';
+      anyUpdates = true;
+    }
+    if (foreclosure !== undefined && foreclosure !== null) {
+      this.profile.declarations_foreclosure = foreclosure === 'yes';
+      anyUpdates = true;
+    }
+
+    if (
+      this.profile.declarations_bankruptcy !== undefined &&
+      this.profile.declarations_foreclosure !== undefined
+    ) {
+      if (!this.profile.declarations_confirmed) {
         this.profile.declarations_confirmed = true;
         anyUpdates = true;
       }
@@ -647,12 +687,6 @@ export class SessionContextManager {
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   private async runStage2Extraction(text: string): Promise<void> {
-    // â”€â”€ Phase 1: If we are waiting for confirmation of a pending value â”€â”€â”€â”€â”€
-    if (this.profile.pending_confirm_field && this.profile.pending_confirm_value != null) {
-      await this.handleStage2Confirmation(text);
-      return;
-    }
-
     // â”€â”€ Phase 1.5: Batch pre-scan for all unconfirmed Stage 2 CATEGORICAL fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Captures anything the user volunteers before we need to ask, preventing re-asks.
     // Numeric fields (gross_annual_income, monthly_debt, down_payment, target_price) are excluded â€”
@@ -1088,6 +1122,9 @@ export class SessionContextManager {
    * Called ONLY after a field is confirmed (or declined). LLM never calls this.
    */
   private advanceWorkflow(): void {
+    if (this.currentPendingField) {
+      this.fieldAttempts[this.currentPendingField] = 0;
+    }
     // Ã¢â€â‚¬Ã¢â€â‚¬ Stage 1 Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
     if (!this.profile.borrower_name_confirmed) {
       this.currentPendingField = 'borrower_name';
@@ -1559,7 +1596,7 @@ export class SessionContextManager {
     if (this.profile.target_price_confirmed) confirmedFields.push('target_price');
     if (this.profile.property_type_confirmed) confirmedFields.push('property_type');
     if (this.profile.military_rural_confirmed) confirmedFields.push('military_rural');
-    if (this.profile.job_tenure_type_confirmed) confirmedFields.push('job_tenure_type');
+    if (this.profile.job_tenure_type_confirmed && this.currentPendingField !== 'employment_details') confirmedFields.push('job_tenure_type');
 
     if (confirmedFields.length === 0) return false;
 
@@ -1670,9 +1707,15 @@ If no correction/change is found, return null.`
       if (field === 'employment_details') {
         this.profile.employment_position = 'Not specified';
         this.profile.employment_years = 0;
+        this.profile.self_employed = false;
+        this.profile.employment_confirmed = true;
       }
       if (field === 'checking_savings') this.profile.checking_savings_balance = 0;
-      if (field === 'declarations') this.profile.declarations_confirmed = true;
+      if (field === 'declarations') {
+        this.profile.declarations_bankruptcy = false;
+        this.profile.declarations_foreclosure = false;
+        this.profile.declarations_confirmed = true;
+      }
       if (field === 'hmda') this.profile.hmda_completed = true;
       if (field === 'submit_confirmation') this.profile.ready_to_submit = true;
     }
