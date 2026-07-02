@@ -40,14 +40,18 @@ jobs:
             TARGET="dev"   # push trigger only fires on dev branch
           fi
 
+          # git_dir  = where the repo lives (git pull happens here)
+          # compose_dir = where `docker compose` runs (holds compose file/.env)
           if [ "$TARGET" = "production" ]; then
-            echo "branch=main"                                  >> "$GITHUB_OUTPUT"
-            echo "app_dir=/opt/convergent-ai/ConvergentAI"      >> "$GITHUB_OUTPUT"
-            echo "env_name=production"                          >> "$GITHUB_OUTPUT"
+            echo "branch=main"                                            >> "$GITHUB_OUTPUT"
+            echo "git_dir=/opt/convergent-ai/ConvergentAI"                >> "$GITHUB_OUTPUT"
+            echo "compose_dir=/opt/convergent-ai/ConvergentAI"            >> "$GITHUB_OUTPUT"
+            echo "env_name=production"                                    >> "$GITHUB_OUTPUT"
           else
-            echo "branch=dev"                                            >> "$GITHUB_OUTPUT"
-            echo "app_dir=/opt/convergent-ai/convergent-dev/ConvergentAI" >> "$GITHUB_OUTPUT"
-            echo "env_name=dev"                                         >> "$GITHUB_OUTPUT"
+            echo "branch=dev"                                                     >> "$GITHUB_OUTPUT"
+            echo "git_dir=/opt/convergent-ai/convergent-dev/ConvergentAI"         >> "$GITHUB_OUTPUT"
+            echo "compose_dir=/opt/convergent-ai/convergent-dev/docker"           >> "$GITHUB_OUTPUT"
+            echo "env_name=dev"                                                   >> "$GITHUB_OUTPUT"
           fi
 
       - name: Auth to Google Cloud
@@ -61,38 +65,39 @@ jobs:
       - name: Deploy Docker app to GCP VM (${{ steps.env.outputs.env_name }})
         env:
           BRANCH: ${{ steps.env.outputs.branch }}
-          APP_DIR: ${{ steps.env.outputs.app_dir }}
+          GIT_DIR: ${{ steps.env.outputs.git_dir }}
+          COMPOSE_DIR: ${{ steps.env.outputs.compose_dir }}
         run: |
           gcloud compute ssh convergent-ai \
             --zone us-east1-b \
             --project ailana-488814 \
             --tunnel-through-iap \
             --quiet \
-            --command="sudo BRANCH='${BRANCH}' APP_DIR='${APP_DIR}' bash -s" <<'EOF'
+            --command="sudo BRANCH='${BRANCH}' GIT_DIR='${GIT_DIR}' COMPOSE_DIR='${COMPOSE_DIR}' bash -s" <<'EOF'
           set -euo pipefail
           echo "==> Target branch : ${BRANCH}"
-          echo "==> App directory : ${APP_DIR}"
+          echo "==> Git directory : ${GIT_DIR}"
+          echo "==> Compose dir   : ${COMPOSE_DIR}"
 
-          cd "${APP_DIR}"
-          git config --global --add safe.directory "${APP_DIR}"
-
+          # 1) Update source code
+          cd "${GIT_DIR}"
+          git config --global --add safe.directory "${GIT_DIR}"
           echo "==> Pull latest code (${BRANCH})"
           git fetch origin "${BRANCH}"
           git checkout "${BRANCH}"
           git reset --hard "origin/${BRANCH}"
 
-          # Compose file may live in ./docker (dev layout) or repo root (prod layout).
-          if [ -f docker/docker-compose.yaml ]; then
-            COMPOSE="-f docker/docker-compose.yaml"
-          elif [ -f docker-compose.yaml ]; then
-            COMPOSE="-f docker-compose.yaml"
-          elif [ -f docker-compose.yml ]; then
-            COMPOSE="-f docker-compose.yml"
+          # 2) Locate compose file in the compose dir
+          cd "${COMPOSE_DIR}"
+          if   [ -f docker-compose.yaml ]; then COMPOSE="-f docker-compose.yaml"
+          elif [ -f docker-compose.yml  ]; then COMPOSE="-f docker-compose.yml"
+          elif [ -f docker/docker-compose.yaml ]; then COMPOSE="-f docker/docker-compose.yaml"
           else
-            echo "No docker-compose file found under ${APP_DIR}" >&2
+            echo "No docker-compose file found under ${COMPOSE_DIR}" >&2
+            ls -la "${COMPOSE_DIR}" >&2
             exit 1
           fi
-          echo "==> Using compose: ${COMPOSE}"
+          echo "==> Compose dir: $(pwd)  file: ${COMPOSE}"
 
           # docker compose (v2) with docker-compose (v1) fallback
           dc() { docker compose $COMPOSE "$@" || docker-compose $COMPOSE "$@"; }
@@ -113,5 +118,4 @@ jobs:
           docker builder prune -a -f || true
           docker image prune -f || true
           docker container prune -f || true
-          
           EOF
