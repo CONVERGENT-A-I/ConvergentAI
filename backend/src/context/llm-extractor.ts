@@ -105,6 +105,118 @@ User input: "${userInput}"`;
   }
 }
 
+export interface FieldToExtract {
+  name: string;
+  description: string;
+  expectedType: 'string' | 'number';
+  additionalInstructions?: string;
+}
+
+export async function extractMultipleFields(
+  userInput: string,
+  lastAssistantUtterance: string | null,
+  fields: FieldToExtract[],
+): Promise<Record<string, ExtractionResult>> {
+  if (fields.length === 0) {
+    return {};
+  }
+
+  const fieldsDesc = fields.map(f => {
+    return `- "${f.name}": (Expected Type: ${f.expectedType}) ${f.description}.${f.additionalInstructions ? ` Instructions: ${f.additionalInstructions}` : ''}`;
+  }).join('\n');
+
+  const systemPrompt = `You are a precise data extraction agent for a mortgage prequalification assistant.
+Your task is to extract values for multiple fields from the user's latest input.
+We also provide the assistant's last question/utterance to help resolve context or relative references.
+
+Here are the fields to extract:
+${fieldsDesc}
+
+Rules:
+1. Return a JSON object where each key is a field name from the list above.
+2. The value for each key must be a JSON object with:
+   - "value": The extracted value matching the expected type, or null if it cannot be found or extracted.
+   - "declined": A boolean indicating if the user explicitly declined, skipped, said they don't know, are not sure, or don't want to answer this specific field.
+3. For numbers: return only an integer (e.g. 8500, not "8500" or "$8,500"). If the user mentions multiple numbers that need to be summed (especially for monthly debts), calculate the total and return the sum.
+4. For strings: return a clean string or null.
+5. If a field's value is not present at all in the user's input, set "value" to null and "declined" to false.
+
+You MUST reply with a JSON object only.`;
+
+  const userPrompt = `Assistant last question: ${lastAssistantUtterance ?? 'None'}
+User input: "${userInput}"`;
+
+  let content: string | null = null;
+
+  try {
+    openaiClient.apiKey = ailanaConfig.cerebrasApiKey;
+    const response = await openaiClient.chat.completions.create({
+      model: 'gpt-oss-120b',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.0,
+    });
+    content = response.choices[0]?.message?.content || null;
+  } catch (error: any) {
+    console.warn(`[llm-extractor] Cerebras failed for multiple fields, falling back to Groq:`, error?.message ?? error);
+    try {
+      groqClient.apiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
+      const response = await groqClient.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.0,
+      });
+      content = response.choices[0]?.message?.content || null;
+    } catch (groqError: any) {
+      console.error(`[llm-extractor] Groq fallback failed for multiple fields:`, groqError?.message ?? groqError);
+    }
+  }
+
+  const results: Record<string, ExtractionResult> = {};
+  for (const f of fields) {
+    results[f.name] = { value: null, declined: false };
+  }
+
+  if (!content) {
+    return results;
+  }
+
+  try {
+    const parsed = JSON.parse(content);
+    for (const f of fields) {
+      if (parsed[f.name]) {
+        let value = parsed[f.name].value;
+        const declined = !!parsed[f.name].declined;
+
+        if (f.expectedType === 'number' && value !== null) {
+          if (typeof value === 'string') {
+            const cleaned = value.replace(/[^\d.]/g, '');
+            const parsedNum = parseFloat(cleaned);
+            value = isNaN(parsedNum) ? null : Math.round(parsedNum);
+          } else if (typeof value === 'number') {
+            value = Math.round(value);
+          } else {
+            value = null;
+          }
+        }
+        results[f.name] = { value, declined };
+      }
+    }
+  } catch (parseError) {
+    console.error(`[llm-extractor] Failed to parse content for multiple fields:`, parseError);
+  }
+
+  return results;
+}
+
+
 export async function classifyConfirmation(
   userInput: string,
   lastAssistantUtterance: string | null,

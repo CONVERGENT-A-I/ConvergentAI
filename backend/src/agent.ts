@@ -87,7 +87,9 @@ class AilanaVoiceAgent extends voice.Agent {
     const confidence = userMessage?.transcriptConfidence;
     console.log(`[agent-hook]: onUserTurnCompleted hook triggered with message: "${userMessage?.textContent}" (confidence: ${confidence})`);
 
-    if (confidence !== undefined && confidence !== null && confidence < 0.6) {
+    // confidence === 0 means "not provided" by Cartesia STT — it does not mean low confidence.
+    // Only flag low confidence when confidence is explicitly a positive non-zero value below the threshold.
+    if (confidence !== undefined && confidence !== null && confidence > 0 && confidence < 0.6) {
       console.log(`[agent-hook]: Low confidence transcript detected (${confidence} < 0.6). Flagging low confidence.`);
       this.contextManager.setLowConfidenceFlag(true);
     } else {
