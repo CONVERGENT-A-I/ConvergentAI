@@ -576,7 +576,7 @@ export class SessionContextManager {
         name: 'existing_relationship',
         description: "Whether they have worked with this lending institution before",
         expectedType: 'string',
-        additionalInstructions: 'Extract "yes" or "no". If they say they have worked with us before or have an existing mortgage, return "yes". If they say it is their first time, return "no". If not found, return null.',
+        additionalInstructions: 'Extract "yes" or "no". If they say they have worked with us before or have an existing mortgage, return "yes". If they say it is their first time, return "no". If they say they don\'t know or are unsure, return "no". If not found, return null.',
       });
     }
     if (!this.profile.timeline_confirmed) {
@@ -584,7 +584,7 @@ export class SessionContextManager {
         name: 'timeline',
         description: "When they plan to purchase or refinance (e.g. in 3 months, next year, ASAP, etc.)",
         expectedType: 'string',
-        additionalInstructions: 'Extract the user timeline. If they indicate a timeline, extract a concise summary (e.g. "within 3 months", "ASAP", "next year"). If not mentioned, return null.',
+        additionalInstructions: 'Extract the user timeline. If they indicate a timeline, extract a concise summary (e.g. "within 3 months", "ASAP", "next year"). If they say they are unsure, undecided, don\'t know, or decline to specify, return "unsure" or "undecided". If not mentioned at all, return null.',
       });
     }
     if (!this.profile.co_borrower_confirmed) {
@@ -592,7 +592,7 @@ export class SessionContextManager {
         name: 'co_borrower',
         description: "Whether anyone else will be applying with them on the loan",
         expectedType: 'string',
-        additionalInstructions: 'Extract "yes" or "no". If they mention a spouse, partner, or family member applying with them, return "yes". If they say "no", "just me", "myself alone", "I will not be including", "applying individually", "do not want to include", or express any intention to apply alone, return "no". If not found, return null.',
+        additionalInstructions: 'Extract "yes" or "no". If they mention a spouse, partner, or family member applying with them, return "yes". If they say "no", "just me", "myself alone", "I will not be including", "applying individually", "do not want to include", or express any intention to apply alone, return "no". If they say they don\'t know or are unsure, return "no". If not found, return null.',
       });
     }
 
