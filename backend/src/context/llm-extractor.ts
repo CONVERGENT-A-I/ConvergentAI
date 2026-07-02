@@ -32,7 +32,7 @@ Rules:
 1. Return a JSON object with two fields:
    - "value": The extracted value matching the expected type (${expectedType}), or null if it cannot be found or extracted.
    - "declined": A boolean indicating if the user explicitly declined, skipped, said they don't know, are not sure, or don't want to answer.
-2. For numbers: return only an integer (e.g. 8500, not "8500" or "$8,500"). If the user mentions multiple numbers that need to be summed (especially for monthly debts), calculate the total and return the sum.
+2. For numbers: return only an integer (e.g. 8500, not "8500" or "$8,500"). If the user mentions multiple numbers that need to be summed (especially for monthly debts), calculate the total and return the sum. If the user specifies a range (e.g., "70,000 to 100,000" or "70k - 100k"), calculate the midpoint of the range and return it as the single integer (e.g. 85000).
 3. For strings: return a clean string or null.
 4. If the user is correcting a previous value, extract the new corrected value.
 5. If the value is not present at all in the user's input, set "value" to null and "declined" to false.
@@ -137,7 +137,7 @@ Rules:
 2. The value for each key must be a JSON object with:
    - "value": The extracted value matching the expected type, or null if it cannot be found or extracted.
    - "declined": A boolean indicating if the user explicitly declined, skipped, said they don't know, are not sure, or don't want to answer this specific field.
-3. For numbers: return only an integer (e.g. 8500, not "8500" or "$8,500"). If the user mentions multiple numbers that need to be summed (especially for monthly debts), calculate the total and return the sum.
+3. For numbers: return only an integer (e.g. 8500, not "8500" or "$8,500"). If the user mentions multiple numbers that need to be summed (especially for monthly debts), calculate the total and return the sum. If the user specifies a range, calculate the midpoint of the range and return it as the single integer.
 4. For strings: return a clean string or null.
 5. If a field's value is not present at all in the user's input, set "value" to null and "declined" to false.
 

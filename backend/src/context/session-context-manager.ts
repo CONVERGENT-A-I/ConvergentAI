@@ -1,4 +1,4 @@
-﻿import { llm, type voice } from '@livekit/agents';
+import { llm, type voice } from '@livekit/agents';
 import type { LLM } from '@livekit/agents-plugin-openai';
 import { ailanaConfig } from '../config/ailana-config.js';
 import {
@@ -1204,15 +1204,8 @@ export class SessionContextManager {
     }
   }
 
-  /** Get active instructions assembled using active profile variables */
   getActiveInstructions(): string {
-    const instructions = buildSessionPrompt(this.profile, this.currentPendingField, this.activeStage, this.lowConfidence);
-    // Clear the bridge after it has been included in the instructions for this turn.
-    // This ensures the MANDATORY TRANSITION fires exactly once â€” never repeats on subsequent turns.
-    if (this.profile.bridge_to_say) {
-      this.profile.bridge_to_say = null;
-    }
-    return instructions;
+    return buildSessionPrompt(this.profile, this.currentPendingField, this.activeStage, this.lowConfidence);
   }
 
   setLowConfidenceFlag(value: boolean): void {
@@ -1570,6 +1563,27 @@ export class SessionContextManager {
 
     if (confirmedFields.length === 0) return false;
 
+    const fieldDescriptions: Record<string, string> = {
+      borrower_name: "The user's name",
+      mortgage_goal: "Whether they want to purchase/buy a new home, refinance, or explore equity",
+      occupancy: "Primary residence, second home, or investment property",
+      existing_relationship: "Whether they have worked with this lending institution/bank before (NOT personal relationship status like single/married)",
+      timeline: "When they plan to close/purchase",
+      co_borrower: "Whether they will have a co-borrower (spouse/partner/etc.) on the loan",
+      gross_annual_income: "Gross annual income before taxes",
+      monthly_debt: "Total monthly recurring debt payments",
+      credit_range: "Estimated credit score range",
+      down_payment: "Down payment amount",
+      rent_own: "Whether they currently rent or own their home",
+      realtor_status: "Whether they have a real estate agent/realtor",
+      target_price: "Target purchase price or property value",
+      property_type: "Type of property (single-family, condo, etc.)",
+      military_rural: "Current/former military service, or buying in a rural/suburban area",
+      job_tenure_type: "Job tenure and income type",
+    };
+
+    const confirmedFieldsDesc = confirmedFields.map(field => `- "${field}": ${fieldDescriptions[field] ?? ''}`).join('\n');
+
     console.log(`[context-manager] Global: Checking potential correction against confirmed fields: ${confirmedFields.join(', ')}`);
     const lastQuestion = this.getLastAssistantUtterance();
 
@@ -1579,10 +1593,12 @@ export class SessionContextManager {
       'global_correction',
       'correction of previously shared details',
       'string',
-      `The currently confirmed fields are: ${confirmedFields.join(', ')}.
-      Determine if the user is correcting or changing one of these fields.
-      If yes, return the field name and new value separated by a colon, exactly like "field_name:new_value" (e.g., "gross_annual_income:85000" or "mortgage_goal:refinance").
-      If no correction/change is found, return null.`
+      `The currently confirmed fields are:
+${confirmedFieldsDesc}
+
+Determine if the user is correcting or changing one of these fields.
+If yes, return the field name and new value separated by a colon, exactly like "field_name:new_value" (e.g., "gross_annual_income:85000" or "mortgage_goal:refinance").
+If no correction/change is found, return null.`
     );
 
     if (res.value && typeof res.value === 'string' && res.value.includes(':')) {
