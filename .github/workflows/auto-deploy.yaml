@@ -112,12 +112,13 @@ jobs:
           docker system df || true
           echo "==> Stop old containers"
           dc down || true
+          export DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1
           echo "==> Rebuild + recreate"
           dc up -d --build
           echo "==> Verify"
           docker ps | grep convergent || true
-          echo "==> Cleanup"
-          docker builder prune -a -f || true
+          echo "==> Cleanup (keep recent build cache for fast rebuilds)"
+          docker builder prune -f --filter "until=72h" || true
           docker image prune -f || true
           docker container prune -f || true
           REMOTE
