@@ -1,15 +1,55 @@
 name: Deploy CONVERGENT-AI to GCP VM
 
 on:
+  # dev: auto-deploy on every push
   push:
     branches:
-      - main
+      - dev
+  # main (production): manual only
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Which environment to deploy"
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - dev
+
+# Prevent overlapping deploys to the same environment
+concurrency:
+  group: deploy-${{ github.ref_name }}-${{ github.event.inputs.target || 'auto' }}
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
+      # ---- Resolve environment -> branch + app dir (single source of truth) ----
+      # Rules:
+      #  - push to dev            -> dev (auto)
+      #  - manual dispatch input  -> production or dev (as chosen)
+      - name: Resolve target
+        id: env
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TARGET="${{ github.event.inputs.target }}"
+          else
+            TARGET="dev"   # push trigger only fires on dev branch
+          fi
+
+          if [ "$TARGET" = "production" ]; then
+            echo "branch=main"                                  >> "$GITHUB_OUTPUT"
+            echo "app_dir=/opt/convergent-ai/ConvergentAI"      >> "$GITHUB_OUTPUT"
+            echo "env_name=production"                          >> "$GITHUB_OUTPUT"
+          else
+            echo "branch=dev"                                            >> "$GITHUB_OUTPUT"
+            echo "app_dir=/opt/convergent-ai/convergent-dev/ConvergentAI" >> "$GITHUB_OUTPUT"
+            echo "env_name=dev"                                         >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Auth to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -18,46 +58,59 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Deploy Docker app to GCP VM
+      - name: Deploy Docker app to GCP VM (${{ steps.env.outputs.env_name }})
+        env:
+          BRANCH: ${{ steps.env.outputs.branch }}
+          APP_DIR: ${{ steps.env.outputs.app_dir }}
         run: |
           gcloud compute ssh convergent-ai \
             --zone us-east1-b \
             --project ailana-488814 \
             --tunnel-through-iap \
             --quiet \
-            --command='sudo bash -s' <<'EOF'
+            --command="sudo BRANCH='${BRANCH}' APP_DIR='${APP_DIR}' bash -s" <<'EOF'
           set -euo pipefail
+          echo "==> Target branch : ${BRANCH}"
+          echo "==> App directory : ${APP_DIR}"
 
-          APP_DIR="/opt/convergent-ai/ConvergentAI"
+          cd "${APP_DIR}"
+          git config --global --add safe.directory "${APP_DIR}"
 
-          echo "Go to app directory"
-          cd "$APP_DIR"
+          echo "==> Pull latest code (${BRANCH})"
+          git fetch origin "${BRANCH}"
+          git checkout "${BRANCH}"
+          git reset --hard "origin/${BRANCH}"
 
-          git config --global --add safe.directory "$APP_DIR"
+          # Compose file may live in ./docker (dev layout) or repo root (prod layout).
+          if [ -f docker/docker-compose.yaml ]; then
+            COMPOSE="-f docker/docker-compose.yaml"
+          elif [ -f docker-compose.yaml ]; then
+            COMPOSE="-f docker-compose.yaml"
+          elif [ -f docker-compose.yml ]; then
+            COMPOSE="-f docker-compose.yml"
+          else
+            echo "No docker-compose file found under ${APP_DIR}" >&2
+            exit 1
+          fi
+          echo "==> Using compose: ${COMPOSE}"
 
-          echo "Pull latest code"
-          git fetch origin main
-          git reset --hard origin/main
+          # docker compose (v2) with docker-compose (v1) fallback
+          dc() { docker compose $COMPOSE "$@" || docker-compose $COMPOSE "$@"; }
 
-          echo "Docker usage BEFORE deploy"
+          echo "==> Docker usage BEFORE deploy"
           docker system df || true
-          docker builder du || true
 
-          echo "Stop old containers"
-          docker compose down || docker-compose down
+          echo "==> Stop old containers"
+          dc down || true
 
-          echo "Rebuild and recreate containers"
-          docker compose up -d --build || docker-compose up -d --build
+          echo "==> Rebuild and recreate containers"
+          dc up -d --build
 
-          echo "Verify containers"
-          docker ps | grep convergent
+          echo "==> Verify containers"
+          docker ps | grep convergent || true
 
-          echo "Cleanup Docker build cache"
-          docker builder prune -a -f
-
-          echo "Cleanup dangling images"
-          docker image prune -f
-
-          echo "Cleanup stopped containers"
-          docker container prune -f
+          echo "==> Cleanup"
+          docker builder prune -a -f || true
+          docker image prune -f || true
+          docker container prune -f || true
           EOF
