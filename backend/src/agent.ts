@@ -199,6 +199,7 @@ export default {
     let isHibernating = false;
     let greetingGenerated = false;
     let sessionStarted = false;
+    let pendingGreeting = false;
 
     const session = new voice.AgentSession({
       userAwayTimeout: null,
@@ -514,28 +515,22 @@ export default {
           return;
         }
 
-        greetingGenerated = true;
-
         const greetingText = "Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?";
 
         if ((session as any)._started) {
+          // Session is already running (user unmuted before/during channel start signal)
           console.log(`[agent]: Session already started. Generating greeting now...`);
+          greetingGenerated = true;
           metrics.startTurn();
           metrics.markAgentSpeaking();
           session.say(greetingText, { addToChatCtx: true });
           return;
         }
 
-        try {
-          await session.start({ agent: vadAgent, room: ctx.room });
-          console.log(`[agent]: Realtime session started. Mode ${targetMode} ready.`);
-
-          metrics.startTurn();
-          metrics.markAgentSpeaking();
-          session.say(greetingText, { addToChatCtx: true });
-        } catch (err) {
-          console.error(`[agent]: Failed to start session:`, err);
-        }
+        // Session not started yet — queue the greeting. It will fire when the user unmutes
+        // (TrackUnmuted handler) or the fallback timeout triggers.
+        console.log(`[agent]: Session not ready yet. Queuing greeting — waiting for user to unmute.`);
+        pendingGreeting = true;
         return;
       }
 
@@ -580,27 +575,40 @@ export default {
     ctx.room.on(RoomEvent.TrackSubscribed, async (track, pub, participant) => {
       if (isHibernating) {
         pub.setSubscribed(false);
-        return;
       }
+    });
 
-      if (track.kind === TrackKind.KIND_AUDIO && !sessionStarted) {
-        sessionStarted = true;
-        console.log(`[agent]: User audio track subscribed (identity: ${participant?.identity}). Starting AgentSession now...`);
-        try {
-          await session.start({ agent: vadAgent, room: ctx.room });
-          console.log(`[agent]: Realtime session started successfully.`);
+    // Start the session the moment the user unmutes their microphone.
+    // This aligns the audio pipeline clock (T=0) with the first real voice packet,
+    // preventing the silence-prepend backlog caused by a clock gap.
+    ctx.room.on(RoomEvent.TrackUnmuted, async (pub, participant) => {
+      if (isHibernating) return;
+      if (pub.kind !== TrackKind.KIND_AUDIO) return;
+      if (!participant?.identity?.startsWith('guest_')) return;
+      if (sessionStarted) return;
 
-          // Send SYSTEM_AGENT_READY to the client so it knows the session is fully start-completed
-          const readyPayload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_AGENT_READY" }));
-          await ctx.room.localParticipant?.publishData(readyPayload, {
-            reliable: true,
-            topic: "lk-chat",
-          });
-          console.log(`[agent]: Sent SYSTEM_AGENT_READY signal.`);
-        } catch (err) {
-          console.error(`[agent]: Failed to start session on track subscription:`, err);
-          sessionStarted = false;
+      sessionStarted = true;
+      console.log(`[agent]: User mic unmuted (identity: ${participant?.identity}). Starting AgentSession now...`);
+      try {
+        await session.start({ agent: vadAgent, room: ctx.room });
+        console.log(`[agent]: Realtime session started successfully.`);
+
+        const readyPayload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_AGENT_READY" }));
+        await ctx.room.localParticipant?.publishData(readyPayload, { reliable: true, topic: "lk-chat" });
+        console.log(`[agent]: Sent SYSTEM_AGENT_READY signal.`);
+
+        // If the channel start signal already arrived while we were waiting, say greeting now
+        const greetingText = "Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?";
+        if (pendingGreeting && !greetingGenerated) {
+          greetingGenerated = true;
+          metrics.startTurn();
+          metrics.markAgentSpeaking();
+          session.say(greetingText, { addToChatCtx: true });
+          console.log(`[agent]: Pending greeting fired after session start.`);
         }
+      } catch (err) {
+        console.error(`[agent]: Failed to start session on TrackUnmuted:`, err);
+        sessionStarted = false;
       }
     });
 
@@ -644,9 +652,36 @@ export default {
     await ctx.connect();
     console.log(`[agent]: Connected to room: ${ctx.room.name}`);
 
-    // Delay session.start until TrackSubscribed event detects the user's audio track.
-    // This aligns the audio pipeline clock and avoids the initial prepended silence backlog.
-    console.log(`[agent]: Waiting for user audio track subscription to start session...`);
+    // Delay session.start until TrackUnmuted fires for the user's mic.
+    // This aligns the audio pipeline clock to the exact moment real voice packets begin,
+    // preventing the prepended-silence backlog.
+    // Fallback: if the user stays muted for 20 seconds (e.g. text-only mode), start anyway.
+    console.log(`[agent]: Waiting for user to unmute before starting session...`);
+    setTimeout(async () => {
+      if (sessionStarted) return;
+      sessionStarted = true;
+      console.log(`[agent]: 20s fallback — starting session without waiting for unmute.`);
+      try {
+        await session.start({ agent: vadAgent, room: ctx.room });
+        console.log(`[agent]: Fallback session started successfully.`);
+
+        const readyPayload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_AGENT_READY" }));
+        await ctx.room.localParticipant?.publishData(readyPayload, { reliable: true, topic: "lk-chat" });
+        console.log(`[agent]: Fallback sent SYSTEM_AGENT_READY signal.`);
+
+        const greetingText = "Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?";
+        if (pendingGreeting && !greetingGenerated) {
+          greetingGenerated = true;
+          metrics.startTurn();
+          metrics.markAgentSpeaking();
+          session.say(greetingText, { addToChatCtx: true });
+          console.log(`[agent]: Fallback greeting fired.`);
+        }
+      } catch (err) {
+        console.error(`[agent]: Fallback session start failed:`, err);
+        sessionStarted = false;
+      }
+    }, 20000);
 
     const activeModelName = 'cascade-livekit-inference (Cerebras GPT-OSS 120B + Cartesia)';
     console.log(
