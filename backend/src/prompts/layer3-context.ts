@@ -264,9 +264,9 @@ export function buildLayer3TurnContext(
   // ── Stage transition bridge instruction ───────────────────────────────────
   let bridgeBlock = '';
   if (profile.bridge_to_say === 'stage1_to_stage2') {
-    bridgeBlock = `\n\nBRIDGE INSTRUCTION:\nStart your response by saying EXACTLY: "That gives me a great starting point. Now I would like to spend a few minutes exploring your financial picture — income, current debts, credit profile, and a few other details — so I can map out the loan programs that may be most relevant to your situation." then proceed to ask for ${pendingField}.`;
+    bridgeBlock = `\n\n*** MANDATORY TRANSITION — DO NOT SKIP ***\nYour response for this turn MUST follow this exact structure:\n1. One brief sentence acknowledging what the borrower just said (e.g. "Got it." or "Understood, thank you.").\n2. Then say the following transition phrase VERBATIM, word-for-word:\n"That gives me a great starting point. Now I would like to spend a few minutes exploring your financial picture — income, current debts, credit profile, and a few other details — so I can map out the loan programs that may be most relevant to your situation."\n3. Then immediately ask for ${pendingField}.\nDo NOT skip this transition regardless of what the borrower just said. Do NOT replace the verbatim phrase with your own words.`;
   } else if (profile.bridge_to_say === 'stage2_to_stage3') {
-    bridgeBlock = `\n\nBRIDGE INSTRUCTION:\nStart your response by saying EXACTLY: "Based on what you have shared, I can walk you through the loan programs that may be most relevant to your situation and answer any questions you have about the process."`;
+    bridgeBlock = `\n\n*** MANDATORY TRANSITION — DO NOT SKIP ***\nYour response for this turn MUST follow this exact structure:\n1. One brief sentence acknowledging what the borrower just said.\n2. Then say the following transition phrase VERBATIM, word-for-word:\n"Based on what you have shared, I can walk you through the loan programs that may be most relevant to your situation and answer any questions you have about the process."\nDo NOT skip this transition regardless of what the borrower just said. Do NOT replace the verbatim phrase with your own words.`;
   }
 
   // ── Stage 2 Closing Offer Instruction ──────────────────────────────────────

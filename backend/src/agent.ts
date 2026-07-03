@@ -84,15 +84,9 @@ class AilanaVoiceAgent extends voice.Agent {
   }
 
   override async onUserTurnCompleted(chatCtx: any, userMessage: any): Promise<void> {
-    const confidence = userMessage?.transcriptConfidence;
-    console.log(`[agent-hook]: onUserTurnCompleted hook triggered with message: "${userMessage?.textContent}" (confidence: ${confidence})`);
+    console.log(`[agent-hook]: onUserTurnCompleted hook triggered with message: "${userMessage?.textContent}"`);
 
-    if (confidence !== undefined && confidence !== null && confidence < 0.6) {
-      console.log(`[agent-hook]: Low confidence transcript detected (${confidence} < 0.6). Flagging low confidence.`);
-      this.contextManager.setLowConfidenceFlag(true);
-    } else {
-      this.contextManager.setLowConfidenceFlag(false);
-    }
+    this.contextManager.setLowConfidenceFlag(false);
 
     if (userMessage?.textContent) {
       await this.contextManager.onUserTurn(userMessage.textContent);
@@ -207,6 +201,19 @@ export default {
 
     const session = new voice.AgentSession({
       userAwayTimeout: null,
+      turnHandling: {
+        turnDetection: 'stt' as const,
+        endpointing: {
+          minDelay: ailanaConfig.vadEndpointMinDelayMs,
+        },
+        interruption: {
+          minDuration: ailanaConfig.vadInterruptMinDurationMs,
+          mode: 'vad' as const,
+        },
+        preemptiveGeneration: {
+          enabled: false,
+        },
+      } as any,
     });
 
     const backchannelEngine = new BackchannelEngine();
