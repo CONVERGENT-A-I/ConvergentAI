@@ -6,7 +6,7 @@ if (process.platform === 'win32') {
 }
 
 import { type JobContext, ServerOptions, cli, voice, llm, inference } from '@livekit/agents';
-import { RoomEvent } from '@livekit/rtc-node';
+import { RoomEvent, TrackKind } from '@livekit/rtc-node';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import * as openai from '@livekit/agents-plugin-openai';
@@ -198,6 +198,7 @@ export default {
     let voiceMuted = false;
     let isHibernating = false;
     let greetingGenerated = false;
+    let sessionStarted = false;
 
     const session = new voice.AgentSession({
       userAwayTimeout: null,
@@ -576,9 +577,30 @@ export default {
       }
     });
 
-    ctx.room.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
+    ctx.room.on(RoomEvent.TrackSubscribed, async (track, pub, participant) => {
       if (isHibernating) {
         pub.setSubscribed(false);
+        return;
+      }
+
+      if (track.kind === TrackKind.KIND_AUDIO && !sessionStarted) {
+        sessionStarted = true;
+        console.log(`[agent]: User audio track subscribed (identity: ${participant?.identity}). Starting AgentSession now...`);
+        try {
+          await session.start({ agent: vadAgent, room: ctx.room });
+          console.log(`[agent]: Realtime session started successfully.`);
+
+          // Send SYSTEM_AGENT_READY to the client so it knows the session is fully start-completed
+          const readyPayload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_AGENT_READY" }));
+          await ctx.room.localParticipant?.publishData(readyPayload, {
+            reliable: true,
+            topic: "lk-chat",
+          });
+          console.log(`[agent]: Sent SYSTEM_AGENT_READY signal.`);
+        } catch (err) {
+          console.error(`[agent]: Failed to start session on track subscription:`, err);
+          sessionStarted = false;
+        }
       }
     });
 
@@ -622,23 +644,9 @@ export default {
     await ctx.connect();
     console.log(`[agent]: Connected to room: ${ctx.room.name}`);
 
-    // Pre-start the session so WebRTC audio tracks are established
-    // before the client sends SYSTEM_CHANNEL_START. This minimizes greeting latency.
-    try {
-      console.log(`[agent]: Pre-starting session on connect...`);
-      await session.start({ agent: vadAgent, room: ctx.room });
-      console.log(`[agent]: Realtime session pre-started successfully.`);
-
-      // Send SYSTEM_AGENT_READY to the client so it knows the session is fully start-completed
-      const readyPayload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_AGENT_READY" }));
-      await ctx.room.localParticipant?.publishData(readyPayload, {
-        reliable: true,
-        topic: "lk-chat",
-      });
-      console.log(`[agent]: Sent SYSTEM_AGENT_READY signal.`);
-    } catch (err) {
-      console.error(`[agent]: Failed to pre-start session on connect:`, err);
-    }
+    // Delay session.start until TrackSubscribed event detects the user's audio track.
+    // This aligns the audio pipeline clock and avoids the initial prepended silence backlog.
+    console.log(`[agent]: Waiting for user audio track subscription to start session...`);
 
     const activeModelName = 'cascade-livekit-inference (Cerebras GPT-OSS 120B + Cartesia)';
     console.log(
