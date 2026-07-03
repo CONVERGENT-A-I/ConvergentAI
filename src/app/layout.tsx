@@ -1,13 +1,9 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import Footer from "@/components/footer";
-import FloatingCTA from "@/components/floating-cta";
 import BackendConnectionTest from "@/components/backend-connection-test";
-
-import ErrorBoundary from "@/components/error-boundary";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -44,11 +40,6 @@ export default function RootLayout({
 
         {process.env.NODE_ENV === "development" && <BackendConnectionTest />}
         {children}
-        <Suspense fallback={null}>
-          <ErrorBoundary>
-            <FloatingCTA />
-          </ErrorBoundary>
-        </Suspense>
         <Footer />
       </body>
     </html>
