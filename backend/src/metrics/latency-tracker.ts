@@ -12,14 +12,36 @@ export type TurnMetrics = {
   rotationRan?: boolean;
 };
 
+/** Returns current UTC time formatted as HH:MM:SS.mmm for log readability */
+export function ts(): string {
+  return new Date().toISOString().slice(11, 23);
+}
+
 export class LatencyTracker {
   private sessionStartAt = Date.now();
   private turnNumber = 0;
   private pendingUserTurnEnd?: number;
   private pendingGenerateReply?: number;
 
+  // Per-turn pipeline stage timestamps
+  private t_stt_start: number | undefined;
+  private t_stt_complete: number | undefined;
+  private t_llm_start: number | undefined;
+  private t_llm_first_token: number | undefined;
+  private t_llm_complete: number | undefined;
+  private t_tts_start: number | undefined;
+  private t_tts_complete: number | undefined;
+
   startTurn(): number {
     this.turnNumber += 1;
+    // Reset pipeline timestamps for new turn
+    this.t_stt_start = undefined;
+    this.t_stt_complete = undefined;
+    this.t_llm_start = undefined;
+    this.t_llm_first_token = undefined;
+    this.t_llm_complete = undefined;
+    this.t_tts_start = undefined;
+    this.t_tts_complete = undefined;
     return this.turnNumber;
   }
 
@@ -29,6 +51,44 @@ export class LatencyTracker {
 
   markGenerateReply(): void {
     this.pendingGenerateReply = Date.now();
+  }
+
+  markSttStart(): void { this.t_stt_start = Date.now(); }
+  markSttComplete(transcript: string): void {
+    this.t_stt_complete = Date.now();
+    const dur = this.t_stt_start ? this.t_stt_complete - this.t_stt_start : -1;
+    console.log(`[pipeline][${ts()}] STT complete (${dur}ms): "${transcript}"`);
+  }
+
+  markLlmStart(): void {
+    this.t_llm_start = Date.now();
+    console.log(`[pipeline][${ts()}] LLM request sent → Cerebras`);
+  }
+
+  markLlmFirstToken(): void {
+    if (this.t_llm_first_token) return; // only record first
+    this.t_llm_first_token = Date.now();
+    const ttft = this.t_llm_start ? this.t_llm_first_token - this.t_llm_start : -1;
+    console.log(`[pipeline][${ts()}] LLM first token received  TTFT=${ttft}ms${ttft > 60000 ? '  ⚠️  INFRA ISSUE (>60s)' : ttft > 5000 ? '  ⚠️  HIGH' : '  ✓'}`);
+  }
+
+  markLlmComplete(): void {
+    this.t_llm_complete = Date.now();
+    const dur = this.t_llm_start ? this.t_llm_complete - this.t_llm_start : -1;
+    console.log(`[pipeline][${ts()}] LLM stream complete  total=${dur}ms`);
+  }
+
+  markTtsStart(): void {
+    this.t_tts_start = Date.now();
+    const lag = this.t_llm_first_token ? this.t_tts_start - this.t_llm_first_token : -1;
+    console.log(`[pipeline][${ts()}] TTS started  lag_after_first_token=${lag}ms`);
+  }
+
+  markTtsComplete(): void {
+    this.t_tts_complete = Date.now();
+    const dur = this.t_tts_start ? this.t_tts_complete - this.t_tts_start : -1;
+    console.log(`[pipeline][${ts()}] TTS audio complete  render_dur=${dur}ms`);
+    this.logPipelineReport();
   }
 
   markAgentSpeaking(): void {
@@ -42,31 +102,44 @@ export class LatencyTracker {
   }
 
   recordRealtimeMetrics(ttftMs: number, inputTokens: number): void {
+    // Only log if ttftMs is meaningful (not -1 placeholder)
+    if (ttftMs >= 0 && !this.t_llm_first_token) {
+      this.t_llm_first_token = Date.now();
+      console.log(`[pipeline][${ts()}] LLM TTFT (from SDK metrics): ${ttftMs}ms${ttftMs > 60000 ? '  ⚠️  INFRA ISSUE (>60s)' : ttftMs > 5000 ? '  ⚠️  HIGH' : '  ✓'}`);
+    }
     this.logTurn({ ttftMs, estimatedContextTokens: inputTokens });
   }
 
   logCompaction(itemsBefore: number, itemsAfter: number): void {
-    console.log(
-      JSON.stringify({
-        type: 'ailana-metrics',
-        event: 'context_compaction',
-        itemsBefore,
-        itemsAfter,
-        turnNumber: this.turnNumber,
-        sessionAgeMs: Date.now() - this.sessionStartAt,
-      }),
-    );
+    console.log(JSON.stringify({
+      type: 'ailana-metrics', event: 'context_compaction',
+      itemsBefore, itemsAfter,
+      turnNumber: this.turnNumber,
+      sessionAgeMs: Date.now() - this.sessionStartAt,
+    }));
   }
 
   logRotation(reason: string): void {
+    console.log(JSON.stringify({
+      type: 'ailana-metrics', event: 'session_rotation',
+      reason, turnNumber: this.turnNumber,
+      sessionAgeMs: Date.now() - this.sessionStartAt,
+    }));
+  }
+
+  /** Prints a human-readable single-line timing summary after each full turn. */
+  private logPipelineReport(): void {
+    const ref = this.t_stt_start ?? this.pendingUserTurnEnd;
+    if (!ref) return;
+    const fmt = (t?: number) => t ? `${t - ref}ms` : '?';
     console.log(
-      JSON.stringify({
-        type: 'ailana-metrics',
-        event: 'session_rotation',
-        reason,
-        turnNumber: this.turnNumber,
-        sessionAgeMs: Date.now() - this.sessionStartAt,
-      }),
+      `[pipeline][${ts()}] ── TURN ${this.turnNumber} SUMMARY ──` +
+      `  stt_done=${fmt(this.t_stt_complete)}` +
+      `  llm_start=${fmt(this.t_llm_start)}` +
+      `  llm_first_token=${fmt(this.t_llm_first_token)}` +
+      `  llm_done=${fmt(this.t_llm_complete)}` +
+      `  tts_start=${fmt(this.t_tts_start)}` +
+      `  tts_done=${fmt(this.t_tts_complete)}`
     );
   }
 
@@ -78,10 +151,8 @@ export class LatencyTracker {
       estimatedContextTokens: extra.estimatedContextTokens ?? 0,
       ...extra,
     };
-
     if (this.pendingUserTurnEnd) payload.userTurnEndAt = this.pendingUserTurnEnd;
     if (this.pendingGenerateReply) payload.generateReplyAt = this.pendingGenerateReply;
-
     console.log(JSON.stringify({ type: 'ailana-metrics', event: 'turn', ...payload }));
   }
 

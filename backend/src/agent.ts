@@ -6,14 +6,14 @@ if (process.platform === 'win32') {
 }
 
 import { type JobContext, ServerOptions, cli, voice, llm, inference } from '@livekit/agents';
-import { RoomEvent } from '@livekit/rtc-node';
+import { RoomEvent, TrackKind } from '@livekit/rtc-node';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import * as openai from '@livekit/agents-plugin-openai';
 import * as cartesia from '@livekit/agents-plugin-cartesia';
 import { ailanaConfig, getDynamicGroqApiKey } from './config/ailana-config.js';
 import { SessionContextManager } from './context/session-context-manager.js';
-import { LatencyTracker } from './metrics/latency-tracker.js';
+import { LatencyTracker, ts } from './metrics/latency-tracker.js';
 import {
   buildBaseInstructions,
   buildVoiceInstructions,
@@ -36,18 +36,57 @@ const cerebrasClient = new OpenAI({
   baseURL: ailanaConfig.cerebrasBaseUrl,
 });
 
+// Proxy client for Cerebras with transparent fallback to Groq on 429
 const originalCerebrasCreate = cerebrasClient.chat.completions.create.bind(cerebrasClient.chat.completions);
 
 cerebrasClient.chat.completions.create = (async function (body: any, options: any) {
+  const t0 = Date.now();
+  console.log(`[cerebras-proxy][${ts()}] Sending request to Cerebras: model=${body.model}`);
+  
   try {
-    console.log(`[cerebras-proxy]: Sending request to Cerebras: model=${body.model}`);
-    return await originalCerebrasCreate(body, options);
+    const result = await originalCerebrasCreate(body, options);
+    
+    // If it's a stream, intercept it to track first token and end stream timings
+    if (result && typeof (result as any)[Symbol.asyncIterator] === 'function') {
+      const originalIterator = (result as any)[Symbol.asyncIterator].bind(result);
+      
+      (result as any)[Symbol.asyncIterator] = function* () {
+        const iterator = originalIterator();
+        let isFirst = true;
+        
+        return {
+          async next() {
+            const nextResult = await iterator.next();
+            if (nextResult.done) {
+              const totalDur = Date.now() - t0;
+              console.log(`[cerebras-proxy][${ts()}] Stream complete (Total: ${totalDur}ms)`);
+              return nextResult;
+            }
+            if (isFirst) {
+              isFirst = false;
+              const ttft = Date.now() - t0;
+              console.log(`[cerebras-proxy][${ts()}] First chunk/token received (TTFT: ${ttft}ms)`);
+            }
+            return nextResult;
+          },
+          [Symbol.asyncIterator]() {
+            return this;
+          }
+        };
+      };
+    } else {
+      const dur = Date.now() - t0;
+      console.log(`[cerebras-proxy][${ts()}] Non-streaming response received (Dur: ${dur}ms)`);
+    }
+    
+    return result;
   } catch (err: any) {
     const statusCode = err?.status ?? err?.statusCode;
-    console.warn(`[cerebras-proxy]: Cerebras API error (status: ${statusCode}):`, err?.message ?? err);
+    console.warn(`[cerebras-proxy][${ts()}] Cerebras API error (status: ${statusCode}):`, err?.message ?? err);
 
     if (statusCode === 429 || (err?.message && err.message.includes('429'))) {
-      console.warn(`[cerebras-proxy]: 429 Rate Limit Exceeded. Falling back to Groq Llama-3.3-70b!`);
+      const fallbackT0 = Date.now();
+      console.warn(`[cerebras-proxy][${ts()}] 429 Rate Limit Exceeded. Falling back to Groq Llama-3.3-70b!`);
       const fallbackBody = {
         ...body,
         model: 'llama-3.3-70b-versatile',
@@ -57,11 +96,43 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
       delete fallbackBody.reasoning_format;
 
       groqClient.apiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
-      return await groqClient.chat.completions.create(fallbackBody, options);
+      const result = await groqClient.chat.completions.create(fallbackBody, options);
+
+      // If fallback is also a stream, intercept it too
+      if (result && typeof (result as any)[Symbol.asyncIterator] === 'function') {
+        const originalIterator = (result as any)[Symbol.asyncIterator].bind(result);
+        
+        (result as any)[Symbol.asyncIterator] = function* () {
+          const iterator = originalIterator();
+          let isFirst = true;
+          
+          return {
+            async next() {
+              const nextResult = await iterator.next();
+              if (nextResult.done) {
+                const totalDur = Date.now() - fallbackT0;
+                console.log(`[groq-fallback][${ts()}] Stream complete (Total: ${totalDur}ms)`);
+                return nextResult;
+              }
+              if (isFirst) {
+                isFirst = false;
+                const ttft = Date.now() - fallbackT0;
+                console.log(`[groq-fallback][${ts()}] First chunk/token received (TTFT: ${ttft}ms)`);
+              }
+              return nextResult;
+            },
+            [Symbol.asyncIterator]() {
+              return this;
+            }
+          };
+        };
+      }
+      return result;
     }
     throw err;
   }
 } as any);
+
 
 class CerebrasLLM extends openai.LLM {
   override chat(args: any) {
@@ -163,6 +234,8 @@ export default {
       apiKey: ailanaConfig.cartesiaKey,
       voice: ailanaConfig.cartesiaVoiceId,
       model: 'sonic-3.5',
+      // Streaming is on by default in the Cartesia plugin — audio chunks
+      // are forwarded as soon as the first PCM frame arrives.
     });
 
     const createVadAgent = () => {
@@ -198,6 +271,8 @@ export default {
     let voiceMuted = false;
     let isHibernating = false;
     let greetingGenerated = false;
+    let sessionStarted = false;
+    let pendingGreeting = false;
 
     const session = new voice.AgentSession({
       userAwayTimeout: null,
@@ -318,21 +393,20 @@ export default {
       }
     });
 
+    // STT: final transcript ready — mark pipeline stage
     session.on(voice.AgentSessionEventTypes.UserInputTranscribed, async (ev: any) => {
-      if (!ev.isFinal) {
-        return;
-      }
+      if (!ev.isFinal) return;
       if (!ev.transcript?.trim()) return;
 
-      console.log(`[agent-debug]: User input transcribed (isFinal=true): "${ev.transcript}"`);
-      backchannelEngine.reset();
+      const transcript = ev.transcript as string;
+      console.log(`[pipeline][${ts()}] STT final transcript: "${transcript}"`);
+      metrics.markSttComplete(transcript);
       metrics.markUserTurnEnd();
       metrics.startTurn();
     });
 
     session.on(voice.AgentSessionEventTypes.ConversationItemAdded, (ev: any) => {
       const item = ev.item as llm.ChatMessage;
-      console.log(`[agent-debug]: Conversation item added: role=${item?.role}, content="${item?.textContent}"`);
       if (item?.role === 'assistant' && item.textContent) {
         contextManager.onAgentTurn(item.textContent);
       }
@@ -347,14 +421,22 @@ export default {
       }
     });
 
+    // MetricsCollected fires with LLM TTFT data from the LiveKit pipeline
     session.on(voice.AgentSessionEventTypes.MetricsCollected, (ev: any) => {
       const m = ev.metrics;
-      if (m?.type === 'realtime_model_metrics') {
+      if (m?.type === 'llm_metrics') {
+        const ttft = m.ttftMs ?? -1;
+        const tokens = m.promptTokens ?? 0;
+        metrics.markLlmFirstToken();       // idempotent — only records once
+        metrics.markLlmComplete();
+        metrics.recordRealtimeMetrics(ttft, tokens);
+        console.log(`[pipeline][${ts()}] LLM metrics — TTFT=${ttft}ms  prompt_tokens=${tokens}  completion_tokens=${m.completionTokens ?? '?'}`);
+      } else if (m?.type === 'tts_metrics') {
+        const dur = m.duration ?? -1;
+        metrics.markTtsComplete();
+        console.log(`[pipeline][${ts()}] TTS metrics — audio_dur=${dur}ms`);
+      } else if (m?.type === 'realtime_model_metrics') {
         metrics.recordRealtimeMetrics(m.ttftMs ?? -1, m.inputTokens ?? 0);
-        contextManager.onRealtimeInputTokens(m.inputTokens ?? 0);
-      } else if (m?.type === 'llm_metrics') {
-        metrics.recordRealtimeMetrics(m.ttftMs ?? -1, m.promptTokens ?? 0);
-        contextManager.onRealtimeInputTokens(m.promptTokens ?? 0);
       }
     });
 
@@ -513,28 +595,22 @@ export default {
           return;
         }
 
-        greetingGenerated = true;
-
         const greetingText = "Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?";
 
         if ((session as any)._started) {
+          // Session is already running (user unmuted before/during channel start signal)
           console.log(`[agent]: Session already started. Generating greeting now...`);
+          greetingGenerated = true;
           metrics.startTurn();
           metrics.markAgentSpeaking();
           session.say(greetingText, { addToChatCtx: true });
           return;
         }
 
-        try {
-          await session.start({ agent: vadAgent, room: ctx.room });
-          console.log(`[agent]: Realtime session started. Mode ${targetMode} ready.`);
-
-          metrics.startTurn();
-          metrics.markAgentSpeaking();
-          session.say(greetingText, { addToChatCtx: true });
-        } catch (err) {
-          console.error(`[agent]: Failed to start session:`, err);
-        }
+        // Session not started yet — queue the greeting. It will fire when the user unmutes
+        // (TrackUnmuted handler) or the fallback timeout triggers.
+        console.log(`[agent]: Session not ready yet. Queuing greeting — waiting for user to unmute.`);
+        pendingGreeting = true;
         return;
       }
 
@@ -582,6 +658,40 @@ export default {
       }
     });
 
+    // Start the session the moment the user unmutes their microphone.
+    // This aligns the audio pipeline clock (T=0) with the first real voice packet,
+    // preventing the silence-prepend backlog caused by a clock gap.
+    ctx.room.on(RoomEvent.TrackUnmuted, async (pub, participant) => {
+      if (isHibernating) return;
+      if (pub.kind !== TrackKind.KIND_AUDIO) return;
+      if (!participant?.identity?.startsWith('guest_')) return;
+      if (sessionStarted) return;
+
+      sessionStarted = true;
+      console.log(`[agent]: User mic unmuted (identity: ${participant?.identity}). Starting AgentSession now...`);
+      try {
+        await session.start({ agent: vadAgent, room: ctx.room });
+        console.log(`[agent]: Realtime session started successfully.`);
+
+        const readyPayload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_AGENT_READY" }));
+        await ctx.room.localParticipant?.publishData(readyPayload, { reliable: true, topic: "lk-chat" });
+        console.log(`[agent]: Sent SYSTEM_AGENT_READY signal.`);
+
+        // If the channel start signal already arrived while we were waiting, say greeting now
+        const greetingText = "Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?";
+        if (pendingGreeting && !greetingGenerated) {
+          greetingGenerated = true;
+          metrics.startTurn();
+          metrics.markAgentSpeaking();
+          session.say(greetingText, { addToChatCtx: true });
+          console.log(`[agent]: Pending greeting fired after session start.`);
+        }
+      } catch (err) {
+        console.error(`[agent]: Failed to start session on TrackUnmuted:`, err);
+        sessionStarted = false;
+      }
+    });
+
     ctx.room.on(RoomEvent.DataReceived, async (payload, participant, _kind, topic) => {
       try {
         const identity = participant?.identity;
@@ -622,23 +732,56 @@ export default {
     await ctx.connect();
     console.log(`[agent]: Connected to room: ${ctx.room.name}`);
 
-    // Pre-start the session so WebRTC audio tracks are established
-    // before the client sends SYSTEM_CHANNEL_START. This minimizes greeting latency.
-    try {
-      console.log(`[agent]: Pre-starting session on connect...`);
-      await session.start({ agent: vadAgent, room: ctx.room });
-      console.log(`[agent]: Realtime session pre-started successfully.`);
+    // Measure connection latency to Cerebras API endpoint on start
+    (async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch(`${ailanaConfig.cerebrasBaseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${ailanaConfig.cerebrasApiKey}`
+          },
+          body: JSON.stringify({})
+        });
+        const duration = Date.now() - start;
+        console.log(`[latency-check][${ts()}] Cerebras API connection roundtrip test completed in ${duration}ms (HTTP Status: ${res.status})`);
+      } catch (err: any) {
+        const duration = Date.now() - start;
+        console.warn(`[latency-check][${ts()}] Cerebras API connection test returned error after ${duration}ms: ${err?.message || err}`);
+      }
+    })();
 
-      // Send SYSTEM_AGENT_READY to the client so it knows the session is fully start-completed
-      const readyPayload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_AGENT_READY" }));
-      await ctx.room.localParticipant?.publishData(readyPayload, {
-        reliable: true,
-        topic: "lk-chat",
-      });
-      console.log(`[agent]: Sent SYSTEM_AGENT_READY signal.`);
-    } catch (err) {
-      console.error(`[agent]: Failed to pre-start session on connect:`, err);
-    }
+    // Delay session.start until TrackUnmuted fires for the user's mic.
+    // This aligns the audio pipeline clock to the exact moment real voice packets begin,
+    // preventing the prepended-silence backlog.
+    // Fallback: if the user stays muted for 20 seconds (e.g. text-only mode), start anyway.
+    console.log(`[agent]: Waiting for user to unmute before starting session...`);
+    setTimeout(async () => {
+      if (sessionStarted) return;
+      sessionStarted = true;
+      console.log(`[agent]: 20s fallback — starting session without waiting for unmute.`);
+      try {
+        await session.start({ agent: vadAgent, room: ctx.room });
+        console.log(`[agent]: Fallback session started successfully.`);
+
+        const readyPayload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_AGENT_READY" }));
+        await ctx.room.localParticipant?.publishData(readyPayload, { reliable: true, topic: "lk-chat" });
+        console.log(`[agent]: Fallback sent SYSTEM_AGENT_READY signal.`);
+
+        const greetingText = "Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?";
+        if (pendingGreeting && !greetingGenerated) {
+          greetingGenerated = true;
+          metrics.startTurn();
+          metrics.markAgentSpeaking();
+          session.say(greetingText, { addToChatCtx: true });
+          console.log(`[agent]: Fallback greeting fired.`);
+        }
+      } catch (err) {
+        console.error(`[agent]: Fallback session start failed:`, err);
+        sessionStarted = false;
+      }
+    }, 20000);
 
     const activeModelName = 'cascade-livekit-inference (Cerebras GPT-OSS 120B + Cartesia)';
     console.log(
