@@ -40,7 +40,7 @@ jobs:
           if [ "$TARGET" = "production" ]; then
             echo "branch=main"                                       >> "$GITHUB_OUTPUT"
             echo "git_dir=/opt/convergent-ai/convergent-prod"        >> "$GITHUB_OUTPUT"
-            echo "compose_dir=/opt/convergent-ai/convergent-prod"    >> "$GITHUB_OUTPUT"
+            echo "compose_dir=/opt/convergent-ai/convergent-prod/docker"    >> "$GITHUB_OUTPUT"
             echo "env_name=production"                               >> "$GITHUB_OUTPUT"
             echo "secret_prefix=prod-convergent"                     >> "$GITHUB_OUTPUT"
           else
