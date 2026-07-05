@@ -42,11 +42,13 @@ jobs:
             echo "git_dir=/opt/convergent-ai/convergent-prod"        >> "$GITHUB_OUTPUT"
             echo "compose_dir=/opt/convergent-ai/convergent-prod"    >> "$GITHUB_OUTPUT"
             echo "env_name=production"                               >> "$GITHUB_OUTPUT"
+            echo "secret_prefix=prod-convergent"                     >> "$GITHUB_OUTPUT"
           else
             echo "branch=dev"                                            >> "$GITHUB_OUTPUT"
             echo "git_dir=/opt/convergent-ai/convergent-dev"            >> "$GITHUB_OUTPUT"
             echo "compose_dir=/opt/convergent-ai/convergent-dev/docker" >> "$GITHUB_OUTPUT"
             echo "env_name=dev"                                         >> "$GITHUB_OUTPUT"
+            echo "secret_prefix=dev-convergent"                        >> "$GITHUB_OUTPUT"
           fi
 
       - name: Auth to Google Cloud
@@ -65,6 +67,7 @@ jobs:
           BRANCH: ${{ steps.env.outputs.branch }}
           GIT_DIR: ${{ steps.env.outputs.git_dir }}
           COMPOSE_DIR: ${{ steps.env.outputs.compose_dir }}
+          SECRET_PREFIX: ${{ steps.env.outputs.secret_prefix }}
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           set -euo pipefail
@@ -76,6 +79,8 @@ jobs:
           BRANCH="${BRANCH}"
           GIT_DIR="${GIT_DIR}"
           COMPOSE_DIR="${COMPOSE_DIR}"
+          SECRET_PREFIX="${SECRET_PREFIX}"
+          GCP_PROJECT="ailana-488814"
           REPO_DIR="\${GIT_DIR}/${GH_REPO}"
 
           echo "==> Target branch : \${BRANCH}"
@@ -94,13 +99,17 @@ jobs:
           git -C "\${REPO_DIR}" remote set-url origin "https://github.com/${GH_OWNER}/${GH_REPO}.git"
           echo "==> Checked out: \$(git -C "\${REPO_DIR}" rev-parse --short HEAD) on \${BRANCH}"
 
-          # ---- 2) Locate compose file ----
+          # ---- 2) Pull env files from Secret Manager (per environment) ----
           cd "\${COMPOSE_DIR}"
-          ## ---- pull env lastest version from GCP Secrets manager ----------##
-          gcloud secrets versions access latest --secret=dev-convergent-frontend-env --project=ailana-488814 > frontend.env
-          gcloud secrets versions access latest --secret=dev-convergent-backend-env --project=ailana-488814 > backend.env
+          echo "==> Fetching env from Secret Manager (\${SECRET_PREFIX}-*)"
+          gcloud secrets versions access latest \
+            --secret="\${SECRET_PREFIX}-frontend-env" --project="\${GCP_PROJECT}" > frontend.env
+          gcloud secrets versions access latest \
+            --secret="\${SECRET_PREFIX}-backend-env"  --project="\${GCP_PROJECT}" > backend.env
+          chmod 600 frontend.env backend.env
+          echo "==> env pulled: frontend.env=\$(grep -vcE '^\s*#|^\s*\$' frontend.env) vars, backend.env=\$(grep -vcE '^\s*#|^\s*\$' backend.env) vars"
 
-          ## ---- verify dependencies before deploy ---------##
+          # ---- 3) Locate compose file ----
           if   [ -f docker-compose.yaml ]; then COMPOSE="-f docker-compose.yaml"
           elif [ -f docker-compose.yml  ]; then COMPOSE="-f docker-compose.yml"
           elif [ -f docker/docker-compose.yaml ]; then COMPOSE="-f docker/docker-compose.yaml"
