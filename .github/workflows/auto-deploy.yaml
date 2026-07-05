@@ -96,6 +96,11 @@ jobs:
 
           # ---- 2) Locate compose file ----
           cd "\${COMPOSE_DIR}"
+          ## ---- pull env lastest version from GCP Secrets manager ----------##
+          gcloud secrets versions access latest --secret=dev-convergent-frontend-env --project=ailana-488814 > frontend.env
+          gcloud secrets versions access latest --secret=dev-convergent-backend-env --project=ailana-488814 > backend.env
+
+          ## ---- verify dependencies before deploy ---------##
           if   [ -f docker-compose.yaml ]; then COMPOSE="-f docker-compose.yaml"
           elif [ -f docker-compose.yml  ]; then COMPOSE="-f docker-compose.yml"
           elif [ -f docker/docker-compose.yaml ]; then COMPOSE="-f docker/docker-compose.yaml"
