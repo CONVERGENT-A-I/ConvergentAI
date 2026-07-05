@@ -132,7 +132,7 @@ jobs:
           echo "==> Verify"
           docker ps | grep convergent || true
           echo "==> Cleanup (keep recent build cache for fast rebuilds)"
-          docker builder prune -f --filter "until=72h" || true
+          docker builder prune -f --filter "until=24h" || true
           docker image prune -f || true
           docker container prune -f || true
           REMOTE
