@@ -11,7 +11,7 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import * as openai from '@livekit/agents-plugin-openai';
 import * as cartesia from '@livekit/agents-plugin-cartesia';
-import { ailanaConfig, getDynamicGroqApiKey } from './config/ailana-config.js';
+import { ailanaConfig } from './config/ailana-config.js';
 import { SessionContextManager } from './context/session-context-manager.js';
 import { LatencyTracker, ts } from './metrics/latency-tracker.js';
 import {
@@ -25,18 +25,11 @@ import { evaluateEmotion } from './utils/avatar-emotion-engine.js';
 import { BackchannelEngine } from './utils/backchannel-engine.js';
 import { OpenAI } from 'openai';
 
-// Proxy client for Cerebras with transparent fallback to Groq on 429
-const groqClient = new OpenAI({
-  apiKey: getDynamicGroqApiKey() || ailanaConfig.groqApiKey,
-  baseURL: 'https://api.groq.com/openai/v1',
-});
-
 const cerebrasClient = new OpenAI({
   apiKey: ailanaConfig.cerebrasApiKey,
   baseURL: ailanaConfig.cerebrasBaseUrl,
 });
 
-// Proxy client for Cerebras with transparent fallback to Groq on 429
 const originalCerebrasCreate = cerebrasClient.chat.completions.create.bind(cerebrasClient.chat.completions);
 
 cerebrasClient.chat.completions.create = (async function (body: any, options: any) {
@@ -53,11 +46,12 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
       
       const result = await originalCerebrasCreate(body, options);
       
-      // If it's a stream, intercept it to track first token and end stream timings
+      // If it's a stream, intercept it to track first token, end stream timings, and log the full response
       if (result && typeof (result as any)[Symbol.asyncIterator] === 'function') {
         const originalIterator = (result as any)[Symbol.asyncIterator].bind(result);
+        const accumulatedChunks: any[] = [];
         
-        (result as any)[Symbol.asyncIterator] = function* () {
+        (result as any)[Symbol.asyncIterator] = function () {
           const iterator = originalIterator();
           let isFirst = true;
           
@@ -67,12 +61,16 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
               if (nextResult.done) {
                 const totalDur = Date.now() - t0;
                 console.log(`[cerebras-proxy][${ts()}] Stream complete (Total: ${totalDur}ms)`);
+                console.log(`[cerebras-proxy][${ts()}] HTTP 200 full stream response (${accumulatedChunks.length} chunks):`, JSON.stringify(accumulatedChunks, null, 2));
                 return nextResult;
               }
               if (isFirst) {
                 isFirst = false;
                 const ttft = Date.now() - t0;
                 console.log(`[cerebras-proxy][${ts()}] First chunk/token received (TTFT: ${ttft}ms)`);
+              }
+              if (nextResult.value) {
+                accumulatedChunks.push(nextResult.value);
               }
               return nextResult;
             },
@@ -84,6 +82,7 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
       } else {
         const dur = Date.now() - t0;
         console.log(`[cerebras-proxy][${ts()}] Non-streaming response received (Dur: ${dur}ms)`);
+        console.log(`[cerebras-proxy][${ts()}] HTTP 200 full response:`, JSON.stringify(result, null, 2));
       }
       
       return result;
@@ -92,63 +91,18 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
       const statusCode = err?.status ?? err?.statusCode;
       console.warn(`[cerebras-proxy][${ts()}] Cerebras API error (status: ${statusCode}, attempt: ${attempt}):`, err?.message ?? err);
 
-      // On first attempt with a retryable error, wait and retry
+      // Log full error body for HTTP 400
+      if (statusCode === 400) {
+        console.error(`[cerebras-proxy][${ts()}] HTTP 400 full error response:`, JSON.stringify(err?.error ?? err?.body ?? { message: err?.message, code: err?.code, status: statusCode }, null, 2));
+      }
+
+      // On first attempt with a retryable error, wait and retry once
       if (attempt === 0 && (statusCode === 400 || statusCode === 500 || statusCode === 502 || statusCode === 503)) {
         await new Promise(resolve => setTimeout(resolve, 500));
         continue;
       }
 
-      // Fall back to Groq on rate limit (429) or persistent 400/5xx errors
-      if (statusCode === 429 || statusCode === 400 || statusCode === 500 || statusCode === 502 || statusCode === 503
-          || (err?.message && (err.message.includes('429') || err.message.includes('400')))) {
-        const fallbackT0 = Date.now();
-        console.warn(`[cerebras-proxy][${ts()}] Falling back to Groq Llama-3.3-70b (status: ${statusCode})!`);
-        const fallbackBody = {
-          ...body,
-          model: 'llama-3.3-70b-versatile',
-        };
-        // Remove Cerebras specific parameters that Groq doesn't support
-        delete fallbackBody.reasoning_effort;
-        delete fallbackBody.reasoning_format;
-
-        groqClient.apiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
-        const result = await groqClient.chat.completions.create(fallbackBody, options);
-
-        // If fallback is also a stream, intercept it too
-        if (result && typeof (result as any)[Symbol.asyncIterator] === 'function') {
-          const originalIterator = (result as any)[Symbol.asyncIterator].bind(result);
-          
-          (result as any)[Symbol.asyncIterator] = function* () {
-            const iterator = originalIterator();
-            let isFirst = true;
-            
-            return {
-              async next() {
-                const nextResult = await iterator.next();
-                if (nextResult.done) {
-                  const totalDur = Date.now() - fallbackT0;
-                  console.log(`[groq-fallback][${ts()}] Stream complete (Total: ${totalDur}ms)`);
-                  return nextResult;
-                }
-                if (isFirst) {
-                  isFirst = false;
-                  const ttft = Date.now() - fallbackT0;
-                  console.log(`[groq-fallback][${ts()}] First chunk/token received (TTFT: ${ttft}ms)`);
-                }
-                return nextResult;
-              },
-              [Symbol.asyncIterator]() {
-                return this;
-              }
-            };
-          };
-        } else {
-          const dur = Date.now() - fallbackT0;
-          console.log(`[groq-fallback][${ts()}] Non-streaming response received (Dur: ${dur}ms)`);
-        }
-        
-        return result;
-      }
+      // No Groq fallback — propagate the Cerebras error directly
       throw err;
     }
   }
@@ -182,7 +136,14 @@ class AilanaVoiceAgent extends voice.Agent {
     this.contextManager.setLowConfidenceFlag(false);
 
     if (userMessage?.textContent) {
-      await this.contextManager.onUserTurn(userMessage.textContent);
+      // Race the extraction against a 600ms deadline.
+      // If Cerebras is slow (high queue_time), we still release the hook
+      // promptly so the main LLM can start generating without waiting for
+      // the extractor. The extractor finishes async; instructions update
+      // for the current turn if it wins, or next turn if it times out.
+      const extractionDone = this.contextManager.onUserTurn(userMessage.textContent);
+      const timeout = new Promise<void>(resolve => setTimeout(resolve, 600));
+      await Promise.race([extractionDone, timeout]);
     }
 
     // Update original instructions in the session
@@ -233,9 +194,9 @@ export default {
 
     const metrics = new LatencyTracker();
     const summarizationLlm = new openai.LLM({
-      model: 'llama-3.3-70b-versatile',
-      baseURL: 'https://api.groq.com/openai/v1',
-      apiKey: getDynamicGroqApiKey() || ailanaConfig.groqApiKey,
+      model: 'llama3.1-8b',
+      baseURL: ailanaConfig.cerebrasBaseUrl,
+      apiKey: ailanaConfig.cerebrasApiKey,
     });
     const contextManager = new SessionContextManager(summarizationLlm, metrics);
 
@@ -617,22 +578,29 @@ export default {
           return;
         }
 
+        greetingGenerated = true;
         const greetingText = "Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?";
 
-        if ((session as any)._started) {
-          // Session is already running (user unmuted before/during channel start signal)
-          console.log(`[agent]: Session already started. Generating greeting now...`);
-          greetingGenerated = true;
+        try {
+          if (!(session as any)._started) {
+            sessionStarted = true;
+            await session.start({ agent: vadAgent, room: ctx.room });
+            console.log(`[agent]: Session started on SYSTEM_CHANNEL_START.`);
+
+            const readyPayload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_AGENT_READY" }));
+            await ctx.room.localParticipant?.publishData(readyPayload, { reliable: true, topic: "lk-chat" });
+            console.log(`[agent]: Sent SYSTEM_AGENT_READY signal.`);
+          }
+
           metrics.startTurn();
           metrics.markAgentSpeaking();
           session.say(greetingText, { addToChatCtx: true });
-          return;
+          console.log(`[agent]: Greeting fired.`);
+        } catch (err) {
+          console.error(`[agent]: Failed to start session on SYSTEM_CHANNEL_START:`, err);
+          greetingGenerated = false;
+          sessionStarted = false;
         }
-
-        // Session not started yet — queue the greeting. It will fire when the user unmutes
-        // (TrackUnmuted handler) or the fallback timeout triggers.
-        console.log(`[agent]: Session not ready yet. Queuing greeting — waiting for user to unmute.`);
-        pendingGreeting = true;
         return;
       }
 
@@ -764,7 +732,11 @@ export default {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${ailanaConfig.cerebrasApiKey}`
           },
-          body: JSON.stringify({})
+          body: JSON.stringify({
+            model: 'gpt-oss-120b',
+            messages: [{ role: 'user', content: 'ping' }],
+            max_tokens: 1,
+          })
         });
         const duration = Date.now() - start;
         console.log(`[latency-check][${ts()}] Cerebras API connection roundtrip test completed in ${duration}ms (HTTP Status: ${res.status})`);
@@ -773,37 +745,6 @@ export default {
         console.warn(`[latency-check][${ts()}] Cerebras API connection test returned error after ${duration}ms: ${err?.message || err}`);
       }
     })();
-
-    // Delay session.start until TrackUnmuted fires for the user's mic.
-    // This aligns the audio pipeline clock to the exact moment real voice packets begin,
-    // preventing the prepended-silence backlog.
-    // Fallback: if the user stays muted for 20 seconds (e.g. text-only mode), start anyway.
-    console.log(`[agent]: Waiting for user to unmute before starting session...`);
-    setTimeout(async () => {
-      if (sessionStarted) return;
-      sessionStarted = true;
-      console.log(`[agent]: 20s fallback — starting session without waiting for unmute.`);
-      try {
-        await session.start({ agent: vadAgent, room: ctx.room });
-        console.log(`[agent]: Fallback session started successfully.`);
-
-        const readyPayload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_AGENT_READY" }));
-        await ctx.room.localParticipant?.publishData(readyPayload, { reliable: true, topic: "lk-chat" });
-        console.log(`[agent]: Fallback sent SYSTEM_AGENT_READY signal.`);
-
-        const greetingText = "Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?";
-        if (pendingGreeting && !greetingGenerated) {
-          greetingGenerated = true;
-          metrics.startTurn();
-          metrics.markAgentSpeaking();
-          session.say(greetingText, { addToChatCtx: true });
-          console.log(`[agent]: Fallback greeting fired.`);
-        }
-      } catch (err) {
-        console.error(`[agent]: Fallback session start failed:`, err);
-        sessionStarted = false;
-      }
-    }, 20000);
 
     const activeModelName = 'cascade-livekit-inference (Cerebras GPT-OSS 120B + Cartesia)';
     console.log(

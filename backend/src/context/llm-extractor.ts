@@ -1,15 +1,14 @@
 import { OpenAI } from 'openai';
-import { ailanaConfig, getDynamicGroqApiKey } from '../config/ailana-config.js';
+import { ailanaConfig } from '../config/ailana-config.js';
 
-const openaiClient = new OpenAI({
+// Extraction client — uses gpt-oss-120b (the only model available on this
+// Cerebras account). llama3.1-8b returns 404 (not provisioned).
+const fastClient = new OpenAI({
   apiKey: ailanaConfig.cerebrasApiKey,
   baseURL: ailanaConfig.cerebrasBaseUrl,
 });
 
-const groqClient = new OpenAI({
-  apiKey: getDynamicGroqApiKey() || ailanaConfig.groqApiKey,
-  baseURL: 'https://api.groq.com/openai/v1',
-});
+const EXTRACTION_MODEL = 'gpt-oss-120b';
 
 export interface ExtractionResult {
   value: string | number | null;
@@ -47,12 +46,12 @@ User input: "${userInput}"`;
   let content: string | null = null;
 
   try {
-    // Retry once for transient Cerebras errors before falling back
+    // Retry once for transient Cerebras errors
     let cerebrasErr: any = null;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const response = await openaiClient.chat.completions.create({
-          model: 'gpt-oss-120b',
+        const response = await fastClient.chat.completions.create({
+          model: EXTRACTION_MODEL,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
@@ -60,14 +59,16 @@ User input: "${userInput}"`;
           response_format: { type: 'json_object' },
           temperature: 0.0,
         });
+        console.log(`[llm-extractor] HTTP 200 full response for "${fieldName}":`, JSON.stringify(response, null, 2));
         content = response.choices[0]?.message?.content || null;
         cerebrasErr = null;
         break;
       } catch (error: any) {
         cerebrasErr = error;
         const statusCode = error?.status ?? error?.statusCode;
-        if (attempt === 0 && (statusCode === 400 || statusCode === 500 || statusCode === 502 || statusCode === 503)) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+        if (attempt === 0 && (statusCode === 500 || statusCode === 502 || statusCode === 503)) {
+          // Brief pause only for transient server errors
+          await new Promise(resolve => setTimeout(resolve, 200));
           continue;
         }
         break;
@@ -77,21 +78,12 @@ User input: "${userInput}"`;
       throw cerebrasErr;
     }
   } catch (error: any) {
-    console.warn(`[llm-extractor] Cerebras failed for ${fieldName}, falling back to Groq:`, error?.message ?? error);
-    try {
-      const response = await groqClient.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.0,
-      });
-      content = response.choices[0]?.message?.content || null;
-    } catch (groqError: any) {
-      console.error(`[llm-extractor] Groq fallback failed for ${fieldName}:`, groqError?.message ?? groqError);
+    const statusCode = error?.status ?? error?.statusCode;
+    console.error(`[llm-extractor] Cerebras failed for "${fieldName}" (status: ${statusCode}):`, error?.message ?? error);
+    if (statusCode === 400) {
+      console.error(`[llm-extractor] HTTP 400 full error response for "${fieldName}":`, JSON.stringify(error?.error ?? error?.body ?? { message: error?.message, code: error?.code, status: statusCode }, null, 2));
     }
+    // content stays null; caller receives { value: null, declined: false }
   }
 
   if (!content) {
@@ -166,12 +158,12 @@ User input: "${userInput}"`;
   let content: string | null = null;
 
   try {
-    // Retry once for transient Cerebras errors before falling back
+    // Retry once for transient Cerebras errors
     let cerebrasErr: any = null;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const response = await openaiClient.chat.completions.create({
-          model: 'gpt-oss-120b',
+        const response = await fastClient.chat.completions.create({
+          model: EXTRACTION_MODEL,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
@@ -179,14 +171,16 @@ User input: "${userInput}"`;
           response_format: { type: 'json_object' },
           temperature: 0.0,
         });
+        console.log(`[llm-extractor] HTTP 200 full response for multi-field extraction [${fields.map(f => f.name).join(', ')}]:`, JSON.stringify(response, null, 2));
         content = response.choices[0]?.message?.content || null;
         cerebrasErr = null;
         break;
       } catch (error: any) {
         cerebrasErr = error;
         const statusCode = error?.status ?? error?.statusCode;
-        if (attempt === 0 && (statusCode === 400 || statusCode === 500 || statusCode === 502 || statusCode === 503)) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+        if (attempt === 0 && (statusCode === 500 || statusCode === 502 || statusCode === 503)) {
+          // Brief pause only for transient server errors
+          await new Promise(resolve => setTimeout(resolve, 200));
           continue;
         }
         break;
@@ -196,21 +190,12 @@ User input: "${userInput}"`;
       throw cerebrasErr;
     }
   } catch (error: any) {
-    console.warn(`[llm-extractor] Cerebras failed for multiple fields, falling back to Groq:`, error?.message ?? error);
-    try {
-      const response = await groqClient.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.0,
-      });
-      content = response.choices[0]?.message?.content || null;
-    } catch (groqError: any) {
-      console.error(`[llm-extractor] Groq fallback failed for multiple fields:`, groqError?.message ?? groqError);
+    const statusCode = error?.status ?? error?.statusCode;
+    console.error(`[llm-extractor] Cerebras failed for multi-field extraction [${fields.map(f => f.name).join(', ')}] (status: ${statusCode}):`, error?.message ?? error);
+    if (statusCode === 400) {
+      console.error(`[llm-extractor] HTTP 400 full error response for multi-field extraction:`, JSON.stringify(error?.error ?? error?.body ?? { message: error?.message, code: error?.code, status: statusCode }, null, 2));
     }
+    // content stays null; caller receives empty results
   }
 
   const results: Record<string, ExtractionResult> = {};
@@ -270,11 +255,12 @@ User response: "${userInput}"`;
   let content: string | null = null;
 
   try {
+    // Retry once for transient Cerebras errors
     let cerebrasErr: any = null;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const response = await openaiClient.chat.completions.create({
-          model: 'gpt-oss-120b',
+        const response = await fastClient.chat.completions.create({
+          model: EXTRACTION_MODEL,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
@@ -282,14 +268,16 @@ User response: "${userInput}"`;
           response_format: { type: 'json_object' },
           temperature: 0.0,
         });
+        console.log(`[llm-extractor] HTTP 200 full response for classifyConfirmation "${fieldName}":`, JSON.stringify(response, null, 2));
         content = response.choices[0]?.message?.content || null;
         cerebrasErr = null;
         break;
       } catch (error: any) {
         cerebrasErr = error;
         const statusCode = error?.status ?? error?.statusCode;
-        if (attempt === 0 && (statusCode === 400 || statusCode === 500 || statusCode === 502 || statusCode === 503)) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+        if (attempt === 0 && (statusCode === 500 || statusCode === 502 || statusCode === 503)) {
+          // Brief pause only for transient server errors
+          await new Promise(resolve => setTimeout(resolve, 200));
           continue;
         }
         break;
@@ -299,21 +287,12 @@ User response: "${userInput}"`;
       throw cerebrasErr;
     }
   } catch (error: any) {
-    console.warn(`[llm-extractor] Cerebras classify failed for ${fieldName}, falling back to Groq:`, error?.message ?? error);
-    try {
-      const response = await groqClient.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.0,
-      });
-      content = response.choices[0]?.message?.content || null;
-    } catch (groqError: any) {
-      console.error(`[llm-extractor] Groq classify fallback failed for ${fieldName}:`, groqError?.message ?? groqError);
+    const statusCode = error?.status ?? error?.statusCode;
+    console.error(`[llm-extractor] Cerebras classify failed for "${fieldName}" (status: ${statusCode}):`, error?.message ?? error);
+    if (statusCode === 400) {
+      console.error(`[llm-extractor] HTTP 400 full error response for classifyConfirmation "${fieldName}":`, JSON.stringify(error?.error ?? error?.body ?? { message: error?.message, code: error?.code, status: statusCode }, null, 2));
     }
+    // content stays null; caller returns 'ambiguous'
   }
 
   if (content) {
