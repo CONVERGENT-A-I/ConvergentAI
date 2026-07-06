@@ -40,65 +40,20 @@ const cerebrasClient = new OpenAI({
 const originalCerebrasCreate = cerebrasClient.chat.completions.create.bind(cerebrasClient.chat.completions);
 
 cerebrasClient.chat.completions.create = (async function (body: any, options: any) {
-  const t0 = Date.now();
-  console.log(`[cerebras-proxy][${ts()}] Sending request to Cerebras: model=${body.model}`);
-  
-  try {
-    const result = await originalCerebrasCreate(body, options);
-    
-    // If it's a stream, intercept it to track first token and end stream timings
-    if (result && typeof (result as any)[Symbol.asyncIterator] === 'function') {
-      const originalIterator = (result as any)[Symbol.asyncIterator].bind(result);
+  let lastErr: any = null;
+  // Retry once with backoff for transient Cerebras errors before falling back
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const t0 = Date.now();
+    try {
+      if (attempt === 0) {
+        console.log(`[cerebras-proxy][${ts()}] Sending request to Cerebras: model=${body.model}`);
+      } else {
+        console.log(`[cerebras-proxy][${ts()}] Retry #${attempt} to Cerebras: model=${body.model}`);
+      }
       
-      (result as any)[Symbol.asyncIterator] = function* () {
-        const iterator = originalIterator();
-        let isFirst = true;
-        
-        return {
-          async next() {
-            const nextResult = await iterator.next();
-            if (nextResult.done) {
-              const totalDur = Date.now() - t0;
-              console.log(`[cerebras-proxy][${ts()}] Stream complete (Total: ${totalDur}ms)`);
-              return nextResult;
-            }
-            if (isFirst) {
-              isFirst = false;
-              const ttft = Date.now() - t0;
-              console.log(`[cerebras-proxy][${ts()}] First chunk/token received (TTFT: ${ttft}ms)`);
-            }
-            return nextResult;
-          },
-          [Symbol.asyncIterator]() {
-            return this;
-          }
-        };
-      };
-    } else {
-      const dur = Date.now() - t0;
-      console.log(`[cerebras-proxy][${ts()}] Non-streaming response received (Dur: ${dur}ms)`);
-    }
-    
-    return result;
-  } catch (err: any) {
-    const statusCode = err?.status ?? err?.statusCode;
-    console.warn(`[cerebras-proxy][${ts()}] Cerebras API error (status: ${statusCode}):`, err?.message ?? err);
-
-    if (statusCode === 429 || (err?.message && err.message.includes('429'))) {
-      const fallbackT0 = Date.now();
-      console.warn(`[cerebras-proxy][${ts()}] 429 Rate Limit Exceeded. Falling back to Groq Llama-3.3-70b!`);
-      const fallbackBody = {
-        ...body,
-        model: 'llama-3.3-70b-versatile',
-      };
-      // Remove Cerebras specific parameters that Groq doesn't support
-      delete fallbackBody.reasoning_effort;
-      delete fallbackBody.reasoning_format;
-
-      groqClient.apiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
-      const result = await groqClient.chat.completions.create(fallbackBody, options);
-
-      // If fallback is also a stream, intercept it too
+      const result = await originalCerebrasCreate(body, options);
+      
+      // If it's a stream, intercept it to track first token and end stream timings
       if (result && typeof (result as any)[Symbol.asyncIterator] === 'function') {
         const originalIterator = (result as any)[Symbol.asyncIterator].bind(result);
         
@@ -110,14 +65,14 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
             async next() {
               const nextResult = await iterator.next();
               if (nextResult.done) {
-                const totalDur = Date.now() - fallbackT0;
-                console.log(`[groq-fallback][${ts()}] Stream complete (Total: ${totalDur}ms)`);
+                const totalDur = Date.now() - t0;
+                console.log(`[cerebras-proxy][${ts()}] Stream complete (Total: ${totalDur}ms)`);
                 return nextResult;
               }
               if (isFirst) {
                 isFirst = false;
-                const ttft = Date.now() - fallbackT0;
-                console.log(`[groq-fallback][${ts()}] First chunk/token received (TTFT: ${ttft}ms)`);
+                const ttft = Date.now() - t0;
+                console.log(`[cerebras-proxy][${ts()}] First chunk/token received (TTFT: ${ttft}ms)`);
               }
               return nextResult;
             },
@@ -126,11 +81,78 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
             }
           };
         };
+      } else {
+        const dur = Date.now() - t0;
+        console.log(`[cerebras-proxy][${ts()}] Non-streaming response received (Dur: ${dur}ms)`);
       }
+      
       return result;
+    } catch (err: any) {
+      lastErr = err;
+      const statusCode = err?.status ?? err?.statusCode;
+      console.warn(`[cerebras-proxy][${ts()}] Cerebras API error (status: ${statusCode}, attempt: ${attempt}):`, err?.message ?? err);
+
+      // On first attempt with a retryable error, wait and retry
+      if (attempt === 0 && (statusCode === 400 || statusCode === 500 || statusCode === 502 || statusCode === 503)) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        continue;
+      }
+
+      // Fall back to Groq on rate limit (429) or persistent 400/5xx errors
+      if (statusCode === 429 || statusCode === 400 || statusCode === 500 || statusCode === 502 || statusCode === 503
+          || (err?.message && (err.message.includes('429') || err.message.includes('400')))) {
+        const fallbackT0 = Date.now();
+        console.warn(`[cerebras-proxy][${ts()}] Falling back to Groq Llama-3.3-70b (status: ${statusCode})!`);
+        const fallbackBody = {
+          ...body,
+          model: 'llama-3.3-70b-versatile',
+        };
+        // Remove Cerebras specific parameters that Groq doesn't support
+        delete fallbackBody.reasoning_effort;
+        delete fallbackBody.reasoning_format;
+
+        groqClient.apiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
+        const result = await groqClient.chat.completions.create(fallbackBody, options);
+
+        // If fallback is also a stream, intercept it too
+        if (result && typeof (result as any)[Symbol.asyncIterator] === 'function') {
+          const originalIterator = (result as any)[Symbol.asyncIterator].bind(result);
+          
+          (result as any)[Symbol.asyncIterator] = function* () {
+            const iterator = originalIterator();
+            let isFirst = true;
+            
+            return {
+              async next() {
+                const nextResult = await iterator.next();
+                if (nextResult.done) {
+                  const totalDur = Date.now() - fallbackT0;
+                  console.log(`[groq-fallback][${ts()}] Stream complete (Total: ${totalDur}ms)`);
+                  return nextResult;
+                }
+                if (isFirst) {
+                  isFirst = false;
+                  const ttft = Date.now() - fallbackT0;
+                  console.log(`[groq-fallback][${ts()}] First chunk/token received (TTFT: ${ttft}ms)`);
+                }
+                return nextResult;
+              },
+              [Symbol.asyncIterator]() {
+                return this;
+              }
+            };
+          };
+        } else {
+          const dur = Date.now() - fallbackT0;
+          console.log(`[groq-fallback][${ts()}] Non-streaming response received (Dur: ${dur}ms)`);
+        }
+        
+        return result;
+      }
+      throw err;
     }
-    throw err;
   }
+  throw lastErr;
 } as any);
 
 

@@ -114,11 +114,7 @@ export class SessionContextManager {
       } else if (this.activeStage === '3A') {
         await this.runStage3AExtraction(trimmed);
       } else if (this.activeStage === '3B') {
-        let previousField3B: string | null = null;
-        while (this.activeStage === '3B' && this.currentPendingField && this.currentPendingField !== previousField3B) {
-          previousField3B = this.currentPendingField;
-          await this.runStage3BExtraction(trimmed);
-        }
+        await this.runStage3BExtraction(trimmed);
       } else if (this.activeStage === '4') {
         await this.runStage4Extraction(trimmed);
       }
@@ -330,6 +326,10 @@ export class SessionContextManager {
     const lastQuestion = this.getLastAssistantUtterance();
     const field = this.currentPendingField;
 
+    // ── Single-field-per-turn extraction ──────────────────────────────────────
+    // Each user turn extracts at most ONE field, then advances workflow and stops.
+    // This prevents compounding questions (confirming + asking next in same response).
+
     if (field === 'submit_confirmation') {
       const decision = await classifyConfirmation(text, lastQuestion, 'ready_to_submit', 'Ready to submit your application?');
       if (decision === 'yes') {
@@ -339,24 +339,38 @@ export class SessionContextManager {
       return;
     }
 
-    const fieldsToExtract: FieldToExtract[] = [];
-    if (!this.profile.marital_status_confirmed) {
-      fieldsToExtract.push({
-        name: 'marital_status',
-        description: 'marital status (Married, Separated, or Unmarried)',
-        expectedType: 'string',
-        additionalInstructions: 'Extract marital status. Options are "married", "separated", or "unmarried". If single, divorced, or widowed, return "unmarried". If they decline, skip, or say they don\'t know, return null.',
-      });
+    if (field === 'marital_status') {
+      const res = await extractProfileField(
+        text, lastQuestion, 'marital_status',
+        'marital status (Married, Separated, or Unmarried)', 'string',
+        'Extract marital status. Options are "married", "separated", or "unmarried". If single, divorced, or widowed, return "unmarried". If they decline, skip, or say they don\'t know, return null.'
+      );
+      if (res.value) {
+        this.profile.marital_status = res.value as any;
+        this.profile.marital_status_confirmed = true;
+        this.advanceWorkflow();
+      }
+      return;
     }
-    if (!this.profile.dependents_confirmed) {
-      fieldsToExtract.push({
-        name: 'dependents',
-        description: 'number of dependents',
-        expectedType: 'number',
-        additionalInstructions: 'Extract the number of dependents (children or others they support financially). If they say none, zero, or no dependents, return 0. If decline or skip, return null.',
-      });
+
+    if (field === 'dependents') {
+      const res = await extractProfileField(
+        text, lastQuestion, 'dependents',
+        'number of dependents', 'number',
+        'Extract the number of dependents (children or others they support financially). If they say none, zero, or no dependents, return 0. If decline or skip, return null.'
+      );
+      if (res.value !== null) {
+        this.profile.dependents = res.value as number;
+        this.profile.dependents_confirmed = true;
+        this.advanceWorkflow();
+      }
+      return;
     }
-    if (!this.profile.employment_confirmed) {
+
+    if (field === 'employment_details') {
+      // Employment collects up to 3 sub-fields in one extraction since the user
+      // typically provides title, years, and self-employment status together.
+      const fieldsToExtract: FieldToExtract[] = [];
       if (this.profile.employment_position === undefined) {
         fieldsToExtract.push({
           name: 'employment_position',
@@ -381,16 +395,64 @@ export class SessionContextManager {
           additionalInstructions: 'Extract whether they are self-employed. If they explicitly mention self-employed, independent contractor, own business, return "yes". If they say no, W-2, work for a company, return "no". If not found, return null.',
         });
       }
+
+      if (fieldsToExtract.length === 0) {
+        this.profile.employment_confirmed = true;
+        this.advanceWorkflow();
+        return;
+      }
+
+      const extractionResults = await extractMultipleFields(text, lastQuestion, fieldsToExtract);
+      let anyUpdates = false;
+
+      const title = extractionResults.employment_position?.value;
+      const years = extractionResults.employment_years?.value;
+      const self = extractionResults.self_employed?.value;
+
+      if (title !== undefined && title !== null) {
+        this.profile.employment_position = title as string;
+        anyUpdates = true;
+      }
+      if (years !== undefined && years !== null) {
+        this.profile.employment_years = years as number;
+        anyUpdates = true;
+      }
+      if (self !== undefined && self !== null) {
+        this.profile.self_employed = self === 'yes';
+        anyUpdates = true;
+      }
+
+      if (
+        this.profile.employment_position !== undefined &&
+        this.profile.employment_years !== undefined &&
+        this.profile.self_employed !== undefined
+      ) {
+        this.profile.employment_confirmed = true;
+      }
+
+      if (anyUpdates) {
+        this.advanceWorkflow();
+      }
+      return;
     }
-    if (!this.profile.checking_savings_confirmed) {
-      fieldsToExtract.push({
-        name: 'checking_savings_balance',
-        description: 'checking and savings account balance',
-        expectedType: 'number',
-        additionalInstructions: 'Extract the total cash balance in their checking and savings accounts. If skip, return null.',
-      });
+
+    if (field === 'checking_savings') {
+      const res = await extractProfileField(
+        text, lastQuestion, 'checking_savings_balance',
+        'checking and savings account balance', 'number',
+        'Extract the total cash balance in their checking and savings accounts. If skip, return null.'
+      );
+      if (res.value !== null) {
+        this.profile.checking_savings_balance = res.value as number;
+        this.profile.checking_savings_confirmed = true;
+        this.advanceWorkflow();
+      }
+      return;
     }
-    if (!this.profile.declarations_confirmed) {
+
+    if (field === 'declarations') {
+      // Declarations: bankruptcy and foreclosure are asked together as one question.
+      const fieldsToExtract: FieldToExtract[] = [];
       if (this.profile.declarations_bankruptcy === undefined) {
         fieldsToExtract.push({
           name: 'declarations_bankruptcy',
@@ -407,115 +469,63 @@ export class SessionContextManager {
           additionalInstructions: 'Extract whether they had a foreclosure, short sale, or judgment in the past 7 years. Return "yes" if yes, "no" if no. If they say "no", "never", "none", or deny having these declaration issues, return "no". If they only deny bankruptcy, also return "no" (as they are answering the joint declarations question). If not found, return null.',
         });
       }
-    }
-    if (!this.profile.hmda_completed) {
-      fieldsToExtract.push({
-        name: 'hmda',
-        description: 'HMDA demographic details or whether the user wants to skip',
-        expectedType: 'string',
-        additionalInstructions: 'Determine if the user has answered the fair lending questions (e.g. provided race, sex) or explicitly said they want to skip, refuse, or prefer not to answer. If they provided demographics or explicitly skipped, return "yes". If not sure, return null.',
-      });
-    }
 
-    if (fieldsToExtract.length === 0) {
-      this.advanceWorkflow();
+      if (fieldsToExtract.length === 0) {
+        this.profile.declarations_confirmed = true;
+        this.advanceWorkflow();
+        return;
+      }
+
+      const extractionResults = await extractMultipleFields(text, lastQuestion, fieldsToExtract);
+      let anyUpdates = false;
+
+      const bankruptcy = extractionResults.declarations_bankruptcy?.value;
+      const foreclosure = extractionResults.declarations_foreclosure?.value;
+
+      if (bankruptcy !== undefined && bankruptcy !== null) {
+        this.profile.declarations_bankruptcy = bankruptcy === 'yes';
+        anyUpdates = true;
+      }
+      if (foreclosure !== undefined && foreclosure !== null) {
+        this.profile.declarations_foreclosure = foreclosure === 'yes';
+        anyUpdates = true;
+      }
+
+      if (
+        this.profile.declarations_bankruptcy !== undefined &&
+        this.profile.declarations_foreclosure !== undefined
+      ) {
+        this.profile.declarations_confirmed = true;
+      }
+
+      if (anyUpdates) {
+        this.advanceWorkflow();
+      }
       return;
     }
 
-    const extractionResults = await extractMultipleFields(text, lastQuestion, fieldsToExtract);
-    let anyUpdates = false;
-
-    if (extractionResults.marital_status && extractionResults.marital_status.value) {
-      this.profile.marital_status = extractionResults.marital_status.value as any;
-      this.profile.marital_status_confirmed = true;
-      anyUpdates = true;
-    }
-
-    if (extractionResults.dependents && extractionResults.dependents.value !== null) {
-      this.profile.dependents = extractionResults.dependents.value as number;
-      this.profile.dependents_confirmed = true;
-      anyUpdates = true;
-    }
-
-    // Employment
-    const title = extractionResults.employment_position?.value;
-    const years = extractionResults.employment_years?.value;
-    const self = extractionResults.self_employed?.value;
-
-    if (title !== undefined && title !== null) {
-      this.profile.employment_position = title as string;
-      anyUpdates = true;
-    }
-    if (years !== undefined && years !== null) {
-      this.profile.employment_years = years as number;
-      anyUpdates = true;
-    }
-    if (self !== undefined && self !== null) {
-      this.profile.self_employed = self === 'yes';
-      anyUpdates = true;
-    }
-
-    if (
-      this.profile.employment_position !== undefined &&
-      this.profile.employment_years !== undefined &&
-      this.profile.self_employed !== undefined
-    ) {
-      if (!this.profile.employment_confirmed) {
-        this.profile.employment_confirmed = true;
-        anyUpdates = true;
+    if (field === 'hmda') {
+      const res = await extractProfileField(
+        text, lastQuestion, 'hmda',
+        'HMDA demographic details or whether the user wants to skip', 'string',
+        'Determine if the user has answered the fair lending questions (e.g. provided race, sex) or explicitly said they want to skip, refuse, or prefer not to answer. If they provided demographics or explicitly skipped, return "yes". If not sure, return null.'
+      );
+      if (res.value === 'yes') {
+        this.profile.hmda_completed = true;
+        this.advanceWorkflow();
       }
+      return;
     }
 
-    if (extractionResults.checking_savings_balance && extractionResults.checking_savings_balance.value !== null) {
-      this.profile.checking_savings_balance = extractionResults.checking_savings_balance.value as number;
-      this.profile.checking_savings_confirmed = true;
-      anyUpdates = true;
-    }
-
-    // Declarations
-    const bankruptcy = extractionResults.declarations_bankruptcy?.value;
-    const foreclosure = extractionResults.declarations_foreclosure?.value;
-
-    if (bankruptcy !== undefined && bankruptcy !== null) {
-      this.profile.declarations_bankruptcy = bankruptcy === 'yes';
-      anyUpdates = true;
-    }
-    if (foreclosure !== undefined && foreclosure !== null) {
-      this.profile.declarations_foreclosure = foreclosure === 'yes';
-      anyUpdates = true;
-    }
-
-    if (
-      this.profile.declarations_bankruptcy !== undefined &&
-      this.profile.declarations_foreclosure !== undefined
-    ) {
-      if (!this.profile.declarations_confirmed) {
-        this.profile.declarations_confirmed = true;
-        anyUpdates = true;
-      }
-    }
-
-    if (extractionResults.hmda && extractionResults.hmda.value === 'yes') {
-      this.profile.hmda_completed = true;
-      anyUpdates = true;
-    }
-
-    if (anyUpdates) {
-      this.advanceWorkflow();
-    }
+    // Fallback: if no matching field handler, try to advance
+    this.advanceWorkflow();
   }
 
   private async runStage4Extraction(text: string): Promise<void> {
     const lastQuestion = this.getLastAssistantUtterance();
     const field = this.currentPendingField;
 
-    if (field === 'aus_processing') {
-      // Simulate waiting turn processing. Once the borrower asks for status or says anything, we calculate result.
-      const decision = this.runUnderwritingRules();
-      this.profile.aus_status = decision;
-      this.profile.aus_confirmed = true;
-      this.advanceWorkflow();
-    } else if (field === 'checklist_acknowledgement') {
+    if (field === 'checklist_acknowledgement') {
       const decision = await classifyConfirmation(text, lastQuestion, 'checklist_discussed', 'Do you understand the list and have these documents available?');
       if (decision === 'yes') {
         this.profile.checklist_discussed = true;
@@ -1221,22 +1231,22 @@ export class SessionContextManager {
       } else if (!this.profile.ready_to_submit) {
         this.currentPendingField = 'submit_confirmation';
       } else {
-        // Application completed! Transition to Stage 4
+        // Application completed! Immediately calculate underwriting decision and transition to Stage 4
         this.activeStage = '4';
-        this.currentPendingField = 'aus_processing';
-        this.profile.aus_status = 'waiting';
-        console.log('[context-manager]: Ã¢Å“â€¦ Application completed and authorized for submission! Transitioning to STAGE 4!');
+        const decision = this.runUnderwritingRules();
+        this.profile.aus_status = decision;
+        this.profile.aus_confirmed = true;
+        this.currentPendingField = 'checklist_acknowledgement';
+        console.log(`[context-manager]: Application completed! AUS decision: ${decision}. Transitioning to STAGE 4!`);
       }
     } else if (this.activeStage === '4') {
-      if (this.profile.aus_status === 'waiting') {
-        this.currentPendingField = 'aus_processing';
-      } else if (!this.profile.checklist_discussed) {
+      if (!this.profile.checklist_discussed) {
         this.currentPendingField = 'checklist_acknowledgement';
       } else {
         // All Stage 4 completed! Transition to Stage 5 (Escalation compliance)
         this.activeStage = '5';
         this.currentPendingField = null;
-        console.log('[context-manager]: Ã¢Å“â€¦ Document checklist acknowledged! Transitioning to STAGE 5 (MLO Escalation)!');
+        console.log('[context-manager]: Document checklist acknowledged! Transitioning to STAGE 5 (MLO Escalation)!');
       }
     }
   }

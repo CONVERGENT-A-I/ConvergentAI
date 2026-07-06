@@ -8,17 +8,7 @@ export function buildStage4Instructions(profile: BorrowerProfile): string {
 
   let subPrompt = '';
 
-  if (status === 'waiting') {
-    subPrompt = `
-CURRENT SUB-STAGE: AUS Processing Wait
-GOAL: Inform the borrower that their application is being analyzed.
-RULES:
-- Acknowledge that the application has been sent to the Automated Underwriting System (AUS).
-- Explain that this check analyzes their LTV, DTI, credit score range, and declarations to generate a decision.
-- Ask the borrower if they would like to wait for the result or connect with a licensed loan officer immediately.
-- Use this verbatim structure: "I've submitted your application. Now, we wait for the underwriting system to review it. This should only take a few minutes. Once the review is complete, one of our licensed loan officers will reach out to you to discuss the next steps. Would you like me to connect you with a licensed loan officer now, or would you prefer to wait for them to reach out to you after the review is complete?"
-`;
-  } else if (status === 'approve') {
+  if (status === 'approve') {
     subPrompt = `
 CURRENT SUB-STAGE: Conditional Approval
 GOAL: Congratulate the borrower on conditional approval and present the document checklist.

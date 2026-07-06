@@ -47,21 +47,38 @@ User input: "${userInput}"`;
   let content: string | null = null;
 
   try {
-    openaiClient.apiKey = ailanaConfig.cerebrasApiKey;
-    const response = await openaiClient.chat.completions.create({
-      model: 'gpt-oss-120b',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.0,
-    });
-    content = response.choices[0]?.message?.content || null;
+    // Retry once for transient Cerebras errors before falling back
+    let cerebrasErr: any = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const response = await openaiClient.chat.completions.create({
+          model: 'gpt-oss-120b',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.0,
+        });
+        content = response.choices[0]?.message?.content || null;
+        cerebrasErr = null;
+        break;
+      } catch (error: any) {
+        cerebrasErr = error;
+        const statusCode = error?.status ?? error?.statusCode;
+        if (attempt === 0 && (statusCode === 400 || statusCode === 500 || statusCode === 502 || statusCode === 503)) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          continue;
+        }
+        break;
+      }
+    }
+    if (cerebrasErr) {
+      throw cerebrasErr;
+    }
   } catch (error: any) {
     console.warn(`[llm-extractor] Cerebras failed for ${fieldName}, falling back to Groq:`, error?.message ?? error);
     try {
-      groqClient.apiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
       const response = await groqClient.chat.completions.create({
         model: 'llama-3.3-70b-versatile',
         messages: [
@@ -149,21 +166,38 @@ User input: "${userInput}"`;
   let content: string | null = null;
 
   try {
-    openaiClient.apiKey = ailanaConfig.cerebrasApiKey;
-    const response = await openaiClient.chat.completions.create({
-      model: 'gpt-oss-120b',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.0,
-    });
-    content = response.choices[0]?.message?.content || null;
+    // Retry once for transient Cerebras errors before falling back
+    let cerebrasErr: any = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const response = await openaiClient.chat.completions.create({
+          model: 'gpt-oss-120b',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.0,
+        });
+        content = response.choices[0]?.message?.content || null;
+        cerebrasErr = null;
+        break;
+      } catch (error: any) {
+        cerebrasErr = error;
+        const statusCode = error?.status ?? error?.statusCode;
+        if (attempt === 0 && (statusCode === 400 || statusCode === 500 || statusCode === 502 || statusCode === 503)) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          continue;
+        }
+        break;
+      }
+    }
+    if (cerebrasErr) {
+      throw cerebrasErr;
+    }
   } catch (error: any) {
     console.warn(`[llm-extractor] Cerebras failed for multiple fields, falling back to Groq:`, error?.message ?? error);
     try {
-      groqClient.apiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
       const response = await groqClient.chat.completions.create({
         model: 'llama-3.3-70b-versatile',
         messages: [
@@ -236,21 +270,37 @@ User response: "${userInput}"`;
   let content: string | null = null;
 
   try {
-    openaiClient.apiKey = ailanaConfig.cerebrasApiKey;
-    const response = await openaiClient.chat.completions.create({
-      model: 'gpt-oss-120b',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.0,
-    });
-    content = response.choices[0]?.message?.content || null;
+    let cerebrasErr: any = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const response = await openaiClient.chat.completions.create({
+          model: 'gpt-oss-120b',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.0,
+        });
+        content = response.choices[0]?.message?.content || null;
+        cerebrasErr = null;
+        break;
+      } catch (error: any) {
+        cerebrasErr = error;
+        const statusCode = error?.status ?? error?.statusCode;
+        if (attempt === 0 && (statusCode === 400 || statusCode === 500 || statusCode === 502 || statusCode === 503)) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          continue;
+        }
+        break;
+      }
+    }
+    if (cerebrasErr) {
+      throw cerebrasErr;
+    }
   } catch (error: any) {
     console.warn(`[llm-extractor] Cerebras classify failed for ${fieldName}, falling back to Groq:`, error?.message ?? error);
     try {
-      groqClient.apiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
       const response = await groqClient.chat.completions.create({
         model: 'llama-3.3-70b-versatile',
         messages: [
