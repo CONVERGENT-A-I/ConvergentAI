@@ -87,7 +87,6 @@ app.post('/api/get-token', async (req: Request, res: Response) => {
 
         if (kfRes.ok) {
           const raw = await kfRes.json();
-          console.log(`[server]: Keyframe raw response:`, JSON.stringify(raw, null, 2));
 
           // Normalize: API may return flat { server_url, participant_token, agent_identity }
           // OR nested { session_details: { server_url, ... }, voice_agent_details: { ... } }
@@ -104,7 +103,7 @@ app.post('/api/get-token', async (req: Request, res: Response) => {
               agent_identity: raw.agent_identity,
             };
           }
-          console.log(`[server]: Keyframe session normalized →`, keyframeMetadata);
+          console.log(`[server]: Keyframe session created successfully.`);
         } else {
           const errorBody = await kfRes.text();
           console.error(`[server]: Keyframe API Error (${kfRes.status}):`, errorBody);
@@ -153,7 +152,7 @@ app.listen(PORT, async () => {
 
     const agentProcess = fork(agentFilePath, ['dev'], {
       execArgv: ['--import', 'tsx'],
-      env: process.env,
+      env: { ...process.env, LIVEKIT_LOG_LEVEL: 'info' },
       stdio: 'inherit'
     });
 

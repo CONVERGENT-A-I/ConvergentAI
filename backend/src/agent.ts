@@ -60,8 +60,7 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
               const nextResult = await iterator.next();
               if (nextResult.done) {
                 const totalDur = Date.now() - t0;
-                console.log(`[cerebras-proxy][${ts()}] Stream complete (Total: ${totalDur}ms)`);
-                console.log(`[cerebras-proxy][${ts()}] HTTP 200 full stream response (${accumulatedChunks.length} chunks):`, JSON.stringify(accumulatedChunks, null, 2));
+                console.log(`[cerebras-proxy][${ts()}] Stream complete (Total: ${totalDur}ms, chunks: ${accumulatedChunks.length})`);
                 return nextResult;
               }
               if (isFirst) {
@@ -82,7 +81,6 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
       } else {
         const dur = Date.now() - t0;
         console.log(`[cerebras-proxy][${ts()}] Non-streaming response received (Dur: ${dur}ms)`);
-        console.log(`[cerebras-proxy][${ts()}] HTTP 200 full response:`, JSON.stringify(result, null, 2));
       }
       
       return result;
@@ -574,7 +572,6 @@ export default {
         console.log(`[agent]: Channel started (${targetMode}).`);
 
         if (greetingGenerated) {
-          console.log(`[agent]: Greeting already generated. Ignoring duplicate start signal.`);
           return;
         }
 

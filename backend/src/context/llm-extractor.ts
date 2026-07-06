@@ -59,7 +59,7 @@ User input: "${userInput}"`;
           response_format: { type: 'json_object' },
           temperature: 0.0,
         });
-        console.log(`[llm-extractor] HTTP 200 full response for "${fieldName}":`, JSON.stringify(response, null, 2));
+        console.log(`[llm-extractor] Extracted "${fieldName}" raw JSON:`, content);
         content = response.choices[0]?.message?.content || null;
         cerebrasErr = null;
         break;
@@ -171,7 +171,7 @@ User input: "${userInput}"`;
           response_format: { type: 'json_object' },
           temperature: 0.0,
         });
-        console.log(`[llm-extractor] HTTP 200 full response for multi-field extraction [${fields.map(f => f.name).join(', ')}]:`, JSON.stringify(response, null, 2));
+        console.log(`[llm-extractor] Extracted multi-field raw JSON:`, content);
         content = response.choices[0]?.message?.content || null;
         cerebrasErr = null;
         break;
@@ -268,7 +268,7 @@ User response: "${userInput}"`;
           response_format: { type: 'json_object' },
           temperature: 0.0,
         });
-        console.log(`[llm-extractor] HTTP 200 full response for classifyConfirmation "${fieldName}":`, JSON.stringify(response, null, 2));
+        console.log(`[llm-extractor] Classified confirmation for "${fieldName}" raw JSON:`, content);
         content = response.choices[0]?.message?.content || null;
         cerebrasErr = null;
         break;
