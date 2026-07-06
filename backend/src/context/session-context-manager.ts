@@ -101,23 +101,22 @@ export class SessionContextManager {
       return;
     }
 
-    // 4. Run the multi-extraction loop for all stages
-    let previousField: string | null = null;
-    while (this.currentPendingField && this.currentPendingField !== previousField) {
-      previousField = this.currentPendingField;
-      if (this.activeStage === '1') {
-        await this.runStage1Extraction(trimmed);
-      } else if (this.activeStage === '2') {
-        await this.runStage2Extraction(trimmed);
-      } else if (this.activeStage === '3') {
-        await this.runStage3Extraction(trimmed);
-      } else if (this.activeStage === '3A') {
-        await this.runStage3AExtraction(trimmed);
-      } else if (this.activeStage === '3B') {
-        await this.runStage3BExtraction(trimmed);
-      } else if (this.activeStage === '4') {
-        await this.runStage4Extraction(trimmed);
-      }
+    // 4. Run extraction for the current stage — exactly ONE call per turn.
+    // extractMultipleFields already captures all fields in a single request;
+    // looping only causes multiple sequential Cerebras calls when several fields
+    // are answered at once.
+    if (this.activeStage === '1') {
+      await this.runStage1Extraction(trimmed);
+    } else if (this.activeStage === '2') {
+      await this.runStage2Extraction(trimmed);
+    } else if (this.activeStage === '3') {
+      await this.runStage3Extraction(trimmed);
+    } else if (this.activeStage === '3A') {
+      await this.runStage3AExtraction(trimmed);
+    } else if (this.activeStage === '3B') {
+      await this.runStage3BExtraction(trimmed);
+    } else if (this.activeStage === '4') {
+      await this.runStage4Extraction(trimmed);
     }
   }
 
@@ -596,60 +595,48 @@ export class SessionContextManager {
   private async runStage1Extraction(text: string): Promise<void> {
     const lastQuestion = this.getLastAssistantUtterance();
 
-    const fieldsToExtract: FieldToExtract[] = [];
-    if (!this.profile.borrower_name_confirmed) {
-      fieldsToExtract.push({
+    // Always send the FULL static set of Stage 1 fields — never conditionally
+    // remove confirmed ones. This keeps the system prompt prefix byte-identical
+    // across every turn so Cerebras prefix cache hits after the first call.
+    // The model returns null for fields it can't find in the current input.
+    const fieldsToExtract: FieldToExtract[] = [
+      {
         name: 'borrower_name',
         description: "The user's first/given name or full name",
         expectedType: 'string',
         additionalInstructions: 'Extract the first name or name the user wants to be called. If they say "my name is Muhammad" extract "Muhammad". If they just say "Muhammad", extract "Muhammad". If not found, return null.',
-      });
-    }
-    if (!this.profile.mortgage_goal_confirmed) {
-      fieldsToExtract.push({
+      },
+      {
         name: 'mortgage_goal',
-        description: "Whether they want to purchase/buy a new home, refinance an existing mortgage, or explore a home equity option",
+        description: 'Whether they want to purchase/buy a new home, refinance an existing mortgage, or explore a home equity option',
         expectedType: 'string',
         additionalInstructions: 'Extract "purchase", "refinance", or "equity" (all lowercase). If they say they want to buy, purchase, or acquire a home or property, return "purchase". If they want to refinance, lower their rate, or change their existing loan terms, return "refinance". If they want a home equity loan or HELOC, return "equity". Return null if not mentioned at all.',
-      });
-    }
-    if (!this.profile.occupancy_confirmed) {
-      fieldsToExtract.push({
+      },
+      {
         name: 'occupancy',
-        description: "Whether they are looking for a primary residence, second home, or investment property",
+        description: 'Whether they are looking for a primary residence, second home, or investment property',
         expectedType: 'string',
         additionalInstructions: 'Extract "primary", "secondary", or "investment". If they say "for myself and family to live in", "home for myself", etc., extract "primary". If they say "rental", "investment", etc., extract "investment". If not found, return null.',
-      });
-    }
-    if (!this.profile.existing_relationship_confirmed) {
-      fieldsToExtract.push({
+      },
+      {
         name: 'existing_relationship',
-        description: "Whether they have worked with this lending institution before",
+        description: 'Whether they have worked with this lending institution before',
         expectedType: 'string',
         additionalInstructions: 'Extract "yes" or "no". If they say they have worked with us before or have an existing mortgage, return "yes". If they say it is their first time, return "no". If they say they don\'t know or are unsure, return "no". If not found, return null.',
-      });
-    }
-    if (!this.profile.timeline_confirmed) {
-      fieldsToExtract.push({
+      },
+      {
         name: 'timeline',
-        description: "When they plan to purchase or refinance (e.g. in 3 months, next year, ASAP, etc.)",
+        description: 'When they plan to purchase or refinance (e.g. in 3 months, next year, ASAP, etc.)',
         expectedType: 'string',
         additionalInstructions: 'Extract the user timeline. If they indicate a timeline, extract a concise summary (e.g. "within 3 months", "ASAP", "next year"). If they say they are unsure, undecided, don\'t know, or decline to specify, return "unsure" or "undecided". If not mentioned at all, return null.',
-      });
-    }
-    if (!this.profile.co_borrower_confirmed) {
-      fieldsToExtract.push({
+      },
+      {
         name: 'co_borrower',
-        description: "Whether anyone else will be applying with them on the loan",
+        description: 'Whether anyone else will be applying with them on the loan',
         expectedType: 'string',
         additionalInstructions: 'Extract "yes" or "no". If they mention a spouse, partner, or family member applying with them, return "yes". If they say "no", "just me", "myself alone", "I will not be including", "applying individually", "do not want to include", or express any intention to apply alone, return "no". If they say they don\'t know or are unsure, return "no". If not found, return null.',
-      });
-    }
-
-    if (fieldsToExtract.length === 0) {
-      this.advanceWorkflow();
-      return;
-    }
+      },
+    ];
 
     const extractionResults = await extractMultipleFields(text, lastQuestion, fieldsToExtract);
     let anyUpdates = false;
@@ -692,314 +679,197 @@ export class SessionContextManager {
     }
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // Stage 2 extraction â€” two-phase: extract â†’ await confirm
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  // Stage 2 extraction — two-phase: extract → await confirm
+  // ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
   private async runStage2Extraction(text: string): Promise<void> {
-    // â”€â”€ Phase 1.5: Batch pre-scan for all unconfirmed Stage 2 CATEGORICAL fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    // Captures anything the user volunteers before we need to ask, preventing re-asks.
-    // Numeric fields (gross_annual_income, monthly_debt, down_payment, target_price) are excluded â€”
-    // they keep their individual confirm-loop path in Phase 2 below.
-    if (this.activeStage === '2') {
-      const categoricalBatch: FieldToExtract[] = [];
+    // -- SINGLE-CALL extraction: merge categorical opportunistic scan + pending field -------------
+    // Builds ONE field list that includes both opportunistic categorical fields AND the specific
+    // field being asked, then makes a single extractMultipleFields call instead of 2 sequential calls.
 
-      if (!this.profile.credit_range_confirmed) {
-        categoricalBatch.push({
-          name: 'credit_range',
-          description: 'credit score number or general tier/range',
-          expectedType: 'string',
-          additionalInstructions: 'Extract the credit score number (e.g. 720) or range/tier (e.g. "Excellent", "680-700"). If not mentioned, return null.',
-        });
-      }
-      if (!this.profile.rent_own_confirmed) {
-        categoricalBatch.push({
-          name: 'rent_own',
-          description: 'Whether they rent, own, or own and plan to sell their current home',
-          expectedType: 'string',
-          additionalInstructions: 'Extract "rent", "own", or "own_selling". If they own and plan to sell as part of this transaction, return "own_selling". If they own but do not mention selling, return "own". If they rent, return "rent". If not found, return null.',
-        });
-      }
-      if (!this.profile.realtor_status_confirmed) {
-        categoricalBatch.push({
-          name: 'realtor_status',
-          description: 'Whether they have connected with a real estate agent',
-          expectedType: 'string',
-          additionalInstructions: 'Extract "yes" or "no". If they have an agent/realtor, return "yes". If not, return "no". If not found, return null.',
-        });
-      }
-      if (!this.profile.property_type_confirmed) {
-        categoricalBatch.push({
-          name: 'property_type',
-          description: 'The type of property they are considering (single-family, condo, townhome, multi-family, or other)',
-          expectedType: 'string',
-          additionalInstructions: 'Extract "single_family", "condo", "townhome", "multi_family", or "other". If not found, return null.',
-        });
-      }
-      if (!this.profile.military_rural_confirmed) {
-        categoricalBatch.push({
-          name: 'military_rural',
-          description: 'Whether they are a current/former military service member, or buying in a rural/suburban area',
-          expectedType: 'string',
-          additionalInstructions: 'Return "military", "rural", "both", or "neither". If veteran/active duty/guard/reserve, set military. If rural/suburban area, set rural. If both, return "both". If neither, return "neither". If not found, return null.',
-        });
-      }
-      if (!this.profile.job_tenure_type_confirmed) {
-        categoricalBatch.push({
-          name: 'job_tenure_type',
-          description: 'How long they have been with their current employer and their income type',
-          expectedType: 'string',
-          additionalInstructions: 'Extract a concise summary (e.g. "5 years, W2 salary" or "2 years, self-employed"). Include self-employment, independent contractor, W-2, hourly etc. if mentioned. If not found, return null.',
-        });
-      }
-
-      if (categoricalBatch.length > 0) {
-        const batchLastQ = this.getLastAssistantUtterance();
-        const batchResults = await extractMultipleFields(text, batchLastQ, categoricalBatch);
-        let batchUpdates = false;
-
-        if (batchResults.credit_range?.value) {
-          this.profile.credit_range = String(batchResults.credit_range.value);
-          this.profile.credit_range_confirmed = true;
-          batchUpdates = true;
-          console.log(`[context-manager] Stage2 batch: credit_range=${batchResults.credit_range.value}`);
-        }
-        const rown = batchResults.rent_own?.value;
-        if (rown === 'rent' || rown === 'own' || rown === 'own_selling') {
-          this.profile.rent_own = rown;
-          this.profile.rent_own_confirmed = true;
-          batchUpdates = true;
-          console.log(`[context-manager] Stage2 batch: rent_own=${rown}`);
-        }
-        const rs = batchResults.realtor_status?.value;
-        if (rs === 'yes' || rs === 'no') {
-          this.profile.realtor_status = rs;
-          this.profile.realtor_status_confirmed = true;
-          batchUpdates = true;
-          console.log(`[context-manager] Stage2 batch: realtor_status=${rs}`);
-        }
-        const pt = batchResults.property_type?.value;
-        if (pt === 'single_family' || pt === 'condo' || pt === 'townhome' || pt === 'multi_family' || pt === 'other') {
-          this.profile.property_type = pt;
-          this.profile.property_type_confirmed = true;
-          batchUpdates = true;
-          console.log(`[context-manager] Stage2 batch: property_type=${pt}`);
-        }
-        const mr = batchResults.military_rural?.value;
-        if (mr === 'military' || mr === 'rural' || mr === 'both' || mr === 'neither') {
-          this.profile.military_rural = mr;
-          this.profile.military_rural_confirmed = true;
-          batchUpdates = true;
-          console.log(`[context-manager] Stage2 batch: military_rural=${mr}`);
-        }
-        if (batchResults.job_tenure_type?.value) {
-          const jt = String(batchResults.job_tenure_type.value);
-          this.profile.job_tenure_type = jt;
-          this.profile.job_tenure_type_confirmed = true;
-          const jtLower = jt.toLowerCase();
-          if (jtLower.includes('self-employed') || jtLower.includes('independent contractor') || jtLower.includes('own business')) {
-            this.profile.self_employed = true;
-          } else if (jtLower.includes('w2') || jtLower.includes('salary') || jtLower.includes('w-2')) {
-            this.profile.self_employed = false;
-          }
-          batchUpdates = true;
-          console.log(`[context-manager] Stage2 batch: job_tenure_type=${jt}`);
-        }
-
-        if (batchUpdates) {
-          this.advanceWorkflow();
-          // If the current pending field is now a categorical one that was just confirmed,
-          // return early â€” no need to fall through to the single-field Phase 2 path.
-          const nowPending = this.currentPendingField;
-          if (
-            (nowPending === 'credit_range' && this.profile.credit_range_confirmed) ||
-            (nowPending === 'rent_own' && this.profile.rent_own_confirmed) ||
-            (nowPending === 'realtor_status' && this.profile.realtor_status_confirmed) ||
-            (nowPending === 'property_type' && this.profile.property_type_confirmed) ||
-            (nowPending === 'military_rural' && this.profile.military_rural_confirmed) ||
-            (nowPending === 'job_tenure_type' && this.profile.job_tenure_type_confirmed)
-          ) {
-            return;
-          }
-        }
-      }
-    }
-
-    // â”€â”€ Phase 2: Extract the field currently pending â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    const allFields: FieldToExtract[] = [];
     const field = this.currentPendingField;
     const lastQuestion = this.getLastAssistantUtterance();
 
-    if (field === 'stage2_closing_offer') {
-      const res = await extractProfileField(
-        text,
-        lastQuestion,
-        'stage2_closing_offer',
-        'whether the user wants to proceed with the eligibility review or explore first',
-        'string',
-        'Extract "yes", "no", or "explain". If they say yes, sure, okay, let\'s do it, go ahead, return "yes". If they say no, not yet, continue exploring, explore first, return "no". If they ask what does it involve, what is it, explain, what does that mean, return "explain". If not sure, return null.'
-      );
+    // Opportunistic categorical fields (always included while unconfirmed)
+    if (!this.profile.credit_range_confirmed) {
+      allFields.push({
+        name: 'credit_range',
+        description: 'credit score number or general tier/range',
+        expectedType: 'string',
+        additionalInstructions: 'Extract the credit score number (e.g. 720) or range/tier (e.g. "Excellent", "680-700"). If they decline, skip, or say they don\'t know, set "declined" to true. If not mentioned, return null.',
+      });
+    }
+    if (!this.profile.rent_own_confirmed) {
+      allFields.push({
+        name: 'rent_own',
+        description: 'Whether they rent, own, or own and plan to sell their current home',
+        expectedType: 'string',
+        additionalInstructions: 'Extract "rent", "own", or "own_selling". If they own and plan to sell, return "own_selling". If they own but do not mention selling, return "own". If they rent, return "rent". If not found, return null.',
+      });
+    }
+    if (!this.profile.realtor_status_confirmed) {
+      allFields.push({
+        name: 'realtor_status',
+        description: 'Whether they have connected with a real estate agent',
+        expectedType: 'string',
+        additionalInstructions: 'Extract "yes" or "no". If they have an agent/realtor, return "yes". If not, return "no". If not found, return null.',
+      });
+    }
+    if (!this.profile.property_type_confirmed) {
+      allFields.push({
+        name: 'property_type',
+        description: 'The type of property they are considering',
+        expectedType: 'string',
+        additionalInstructions: 'Extract "single_family", "condo", "townhome", "multi_family", or "other". If not found, return null.',
+      });
+    }
+    if (!this.profile.military_rural_confirmed) {
+      allFields.push({
+        name: 'military_rural',
+        description: 'Whether they are a current/former military service member, or buying in a rural/suburban area',
+        expectedType: 'string',
+        additionalInstructions: 'Return "military", "rural", "both", or "neither". If not found, return null.',
+      });
+    }
+    if (!this.profile.job_tenure_type_confirmed) {
+      allFields.push({
+        name: 'job_tenure_type',
+        description: 'How long they have been with their current employer and their income type',
+        expectedType: 'string',
+        additionalInstructions: 'Extract a concise summary (e.g. "5 years, W2 salary" or "2 years, self-employed"). If not found, return null.',
+      });
+    }
 
-      if (res.value === 'yes') {
+    // Add the specific numeric pending field if not already in the list
+    const numericFields = ['gross_annual_income', 'monthly_debt', 'down_payment', 'target_price'];
+    const pendingIsNumeric = field !== null && numericFields.includes(field);
+    if (pendingIsNumeric && field && !allFields.some(f => f.name === field)) {
+      const fieldDesc = field === 'gross_annual_income' ? 'gross annual household income'
+                      : field === 'monthly_debt' ? 'total monthly recurring debt obligations (sum all debts)'
+                      : field === 'down_payment' ? 'down payment savings amount'
+                      : 'target purchase price';
+      let instruction = 'Extract the dollar amount as a plain integer (e.g. 80000). If the user declines, skips, or says they don\'t know, set "declined" to true. If not mentioned, return null.';
+      if (field === 'down_payment' && this.profile.target_price) {
+        instruction += ` If the user specifies a percentage, calculate it against the target price ($${this.profile.target_price}) and return the integer dollar amount.`;
+      }
+      allFields.push({ name: field, description: fieldDesc, expectedType: 'number', additionalInstructions: instruction });
+    }
+
+    // stage2_closing_offer (3-way classification)
+    if (field === 'stage2_closing_offer' && !allFields.some(f => f.name === 'stage2_closing_offer')) {
+      allFields.push({
+        name: 'stage2_closing_offer',
+        description: 'whether the user wants to proceed with the eligibility review or explore first',
+        expectedType: 'string',
+        additionalInstructions: 'Extract "yes", "no", or "explain". If they say yes/sure/okay/go ahead, return "yes". If they say no/not yet/explore first, return "no". If they ask what it involves, return "explain". If not sure, return null.',
+      });
+    }
+
+    if (allFields.length === 0) {
+      this.advanceWorkflow();
+      return;
+    }
+
+    const results = await extractMultipleFields(text, lastQuestion, allFields);
+    let anyUpdates = false;
+
+    // Process categorical fields
+    if (results.credit_range?.value && !this.profile.credit_range_confirmed) {
+      this.profile.credit_range = String(results.credit_range.value);
+      this.profile.credit_range_confirmed = true;
+      anyUpdates = true;
+      console.log(`[context-manager] Stage2: credit_range=${results.credit_range.value}`);
+    } else if (results.credit_range?.declined && !this.profile.credit_range_confirmed) {
+      this.profile.credit_range = null;
+      this.profile.credit_range_confirmed = true;
+      anyUpdates = true;
+    }
+
+    const rown = results.rent_own?.value;
+    if ((rown === 'rent' || rown === 'own' || rown === 'own_selling') && !this.profile.rent_own_confirmed) {
+      this.profile.rent_own = rown;
+      this.profile.rent_own_confirmed = true;
+      anyUpdates = true;
+      console.log(`[context-manager] Stage2: rent_own=${rown}`);
+    }
+
+    const rs = results.realtor_status?.value;
+    if ((rs === 'yes' || rs === 'no') && !this.profile.realtor_status_confirmed) {
+      this.profile.realtor_status = rs;
+      this.profile.realtor_status_confirmed = true;
+      anyUpdates = true;
+      console.log(`[context-manager] Stage2: realtor_status=${rs}`);
+    }
+
+    const pt = results.property_type?.value;
+    if ((pt === 'single_family' || pt === 'condo' || pt === 'townhome' || pt === 'multi_family' || pt === 'other') && !this.profile.property_type_confirmed) {
+      this.profile.property_type = pt;
+      this.profile.property_type_confirmed = true;
+      anyUpdates = true;
+      console.log(`[context-manager] Stage2: property_type=${pt}`);
+    }
+
+    const mr = results.military_rural?.value;
+    if ((mr === 'military' || mr === 'rural' || mr === 'both' || mr === 'neither') && !this.profile.military_rural_confirmed) {
+      this.profile.military_rural = mr;
+      this.profile.military_rural_confirmed = true;
+      anyUpdates = true;
+      console.log(`[context-manager] Stage2: military_rural=${mr}`);
+    }
+
+    if (results.job_tenure_type?.value && !this.profile.job_tenure_type_confirmed) {
+      const jt = String(results.job_tenure_type.value);
+      this.profile.job_tenure_type = jt;
+      this.profile.job_tenure_type_confirmed = true;
+      const jtLower = jt.toLowerCase();
+      if (jtLower.includes('self-employed') || jtLower.includes('independent contractor') || jtLower.includes('own business')) {
+        this.profile.self_employed = true;
+      } else if (jtLower.includes('w2') || jtLower.includes('salary') || jtLower.includes('w-2')) {
+        this.profile.self_employed = false;
+      }
+      anyUpdates = true;
+      console.log(`[context-manager] Stage2: job_tenure_type=${jt}`);
+    }
+
+    // Process numeric pending field
+    if (pendingIsNumeric && field) {
+      const numResult = results[field];
+      if (numResult?.declined) {
+        this.commitStage2Value(field, null, true);
+        anyUpdates = true;
+      } else if (numResult?.value !== null && numResult?.value !== undefined) {
+        this.profile.pending_confirm_field = field;
+        this.profile.pending_confirm_value = `$${(numResult.value as number).toLocaleString()}`;
+        console.log(`[context-manager] Stage2: extracted ${field}=${numResult.value}, awaiting confirm`);
+        anyUpdates = true;
+      }
+    }
+
+    // Process stage2_closing_offer
+    const offerVal = results.stage2_closing_offer?.value;
+    if (field === 'stage2_closing_offer' && offerVal) {
+      if (offerVal === 'yes') {
         this.activeStage = '3A';
         this.currentPendingField = 'soft_pull_authorization';
         this.profile.soft_pull_consent = 'pending';
-        console.log('[context-manager]: Ã¢Å“â€¦ stage2_closing_offer accepted! Transitioning to STAGE 3A Soft Pull Consent!');
-      } else if (res.value === 'no') {
+        console.log('[context-manager]: stage2_closing_offer accepted! Transitioning to STAGE 3A Soft Pull Consent!');
+      } else if (offerVal === 'no') {
         this.activeStage = '3';
         this.currentPendingField = 'product_fit_walkthrough';
         this.profile.bridge_to_say = 'stage2_to_stage3';
-        console.log('[context-manager]: Ã¢ï¿½Å’ stage2_closing_offer declined! Transitioning to STAGE 3 Product Guidance!');
-      } else if (res.value === 'explain') {
+        console.log('[context-manager]: stage2_closing_offer declined! Transitioning to STAGE 3 Product Guidance!');
+      } else if (offerVal === 'explain') {
         console.log('[context-manager]: stage2_closing_offer explanation requested.');
       }
       return;
     }
 
-    if (field === 'gross_annual_income' || field === 'down_payment' || field === 'target_price') {
-      const fieldDesc = field === 'gross_annual_income' ? 'gross annual household income'
-                      : field === 'down_payment' ? 'down payment savings'
-                      : 'target purchase price';
-
-      let instruction = 'Extract the single total dollar amount. If the user declines, skips, says they don\'t know, or don\'t want to answer, set "declined" to true.';
-      if (field === 'down_payment') {
-        const targetPrice = this.profile.target_price;
-        const pctInstruction = targetPrice 
-          ? `If the user specifies a percentage (e.g. "15%"), calculate that percentage of the target price ($${targetPrice}) and return it as the final integer dollar amount.`
-          : '';
-        instruction += ` ${pctInstruction}`;
-      }
-
-      const res = await extractProfileField(
-        text,
-        lastQuestion,
-        field,
-        fieldDesc,
-        'number',
-        instruction
-      );
-
-      if (res.declined) {
-        this.commitStage2Value(field, null, true);
-      } else if (res.value !== null) {
-        this.profile.pending_confirm_field = field;
-        this.profile.pending_confirm_value = `$${(res.value as number).toLocaleString()}`;
-        console.log(`[context-manager] Stage2: extracted ${field}=${res.value}, awaiting confirm`);
-      }
-    } else if (field === 'monthly_debt') {
-      const res = await extractProfileField(
-        text,
-        lastQuestion,
-        'monthly_debt',
-        'monthly debt obligations',
-        'number',
-        'Extract the monthly debt amount. IMPORTANT: If the user lists multiple recurring monthly debts (e.g. car loan, student loan, credit cards), sum them all up and return the total sum as the value. If they say they have no monthly debt, set value to 0. If they decline, skip, or say they don\'t know, set "declined" to true.'
-      );
-
-      if (res.declined) {
-        this.commitStage2Value(field, null, true);
-      } else if (res.value !== null) {
-        this.profile.pending_confirm_field = field;
-        this.profile.pending_confirm_value = `$${(res.value as number).toLocaleString()}`;
-        console.log(`[context-manager] Stage2: extracted monthly_debt=${res.value}, awaiting confirm`);
-      }
-    } else if (field === 'credit_range') {
-      const res = await extractProfileField(
-        text,
-        lastQuestion,
-        'credit_score',
-        'credit score number or general tier/range',
-        'string',
-        'Extract the credit score number (e.g. 720) or range/tier (e.g. "Excellent", "680-700"). If they decline, skip, or say they don\'t know, set "declined" to true.'
-      );
-
-      if (res.declined) {
-        this.profile.credit_range = null;
-        this.profile.credit_range_confirmed = true;
-        this.advanceWorkflow();
-      } else if (res.value) {
-        this.profile.credit_range = String(res.value);
-        this.profile.credit_range_confirmed = true;
-        this.advanceWorkflow();
-      }
-    } else if (field === 'rent_own') {
-      const res = await extractProfileField(
-        text,
-        lastQuestion,
-        'rent_own',
-        "Whether they rent, own, or own and plan to sell their current home",
-        'string',
-        'Extract "rent", "own", or "own_selling". If they own and plan to sell as part of this transaction, return "own_selling". If they own but do not mention selling, return "own". If they rent, return "rent". If not found, return null.'
-      );
-      if (res.value === 'rent' || res.value === 'own' || res.value === 'own_selling') {
-        this.profile.rent_own = res.value;
-        this.profile.rent_own_confirmed = true;
-        this.advanceWorkflow();
-      }
-    } else if (field === 'realtor_status') {
-      const res = await extractProfileField(
-        text,
-        lastQuestion,
-        'realtor_status',
-        "Whether they have connected with a real estate agent",
-        'string',
-        'Extract "yes" or "no". If they have an agent/realtor, return "yes". If not, return "no". If not found, return null.'
-      );
-      if (res.value === 'yes' || res.value === 'no') {
-        this.profile.realtor_status = res.value;
-        this.profile.realtor_status_confirmed = true;
-        this.advanceWorkflow();
-      }
-    } else if (field === 'property_type') {
-      const res = await extractProfileField(
-        text,
-        lastQuestion,
-        'property_type',
-        "The type of property they are considering (single-family, condo, townhome, multi-family, or other)",
-        'string',
-        'Extract "single_family", "condo", "townhome", "multi_family", or "other". If not found, return null.'
-      );
-      if (res.value === 'single_family' || res.value === 'condo' || res.value === 'townhome' || res.value === 'multi_family' || res.value === 'other') {
-        this.profile.property_type = res.value;
-        this.profile.property_type_confirmed = true;
-        this.advanceWorkflow();
-      }
-    } else if (field === 'military_rural') {
-      const res = await extractProfileField(
-        text,
-        lastQuestion,
-        'military_rural',
-        "Whether they are a current/former military service member, or buying in a rural/suburban area",
-        'string',
-        'Determine if they have military service, rural property location, both, or neither. Return "military", "rural", "both", or "neither". If they say they are a veteran, active duty, guard/reserve, set military. If they are buying in a rural/suburban area, set rural. If both, return "both". If neither, return "neither". If not found, return null.'
-      );
-      if (res.value === 'military' || res.value === 'rural' || res.value === 'both' || res.value === 'neither') {
-        this.profile.military_rural = res.value;
-        this.profile.military_rural_confirmed = true;
-        this.advanceWorkflow();
-      }
-    } else if (field === 'job_tenure_type') {
-      const res = await extractProfileField(
-        text,
-        lastQuestion,
-        'job_tenure_type',
-        "How long they have been with their current employer and their income type (salary, hourly, commission, self-employed)",
-        'string',
-        'Extract a concise summary of employment stability and income type (e.g. "5 years, W2 salary" or "2 years, self-employed"). If they mention self-employment, independent contractor, W-2, hourly, etc. include that. If not found, return null.'
-      );
-      if (res.value) {
-        const valStr = String(res.value).toLowerCase();
-        this.profile.job_tenure_type = res.value as string;
-        this.profile.job_tenure_type_confirmed = true;
-        if (valStr.includes('self-employed') || valStr.includes('independent contractor') || valStr.includes('own business')) {
-          this.profile.self_employed = true;
-        } else if (valStr.includes('w2') || valStr.includes('salary') || valStr.includes('w-2')) {
-          this.profile.self_employed = false;
-        }
-        this.advanceWorkflow();
-      }
+    if (anyUpdates) {
+      this.advanceWorkflow();
     }
   }
-
   private async handleStage2Confirmation(text: string): Promise<void> {
     const field = this.profile.pending_confirm_field!;
     const rawValue = this.profile.pending_confirm_value!;
@@ -1518,7 +1388,7 @@ export class SessionContextManager {
       console.log(`[context-manager] Global: ${field} correction incoming Ã¢â‚¬â€ resetting pending`);
       this.profile.pending_confirm_field = null;
       this.profile.pending_confirm_value = null;
-      await this.checkForGlobalCorrections(text);
+      // Agent re-asks the field naturally; no extra Cerebras call needed here.
       return true;
     }
     return false;
@@ -1584,8 +1454,10 @@ export class SessionContextManager {
 
   private async checkForGlobalCorrections(text: string): Promise<boolean> {
     const lower = text.toLowerCase();
-    // Keywords indicating potential change or correction
-    const keywords = ['change', 'correct', 'instead', 'wrong', 'mistake', 'actually', 'update', 'not ', 'no, '];
+    // Keywords indicating an intentional change or correction.
+    // Deliberately narrow — common words like "not" and "no" would fire on
+    // nearly every denial answer and cause a spurious Cerebras call.
+    const keywords = ['change', 'correct', 'instead', 'wrong', 'mistake', 'actually', 'update'];
     const hasKeyword = keywords.some(k => lower.includes(k));
     if (!hasKeyword) return false;
 
