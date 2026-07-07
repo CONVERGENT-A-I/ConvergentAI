@@ -53,6 +53,7 @@ export class SessionContextManager {
   }
 
   async onUserTurn(text: string): Promise<void> {
+    const _perfOnUserTurnStart = performance.now();
     const trimmed = text.trim();
     if (!trimmed || trimmed.startsWith('SYSTEM_')) return;
     if (this.lowConfidence) {
@@ -69,19 +70,28 @@ export class SessionContextManager {
 
     // Handle Stage 2 pending confirmations local loop directly on this turn
     if (this.activeStage === '2' && this.profile.pending_confirm_field && this.profile.pending_confirm_value != null) {
+      const _t = performance.now();
       await this.handleStage2Confirmation(trimmed);
+      console.log(`[perf] context-manager handleStage2Confirmation: ${(performance.now() - _t).toFixed(1)}ms`);
+      console.log(`[perf] context-manager onUserTurn TOTAL: ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
       return;
     }
 
     // 1. Handle global pending confirmations first (excluding Stage 2 which has local loop logic)
+    const _tGlobalConfirm = performance.now();
     const handled = await this.handleGlobalConfirmation(trimmed);
+    console.log(`[perf] context-manager handleGlobalConfirmation: ${(performance.now() - _tGlobalConfirm).toFixed(1)}ms (handled=${handled})`);
     if (handled) {
+      console.log(`[perf] context-manager onUserTurn TOTAL: ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
       return;
     }
 
     // 2. Check if the user is correcting an already confirmed field
+    const _tGlobalCorrect = performance.now();
     const corrected = await this.checkForGlobalCorrections(trimmed);
+    console.log(`[perf] context-manager checkForGlobalCorrections: ${(performance.now() - _tGlobalCorrect).toFixed(1)}ms (corrected=${corrected})`);
     if (corrected) {
+      console.log(`[perf] context-manager onUserTurn TOTAL: ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
       return;
     }
 
@@ -93,11 +103,13 @@ export class SessionContextManager {
       if (attempts >= 3) {
         console.log(`[context-manager] Max attempts reached for "${this.currentPendingField}". Declining field.`);
         this.declineCurrentField();
+        console.log(`[perf] context-manager onUserTurn TOTAL: ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
         return;
       }
     }
 
     if (!this.currentPendingField && !['3', '3A', '3B'].includes(this.activeStage.toUpperCase())) {
+      console.log(`[perf] context-manager onUserTurn TOTAL (no pending field): ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
       return;
     }
 
@@ -105,6 +117,7 @@ export class SessionContextManager {
     // extractMultipleFields already captures all fields in a single request;
     // looping only causes multiple sequential Cerebras calls when several fields
     // are answered at once.
+    const _tExtract = performance.now();
     if (this.activeStage === '1') {
       await this.runStage1Extraction(trimmed);
     } else if (this.activeStage === '2') {
@@ -118,6 +131,8 @@ export class SessionContextManager {
     } else if (this.activeStage === '4') {
       await this.runStage4Extraction(trimmed);
     }
+    console.log(`[perf] context-manager stage${this.activeStage} extraction: ${(performance.now() - _tExtract).toFixed(1)}ms`);
+    console.log(`[perf] context-manager onUserTurn TOTAL: ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
   }
 
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢

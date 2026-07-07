@@ -109,14 +109,7 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
 
 
 class CerebrasLLM extends openai.LLM {
-  override chat(args: any) {
-    args.extraKwargs = {
-      ...args.extraKwargs,
-      reasoning_effort: ailanaConfig.cerebrasReasoningEffort,
-      reasoning_format: 'hidden',
-    };
-    return super.chat(args);
-  }
+  // gemma-4-31b does not support reasoning_effort or reasoning_format parameters.
 }
 
 class AilanaVoiceAgent extends voice.Agent {
@@ -129,6 +122,8 @@ class AilanaVoiceAgent extends voice.Agent {
   }
 
   override async onUserTurnCompleted(chatCtx: any, userMessage: any): Promise<void> {
+    // ── [perf] EOU boundary timestamp ────────────────────────────────────────
+    const _perfEouEnd = performance.now();
     console.log(`[agent-hook]: onUserTurnCompleted hook triggered with message: "${userMessage?.textContent}"`);
 
     this.contextManager.setLowConfidenceFlag(false);
@@ -139,15 +134,23 @@ class AilanaVoiceAgent extends voice.Agent {
       // promptly so the main LLM can start generating without waiting for
       // the extractor. The extractor finishes async; instructions update
       // for the current turn if it wins, or next turn if it times out.
+      const _perfExtractionStart = performance.now();
       const extractionDone = this.contextManager.onUserTurn(userMessage.textContent);
       const timeout = new Promise<void>(resolve => setTimeout(resolve, 400));
       await Promise.race([extractionDone, timeout]);
+      const _perfExtractionMs = (performance.now() - _perfExtractionStart).toFixed(1);
+      console.log(`[perf] onUserTurn (extraction + race): ${_perfExtractionMs}ms`);
     }
 
+    // ── [perf] Instructions update ───────────────────────────────────────────
+    const _perfInstructionsStart = performance.now();
     // Update original instructions in the session
     this.updateInstructions();
+    const _perfInstructionsMs = (performance.now() - _perfInstructionsStart).toFixed(1);
+    console.log(`[perf] updateInstructions (getActiveInstructions + chatCtx write): ${_perfInstructionsMs}ms`);
 
     // Update local mutable chatCtx copy to align the LLM prompt for the current generation
+    const _perfCtxUpdateStart = performance.now();
     const activeInstructions = this.contextManager.getActiveInstructions();
     const systemItem = (chatCtx.items.find(
       (item: any) => item.type === 'message' && item.id === 'lk.agent_task.instructions'
@@ -168,6 +171,12 @@ class AilanaVoiceAgent extends voice.Agent {
       }));
       console.log(`[agent-hook]: Local mutable chatCtx system instructions prepended.`);
     }
+    const _perfCtxUpdateMs = (performance.now() - _perfCtxUpdateStart).toFixed(1);
+    console.log(`[perf] chatCtx local copy update: ${_perfCtxUpdateMs}ms`);
+
+    // ── [perf] Total EOU→instructions gap ────────────────────────────────────
+    const _perfTotalMs = (performance.now() - _perfEouEnd).toFixed(1);
+    console.log(`[perf] EOU->instructions-update gap: ${_perfTotalMs}ms`);
   }
 }
 
@@ -192,7 +201,7 @@ export default {
 
     const metrics = new LatencyTracker();
     const summarizationLlm = new openai.LLM({
-      model: 'gpt-oss-120b',
+      model: 'gemma-4-31b',
       baseURL: ailanaConfig.cerebrasBaseUrl,
       apiKey: ailanaConfig.cerebrasApiKey,
     });
@@ -226,7 +235,7 @@ export default {
         stt: sessionStt,
         vad: sessionVad,
         llm: new CerebrasLLM({
-          model: 'gpt-oss-120b',
+          model: 'gemma-4-31b',
           client: cerebrasClient,
         }),
         tts: sessionTts,
@@ -471,12 +480,10 @@ export default {
 
         console.log(`[agent]: Dispatching text-only reply to Cerebras client proxy...`);
         const completion = await cerebrasClient.chat.completions.create({
-          model: 'gpt-oss-120b',
+          model: 'gemma-4-31b',
           messages: messages as any,
           max_tokens: 500,
           temperature: 0.6,
-          reasoning_effort: ailanaConfig.cerebrasReasoningEffort,
-          reasoning_format: 'hidden',
         } as any);
 
         const reply = completion.choices?.[0]?.message?.content?.trim();
@@ -730,7 +737,7 @@ export default {
             'Authorization': `Bearer ${ailanaConfig.cerebrasApiKey}`
           },
           body: JSON.stringify({
-            model: 'gpt-oss-120b',
+            model: 'gemma-4-31b',
             messages: [{ role: 'user', content: 'ping' }],
             max_tokens: 1,
           })

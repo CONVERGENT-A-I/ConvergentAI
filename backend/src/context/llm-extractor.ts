@@ -1,14 +1,13 @@
 import { OpenAI } from 'openai';
 import { ailanaConfig } from '../config/ailana-config.js';
 
-// Extraction client — uses gpt-oss-120b (the only model available on this
-// Cerebras account). llama3.1-8b returns 404 (not provisioned).
+// Extraction client — uses gemma-4-31b
 const fastClient = new OpenAI({
   apiKey: ailanaConfig.cerebrasApiKey,
   baseURL: ailanaConfig.cerebrasBaseUrl,
 });
 
-const EXTRACTION_MODEL = 'gpt-oss-120b';
+const EXTRACTION_MODEL = 'gemma-4-31b';
 
 export interface ExtractionResult {
   value: string | number | null;
@@ -45,11 +44,17 @@ User input: "${userInput}"`;
 
   let content: string | null = null;
 
+  // [perf] llm-extractor is called from onUserTurn which runs CONCURRENTLY with
+  // the main pipeline via Promise.race(). Log thread context explicitly.
+  const _perfExtractSingle_start = performance.now();
+  console.log(`[perf] llm-extractor extractProfileField("${fieldName}"): START (running concurrent with main LLM if race not yet resolved)`);
+
   try {
     // Retry once for transient Cerebras errors
     let cerebrasErr: any = null;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
+        const _perfCerebrasCallStart = performance.now();
         const response = await fastClient.chat.completions.create({
           model: EXTRACTION_MODEL,
           messages: [
@@ -59,6 +64,8 @@ User input: "${userInput}"`;
           response_format: { type: 'json_object' },
           temperature: 0.0,
         });
+        const _perfCerebrasCallMs = (performance.now() - _perfCerebrasCallStart).toFixed(1);
+        console.log(`[perf] llm-extractor extractProfileField("${fieldName}"): Cerebras call (attempt ${attempt + 1}) took ${_perfCerebrasCallMs}ms`);
         console.log(`[llm-extractor] Extracted "${fieldName}" raw JSON:`, content);
         content = response.choices[0]?.message?.content || null;
         cerebrasErr = null;
@@ -68,6 +75,7 @@ User input: "${userInput}"`;
         const statusCode = error?.status ?? error?.statusCode;
         if (attempt === 0 && (statusCode === 500 || statusCode === 502 || statusCode === 503)) {
           // Brief pause only for transient server errors
+          console.log(`[perf] llm-extractor extractProfileField("${fieldName}"): retry backoff 200ms (status=${statusCode})`);
           await new Promise(resolve => setTimeout(resolve, 200));
           continue;
         }
@@ -85,6 +93,9 @@ User input: "${userInput}"`;
     }
     // content stays null; caller receives { value: null, declined: false }
   }
+
+  const _perfExtractSingle_ms = (performance.now() - _perfExtractSingle_start).toFixed(1);
+  console.log(`[perf] llm-extractor extractProfileField("${fieldName}"): TOTAL ${_perfExtractSingle_ms}ms (content=${content ? 'ok' : 'null'})`);
 
   if (!content) {
     return { value: null, declined: false };
@@ -157,11 +168,18 @@ User input: "${userInput}"`;
 
   let content: string | null = null;
 
+  // [perf] extractMultipleFields runs inside onUserTurn which is raced against
+  // a 400ms timeout. Log start so we can confirm it is on a separate async tick.
+  const _fieldNames = fields.map(f => f.name).join(', ');
+  const _perfExtractMulti_start = performance.now();
+  console.log(`[perf] llm-extractor extractMultipleFields([${_fieldNames}]): START`);
+
   try {
     // Retry once for transient Cerebras errors
     let cerebrasErr: any = null;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
+        const _perfCerebrasCallStart = performance.now();
         const response = await fastClient.chat.completions.create({
           model: EXTRACTION_MODEL,
           messages: [
@@ -171,6 +189,8 @@ User input: "${userInput}"`;
           response_format: { type: 'json_object' },
           temperature: 0.0,
         });
+        const _perfCerebrasCallMs = (performance.now() - _perfCerebrasCallStart).toFixed(1);
+        console.log(`[perf] llm-extractor extractMultipleFields([${_fieldNames}]): Cerebras call (attempt ${attempt + 1}) took ${_perfCerebrasCallMs}ms`);
         console.log(`[llm-extractor] Extracted multi-field raw JSON:`, content);
         content = response.choices[0]?.message?.content || null;
         cerebrasErr = null;
@@ -180,6 +200,7 @@ User input: "${userInput}"`;
         const statusCode = error?.status ?? error?.statusCode;
         if (attempt === 0 && (statusCode === 500 || statusCode === 502 || statusCode === 503)) {
           // Brief pause only for transient server errors
+          console.log(`[perf] llm-extractor extractMultipleFields([${_fieldNames}]): retry backoff 200ms (status=${statusCode})`);
           await new Promise(resolve => setTimeout(resolve, 200));
           continue;
         }
@@ -197,6 +218,9 @@ User input: "${userInput}"`;
     }
     // content stays null; caller receives empty results
   }
+
+  const _perfExtractMulti_ms = (performance.now() - _perfExtractMulti_start).toFixed(1);
+  console.log(`[perf] llm-extractor extractMultipleFields([${_fieldNames}]): TOTAL ${_perfExtractMulti_ms}ms (content=${content ? 'ok' : 'null'})`);
 
   const results: Record<string, ExtractionResult> = {};
   for (const f of fields) {
@@ -254,11 +278,15 @@ User response: "${userInput}"`;
 
   let content: string | null = null;
 
+  const _perfClassify_start = performance.now();
+  console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): START`);
+
   try {
     // Retry once for transient Cerebras errors
     let cerebrasErr: any = null;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
+        const _perfCerebrasCallStart = performance.now();
         const response = await fastClient.chat.completions.create({
           model: EXTRACTION_MODEL,
           messages: [
@@ -268,6 +296,8 @@ User response: "${userInput}"`;
           response_format: { type: 'json_object' },
           temperature: 0.0,
         });
+        const _perfCerebrasCallMs = (performance.now() - _perfCerebrasCallStart).toFixed(1);
+        console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): Cerebras call (attempt ${attempt + 1}) took ${_perfCerebrasCallMs}ms`);
         console.log(`[llm-extractor] Classified confirmation for "${fieldName}" raw JSON:`, content);
         content = response.choices[0]?.message?.content || null;
         cerebrasErr = null;
@@ -277,6 +307,7 @@ User response: "${userInput}"`;
         const statusCode = error?.status ?? error?.statusCode;
         if (attempt === 0 && (statusCode === 500 || statusCode === 502 || statusCode === 503)) {
           // Brief pause only for transient server errors
+          console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): retry backoff 200ms (status=${statusCode})`);
           await new Promise(resolve => setTimeout(resolve, 200));
           continue;
         }
@@ -294,6 +325,9 @@ User response: "${userInput}"`;
     }
     // content stays null; caller returns 'ambiguous'
   }
+
+  const _perfClassify_ms = (performance.now() - _perfClassify_start).toFixed(1);
+  console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): TOTAL ${_perfClassify_ms}ms (content=${content ? 'ok' : 'null'})`);
 
   if (content) {
     try {
