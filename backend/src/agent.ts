@@ -140,7 +140,7 @@ class AilanaVoiceAgent extends voice.Agent {
       // the extractor. The extractor finishes async; instructions update
       // for the current turn if it wins, or next turn if it times out.
       const extractionDone = this.contextManager.onUserTurn(userMessage.textContent);
-      const timeout = new Promise<void>(resolve => setTimeout(resolve, 150));
+      const timeout = new Promise<void>(resolve => setTimeout(resolve, 400));
       await Promise.race([extractionDone, timeout]);
     }
 
@@ -192,7 +192,7 @@ export default {
 
     const metrics = new LatencyTracker();
     const summarizationLlm = new openai.LLM({
-      model: 'llama3.1-8b',
+      model: 'gpt-oss-120b',
       baseURL: ailanaConfig.cerebrasBaseUrl,
       apiKey: ailanaConfig.cerebrasApiKey,
     });
