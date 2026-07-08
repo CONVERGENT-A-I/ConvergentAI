@@ -17,6 +17,13 @@ export type TurnLogEntry = {
   timestamp: number;
 };
 
+interface SessionContextManagerSnapshot {
+  profile: BorrowerProfile;
+  activeStage: string;
+  currentPendingField: string | null;
+  fieldAttempts: Record<string, number>;
+}
+
 export class SessionContextManager {
   private turnLog: TurnLogEntry[] = [];
   private turnCount = 0;
@@ -35,10 +42,173 @@ export class SessionContextManager {
   private lowConfidence = false;
   private fieldAttempts: Record<string, number> = {};
 
+  // Parallel asynchronous extraction state
+  private nextExtractionTurn = 1;
+  private lastAppliedTurn = 0;
+  private pendingExtractions = new Map<number, {
+    promise: Promise<void>;
+    status: 'pending' | 'completed' | 'timeout';
+    snapshot: SessionContextManagerSnapshot;
+    clonedManager?: SessionContextManager;
+    durationMs?: number;
+  }>();
+
   constructor(
     private readonly summarizationLlm: LLM,
     private readonly metrics: LatencyTracker,
   ) {}
+
+  clone(): SessionContextManager {
+    const cloned = new SessionContextManager(this.summarizationLlm, this.metrics);
+    cloned.profile = JSON.parse(JSON.stringify(this.profile));
+    cloned.activeStage = this.activeStage;
+    cloned.currentPendingField = this.currentPendingField;
+    cloned.lastProcessedInput = this.lastProcessedInput;
+    cloned.lowConfidence = this.lowConfidence;
+    cloned.fieldAttempts = JSON.parse(JSON.stringify(this.fieldAttempts));
+    cloned.turnLog = [...this.turnLog];
+    cloned.turnCount = this.turnCount;
+    cloned.lastCompactAt = this.lastCompactAt;
+    cloned.lastRotationAt = this.lastRotationAt;
+    cloned.conversationSummary = this.conversationSummary;
+    cloned.lastInputTokens = this.lastInputTokens;
+    return cloned;
+  }
+
+  getCurrentTurnCount(): number {
+    return this.nextExtractionTurn - 1;
+  }
+
+  getPendingExtractionCount(): number {
+    let count = 0;
+    for (const extraction of this.pendingExtractions.values()) {
+      if (extraction.status === 'pending') {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  triggerBackgroundExtraction(text: string): number {
+    const turnNumber = this.nextExtractionTurn++;
+    const snapshot: SessionContextManagerSnapshot = {
+      profile: JSON.parse(JSON.stringify(this.profile)),
+      activeStage: this.activeStage,
+      currentPendingField: this.currentPendingField,
+      fieldAttempts: JSON.parse(JSON.stringify(this.fieldAttempts)),
+    };
+
+    const clonedManager = this.clone();
+
+    const promise = (async () => {
+      const t0 = performance.now();
+      try {
+        await clonedManager.onUserTurn(text);
+        const duration = performance.now() - t0;
+        
+        const pending = this.pendingExtractions.get(turnNumber);
+        if (pending) {
+          pending.status = 'completed';
+          pending.durationMs = duration;
+        }
+        console.log(`[reconcile] Turn ${turnNumber} extraction finished in ${duration.toFixed(1)}ms.`);
+        this.applyCompletedExtractions();
+      } catch (err) {
+        console.error(`[reconcile] Turn ${turnNumber} extraction failed:`, err);
+        const pending = this.pendingExtractions.get(turnNumber);
+        if (pending) {
+          pending.status = 'completed';
+        }
+        this.applyCompletedExtractions();
+      }
+    })();
+
+    this.pendingExtractions.set(turnNumber, {
+      promise,
+      status: 'pending',
+      snapshot,
+      clonedManager,
+    });
+
+    return turnNumber;
+  }
+
+  async waitForExtraction(turnNumber: number, maxWaitMs: number): Promise<boolean> {
+    const pending = this.pendingExtractions.get(turnNumber);
+    if (!pending) return true;
+    if (pending.status !== 'pending') return true;
+
+    if (maxWaitMs <= 0) {
+      console.log(`[checkpoint] Circuit breaker active (0ms wait) for turn ${turnNumber}. Proceeding immediately.`);
+      pending.status = 'timeout';
+      return false;
+    }
+
+    let timeoutId: any;
+    const timeoutPromise = new Promise<boolean>((resolve) => {
+      timeoutId = setTimeout(() => {
+        console.warn(`[checkpoint] Turn ${turnNumber} extraction timed out after ${maxWaitMs}ms.`);
+        pending.status = 'timeout';
+        resolve(false);
+      }, maxWaitMs);
+    });
+
+    const completionPromise = pending.promise.then(() => {
+      clearTimeout(timeoutId);
+      return true;
+    });
+
+    return Promise.race([completionPromise, timeoutPromise]);
+  }
+
+  private applyCompletedExtractions(): void {
+    while (this.pendingExtractions.has(this.lastAppliedTurn + 1)) {
+      const turnNum = this.lastAppliedTurn + 1;
+      const extraction = this.pendingExtractions.get(turnNum)!;
+      
+      if (extraction.status === 'pending') {
+        break;
+      }
+
+      if (extraction.status === 'completed' && extraction.clonedManager) {
+        console.log(`[reconcile] Merging Turn ${turnNum} background extraction results into state.`);
+        this.reconcileState(extraction.snapshot, extraction.clonedManager);
+      } else {
+        console.log(`[reconcile] Turn ${turnNum} was timed out/skipped. Proceeding without matching results.`);
+      }
+
+      this.lastAppliedTurn = turnNum;
+      this.pendingExtractions.delete(turnNum);
+    }
+  }
+
+  private reconcileState(snapshot: SessionContextManagerSnapshot, clone: SessionContextManager): void {
+    const delta = this.getProfileDelta(snapshot.profile, clone.profile);
+    Object.assign(this.profile, delta);
+
+    if (clone.activeStage !== snapshot.activeStage) {
+      console.log(`[reconcile] Transitioning activeStage: ${this.activeStage} -> ${clone.activeStage}`);
+      this.activeStage = clone.activeStage;
+    }
+    if (clone.currentPendingField !== snapshot.currentPendingField) {
+      console.log(`[reconcile] Transitioning currentPendingField: ${this.currentPendingField} -> ${clone.currentPendingField}`);
+      this.currentPendingField = clone.currentPendingField;
+    }
+
+    for (const [field, attempts] of Object.entries(clone.fieldAttempts)) {
+      this.fieldAttempts[field] = attempts;
+    }
+  }
+
+  private getProfileDelta(original: BorrowerProfile, updated: BorrowerProfile): Partial<BorrowerProfile> {
+    const delta: Partial<BorrowerProfile> = {};
+    for (const key of Object.keys(updated) as Array<keyof BorrowerProfile>) {
+      if (JSON.stringify(original[key]) !== JSON.stringify(updated[key])) {
+        (delta as any)[key] = updated[key];
+      }
+    }
+    return delta;
+  }
 
   getProfile(): BorrowerProfile {
     return this.profile;

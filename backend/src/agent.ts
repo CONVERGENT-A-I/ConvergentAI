@@ -128,18 +128,29 @@ class AilanaVoiceAgent extends voice.Agent {
 
     this.contextManager.setLowConfidenceFlag(false);
 
+    // 1. Checkpoint: Wait for the previous turn's extraction to complete (if any)
+    const prevTurn = this.contextManager.getCurrentTurnCount();
+    if (prevTurn > 0) {
+      const _perfCheckpointStart = performance.now();
+      const pendingCount = this.contextManager.getPendingExtractionCount();
+      const maxWaitMs = pendingCount > 1 ? 0 : 300; // Circuit breaker: 0ms wait if backlog > 1
+      
+      console.log(`[checkpoint] Gating on previous turn ${prevTurn} extraction. Pending count: ${pendingCount}. Max wait: ${maxWaitMs}ms`);
+      
+      const completed = await this.contextManager.waitForExtraction(prevTurn, maxWaitMs);
+      const waitDur = performance.now() - _perfCheckpointStart;
+      
+      if (completed) {
+        console.log(`[checkpoint] Previous turn ${prevTurn} extraction resolved normally. Waited: ${waitDur.toFixed(1)}ms`);
+      } else {
+        console.warn(`[checkpoint] Previous turn ${prevTurn} extraction timed out or skipped. Waited: ${waitDur.toFixed(1)}ms`);
+      }
+    }
+
+    // 2. Trigger the current turn's extraction asynchronously in the background
     if (userMessage?.textContent) {
-      // Race the extraction against a 600ms deadline.
-      // If Cerebras is slow (high queue_time), we still release the hook
-      // promptly so the main LLM can start generating without waiting for
-      // the extractor. The extractor finishes async; instructions update
-      // for the current turn if it wins, or next turn if it times out.
-      const _perfExtractionStart = performance.now();
-      const extractionDone = this.contextManager.onUserTurn(userMessage.textContent);
-      const timeout = new Promise<void>(resolve => setTimeout(resolve, 400));
-      await Promise.race([extractionDone, timeout]);
-      const _perfExtractionMs = (performance.now() - _perfExtractionStart).toFixed(1);
-      console.log(`[perf] onUserTurn (extraction + race): ${_perfExtractionMs}ms`);
+      this.contextManager.triggerBackgroundExtraction(userMessage.textContent);
+      console.log(`[agent-hook]: Current turn background extraction triggered asynchronously.`);
     }
 
     // ── [perf] Instructions update ───────────────────────────────────────────
