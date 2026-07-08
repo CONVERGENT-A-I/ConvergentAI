@@ -244,6 +244,7 @@ export default function FloatingCTA() {
         connectionTimeoutRef.current = null;
       }
 
+      tokenFetchedAtRef.current = Date.now();
       setToken(data.token);
       setLkUrl(data.serverUrl);
 
@@ -312,6 +313,9 @@ export default function FloatingCTA() {
     }
   };
 
+  // Track when the token was fetched to identify if it is stale
+  const tokenFetchedAtRef = useRef<number | null>(null);
+
   const handleAIAction = (mode: PendingMode) => {
     if (mode === "loan-officer") {
       console.log(
@@ -346,7 +350,7 @@ export default function FloatingCTA() {
             `[ui-loan-officer]: ✅ User agreed, already connected (or in intro/live). Transitioning to live mode.`
           );
         if (!keyframeMetaData && mode !== "voice") {
-          fetchToken(mode);
+          fetchToken(mode, true);
         }
         setFlowPhase("live");
         return;
@@ -355,7 +359,14 @@ export default function FloatingCTA() {
         console.log(
           `[ui-loan-officer]: 🔄 Not connected yet, fetching LiveKit token for mode...`
         );
-      fetchToken(mode);
+
+      // Always fetch a fresh token + room when starting a new session
+      console.log("[ui] Fetching fresh token and room session.");
+      setToken(null);
+      setLkUrl(null);
+      setKeyframeMetaData(null);
+      setRoomName("");
+      fetchToken(mode, true);
     }
   };
 
@@ -367,10 +378,10 @@ export default function FloatingCTA() {
     }
   }, [searchParams]);
 
-  // Pre-fetch LiveKit token and Keyframe metadata on mount to skip connection delay
+  // Do NOT pre-fetch on mount anymore. Pre-fetching causes tokens to sit in memory
+  // and expire when users idle on the page. We will fetch tokens cleanly when the user clicks the CTA.
   useEffect(() => {
-    if (isFetchingRef.current || token) return;
-    fetchToken("video");
+    // Left empty intentionally to prevent pre-fetch timeouts/expiration
   }, []);
 
   // Centralised session reset — nukes all LiveKit / flow state so the
