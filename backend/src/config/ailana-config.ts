@@ -28,8 +28,10 @@ export const ailanaConfig = {
 
   get groqApiKey() { return process.env.GROQ_API_KEY ?? ''; },
   get openaiApiKey() { return process.env.OPENAI_API_KEY ?? ''; },
-  cartesiaKey: process.env.CARTESIA_KEY ?? '',
-  cartesiaVoiceId: process.env.AILANA_VOICE_ID ?? '11af83e2-23eb-452f-956e-7fee218ccb5c',
+  get cartesiaKey() { return process.env.CARTESIA_KEY ?? ''; },
+  get cartesiaVoiceId() { return process.env.AILANA_VOICE_ID ?? '11af83e2-23eb-452f-956e-7fee218ccb5c'; },
+  get elevenlabsApiKey() { return process.env.ELEVENLABS_API_KEY ?? ''; },
+  get elevenlabsVoiceId() { return process.env.ELEVENLABS_VOICE_ID ?? 'EST9Ui6982FZPSi7gCHi'; },
   get cerebrasApiKey() { return process.env.CEREBRAS_API_KEY ?? ''; },
   cerebrasBaseUrl: 'https://api.cerebras.ai/v1',
   cerebrasReasoningEffort: process.env.CEREBRAS_REASONING_EFFORT ?? 'low',

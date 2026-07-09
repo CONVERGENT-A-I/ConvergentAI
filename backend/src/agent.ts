@@ -5,12 +5,14 @@ if (process.platform === 'win32') {
   }
 }
 
+import dotenv from 'dotenv';
+dotenv.config();
 import { type JobContext, ServerOptions, cli, voice, llm, inference } from '@livekit/agents';
 import { RoomEvent, TrackKind } from '@livekit/rtc-node';
-import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import * as openai from '@livekit/agents-plugin-openai';
 import * as cartesia from '@livekit/agents-plugin-cartesia';
+import { LoggedElevenLabsTTS } from './metrics/logged-elevenlabs-tts.js';
 import { ailanaConfig } from './config/ailana-config.js';
 import { SessionContextManager } from './context/session-context-manager.js';
 import { LatencyTracker, ts } from './metrics/latency-tracker.js';
@@ -191,8 +193,6 @@ class AilanaVoiceAgent extends voice.Agent {
   }
 }
 
-dotenv.config();
-
 process.on('uncaughtException', (err) => {
   if (err?.message?.includes('audio_end_ms') || (err as any)?.context?.error?.message?.includes('audio_end_ms')) {
     console.warn('[agent]: Suppressed known OpenAI audio_end_ms crash.');
@@ -225,12 +225,14 @@ export default {
       prefixPaddingDuration: 200,
     });
 
-    console.log(`[agent]: Loading Cartesia STT/TTS (ink-2 / sonic-3.5)...`);
+    console.log(`[agent]: Loading Cartesia STT (ink-2) & ElevenLabs TTS (eleven_turbo_v2_5)...`);
+    console.log(`[agent-debug]: ElevenLabs key=${ailanaConfig.elevenlabsApiKey ? 'loaded (ending ' + ailanaConfig.elevenlabsApiKey.slice(-4) + ')' : 'MISSING'}, voiceId=${ailanaConfig.elevenlabsVoiceId}`);
     const sessionStt = new cartesia.STT({
       apiKey: ailanaConfig.cartesiaKey,
       model: 'ink-2',
     });
 
+    /* Commented out Cartesia TTS code
     const sessionTts = new cartesia.TTS({
       apiKey: ailanaConfig.cartesiaKey,
       voice: ailanaConfig.cartesiaVoiceId,
@@ -238,9 +240,16 @@ export default {
       // Streaming is on by default in the Cartesia plugin — audio chunks
       // are forwarded as soon as the first PCM frame arrives.
     });
+    */
+
+    const sessionTts = new LoggedElevenLabsTTS({
+      apiKey: ailanaConfig.elevenlabsApiKey,
+      voiceId: ailanaConfig.elevenlabsVoiceId,
+      modelID: 'eleven_turbo_v2_5',
+    });
 
     const createVadAgent = () => {
-      console.log('[agent]: Creating Cascaded agent (Cerebras LLM + Cartesia STT/TTS)...');
+      console.log('[agent]: Creating Cascaded agent (Cerebras LLM + Cartesia STT + ElevenLabs TTS)...');
       return new AilanaVoiceAgent({
         instructions: contextManager.getActiveInstructions(),
         stt: sessionStt,
@@ -761,7 +770,7 @@ export default {
       }
     })();
 
-    const activeModelName = 'cascade-livekit-inference (Cerebras GPT-OSS 120B + Cartesia)';
+    const activeModelName = 'cascade-livekit-inference (Cerebras GPT-OSS 120B + ElevenLabs)';
     console.log(
       `[agent]: Ready — model=${activeModelName}, prompt=${ailanaConfig.promptVersion}, compact@${ailanaConfig.compactEveryNTurns} turns / ${ailanaConfig.forceCompactInputTokens} tokens`,
     );
