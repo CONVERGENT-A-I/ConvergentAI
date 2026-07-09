@@ -118,7 +118,7 @@ class AilanaVoiceAgent extends voice.Agent {
   constructor(
     options: voice.AgentOptions<any>,
     private contextManager: SessionContextManager,
-    private updateInstructions: () => void
+    private updateInstructionsCallback: () => void
   ) {
     super(options);
   }
@@ -158,7 +158,7 @@ class AilanaVoiceAgent extends voice.Agent {
     // ── [perf] Instructions update ───────────────────────────────────────────
     const _perfInstructionsStart = performance.now();
     // Update original instructions in the session
-    this.updateInstructions();
+    this.updateInstructionsCallback();
     const _perfInstructionsMs = (performance.now() - _perfInstructionsStart).toFixed(1);
     console.log(`[perf] updateInstructions (getActiveInstructions + chatCtx write): ${_perfInstructionsMs}ms`);
 
