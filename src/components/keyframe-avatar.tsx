@@ -60,7 +60,12 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
   const turnNumberRef = useRef<number>(0);
 
   const sendTelemetry = useCallback((event: string, durationMs: number, details?: any) => {
-    fetch("http://localhost:3001/api/log-telemetry", {
+    const backendUrl =
+      process.env.NEXT_PUBLIC_BACKEND_URL ||
+      (process.env.NODE_ENV === "development"
+        ? "http://localhost:3001"
+        : "https://dev-be.convergentai.tech");
+    fetch(`${backendUrl}/api/log-telemetry`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ event, durationMs, details }),
