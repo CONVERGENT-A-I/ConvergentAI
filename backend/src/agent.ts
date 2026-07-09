@@ -7,7 +7,7 @@ if (process.platform === 'win32') {
 
 import dotenv from 'dotenv';
 dotenv.config();
-import { type JobContext, ServerOptions, cli, voice, llm, inference } from '@livekit/agents';
+import { type JobContext, ServerOptions, cli, voice, llm, inference, defineAgent } from '@livekit/agents';
 import { RoomEvent, TrackKind } from '@livekit/rtc-node';
 import { fileURLToPath } from 'url';
 import * as openai from '@livekit/agents-plugin-openai';
@@ -206,7 +206,7 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
-export default {
+export default defineAgent({
   async entry(ctx: JobContext) {
     console.log(`[agent]: Receiving job for room: ${ctx.room.name}`);
 
@@ -775,7 +775,7 @@ export default {
       `[agent]: Ready — model=${activeModelName}, prompt=${ailanaConfig.promptVersion}, compact@${ailanaConfig.compactEveryNTurns} turns / ${ailanaConfig.forceCompactInputTokens} tokens`,
     );
   },
-};
+});
 
 if (process.argv[1] && process.argv[1].endsWith('agent.ts')) {
   cli.runApp(
