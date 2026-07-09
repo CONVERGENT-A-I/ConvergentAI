@@ -42,6 +42,8 @@ export class LatencyTracker {
     this.t_llm_complete = undefined;
     this.t_tts_start = undefined;
     this.t_tts_complete = undefined;
+    this.t_avatar_render_start = undefined;
+    this.t_avatar_first_frame = undefined;
     return this.turnNumber;
   }
 
@@ -89,6 +91,41 @@ export class LatencyTracker {
     const dur = this.t_tts_start ? this.t_tts_complete - this.t_tts_start : -1;
     console.log(`[pipeline][${ts()}] TTS audio complete  render_dur=${dur}ms`);
     this.logPipelineReport();
+  }
+
+  // ── Avatar rendering latency (LemonSlice) ──────────────────────────────
+  private t_avatar_render_start: number | undefined;
+  private t_avatar_first_frame: number | undefined;
+
+  /** Called when the agent state transitions to 'speaking' — avatar starts processing TTS audio. */
+  markAvatarRenderStart(): void {
+    this.t_avatar_render_start = Date.now();
+    const lag = this.t_tts_start ? this.t_avatar_render_start - this.t_tts_start : -1;
+    console.log(`[pipeline][${ts()}] AVATAR render start  lag_after_tts_start=${lag}ms`);
+  }
+
+  /** Called when the LiveKit agent-speaking event fires — avatar first audio frame is live. */
+  markAvatarFirstFrame(): void {
+    if (this.t_avatar_first_frame) return; // only record once per turn
+    this.t_avatar_first_frame = Date.now();
+    const sinceRenderStart = this.t_avatar_render_start ? this.t_avatar_first_frame - this.t_avatar_render_start : -1;
+    const sinceTtsStart = this.t_tts_start ? this.t_avatar_first_frame - this.t_tts_start : -1;
+    const sinceUserTurn = this.pendingUserTurnEnd ? this.t_avatar_first_frame - this.pendingUserTurnEnd : -1;
+    console.log(JSON.stringify({
+      type: 'ailana-metrics',
+      event: 'avatar_first_frame',
+      tts_to_avatar_ms: sinceRenderStart,
+      tts_start_to_avatar_ms: sinceTtsStart,
+      e2e_to_avatar_ms: sinceUserTurn,
+      turnNumber: this.turnNumber,
+      sessionAgeMs: Date.now() - this.sessionStartAt,
+    }));
+    console.log(
+      `[pipeline][${ts()}] ── AVATAR LATENCY ──` +
+      `  tts_to_avatar=${sinceRenderStart}ms` +
+      `  tts_start_to_avatar=${sinceTtsStart}ms` +
+      `  e2e_user_to_avatar=${sinceUserTurn}ms`
+    );
   }
 
   markAgentSpeaking(): void {

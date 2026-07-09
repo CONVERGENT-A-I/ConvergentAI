@@ -12,7 +12,7 @@ import { Users, Send, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
-import KeyframeAvatar from "./keyframe-avatar";
+import LemonsliceAvatar from "./lemonslice-avatar";
 
 import { useMotionValue, useSpring, useTransform } from "framer-motion";
 
@@ -153,28 +153,35 @@ function VoiceVisualizer() {
  * Custom Stable Video Stage
  * Bypasses the default VideoConference component to avoid internal layout reconciliation errors.
  */
-export default function VideoStage({ mode = 'video', keyframeMetadata, hideControls = false }: { mode?: string, keyframeMetadata?: any, hideControls?: boolean }) {
+export default function VideoStage({ mode = 'video', hideControls = false }: { mode?: string, hideControls?: boolean }) {
   const [inputText, setInputText] = useState("");
   const { send } = useChat();
 
   // Camera + ScreenShare for the video grid; Microphone not needed here
-  // (agent audio is handled inside KeyframeAvatar via useParticipants)
   const tracks = useTracks(
     [Track.Source.Camera, Track.Source.ScreenShare],
     { onlySubscribed: true },
   );
 
-  // Human participants only — excludes agent and any Keyframe participants
+  // Human participants only — excludes agent, keyframe and lemonslice participants
   const participants = useParticipants().filter(
-    (p) => p.identity !== 'agent' && !p.identity.startsWith('agent-') && !p.identity.startsWith('keyframe-')
+    (p) => p.identity !== 'agent' &&
+      !p.identity.startsWith('agent-') &&
+      !p.identity.startsWith('keyframe-') &&
+      !p.identity.toLowerCase().startsWith('lemonslice') &&
+      !p.identity.toLowerCase().includes('avatar')
   );
 
-  // Video grid tracks — exclude tiles from agent participants
+  // Video grid tracks — exclude tiles from agent, keyframe and lemonslice participants
   const gridTracks = tracks.filter(
-    (t) => t.participant.identity !== 'agent' && !t.participant.identity.startsWith('agent-') && !t.participant.identity.startsWith('keyframe-')
+    (t) => t.participant.identity !== 'agent' &&
+      !t.participant.identity.startsWith('agent-') &&
+      !t.participant.identity.startsWith('keyframe-') &&
+      !t.participant.identity.toLowerCase().startsWith('lemonslice') &&
+      !t.participant.identity.toLowerCase().includes('avatar')
   );
 
-  const totalTiles = gridTracks.length + 1; // Human tracks + Keyframe Avatar
+  const totalTiles = gridTracks.length + 1; // Human tracks + Lemonslice Avatar
   const gridClass =
     totalTiles === 1 ? "grid-cols-1 grid-rows-1" :
       totalTiles === 2 ? "grid-cols-1 md:grid-cols-2 grid-rows-2 md:grid-rows-1" :
@@ -220,37 +227,9 @@ export default function VideoStage({ mode = 'video', keyframeMetadata, hideContr
               
 
 
-              {keyframeMetadata ? (
-                <KeyframeAvatar 
-                  keyframeMetadata={keyframeMetadata} 
-                  className={`w-full h-full ${!isAvatarOnly ? 'rounded-2xl' : ''}`} 
-                />
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center gap-6 text-gray-500 bg-[#050505] relative overflow-hidden">
-                  {/* Subtle Background Animation for Loading */}
-                  <div className="absolute inset-0 overflow-hidden">
-                    <motion.div 
-                      animate={{ 
-                        scale: [1, 1.2, 1],
-                        opacity: [0.03, 0.08, 0.03] 
-                      }}
-                      transition={{ duration: 4, repeat: Infinity }}
-                      className="absolute inset-0 bg-[#00b4d8] blur-[100px] rounded-full translate-y-1/2"
-                    />
-                  </div>
-
-                  <div className="relative z-10 flex flex-col items-center gap-4">
-                    <div className="relative">
-                      <Loader2 className="h-10 w-10 animate-spin text-[#00b4d8]" />
-                      <div className="absolute inset-0 blur-md bg-[#00b4d8]/20 animate-pulse" />
-                    </div>
-                    <div className="flex flex-col items-center gap-1">
-                      <p className="text-[11px] font-black tracking-[0.3em] text-white uppercase">Connecting Ailana</p>
-                      <ConnectionProgress />
-                    </div>
-                  </div>
-                </div>
-              )}
+              <LemonsliceAvatar 
+                className={`w-full h-full ${!isAvatarOnly ? 'rounded-2xl' : ''}`} 
+              />
               
               {!isAvatarOnly && (
                 <div className="absolute bottom-24 md:bottom-3 left-3 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2 z-20">

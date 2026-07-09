@@ -50,7 +50,6 @@ export default function FloatingCTA() {
   const [isIntroComplete, setIsIntroComplete] = useState(true);
   const [token, setToken] = useState<string | null>(null);
   const [lkUrl, setLkUrl] = useState<string | null>(null);
-  const [keyframeMetaData, setKeyframeMetaData] = useState<any>(null);
   const [isLkConnected, setIsLkConnected] = useState(false);
   const [isAgentReady, setIsAgentReady] = useState(false);
   const [pendingMode, setPendingMode] = useState<PendingMode>("video");
@@ -183,13 +182,8 @@ export default function FloatingCTA() {
         flowPhaseRef.current = "connecting";
       }
 
-      // Only reset intro state when actually starting an intro flow,
-      // not on reconnections that skip straight to live.
       if (mode === "intro-avatar") {
         setIsIntroComplete(false);
-      }
-      if (!isLkConnected) {
-        setKeyframeMetaData(null);
       }
 
       const urlRoom = searchParams.get("room");
@@ -248,20 +242,8 @@ export default function FloatingCTA() {
       setToken(data.token);
       setLkUrl(data.serverUrl);
 
-      // Provider Fallback Logic:
-      // If user requested video/avatar but service returned no metadata, downgrade to voice
-      if (!data.keyframe && activeMode !== "voice") {
-        console.warn(
-          "[fetchToken]: Avatar service unavailable. Falling back to Voice."
-        );
-        setIsFallbackMode(true);
-        setPendingMode("voice");
-        setConnectionStatus("Avatar unavailable. Switching to Voice...");
-      } else {
-        setKeyframeMetaData(data.keyframe ?? null);
-        setIsFallbackMode(false);
-        setConnectionStatus("");
-      }
+      setIsFallbackMode(false);
+      setConnectionStatus("");
 
       // Use the ref to read the phase at the time the async call resolves (avoids stale closure)
       if (flowPhaseRef.current !== "intro") {
@@ -300,7 +282,7 @@ export default function FloatingCTA() {
         console.log(
           `[ui-loan-officer]: ✅ User agreed, already connected (or in intro/live). Transitioning to live mode.`
         );
-        if (!keyframeMetaData) {
+        if (!token) {
           fetchToken(mode);
         }
         setFlowPhase("live");
@@ -349,7 +331,7 @@ export default function FloatingCTA() {
           console.log(
             `[ui-loan-officer]: ✅ User agreed, already connected (or in intro/live). Transitioning to live mode.`
           );
-        if (!keyframeMetaData && mode !== "voice") {
+        if (!token && mode !== "voice") {
           fetchToken(mode, true);
         }
         setFlowPhase("live");
@@ -364,7 +346,6 @@ export default function FloatingCTA() {
       console.log("[ui] Fetching fresh token and room session.");
       setToken(null);
       setLkUrl(null);
-      setKeyframeMetaData(null);
       setRoomName("");
       fetchToken(mode, true);
     }
@@ -396,7 +377,6 @@ export default function FloatingCTA() {
     setRoomName("");
     setIsVideoReady(false);
     setIsIntroBlurring(true);
-    setKeyframeMetaData(null);
     setHasAgreed(true);
     setIsIntroComplete(true);
     setComplianceChecked(true);
@@ -427,7 +407,6 @@ export default function FloatingCTA() {
     setIsLkConnected(false);
     setIsAgentReady(false);
     setRoomName("");
-    setKeyframeMetaData(null);
     setIsVideoReady(false);
     setConnectionStatus("");
     setIsOffline(false);
@@ -1275,7 +1254,6 @@ export default function FloatingCTA() {
                                       ) : (
                                         <VideoStage
                                           mode={pendingMode}
-                                          keyframeMetadata={keyframeMetaData}
                                           hideControls
                                         />
                                       )}
@@ -1332,11 +1310,7 @@ export default function FloatingCTA() {
                                 </div>
                               </div>
 
-                              {/* Always render audio for loan-officer mode (SIP audio),
-                                  or when no Keyframe avatar is active (voice mode) */}
-                              {(pendingMode === "loan-officer" || !keyframeMetaData) && (
-                                <RoomAudioRenderer />
-                              )}
+                              <RoomAudioRenderer />
                             </LiveKitRoom>
                           </motion.div>
                         )}

@@ -23,7 +23,7 @@ import {
   RESUME_USER_INPUT,
 } from './prompts/index.js';
 import { logPromptBudget } from './context/context-budget.js';
-import { evaluateEmotion } from './utils/avatar-emotion-engine.js';
+import { AvatarSession } from '@livekit/agents-plugin-lemonslice';
 import { BackchannelEngine } from './utils/backchannel-engine.js';
 import { OpenAI } from 'openai';
 
@@ -322,10 +322,6 @@ export default defineAgent({
 
     let currentAgentState = 'initializing';
 
-    // Emotion tracking state
-    let emotionEvalInterval: NodeJS.Timeout | null = null;
-    let lastBroadcastedEmotion = 'happy';
-
     session.on(voice.AgentSessionEventTypes.Error, (err: any) => {
       if (err?.message?.includes('audio_end_ms')) return;
       console.error('[agent-error]: Session error:', err);
@@ -342,63 +338,15 @@ export default defineAgent({
           if (oldState === 'thinking') {
             metrics.markAgentSpeaking();
           }
-
-          // Avatar emotion: Start polling the streaming LLM text to react mid-sentence
-          if (emotionEvalInterval) clearInterval(emotionEvalInterval);
-          emotionEvalInterval = setInterval(() => {
-            try {
-              const items = session.chatCtx?.items || [];
-              const lastAssistantItem = items.slice().reverse().find(
-                (i): i is llm.ChatMessage => i.type === 'message' && i.role === 'assistant'
-              );
-              if (lastAssistantItem?.textContent) {
-                const emotion = evaluateEmotion(lastAssistantItem.textContent);
-                if (emotion !== lastBroadcastedEmotion) {
-                  lastBroadcastedEmotion = emotion;
-                  const emotionPayload = new TextEncoder().encode(JSON.stringify({
-                    type: 'AVATAR_EMOTION',
-                    emotion,
-                  }));
-                  ctx.room.localParticipant?.publishData(emotionPayload, {
-                    reliable: true,
-                    topic: 'avatar_emotion',
-                  });
-                  console.log(`[agent-debug]: Avatar emotion → ${emotion} (mid-stream)`);
-                }
-              }
-            } catch (e) {
-              // Ignore polling errors
-            }
-          }, 500);
-        } else {
-          // If not speaking (e.g. listening, thinking, idle), stop polling
-          if (emotionEvalInterval) {
-            clearInterval(emotionEvalInterval);
-            emotionEvalInterval = null;
-          }
+          // Mark avatar render start — LemonSlice receives TTS audio from this moment
+          metrics.markAvatarRenderStart();
+          // First audio frame of the avatar track arrives with a short processing delay;
+          // markAvatarFirstFrame() is called from the TrackPublished / TrackSubscribed handler below.
         }
 
         if (newState === 'listening' && (session as any)._started && !voiceMuted && !isHibernating) {
           backchannelEngine.reset();
           prepareContext().catch(err => console.error('[agent-error]: Idle prepareContext failed:', err));
-
-          // Avatar emotion: return to happy resting face when idle
-          try {
-            if (lastBroadcastedEmotion !== 'happy') {
-              lastBroadcastedEmotion = 'happy';
-              const happyPayload = new TextEncoder().encode(JSON.stringify({
-                type: 'AVATAR_EMOTION',
-                emotion: 'happy',
-              }));
-              ctx.room.localParticipant?.publishData(happyPayload, {
-                reliable: true,
-                topic: 'avatar_emotion',
-              });
-              console.log(`[agent-debug]: Avatar emotion → happy (idle)`);
-            }
-          } catch (e) {
-            // Non-critical — don't break agent flow
-          }
         }
       }
     });
@@ -746,6 +694,38 @@ export default defineAgent({
     await ctx.connect();
     console.log(`[agent]: Connected to room: ${ctx.room.name}`);
 
+    // ── LemonSlice Avatar Session ─────────────────────────────────────────
+    // Start the avatar AFTER connecting so it can join the same room.
+    // The avatar publishes its video/audio as a native LiveKit participant;
+    // the frontend simply renders those tracks — no separate WebRTC session needed.
+    const lsApiKey = ailanaConfig.lemonsliceApiKey;
+    const lsAgentId = ailanaConfig.lemonsliceAgentId;
+    if (lsApiKey && lsAgentId) {
+      try {
+        const avatarSession = new AvatarSession({
+          agentId: lsAgentId,
+          apiKey: lsApiKey,
+        });
+        const avatarStartT = Date.now();
+        console.log(`[avatar][${ts()}] Starting LemonSlice AvatarSession (agentId=${lsAgentId})...`);
+        await avatarSession.start(session, ctx.room);
+        console.log(`[avatar][${ts()}] LemonSlice AvatarSession started in ${Date.now() - avatarStartT}ms`);
+
+        // When LemonSlice publishes its first audio track, record avatar-first-frame latency
+        ctx.room.on(RoomEvent.TrackPublished, (pub: any, participant: any) => {
+          if (participant?.identity?.startsWith('lemonslice') || participant?.identity?.includes('avatar')) {
+            console.log(`[avatar][${ts()}] LemonSlice track published — kind=${pub.kind} source=${pub.source}`);
+            metrics.markAvatarFirstFrame();
+          }
+        });
+      } catch (err) {
+        console.error(`[avatar][${ts()}] Failed to start LemonSlice AvatarSession:`, err);
+        // Non-fatal — agent continues without avatar
+      }
+    } else {
+      console.warn(`[avatar][${ts()}] LemonSlice credentials missing (LEMONSLICE_API_KEY / LEMONSLICE_AGENT_ID) — avatar disabled.`);
+    }
+
     // Measure connection latency to Cerebras API endpoint on start
     (async () => {
       const start = Date.now();
@@ -770,7 +750,7 @@ export default defineAgent({
       }
     })();
 
-    const activeModelName = 'cascade-livekit-inference (Cerebras GPT-OSS 120B + ElevenLabs)';
+    const activeModelName = 'cascade-livekit-inference (Cerebras GPT-OSS 120B + ElevenLabs + LemonSlice Avatar)';
     console.log(
       `[agent]: Ready — model=${activeModelName}, prompt=${ailanaConfig.promptVersion}, compact@${ailanaConfig.compactEveryNTurns} turns / ${ailanaConfig.forceCompactInputTokens} tokens`,
     );
