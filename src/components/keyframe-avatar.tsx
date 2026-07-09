@@ -50,6 +50,76 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
   const videoTrackRef = useRef<MediaStreamTrack | null>(null);
   const audioTrackRef = useRef<MediaStreamTrack | null>(null);
 
+  // References to track voice loopback latency (TTS to Avatar speaking distance)
+  const firstInputAudioTimeRef = useRef<number>(0);
+  const firstOutputAudioTimeRef = useRef<number>(0);
+
+  // References for continuous multi-turn speech detection and latency tracking
+  const isAgentSpeakingRef = useRef<boolean>(false);
+  const agentSilenceBlocksRef = useRef<number>(0);
+  const turnNumberRef = useRef<number>(0);
+
+  const sendTelemetry = useCallback((event: string, durationMs: number, details?: any) => {
+    fetch("http://localhost:3001/api/log-telemetry", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event, durationMs, details }),
+    }).catch(() => {});
+  }, []);
+
+  const startPlayoutVolumeMonitor = useCallback((track: MediaStreamTrack) => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const source = ctx.createMediaStreamSource(new MediaStream([track]));
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      
+      let isVolumeActive = false;
+      let silenceCount = 0;
+      
+      const checkVolume = () => {
+        if (!isConnectedRef.current) {
+          ctx.close().catch(() => {});
+          return;
+        }
+        analyser.getByteTimeDomainData(dataArray);
+        let maxVal = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          const val = Math.abs(dataArray[i] - 128);
+          if (val > maxVal) maxVal = val;
+        }
+        
+        if (maxVal > 5) {
+          if (!isVolumeActive) {
+            isVolumeActive = true;
+            const now = performance.now();
+            console.log(`[KeyframeAvatar] [metrics] 🔊 Avatar active playout started.`);
+            sendTelemetry("client_avatar_playout_started", now);
+          }
+          silenceCount = 0;
+        } else {
+          if (isVolumeActive) {
+            silenceCount++;
+            if (silenceCount > 40) { // ~600ms of silence at ~60fps requestAnimationFrame
+              isVolumeActive = false;
+              const now = performance.now();
+              console.log(`[KeyframeAvatar] [metrics] 🤫 Avatar playout silenced.`);
+              sendTelemetry("client_avatar_playout_silenced", now);
+            }
+          }
+        }
+        requestAnimationFrame(checkVolume);
+      };
+      
+      checkVolume();
+    } catch (e) {
+      console.warn("[KeyframeAvatar] Failed to start playout volume monitor:", e);
+    }
+  }, [sendTelemetry]);
+
   const updateSrcObject = useCallback(() => {
     if (!videoRef.current) return;
     const tracks: MediaStreamTrack[] = [];
@@ -106,6 +176,8 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
 
     let cancelled = false;
 
+    let connectStartTime = 0;
+
     // 200ms delay — let room stabilize
     const connectionTimer = setTimeout(async () => {
       if (cancelled || isConnectedRef.current) return;
@@ -114,6 +186,8 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
         serverUrl: keyframeMetadata.server_url,
         agentIdentity: targetIdentity,
       });
+
+      connectStartTime = performance.now();
 
       // Debug: Log all participants
       console.log("[KeyframeAvatar] Current participants in room:",
@@ -125,38 +199,39 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
         participantToken: keyframeMetadata.participant_token,
         agentIdentity: targetIdentity,
 
-        // Previous configuration (separate audio/video elements, commented out):
-        // onVideoTrack: (track) => {
-        //   if (cancelled || !videoRef.current) return;
-        //   console.log("[KeyframeAvatar] ✅ Video track received");
-        //   videoRef.current.srcObject = new MediaStream([track]);
-        //   videoRef.current
-        //     .play()
-        //     .catch((e) => console.warn("[KeyframeAvatar] Video autoplay:", e));
-        // },
-        // onAudioTrack: (track) => {
-        //   console.log("[KeyframeAvatar] ✅ Audio track received from Keyframe");
-        //   if (cancelled || !audioRef.current) return;
-        //   audioRef.current.srcObject = new MediaStream([track]);
-        //   audioRef.current.play().catch((e) => console.warn("[KeyframeAvatar] Audio playback failed:", e));
-        // },
         onVideoTrack: (track) => {
           if (cancelled || !videoRef.current) return;
-          console.log("[KeyframeAvatar] ✅ Video track received");
+          const dur = (performance.now() - connectStartTime).toFixed(0);
+          console.log(`[KeyframeAvatar] [metrics] ✅ Video track received in ${dur}ms`);
+          sendTelemetry("webrtc_video_track_received", parseFloat(dur));
           videoTrackRef.current = track;
           updateSrcObject();
         },
 
         onAudioTrack: (track) => {
-          console.log("[KeyframeAvatar] ✅ Audio track received from Keyframe");
+          const dur = (performance.now() - connectStartTime).toFixed(0);
+          console.log(`[KeyframeAvatar] [metrics] ✅ Audio track received from Keyframe in ${dur}ms`);
+          sendTelemetry("webrtc_audio_track_received", parseFloat(dur));
+
+          if (firstOutputAudioTimeRef.current === 0 && firstInputAudioTimeRef.current !== 0) {
+            firstOutputAudioTimeRef.current = performance.now();
+            const playoutDelay = (firstOutputAudioTimeRef.current - firstInputAudioTimeRef.current).toFixed(0);
+            console.log(`[KeyframeAvatar] [metrics] 🔊 TTS-to-Avatar speaking playout delay (loopback): ${playoutDelay}ms`);
+            sendTelemetry("tts_to_avatar_loopback_delay", parseFloat(playoutDelay));
+          }
+
           audioTrackRef.current = track;
           updateSrcObject();
+          startPlayoutVolumeMonitor(track);
         },
 
         onStateChange: (state) => {
           if (cancelled) return;
           console.log("[KeyframeAvatar] State →", state);
           if (state === "connected") {
+            const dur = (performance.now() - connectStartTime).toFixed(0);
+            console.log(`[KeyframeAvatar] [metrics] ✅ Handshake completed. WebRTC connected in ${dur}ms`);
+            sendTelemetry("webrtc_handshake_connected", parseFloat(dur));
             isConnectedRef.current = true;
             setStatus("connected");
 
@@ -206,7 +281,9 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
           await session.connect();
 
           if (!cancelled) {
-            console.log("[KeyframeAvatar] ✅ connect() resolved");
+            const dur = (performance.now() - connectStartTime).toFixed(0);
+            console.log(`[KeyframeAvatar] [metrics] ✅ connect() resolved in ${dur}ms`);
+            sendTelemetry("webrtc_connect_resolved", parseFloat(dur));
             isRetrying.current = false;
             isConnectedRef.current = true;
             setStatus("connected");
@@ -372,7 +449,44 @@ export default function KeyframeAvatar({ keyframeMetadata, className }: Keyframe
       // Float32 → Int16 → sendAudio  (only fires when session is confirmed connected)
       processor.port.onmessage = (e: MessageEvent<Float32Array>) => {
         if (!isConnectedRef.current || !sessionRef.current) return;
+
         const f32 = e.data;
+
+        // Establish the first audio packet timestamp if not set
+        if (firstInputAudioTimeRef.current === 0) {
+          firstInputAudioTimeRef.current = performance.now();
+          console.log("[KeyframeAvatar] [metrics] 🎙️ First audio chunk sent to Keyframe for lip-sync");
+        }
+
+        // Calculate RMS volume of the 1024-sample block
+        let sum = 0;
+        for (let i = 0; i < f32.length; i++) {
+          sum += f32[i] * f32[i];
+        }
+        const rms = Math.sqrt(sum / f32.length);
+
+        // Amplitude-based voice activity detection
+        if (rms > 0.005) {
+          if (!isAgentSpeakingRef.current) {
+            isAgentSpeakingRef.current = true;
+            turnNumberRef.current += 1;
+            const now = performance.now();
+            console.log(`[KeyframeAvatar] [metrics] 🎙️ Turn ${turnNumberRef.current} speech detected in incoming agent track (rms=${rms.toFixed(4)})`);
+            sendTelemetry("client_agent_speech_started", now, { turn: turnNumberRef.current });
+          }
+          agentSilenceBlocksRef.current = 0;
+        } else {
+          if (isAgentSpeakingRef.current) {
+            agentSilenceBlocksRef.current += 1;
+            if (agentSilenceBlocksRef.current > 40) { // ~1.7 seconds of silence (40 chunks * 42.6ms)
+              isAgentSpeakingRef.current = false;
+              const now = performance.now();
+              console.log(`[KeyframeAvatar] [metrics] 🤫 Agent incoming track silenced`);
+              sendTelemetry("client_agent_speech_silenced", now, { turn: turnNumberRef.current });
+            }
+          }
+        }
+
         const i16 = new Int16Array(f32.length);
         for (let i = 0; i < f32.length; i++) {
           const c = Math.max(-1, Math.min(1, f32[i]));

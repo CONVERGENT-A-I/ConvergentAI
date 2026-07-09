@@ -73,6 +73,7 @@ app.post('/api/get-token', async (req: Request, res: Response) => {
     if (keyframeApiKey && personaSlug) {
       try {
         console.log(`[server]: Requesting Keyframe session for persona: ${personaSlug}`);
+        const kfApiStart = performance.now();
         const kfRes = await fetch("https://api.keyframelabs.com/v1/sessions", {
           method: "POST",
           headers: {
@@ -103,7 +104,8 @@ app.post('/api/get-token', async (req: Request, res: Response) => {
               agent_identity: raw.agent_identity,
             };
           }
-          console.log(`[server]: Keyframe session created successfully.`);
+          const kfApiMs = (performance.now() - kfApiStart).toFixed(0);
+          console.log(`[server]: Keyframe session created successfully in ${kfApiMs}ms.`);
         } else {
           const errorBody = await kfRes.text();
           console.error(`[server]: Keyframe API Error (${kfRes.status}):`, errorBody);
@@ -122,6 +124,17 @@ app.post('/api/get-token', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error generating LiveKit token:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Telemetry endpoint to collect and print client-side metrics in backend logs
+app.post('/api/log-telemetry', (req: Request, res: Response) => {
+  try {
+    const { event, durationMs, details } = req.body;
+    console.log(`[client-telemetry] event=${event} duration=${durationMs}ms details=${JSON.stringify(details || {})}`);
+    res.json({ status: 'success' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to write telemetry' });
   }
 });
 
