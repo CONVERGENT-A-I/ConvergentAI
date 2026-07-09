@@ -127,6 +127,7 @@ app.post('/api/get-token', async (req: Request, res: Response) => {
   }
 });
 
+
 // Telemetry endpoint to collect and print client-side metrics in backend logs
 app.post('/api/log-telemetry', (req: Request, res: Response) => {
   try {
