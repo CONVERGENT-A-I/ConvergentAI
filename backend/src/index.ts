@@ -110,13 +110,22 @@ app.listen(PORT, async () => {
     // Resolve path cleanly using import.meta.url
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    const agentFilePath = path.join(__dirname, 'agent.ts');
 
-    const agentProcess = fork(agentFilePath, ['dev'], {
-      execArgv: ['--import', 'tsx'],
-      env: { ...process.env, LIVEKIT_LOG_LEVEL: 'info' },
-      stdio: 'inherit'
-    });
+    // In production (running compiled dist/index.js), fork the compiled agent.js.
+    // In development (running src/index.ts via tsx), fork agent.ts with tsx.
+    const isCompiledDist = __filename.endsWith('.js');
+    const agentFilePath = isCompiledDist
+      ? path.join(__dirname, 'agent.js')   // production: run compiled JS
+      : path.join(__dirname, 'agent.ts');  // development: run TS via tsx
+
+    const forkOptions = isCompiledDist
+      ? { env: { ...process.env, LIVEKIT_LOG_LEVEL: 'info' }, stdio: 'inherit' as const }
+      : { execArgv: ['--import', 'tsx'], env: { ...process.env, LIVEKIT_LOG_LEVEL: 'info' }, stdio: 'inherit' as const };
+
+    console.log(`[server]: Starting Agent Worker — ${isCompiledDist ? 'production (compiled JS)' : 'development (tsx TS)'}`);
+    console.log(`[server]: Agent worker file: ${agentFilePath}`);
+
+    const agentProcess = fork(agentFilePath, ['dev'], forkOptions);
 
     agentProcess.on('error', (err) => {
       console.error(`[server]: Failed to start Agent Worker:`, err);

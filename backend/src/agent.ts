@@ -210,6 +210,23 @@ export default defineAgent({
   async entry(ctx: JobContext) {
     console.log(`[agent]: Receiving job for room: ${ctx.room.name}`);
 
+    // ── STARTUP ENVIRONMENT DIAGNOSTICS ──────────────────────────────────────
+    // Printed on every job start so GCP logs show exactly which secrets were
+    // injected. Keys are shown as present/MISSING + last-4 chars only.
+    const envCheck = (key: string, val: string) =>
+      val ? `✓ present (…${val.slice(-4)})` : '✗ MISSING';
+    console.log('[agent-startup] ══ Environment variable audit ══');
+    console.log(`[agent-startup]  CARTESIA_KEY          : ${envCheck('CARTESIA_KEY', ailanaConfig.cartesiaKey)}`);
+    console.log(`[agent-startup]  ELEVENLABS_API_KEY    : ${envCheck('ELEVENLABS_API_KEY', ailanaConfig.elevenlabsApiKey)}`);
+    console.log(`[agent-startup]  ELEVENLABS_VOICE_ID   : ${ailanaConfig.elevenlabsVoiceId ? '✓ ' + ailanaConfig.elevenlabsVoiceId : '✗ MISSING'}`);
+    console.log(`[agent-startup]  LEMONSLICE_API_KEY    : ${envCheck('LEMONSLICE_API_KEY', ailanaConfig.lemonsliceApiKey)}`);
+    console.log(`[agent-startup]  LEMONSLICE_AGENT_ID   : ${ailanaConfig.lemonsliceAgentId ? '✓ ' + ailanaConfig.lemonsliceAgentId : '✗ MISSING'}`);
+    console.log(`[agent-startup]  CEREBRAS_API_KEY      : ${envCheck('CEREBRAS_API_KEY', ailanaConfig.cerebrasApiKey)}`);
+    console.log(`[agent-startup]  LIVEKIT_URL           : ${process.env.LIVEKIT_URL ?? '✗ MISSING'}`);
+    console.log(`[agent-startup]  LIVEKIT_API_KEY       : ${process.env.LIVEKIT_API_KEY ? '✓ present' : '✗ MISSING'}`);
+    console.log('[agent-startup] ════════════════════════════════');
+    // ─────────────────────────────────────────────────────────────────────────
+
     let resolveAvatarReady: () => void = () => { };
     const avatarReadyPromise = new Promise<void>((resolve) => {
       resolveAvatarReady = resolve;
@@ -231,22 +248,24 @@ export default defineAgent({
       prefixPaddingDuration: 200,
     });
 
-    console.log(`[agent]: Loading Cartesia STT (ink-2) & ElevenLabs TTS (eleven_turbo_v2_5)...`);
-    console.log(`[agent-debug]: ElevenLabs key=${ailanaConfig.elevenlabsApiKey ? 'loaded (ending ' + ailanaConfig.elevenlabsApiKey.slice(-4) + ')' : 'MISSING'}, voiceId=${ailanaConfig.elevenlabsVoiceId}`);
+    // ── Cartesia STT ──────────────────────────────────────────────────────────
+    console.log(`[agent]: Loading Cartesia STT (ink-2)...`);
+    if (!ailanaConfig.cartesiaKey) {
+      console.error('[agent-startup] FATAL: CARTESIA_KEY is not set — STT will fail!');
+    }
     const sessionStt = new cartesia.STT({
       apiKey: ailanaConfig.cartesiaKey,
       model: 'ink-2',
     });
 
-    /* Commented out Cartesia TTS code
-    const sessionTts = new cartesia.TTS({
-      apiKey: ailanaConfig.cartesiaKey,
-      voice: ailanaConfig.cartesiaVoiceId,
-      model: 'sonic-3.5',
-      // Streaming is on by default in the Cartesia plugin — audio chunks
-      // are forwarded as soon as the first PCM frame arrives.
-    });
-    */
+    // ── ElevenLabs TTS ───────────────────────────────────────────────────────
+    console.log(`[agent]: Loading ElevenLabs TTS (eleven_turbo_v2_5, voiceId=${ailanaConfig.elevenlabsVoiceId || 'MISSING'})...`);
+    if (!ailanaConfig.elevenlabsApiKey) {
+      console.error('[agent-startup] FATAL: ELEVENLABS_API_KEY is not set — TTS will fail!');
+    }
+    if (!ailanaConfig.elevenlabsVoiceId) {
+      console.warn('[agent-startup] WARNING: ELEVENLABS_VOICE_ID is not set — using default voice ID.');
+    }
 
     const sessionTts = new LoggedElevenLabsTTS({
       apiKey: ailanaConfig.elevenlabsApiKey,
@@ -254,8 +273,26 @@ export default defineAgent({
       modelID: 'eleven_turbo_v2_5',
     });
 
+    // Quick connectivity smoke-test for ElevenLabs (non-blocking)
+    (async () => {
+      const t0 = Date.now();
+      try {
+        const resp = await fetch('https://api.elevenlabs.io/v1/user', {
+          headers: { 'xi-api-key': ailanaConfig.elevenlabsApiKey },
+        });
+        const dur = Date.now() - t0;
+        if (resp.ok) {
+          console.log(`[agent-startup] ElevenLabs API reachable — HTTP ${resp.status} in ${dur}ms`);
+        } else {
+          console.error(`[agent-startup] ElevenLabs API returned HTTP ${resp.status} in ${dur}ms — check ELEVENLABS_API_KEY`);
+        }
+      } catch (err: any) {
+        console.error(`[agent-startup] ElevenLabs API connectivity test FAILED after ${Date.now() - t0}ms: ${err?.message ?? err}`);
+      }
+    })();
+
     const createVadAgent = () => {
-      console.log('[agent]: Creating Cascaded agent (Cerebras LLM + Cartesia STT + ElevenLabs TTS)...');
+      console.log('[agent]: Creating Cascaded agent (Cerebras LLM + Cartesia STT + ElevenLabs TTS + LemonSlice Avatar)...');
       return new AilanaVoiceAgent({
         instructions: contextManager.getActiveInstructions(),
         stt: sessionStt,
@@ -720,17 +757,32 @@ export default defineAgent({
     // the frontend simply renders those tracks — no separate WebRTC session needed.
     const lsApiKey = ailanaConfig.lemonsliceApiKey;
     const lsAgentId = ailanaConfig.lemonsliceAgentId;
-    console.log(`[avatar][${ts()}] Checking LemonSlice configuration: API Key length=${lsApiKey ? lsApiKey.length : 0} (ends with ${lsApiKey ? lsApiKey.slice(-4) : 'none'}), Agent ID=${lsAgentId || 'none'}`);
+    console.log(`[avatar][${ts()}] LemonSlice credentials check: API Key ${lsApiKey ? 'PRESENT (len=' + lsApiKey.length + ', ends with ' + lsApiKey.slice(-4) + ')' : 'MISSING'}, Agent ID: ${lsAgentId || 'MISSING'}`);
 
     if (lsApiKey && lsAgentId) {
+      // Quick LemonSlice API reachability test (non-blocking)
+      (async () => {
+        const t0 = Date.now();
+        try {
+          const resp = await fetch('https://api.lemon-slice.com/v1/agents', {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${lsApiKey}` },
+          });
+          const dur = Date.now() - t0;
+          console.log(`[avatar][${ts()}] LemonSlice API ping: HTTP ${resp.status} in ${dur}ms`);
+        } catch (err: any) {
+          console.error(`[avatar][${ts()}] LemonSlice API ping FAILED: ${err?.message ?? err}`);
+        }
+      })();
+
       // Set a backup timeout to ensure we don't block the agent forever if lemonslice fails to subscribe
       const backupTimeout = setTimeout(() => {
         if (!isAvatarInitDone) {
-          console.warn(`[avatar][${ts()}] LemonSlice video track subscription timed out (15s). Proceeding to bypass.`);
+          console.warn(`[avatar][${ts()}] LemonSlice video track subscription timed out (30s). Proceeding to bypass.`);
           isAvatarInitDone = true;
           resolveAvatarReady();
         }
-      }, 15000);
+      }, 30000);
 
       const markReady = () => {
         if (isAvatarInitDone) return;
@@ -767,6 +819,7 @@ export default defineAgent({
       ctx.room.on(RoomEvent.TrackSubscribed, (track: any, pub: any, participant: any) => {
         console.log(`[avatar][${ts()}] TrackSubscribed event fired: identity=${participant?.identity}, kind=${pub.kind}, subscribed=${pub.subscribed}`);
         if (participant?.identity?.startsWith('lemonslice') || participant?.identity?.includes('avatar')) {
+          console.log(`[avatar][${ts()}] LemonSlice participant track subscribed — kind=${pub.kind}`);
           if (pub.kind === TrackKind.KIND_VIDEO) {
             markReady();
           }
@@ -780,18 +833,21 @@ export default defineAgent({
         sessionStarted = true;
         console.log(`[avatar][${ts()}] Pre-starting AgentSession for LemonSlice...`);
         await session.start({ agent: vadAgent, room: ctx.room });
+        console.log(`[avatar][${ts()}] AgentSession pre-started. Now starting AvatarSession...`);
 
         const avatarSession = new AvatarSession({
           agentId: lsAgentId,
           apiKey: lsApiKey,
         });
         const avatarStartT = Date.now();
-        console.log(`[avatar][${ts()}] Starting LemonSlice AvatarSession (agentId=${lsAgentId})...`);
+        console.log(`[avatar][${ts()}] Calling avatarSession.start() with agentId=${lsAgentId} ...`);
         await avatarSession.start(session, ctx.room);
-        console.log(`[avatar][${ts()}] LemonSlice AvatarSession started in ${Date.now() - avatarStartT}ms`);
+        console.log(`[avatar][${ts()}] avatarSession.start() resolved successfully in ${Date.now() - avatarStartT}ms`);
+        console.log(`[avatar][${ts()}] Waiting for LemonSlice participant to publish video track...`);
 
         // When LemonSlice publishes its first audio track, record avatar-first-frame latency
         ctx.room.on(RoomEvent.TrackPublished, (pub: any, participant: any) => {
+          console.log(`[avatar][${ts()}] TrackPublished event: identity=${participant?.identity}, kind=${pub.kind}`);
           if (participant?.identity?.startsWith('lemonslice') || participant?.identity?.includes('avatar')) {
             console.log(`[avatar][${ts()}] LemonSlice track published — kind=${pub.kind} source=${pub.source}`);
             metrics.markAvatarFirstFrame();
@@ -800,15 +856,20 @@ export default defineAgent({
 
         // Trigger immediate check in case it subscribed during startup
         checkExisting();
-      } catch (err) {
-        console.error(`[avatar][${ts()}] Failed to start LemonSlice AvatarSession:`, err);
+      } catch (err: any) {
+        console.error(`[avatar][${ts()}] FAILED to start LemonSlice AvatarSession:`, err);
+        console.error(`[avatar][${ts()}]   Error message : ${err?.message ?? String(err)}`);
+        console.error(`[avatar][${ts()}]   Error stack   : ${err?.stack ?? 'no stack'}`);
+        console.error(`[avatar][${ts()}]   Error code    : ${err?.code ?? err?.status ?? 'n/a'}`);
         // Non-fatal — agent continues without avatar
         isAvatarInitDone = true;
         resolveAvatarReady();
         clearTimeout(backupTimeout);
       }
     } else {
-      console.warn(`[avatar][${ts()}] LemonSlice credentials missing (LEMONSLICE_API_KEY / LEMONSLICE_AGENT_ID) — avatar disabled.`);
+      console.warn(`[avatar][${ts()}] LemonSlice credentials missing — avatar DISABLED.`);
+      console.warn(`[avatar][${ts()}]   LEMONSLICE_API_KEY   : ${lsApiKey ? 'present' : 'MISSING'}`);
+      console.warn(`[avatar][${ts()}]   LEMONSLICE_AGENT_ID  : ${lsAgentId ? lsAgentId : 'MISSING'}`);
       isAvatarInitDone = true;
       resolveAvatarReady();
     }
