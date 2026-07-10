@@ -45,18 +45,18 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
       } else {
         console.log(`[cerebras-proxy][${ts()}] Retry #${attempt} to Cerebras: model=${body.model}`);
       }
-      
+
       const result = await originalCerebrasCreate(body, options);
-      
+
       // If it's a stream, intercept it to track first token, end stream timings, and log the full response
       if (result && typeof (result as any)[Symbol.asyncIterator] === 'function') {
         const originalIterator = (result as any)[Symbol.asyncIterator].bind(result);
         const accumulatedChunks: any[] = [];
-        
+
         (result as any)[Symbol.asyncIterator] = function () {
           const iterator = originalIterator();
           let isFirst = true;
-          
+
           return {
             async next() {
               const nextResult = await iterator.next();
@@ -84,7 +84,7 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
         const dur = Date.now() - t0;
         console.log(`[cerebras-proxy][${ts()}] Non-streaming response received (Dur: ${dur}ms)`);
       }
-      
+
       return result;
     } catch (err: any) {
       lastErr = err;
@@ -136,12 +136,12 @@ class AilanaVoiceAgent extends voice.Agent {
       const _perfCheckpointStart = performance.now();
       const pendingCount = this.contextManager.getPendingExtractionCount();
       const maxWaitMs = pendingCount > 1 ? 0 : 300; // Circuit breaker: 0ms wait if backlog > 1
-      
+
       console.log(`[checkpoint] Gating on previous turn ${prevTurn} extraction. Pending count: ${pendingCount}. Max wait: ${maxWaitMs}ms`);
-      
+
       const completed = await this.contextManager.waitForExtraction(prevTurn, maxWaitMs);
       const waitDur = performance.now() - _perfCheckpointStart;
-      
+
       if (completed) {
         console.log(`[checkpoint] Previous turn ${prevTurn} extraction resolved normally. Waited: ${waitDur.toFixed(1)}ms`);
       } else {
@@ -202,6 +202,7 @@ process.on('uncaughtException', (err) => {
     console.warn('[agent]: Suppressed pidusage powershell spawn crash.');
     return;
   }
+
   console.error('[agent]: Uncaught Exception:', err);
   process.exit(1);
 });
@@ -210,7 +211,7 @@ export default defineAgent({
   async entry(ctx: JobContext) {
     console.log(`[agent]: Receiving job for room: ${ctx.room.name}`);
 
-    let resolveAvatarReady: () => void = () => {};
+    let resolveAvatarReady: () => void = () => { };
     const avatarReadyPromise = new Promise<void>((resolve) => {
       resolveAvatarReady = resolve;
     });
