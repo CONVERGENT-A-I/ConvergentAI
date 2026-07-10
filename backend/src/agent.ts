@@ -210,6 +210,12 @@ export default defineAgent({
   async entry(ctx: JobContext) {
     console.log(`[agent]: Receiving job for room: ${ctx.room.name}`);
 
+    let resolveAvatarReady: () => void = () => {};
+    const avatarReadyPromise = new Promise<void>((resolve) => {
+      resolveAvatarReady = resolve;
+    });
+    let isAvatarInitDone = false;
+
     const metrics = new LatencyTracker();
     const summarizationLlm = new openai.LLM({
       model: 'gemma-4-31b',
@@ -546,6 +552,12 @@ export default defineAgent({
         const targetMode = messageText.split(':')[1] || 'video';
         console.log(`[agent]: Channel started (${targetMode}).`);
 
+        if (!isAvatarInitDone) {
+          console.log(`[agent]: SYSTEM_CHANNEL_START received before avatar ready. Waiting for avatar initialization...`);
+          await avatarReadyPromise;
+          console.log(`[agent]: Avatar ready. Resuming deferred SYSTEM_CHANNEL_START handler.`);
+        }
+
         if (greetingGenerated) {
           return;
         }
@@ -558,11 +570,12 @@ export default defineAgent({
             sessionStarted = true;
             await session.start({ agent: vadAgent, room: ctx.room });
             console.log(`[agent]: Session started on SYSTEM_CHANNEL_START.`);
-
-            const readyPayload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_AGENT_READY" }));
-            await ctx.room.localParticipant?.publishData(readyPayload, { reliable: true, topic: "lk-chat" });
-            console.log(`[agent]: Sent SYSTEM_AGENT_READY signal.`);
           }
+
+          // Always send SYSTEM_AGENT_READY signal to let the frontend hide the loading screen
+          const readyPayload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_AGENT_READY" }));
+          await ctx.room.localParticipant?.publishData(readyPayload, { reliable: true, topic: "lk-chat" });
+          console.log(`[agent]: Sent SYSTEM_AGENT_READY signal.`);
 
           metrics.startTurn();
           metrics.markAgentSpeaking();
@@ -628,6 +641,13 @@ export default defineAgent({
       if (pub.kind !== TrackKind.KIND_AUDIO) return;
       if (!participant?.identity?.startsWith('guest_')) return;
       if (sessionStarted) return;
+
+      if (!isAvatarInitDone) {
+        console.log(`[agent]: User mic unmuted but avatar not ready yet. Waiting for avatar initialization before starting session...`);
+        await avatarReadyPromise;
+        console.log(`[agent]: Avatar ready. Proceeding with session start on mic unmute.`);
+        if (sessionStarted) return;
+      }
 
       sessionStarted = true;
       console.log(`[agent]: User mic unmuted (identity: ${participant?.identity}). Starting AgentSession now...`);
@@ -701,7 +721,55 @@ export default defineAgent({
     const lsApiKey = ailanaConfig.lemonsliceApiKey;
     const lsAgentId = ailanaConfig.lemonsliceAgentId;
     if (lsApiKey && lsAgentId) {
+      // Set a backup timeout to ensure we don't block the agent forever if lemonslice fails to subscribe
+      const backupTimeout = setTimeout(() => {
+        if (!isAvatarInitDone) {
+          console.warn(`[avatar][${ts()}] LemonSlice video track subscription timed out. Proceeding.`);
+          isAvatarInitDone = true;
+          resolveAvatarReady();
+        }
+      }, 15000);
+
+      const markReady = () => {
+        if (isAvatarInitDone) return;
+        console.log(`[avatar][${ts()}] LemonSlice video track is subscribed. Avatar is fully ready!`);
+        clearTimeout(backupTimeout);
+        isAvatarInitDone = true;
+        resolveAvatarReady();
+      };
+
+      // Check if already connected and subscribed
+      const checkExisting = () => {
+        for (const p of ctx.room.remoteParticipants.values()) {
+          if (p.identity.startsWith('lemonslice') || p.identity.includes('avatar')) {
+            for (const pub of p.trackPublications.values()) {
+              if (pub.kind === TrackKind.KIND_VIDEO && pub.subscribed) {
+                markReady();
+                return true;
+              }
+            }
+          }
+        }
+        return false;
+      };
+
+      // Listen for subscription events
+      ctx.room.on(RoomEvent.TrackSubscribed, (track: any, pub: any, participant: any) => {
+        if (participant?.identity?.startsWith('lemonslice') || participant?.identity?.includes('avatar')) {
+          if (pub.kind === TrackKind.KIND_VIDEO) {
+            markReady();
+          }
+        }
+      });
+
       try {
+        // PRE-START the AgentSession BEFORE starting the AvatarSession.
+        // This ensures the session pipeline is active, and prevents the SDK
+        // from subsequently overwriting lemonslice's DataStreamAudioOutput back to SyncedAudioOutput.
+        sessionStarted = true;
+        console.log(`[avatar][${ts()}] Pre-starting AgentSession for LemonSlice...`);
+        await session.start({ agent: vadAgent, room: ctx.room });
+
         const avatarSession = new AvatarSession({
           agentId: lsAgentId,
           apiKey: lsApiKey,
@@ -718,12 +786,20 @@ export default defineAgent({
             metrics.markAvatarFirstFrame();
           }
         });
+
+        // Trigger immediate check in case it subscribed during startup
+        checkExisting();
       } catch (err) {
         console.error(`[avatar][${ts()}] Failed to start LemonSlice AvatarSession:`, err);
         // Non-fatal — agent continues without avatar
+        isAvatarInitDone = true;
+        resolveAvatarReady();
+        clearTimeout(backupTimeout);
       }
     } else {
       console.warn(`[avatar][${ts()}] LemonSlice credentials missing (LEMONSLICE_API_KEY / LEMONSLICE_AGENT_ID) — avatar disabled.`);
+      isAvatarInitDone = true;
+      resolveAvatarReady();
     }
 
     // Measure connection latency to Cerebras API endpoint on start

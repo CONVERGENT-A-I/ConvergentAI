@@ -3,7 +3,7 @@
 import { useParticipants } from "@livekit/components-react";
 import { Track } from "livekit-client";
 import { Loader2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 interface LemonsliceAvatarProps {
   className?: string;
@@ -24,8 +24,88 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
   const videoPublication = avatarParticipant?.getTrackPublication(Track.Source.Camera);
   const audioPublication = avatarParticipant?.getTrackPublication(Track.Source.Microphone);
 
-  const videoTrack = videoPublication?.track;
-  const audioTrack = audioPublication?.track;
+  const videoTrack = videoPublication?.track as any;
+  const audioTrack = audioPublication?.track as any;
+
+  // References for tracking speech state
+  const isAgentSpeakingRef = useRef<boolean>(false);
+  const agentSilenceBlocksRef = useRef<number>(0);
+  const turnNumberRef = useRef<number>(0);
+
+  const sendTelemetry = useCallback((event: string, durationMs: number, details?: any) => {
+    const backendUrl =
+      process.env.NEXT_PUBLIC_BACKEND_URL ||
+      (process.env.NODE_ENV === "development"
+        ? "http://localhost:3001"
+        : "https://dev-be.convergentai.tech");
+    fetch(`${backendUrl}/api/log-telemetry`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event, durationMs, details }),
+    }).catch(() => {});
+  }, []);
+
+  // Monitor playout volume to measure turn-by-turn speech playout start/end
+  useEffect(() => {
+    if (!audioTrack || !audioTrack.mediaStreamTrack) return;
+
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const mediaStreamTrack = audioTrack.mediaStreamTrack;
+      const mediaStream = new MediaStream([mediaStreamTrack]);
+      const source = audioContext.createMediaStreamSource(mediaStream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      let animationId: number;
+
+      const checkVolume = () => {
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          sum += dataArray[i];
+        }
+        const average = sum / bufferLength;
+        const isActive = average > 4; // Speech detection threshold
+
+        if (isActive) {
+          agentSilenceBlocksRef.current = 0;
+          if (!isAgentSpeakingRef.current) {
+            isAgentSpeakingRef.current = true;
+            turnNumberRef.current += 1;
+            const now = performance.now();
+            console.log(`[LemonsliceAvatar] [metrics] 🗣️ Avatar playout started for turn ${turnNumberRef.current}`);
+            sendTelemetry("client_avatar_playout_started", now, { turn: turnNumberRef.current });
+          }
+        } else {
+          if (isAgentSpeakingRef.current) {
+            agentSilenceBlocksRef.current += 1;
+            if (agentSilenceBlocksRef.current > 35) { // ~500ms at ~60fps
+              isAgentSpeakingRef.current = false;
+              const now = performance.now();
+              console.log(`[LemonsliceAvatar] [metrics] 🤫 Avatar playout silenced.`);
+              sendTelemetry("client_avatar_playout_silenced", now, { turn: turnNumberRef.current });
+            }
+          }
+        }
+
+        animationId = requestAnimationFrame(checkVolume);
+      };
+
+      checkVolume();
+
+      return () => {
+        cancelAnimationFrame(animationId);
+        audioContext.close().catch(() => {});
+      };
+    } catch (e) {
+      console.warn("[LemonsliceAvatar] Failed to start playout volume monitor:", e);
+    }
+  }, [audioTrack, sendTelemetry]);
 
   useEffect(() => {
     if (avatarParticipant && videoTrack) {
