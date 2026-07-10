@@ -905,7 +905,12 @@ export default defineAgent({
   },
 });
 
-if (process.argv[1] && process.argv[1].endsWith('agent.ts')) {
+// Support both:
+//   development:  tsx src/agent.ts dev   (process.argv[1] ends with agent.ts)
+//   production:   node dist/agent.js dev (process.argv[1] ends with agent.js)
+const _argv1 = process.argv[1] ?? '';
+if (_argv1.endsWith('agent.ts') || _argv1.endsWith('agent.js')) {
+  console.log(`[agent-cli] Starting LiveKit agent worker (argv1=${_argv1})...`);
   cli.runApp(
     new ServerOptions({
       agent: fileURLToPath(import.meta.url),
