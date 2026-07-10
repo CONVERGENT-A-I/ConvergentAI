@@ -202,7 +202,6 @@ process.on('uncaughtException', (err) => {
     console.warn('[agent]: Suppressed pidusage powershell spawn crash.');
     return;
   }
-
   console.error('[agent]: Uncaught Exception:', err);
   process.exit(1);
 });
