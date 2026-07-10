@@ -6,8 +6,11 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:agent": "tsx src/agent.ts dev",
     "build": "tsc",
     "start": "node dist/index.js",
+    "start:agent": "node dist/agent.js dev",
+    "start:full": "npm run build && node dist/agent.js dev",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
