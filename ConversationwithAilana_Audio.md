@@ -1,10 +1,3 @@
-# 🎙️ Conversation Transcript: Sohail & Ailana (Voice/Audio Mode)
-
-* **Session Date**: July 7, 2026
-* **Borrower**: Sohail
-* **AI Advisor**: Ailana (Premier Mortgage Advisor)
-* **Status**: Completed & Conditionally Approved
-
 # 🎙️ Conversation Transcript: Sohail & Ailana (Voice/Audio Mode - Referral Run)
 
 * **Session Date**: July 11, 2026
