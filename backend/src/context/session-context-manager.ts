@@ -718,7 +718,7 @@ export class SessionContextManager {
     }
   }
 
-  private runUnderwritingRules(): 'approve' | 'refer' | 'timeout' {
+  private runUnderwritingRules(): 'approve' | 'approve_with_conditions' | 'refer' | 'suspend' | 'timeout' {
     const text = this.turnLog[this.turnLog.length - 1]?.text?.toLowerCase() ?? '';
     if (text.includes('timeout') || text.includes('system delay') || text.includes('system timeout')) {
       return 'timeout';
@@ -741,17 +741,38 @@ export class SessionContextManager {
     const ltv = targetPrice > 0 ? (loanAmount / targetPrice) * 100 : 0;
     const dti = income > 0 ? (debt / income) * 100 : 0;
 
-    // Trigger refer if bankruptcy/foreclosure declared, or high DTI/LTV ratios, or low credit
-    if (
-      this.profile.declarations_bankruptcy ||
-      this.profile.declarations_foreclosure ||
-      dti > 45 ||
-      ltv > 97 ||
-      creditScore < 620
-    ) {
+    const hasDerogatory =
+      this.profile.declarations_bankruptcy === true ||
+      this.profile.declarations_foreclosure === true;
+
+    console.log(`[underwriting] creditScore=${creditScore} dti=${dti.toFixed(1)}% ltv=${ltv.toFixed(1)}% derogatory=${hasDerogatory}`);
+
+    // ── SUSPEND (Refer/Ineligible) ───────────────────────────────────────────
+    // Very low credit, extreme DTI, or recent derogatory combined with subprime credit.
+    // Automated system cannot process — requires in-depth advisor intervention.
+    if (creditScore < 580 || dti > 55 || (hasDerogatory && creditScore < 620)) {
+      console.log('[underwriting] Decision: SUSPEND');
+      return 'suspend';
+    }
+
+    // ── REFER (Refer/Eligible — Manual Review) ───────────────────────────────
+    // Acceptable borrower but automated engine flags need a human review.
+    // NOT a denial — very common for borderline profiles.
+    if (hasDerogatory || dti > 45 || ltv > 97 || creditScore < 620) {
+      console.log('[underwriting] Decision: REFER');
       return 'refer';
     }
 
+    // ── APPROVE WITH CONDITIONS ──────────────────────────────────────────────
+    // Solid borrower with minor risk flags — standard document verification needed.
+    if (creditScore < 680 || dti > 36 || ltv > 95) {
+      console.log('[underwriting] Decision: APPROVE_WITH_CONDITIONS');
+      return 'approve_with_conditions';
+    }
+
+    // ── CLEAN APPROVE (Approve/Eligible) ────────────────────────────────────
+    // Strong profile across all dimensions.
+    console.log('[underwriting] Decision: APPROVE');
     return 'approve';
   }
 

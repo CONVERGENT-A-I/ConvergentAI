@@ -92,7 +92,7 @@ export interface BorrowerProfile {
   ready_to_submit?: boolean;
 
   // ── Stage 4 ──────────────────────────────────────────────────────────────
-  aus_status?: 'waiting' | 'approve' | 'refer' | 'timeout' | null;
+  aus_status?: 'waiting' | 'approve' | 'approve_with_conditions' | 'refer' | 'suspend' | 'timeout' | null;
   aus_confirmed?: boolean;
   checklist_discussed?: boolean;
 }
