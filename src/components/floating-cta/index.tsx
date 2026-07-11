@@ -36,6 +36,7 @@ import { ContextualHelp } from "./contextual-help";
 import { ActivityTracker } from "./activity-tracker";
 import { MloDetector } from "./mlo-detector";
 import { AgentReadinessCheck } from "./agent-readiness-check";
+import { AvatarStatusListener, type AvatarStatus } from "./avatar-status-listener";
 import { ChannelStartTrigger } from "./channel-start-trigger";
 import { MediaGuard } from "./media-guard";
 import { LoanOfficerLiveUI, LoanOfficerQueueUI } from "./loan-officer-queue";
@@ -60,6 +61,7 @@ export default function FloatingCTA() {
   const [complianceChecked, setComplianceChecked] = useState(false);
 
   const [isFallbackMode, setIsFallbackMode] = useState(false);
+  const [avatarFallbackReason, setAvatarFallbackReason] = useState<"capacity" | "failed" | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<string>("");
   const [isOffline, setIsOffline] = useState(false);
   const [showEndCallConfirm, setShowEndCallConfirm] = useState(false);
@@ -95,6 +97,30 @@ export default function FloatingCTA() {
     return () => {
       console.error = originalError;
     };
+  }, []);
+
+  // Handle avatar status messages from the backend
+  const handleAvatarStatus = useCallback((status: AvatarStatus, detail?: string) => {
+    if (status === "connected") {
+      // Avatar connected — clear any fallback state
+      setIsFallbackMode(false);
+      setAvatarFallbackReason(null);
+      setConnectionStatus("");
+    } else if (status === "capacity") {
+      // Avatar at concurrent capacity — show fallback banner
+      setIsFallbackMode(true);
+      setAvatarFallbackReason("capacity");
+      setConnectionStatus("Avatar at capacity — using voice mode");
+      // Auto-dismiss the banner after 8 seconds
+      setTimeout(() => setIsFallbackMode(false), 8000);
+    } else if (status === "failed") {
+      // Avatar connection failed after retries — brief informational toast
+      setIsFallbackMode(true);
+      setAvatarFallbackReason("failed");
+      setConnectionStatus("Avatar couldn't connect — continuing with voice");
+      // Auto-dismiss the banner after 5 seconds
+      setTimeout(() => setIsFallbackMode(false), 5000);
+    }
   }, []);
 
   const isFetchingRef = useRef(false);
@@ -1145,6 +1171,9 @@ export default function FloatingCTA() {
                               <AgentReadinessCheck
                                 onAgentReady={setIsAgentReady}
                               />
+                              <AvatarStatusListener
+                                onAvatarStatus={handleAvatarStatus}
+                              />
                               <MloDetector onMloStatusChange={handleMloStatusChange} />
                               <MediaGuard mode={pendingMode} />
                               <ActivityTracker />
@@ -1154,16 +1183,20 @@ export default function FloatingCTA() {
                                 mode={pendingMode}
                               />
 
-                              {/* Fallback Notification Overlay */}
+                              {/* Fallback Notification Overlay — shown only for capacity limits or connection failures */}
                               <AnimatePresence>
                                 {isFallbackMode && (
                                   <motion.div
                                     initial={{ opacity: 0, y: -20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -20 }}
-                                    className="absolute top-16 left-1/2 -translate-x-1/2 z-[100] w-full max-w-[280px]"
+                                    className="absolute top-16 left-1/2 -translate-x-1/2 z-[100] w-full max-w-[320px]"
                                   >
-                                    <div className="bg-amber-500 text-black px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-center shadow-[0_0_30px_rgba(245,158,11,0.3)] border border-white/20">
+                                    <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-center border border-white/20 ${
+                                      avatarFallbackReason === "capacity"
+                                        ? "bg-amber-500 text-black shadow-[0_0_30px_rgba(245,158,11,0.3)]"
+                                        : "bg-blue-500/90 text-white shadow-[0_0_30px_rgba(59,130,246,0.3)]"
+                                    }`}>
                                       {connectionStatus ||
                                         "Avatar Unavailable - Using Voice"}
                                     </div>

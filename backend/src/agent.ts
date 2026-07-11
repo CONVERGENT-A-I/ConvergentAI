@@ -775,14 +775,30 @@ export default defineAgent({
         }
       })();
 
+      // Helper to send avatar status messages to frontend
+      const sendAvatarStatus = async (status: string, detail?: string) => {
+        try {
+          const payload = new TextEncoder().encode(JSON.stringify({
+            message: status,
+            ...(detail ? { detail } : {}),
+          }));
+          await ctx.room.localParticipant?.publishData(payload, { reliable: true, topic: 'lk-chat' });
+          console.log(`[avatar][${ts()}] Sent ${status} to frontend${detail ? ` (${detail})` : ''}`);
+        } catch (e: any) {
+          console.warn(`[avatar][${ts()}] Failed to send ${status}:`, e?.message);
+        }
+      };
+
       // Set a backup timeout to ensure we don't block the agent forever if lemonslice fails to subscribe
+      // Increased to 60s to accommodate retry logic (3 retries × ~14s max = ~42s + margin)
       const backupTimeout = setTimeout(() => {
         if (!isAvatarInitDone) {
-          console.warn(`[avatar][${ts()}] LemonSlice video track subscription timed out (30s). Proceeding to bypass.`);
+          console.warn(`[avatar][${ts()}] LemonSlice video track subscription timed out (60s). Proceeding to bypass.`);
           isAvatarInitDone = true;
           resolveAvatarReady();
+          sendAvatarStatus('SYSTEM_AVATAR_CONN_FAILED', 'Video track subscription timed out after 60s');
         }
-      }, 30000);
+      }, 60000);
 
       const markReady = () => {
         if (isAvatarInitDone) return;
@@ -835,33 +851,94 @@ export default defineAgent({
         await session.start({ agent: vadAgent, room: ctx.room });
         console.log(`[avatar][${ts()}] AgentSession pre-started. Now starting AvatarSession...`);
 
-        const avatarSession = new AvatarSession({
-          agentId: lsAgentId,
-          apiKey: lsApiKey,
-        });
-        const avatarStartT = Date.now();
-        console.log(`[avatar][${ts()}] Calling avatarSession.start() with agentId=${lsAgentId} ...`);
-        await avatarSession.start(session, ctx.room);
-        console.log(`[avatar][${ts()}] avatarSession.start() resolved successfully in ${Date.now() - avatarStartT}ms`);
-        console.log(`[avatar][${ts()}] Waiting for LemonSlice participant to publish video track...`);
+        // ── Avatar connection with retry logic ─────────────────────────────
+        // Retry up to 3 times with exponential backoff (2s, 4s, 8s).
+        // Only fall back to voice-only on concurrent capacity errors (429/503).
+        // Transient errors (timeouts, DNS, 500) are retried before giving up.
+        const AVATAR_MAX_RETRIES = 3;
+        const AVATAR_BACKOFF_BASE_MS = 2000;
+        let avatarConnected = false;
+        let lastAvatarErr: any = null;
+        let isCapacityError = false;
 
-        // When LemonSlice publishes its first audio track, record avatar-first-frame latency
-        ctx.room.on(RoomEvent.TrackPublished, (pub: any, participant: any) => {
-          console.log(`[avatar][${ts()}] TrackPublished event: identity=${participant?.identity}, kind=${pub.kind}`);
-          if (participant?.identity?.startsWith('lemonslice') || participant?.identity?.includes('avatar')) {
-            console.log(`[avatar][${ts()}] LemonSlice track published — kind=${pub.kind} source=${pub.source}`);
-            metrics.markAvatarFirstFrame();
+        for (let attempt = 1; attempt <= AVATAR_MAX_RETRIES; attempt++) {
+          try {
+            const avatarSession = new AvatarSession({
+              agentId: lsAgentId,
+              apiKey: lsApiKey,
+            });
+            const avatarStartT = Date.now();
+            console.log(`[avatar][${ts()}] Attempt ${attempt}/${AVATAR_MAX_RETRIES}: Calling avatarSession.start() with agentId=${lsAgentId} ...`);
+            await avatarSession.start(session, ctx.room);
+            const elapsed = Date.now() - avatarStartT;
+            console.log(`[avatar][${ts()}] avatarSession.start() resolved successfully on attempt ${attempt} in ${elapsed}ms`);
+            avatarConnected = true;
+            break;
+          } catch (err: any) {
+            lastAvatarErr = err;
+            const statusCode = err?.statusCode ?? err?.status ?? err?.code;
+            const errMsg = err?.message ?? String(err);
+
+            console.error(`[avatar][${ts()}] Attempt ${attempt}/${AVATAR_MAX_RETRIES} FAILED:`);
+            console.error(`[avatar][${ts()}]   Error message : ${errMsg}`);
+            console.error(`[avatar][${ts()}]   Error code    : ${statusCode ?? 'n/a'}`);
+            if (attempt === 1) {
+              console.error(`[avatar][${ts()}]   Error stack   : ${err?.stack ?? 'no stack'}`);
+            }
+
+            // Check for concurrent capacity errors (HTTP 429 Too Many Requests, 503 Service Unavailable)
+            // These indicate the avatar service is at capacity — retrying won't help.
+            if (statusCode === 429 || statusCode === 503 ||
+                errMsg.includes('429') || errMsg.includes('capacity') ||
+                errMsg.includes('too many') || errMsg.includes('503')) {
+              console.warn(`[avatar][${ts()}] Capacity/concurrency limit detected (status=${statusCode}). Skipping further retries.`);
+              isCapacityError = true;
+              break;
+            }
+
+            // For non-capacity errors, retry with exponential backoff
+            if (attempt < AVATAR_MAX_RETRIES) {
+              const delayMs = AVATAR_BACKOFF_BASE_MS * Math.pow(2, attempt - 1); // 2s, 4s, 8s
+              console.log(`[avatar][${ts()}] Waiting ${delayMs}ms before retry ${attempt + 1}...`);
+              await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
           }
-        });
+        }
 
-        // Trigger immediate check in case it subscribed during startup
-        checkExisting();
+        if (avatarConnected) {
+          console.log(`[avatar][${ts()}] ✅ Avatar connected successfully. Waiting for video track...`);
+          sendAvatarStatus('SYSTEM_AVATAR_CONNECTED');
+
+          // When LemonSlice publishes its first audio track, record avatar-first-frame latency
+          ctx.room.on(RoomEvent.TrackPublished, (pub: any, participant: any) => {
+            console.log(`[avatar][${ts()}] TrackPublished event: identity=${participant?.identity}, kind=${pub.kind}`);
+            if (participant?.identity?.startsWith('lemonslice') || participant?.identity?.includes('avatar')) {
+              console.log(`[avatar][${ts()}] LemonSlice track published — kind=${pub.kind} source=${pub.source}`);
+              metrics.markAvatarFirstFrame();
+            }
+          });
+
+          // Trigger immediate check in case it subscribed during startup
+          checkExisting();
+        } else {
+          // All retries exhausted or capacity error — fall back to voice-only
+          const errMsg = lastAvatarErr?.message ?? String(lastAvatarErr);
+          if (isCapacityError) {
+            console.warn(`[avatar][${ts()}] ⚠️ Avatar at concurrent capacity. Falling back to voice-only.`);
+            sendAvatarStatus('SYSTEM_AVATAR_CAPACITY_LIMITED', errMsg);
+          } else {
+            console.error(`[avatar][${ts()}] ❌ Avatar failed after ${AVATAR_MAX_RETRIES} retries. Falling back to voice-only.`);
+            sendAvatarStatus('SYSTEM_AVATAR_CONN_FAILED', errMsg);
+          }
+          isAvatarInitDone = true;
+          resolveAvatarReady();
+          clearTimeout(backupTimeout);
+        }
       } catch (err: any) {
-        console.error(`[avatar][${ts()}] FAILED to start LemonSlice AvatarSession:`, err);
+        // This outer catch handles AgentSession pre-start failure (not avatar-specific)
+        console.error(`[avatar][${ts()}] FAILED to pre-start AgentSession:`, err);
         console.error(`[avatar][${ts()}]   Error message : ${err?.message ?? String(err)}`);
         console.error(`[avatar][${ts()}]   Error stack   : ${err?.stack ?? 'no stack'}`);
-        console.error(`[avatar][${ts()}]   Error code    : ${err?.code ?? err?.status ?? 'n/a'}`);
-        // Non-fatal — agent continues without avatar
         isAvatarInitDone = true;
         resolveAvatarReady();
         clearTimeout(backupTimeout);

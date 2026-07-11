@@ -9,6 +9,30 @@ interface LemonsliceAvatarProps {
   className?: string;
 }
 
+/**
+ * Phased connecting overlay — shows initial message for 15s,
+ * then a patient message during the backend avatar retry window.
+ */
+function ConnectingOverlay() {
+  const [phase, setPhase] = useState<"init" | "patient">("init");
+
+  useEffect(() => {
+    const timer = setTimeout(() => setPhase("patient"), 15000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#050505]/90 z-20">
+      <Loader2 className="h-10 w-10 animate-spin text-[#00b4d8]" />
+      <p className="text-sm font-medium tracking-widest uppercase text-gray-400 text-center px-4">
+        {phase === "init"
+          ? "Initializing Avatar..."
+          : "Avatar connecting \u2014 this may take a moment..."}
+      </p>
+    </div>
+  );
+}
+
 export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
   const participants = useParticipants();
   const [status, setStatus] = useState<"connecting" | "connected" | "error">("connecting");
@@ -154,14 +178,9 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
       {/* HTML Audio Element for playing LemonSlice audio stream */}
       <audio ref={audioRef} autoPlay />
 
-      {/* Connecting overlay */}
+      {/* Connecting overlay — phased messaging during backend retry window */}
       {status === "connecting" && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#050505]/90 z-20">
-          <Loader2 className="h-10 w-10 animate-spin text-[#00b4d8]" />
-          <p className="text-sm font-medium tracking-widest uppercase text-gray-400">
-            Initializing Avatar...
-          </p>
-        </div>
+        <ConnectingOverlay />
       )}
 
       {/* Vignette */}
