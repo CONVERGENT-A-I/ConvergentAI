@@ -820,10 +820,13 @@ export default defineAgent({
 
       const markReady = () => {
         if (isAvatarInitDone) return;
-        console.log(`[avatar][${ts()}] LemonSlice participant joined the room. Avatar is ready!`);
         clearTimeout(backupTimeout);
         isAvatarInitDone = true;
         resolveAvatarReady();
+        console.log(`[avatar][${ts()}] ╔══════════════════════════════════════════════════════════════╗`);
+        console.log(`[avatar][${ts()}] ║  ✅  AVATAR READY — LemonSlice participant joined the room    ║`);
+        console.log(`[avatar][${ts()}] ║      Conversation is now unblocked. Greeting will fire.       ║`);
+        console.log(`[avatar][${ts()}] ╚══════════════════════════════════════════════════════════════╝`);
       };
 
       const checkExisting = () => {
@@ -861,9 +864,11 @@ export default defineAgent({
         // This ensures the session pipeline is active, and prevents the SDK
         // from subsequently overwriting lemonslice's DataStreamAudioOutput back to SyncedAudioOutput.
         sessionStarted = true;
-        console.log(`[avatar][${ts()}] Pre-starting AgentSession for LemonSlice...`);
+        console.log(`[avatar][${ts()}] ┌─────────────────────────────────────────────────────────────┐`);
+        console.log(`[avatar][${ts()}] │  🚀  AVATAR INIT STARTED — Pre-starting AgentSession...      │`);
+        console.log(`[avatar][${ts()}] └─────────────────────────────────────────────────────────────┘`);
         await session.start({ agent: vadAgent, room: ctx.room });
-        console.log(`[avatar][${ts()}] AgentSession pre-started. Now starting AvatarSession...`);
+        console.log(`[avatar][${ts()}] │  AgentSession ready. Calling LemonSlice AvatarSession.start()...│`);
 
         // ── Avatar connection with retry logic ─────────────────────────────
         // Retry up to 3 times with exponential backoff (2s, 4s, 8s).
@@ -875,73 +880,98 @@ export default defineAgent({
         let lastAvatarErr: any = null;
         let isCapacityError = false;
 
+        const avatarFlowStart = Date.now();
         for (let attempt = 1; attempt <= AVATAR_MAX_RETRIES; attempt++) {
+          console.log(`[avatar][${ts()}] ┌─────────────────────────────────────────────────────────────┐`);
+          console.log(`[avatar][${ts()}] │  🔄  ATTEMPT ${attempt}/${AVATAR_MAX_RETRIES} — Calling LemonSlice avatarSession.start()   │`);
+          console.log(`[avatar][${ts()}] │      agentId = ${lsAgentId}`);
+          console.log(`[avatar][${ts()}] │      BLOCKING until LemonSlice responds...                   │`);
+          console.log(`[avatar][${ts()}] └─────────────────────────────────────────────────────────────┘`);
           try {
             const avatarSession = new AvatarSession({
               agentId: lsAgentId,
               apiKey: lsApiKey,
             });
             const avatarStartT = Date.now();
-            console.log(`[avatar][${ts()}] Attempt ${attempt}/${AVATAR_MAX_RETRIES}: Calling avatarSession.start() with agentId=${lsAgentId} ...`);
             await avatarSession.start(session, ctx.room);
             const elapsed = Date.now() - avatarStartT;
-            console.log(`[avatar][${ts()}] avatarSession.start() resolved successfully on attempt ${attempt} in ${elapsed}ms`);
+            console.log(`[avatar][${ts()}] ┌─────────────────────────────────────────────────────────────┐`);
+            console.log(`[avatar][${ts()}] │  ✅  LEMONSLICE API RESPONDED — SUCCESS (attempt ${attempt}/${AVATAR_MAX_RETRIES})         │`);
+            console.log(`[avatar][${ts()}] │      avatarSession.start() resolved in ${elapsed}ms                  │`);
+            console.log(`[avatar][${ts()}] │      Waiting for LemonSlice participant to join LiveKit room... │`);
+            console.log(`[avatar][${ts()}] └─────────────────────────────────────────────────────────────┘`);
             avatarConnected = true;
             break;
           } catch (err: any) {
             lastAvatarErr = err;
             const statusCode = err?.statusCode ?? err?.status ?? err?.code;
             const errMsg = err?.message ?? String(err);
+            const elapsed = Date.now() - avatarFlowStart;
 
-            console.error(`[avatar][${ts()}] Attempt ${attempt}/${AVATAR_MAX_RETRIES} FAILED:`);
-            console.error(`[avatar][${ts()}]   Error message : ${errMsg}`);
-            console.error(`[avatar][${ts()}]   Error code    : ${statusCode ?? 'n/a'}`);
+            console.error(`[avatar][${ts()}] ╔══════════════════════════════════════════════════════════════╗`);
+            console.error(`[avatar][${ts()}] ║  ❌  LEMONSLICE API RESPONDED — ERROR (attempt ${attempt}/${AVATAR_MAX_RETRIES})           ║`);
+            console.error(`[avatar][${ts()}] ║      elapsed    : ${elapsed}ms`);
+            console.error(`[avatar][${ts()}] ║      HTTP code  : ${statusCode ?? 'n/a'}`);
+            console.error(`[avatar][${ts()}] ║      message    : ${errMsg}`);
             if (attempt === 1) {
-              console.error(`[avatar][${ts()}]   Error stack   : ${err?.stack ?? 'no stack'}`);
+              console.error(`[avatar][${ts()}] ║      stack      : ${err?.stack?.split('\n')[1]?.trim() ?? 'no stack'}`);
             }
+            console.error(`[avatar][${ts()}] ╚══════════════════════════════════════════════════════════════╝`);
 
             // Check for concurrent capacity errors (HTTP 429 Too Many Requests, 503 Service Unavailable)
             // These indicate the avatar service is at capacity — retrying won't help.
             if (statusCode === 429 || statusCode === 503 ||
                 errMsg.includes('429') || errMsg.includes('capacity') ||
                 errMsg.includes('too many') || errMsg.includes('503')) {
-              console.warn(`[avatar][${ts()}] Capacity/concurrency limit detected (status=${statusCode}). Skipping further retries.`);
+              console.warn(`[avatar][${ts()}] ⚠️  CAPACITY ERROR — skipping remaining retries (status=${statusCode}).`);
               isCapacityError = true;
               break;
             }
 
             // For non-capacity errors, retry with exponential backoff
             if (attempt < AVATAR_MAX_RETRIES) {
-              const delayMs = AVATAR_BACKOFF_BASE_MS * Math.pow(2, attempt - 1); // 2s, 4s, 8s
-              console.log(`[avatar][${ts()}] Waiting ${delayMs}ms before retry ${attempt + 1}...`);
+              const delayMs = AVATAR_BACKOFF_BASE_MS * Math.pow(2, attempt - 1);
+              console.log(`[avatar][${ts()}] ⏳  Waiting ${delayMs}ms before retry ${attempt + 1}/${AVATAR_MAX_RETRIES}...`);
               await new Promise(resolve => setTimeout(resolve, delayMs));
+            } else {
+              console.error(`[avatar][${ts()}] ❌  All ${AVATAR_MAX_RETRIES} attempts exhausted. No more retries.`);
             }
           }
         }
 
         if (avatarConnected) {
-          console.log(`[avatar][${ts()}] ✅ Avatar API connected successfully. Waiting for lemonslice participant to join room...`);
+          console.log(`[avatar][${ts()}] ▶  Avatar API call succeeded. Sending SYSTEM_AVATAR_CONNECTED to frontend. Waiting for participant...`);
           sendAvatarStatus('SYSTEM_AVATAR_CONNECTED');
 
-          // When LemonSlice publishes its first audio track, record avatar-first-frame latency
+          // When LemonSlice publishes its first track, record latency
           ctx.room.on(RoomEvent.TrackPublished, (pub: any, participant: any) => {
-            console.log(`[avatar][${ts()}] TrackPublished event: identity=${participant?.identity}, kind=${pub.kind}`);
             if (participant?.identity?.startsWith('lemonslice') || participant?.identity?.includes('avatar')) {
-              console.log(`[avatar][${ts()}] LemonSlice track published — kind=${pub.kind} source=${pub.source}`);
+              console.log(`[avatar][${ts()}] 📹  LemonSlice track published — kind=${pub.kind} source=${pub.source}`);
               metrics.markAvatarFirstFrame();
             }
           });
 
-          // Trigger immediate check in case it subscribed during startup
+          // Trigger immediate check in case participant joined before listener was registered
           checkExisting();
         } else {
           // All retries exhausted or capacity error — fall back to voice-only
           const errMsg = lastAvatarErr?.message ?? String(lastAvatarErr);
           if (isCapacityError) {
-            console.warn(`[avatar][${ts()}] ⚠️ Avatar at concurrent capacity. Falling back to voice-only.`);
+            console.warn(`[avatar][${ts()}] ╔══════════════════════════════════════════════════════════════╗`);
+            console.warn(`[avatar][${ts()}] ║  ⚠️   FALLBACK: AVATAR CAPACITY LIMITED                        ║`);
+            console.warn(`[avatar][${ts()}] ║       LemonSlice is at concurrent session capacity (429/503). ║`);
+            console.warn(`[avatar][${ts()}] ║       Sending SYSTEM_AVATAR_CAPACITY_LIMITED to frontend.     ║`);
+            console.warn(`[avatar][${ts()}] ║       Conversation will start in voice-only mode.             ║`);
+            console.warn(`[avatar][${ts()}] ╚══════════════════════════════════════════════════════════════╝`);
             sendAvatarStatus('SYSTEM_AVATAR_CAPACITY_LIMITED', errMsg);
           } else {
-            console.error(`[avatar][${ts()}] ❌ Avatar failed after ${AVATAR_MAX_RETRIES} retries. Falling back to voice-only.`);
+            console.error(`[avatar][${ts()}] ╔══════════════════════════════════════════════════════════════╗`);
+            console.error(`[avatar][${ts()}] ║  ❌   FALLBACK: AVATAR PLATFORM ERROR                          ║`);
+            console.error(`[avatar][${ts()}] ║       All ${AVATAR_MAX_RETRIES} retries failed with a platform error.          ║`);
+            console.error(`[avatar][${ts()}] ║       Sending SYSTEM_AVATAR_CONN_FAILED to frontend.          ║`);
+            console.error(`[avatar][${ts()}] ║       Conversation will start in voice-only mode.             ║`);
+            console.error(`[avatar][${ts()}] ║       Last error: ${errMsg}`);
+            console.error(`[avatar][${ts()}] ╚══════════════════════════════════════════════════════════════╝`);
             sendAvatarStatus('SYSTEM_AVATAR_CONN_FAILED', errMsg);
           }
           isAvatarInitDone = true;
