@@ -1,7 +1,7 @@
 "use client";
 
-import { useParticipants } from "@livekit/components-react";
-import { Track } from "livekit-client";
+import { useParticipants, useRoomContext } from "@livekit/components-react";
+import { Track, RoomEvent } from "livekit-client";
 import { Loader2 } from "lucide-react";
 import { useEffect, useRef, useState, useCallback } from "react";
 
@@ -35,9 +35,32 @@ function ConnectingOverlay() {
 
 export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
   const participants = useParticipants();
+  const room = useRoomContext();
   const [status, setStatus] = useState<"connecting" | "connected" | "error">("connecting");
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Listen for platform error signals from backend
+  useEffect(() => {
+    const handleData = (payload: Uint8Array) => {
+      try {
+        const text = new TextDecoder().decode(payload);
+        const parsed = JSON.parse(text);
+        const msg = parsed.message ?? text;
+        if (msg === "SYSTEM_AVATAR_CONN_FAILED" || msg === "SYSTEM_AVATAR_CAPACITY_LIMITED") {
+          console.warn("[LemonsliceAvatar] Received platform error:", msg);
+          setStatus("error");
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    room.on(RoomEvent.DataReceived, handleData);
+    return () => {
+      room.off(RoomEvent.DataReceived, handleData);
+    };
+  }, [room]);
 
   // Find the LemonSlice avatar participant
   const avatarParticipant = participants.find((p) =>
@@ -181,6 +204,23 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
       {/* Connecting overlay — phased messaging during backend retry window */}
       {status === "connecting" && (
         <ConnectingOverlay />
+      )}
+
+      {/* Voice-only platform fallback UI */}
+      {status === "error" && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#050505]/95 z-20">
+          <div className="h-16 w-16 rounded-full bg-emerald-500/10 flex items-center justify-center animate-pulse">
+            <div className="h-8 w-8 rounded-full bg-emerald-500/30 flex items-center justify-center">
+              <div className="h-4 w-4 rounded-full bg-emerald-400" />
+            </div>
+          </div>
+          <p className="text-sm font-semibold tracking-wide text-emerald-400">
+            Ailana is Online (Voice Only)
+          </p>
+          <p className="text-[10px] text-gray-500 text-center px-6">
+            The avatar platform is currently offline. Speak normally.
+          </p>
+        </div>
       )}
 
       {/* Vignette */}

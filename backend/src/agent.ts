@@ -773,46 +773,41 @@ export default defineAgent({
         }
       };
 
-      // Set a backup timeout to ensure we don't block the agent forever if lemonslice fails to subscribe
-      // Increased to 60s to accommodate retry logic (3 retries × ~14s max = ~42s + margin)
+      // Set a backup timeout to ensure we don't block the agent forever if lemonslice takes too long
+      // Reduced to 15s. On timeout we do NOT send failure signals because the platform hasn't failed, it's just slow.
       const backupTimeout = setTimeout(() => {
         if (!isAvatarInitDone) {
-          console.warn(`[avatar][${ts()}] LemonSlice video track subscription timed out (60s). Proceeding to bypass.`);
+          console.warn(`[avatar][${ts()}] LemonSlice connection safety timeout reached (15s). Starting conversation.`);
           isAvatarInitDone = true;
           resolveAvatarReady();
-          sendAvatarStatus('SYSTEM_AVATAR_CONN_FAILED', 'Video track subscription timed out after 60s');
         }
-      }, 60000);
+      }, 15000);
 
       const markReady = () => {
         if (isAvatarInitDone) return;
-        console.log(`[avatar][${ts()}] LemonSlice video track is subscribed. Avatar is fully ready!`);
+        console.log(`[avatar][${ts()}] LemonSlice participant joined the room. Avatar is ready!`);
         clearTimeout(backupTimeout);
         isAvatarInitDone = true;
         resolveAvatarReady();
       };
 
-      // Check if already connected and subscribed
       const checkExisting = () => {
         console.log(`[avatar][${ts()}] Checking existing remote participants. Count=${ctx.room.remoteParticipants.size}`);
         for (const p of ctx.room.remoteParticipants.values()) {
           console.log(`[avatar][${ts()}] Found remote participant: identity=${p.identity}`);
           if (p.identity.startsWith('lemonslice') || p.identity.includes('avatar')) {
-            for (const pub of p.trackPublications.values()) {
-              console.log(`[avatar][${ts()}] Remote participant track: identity=${p.identity}, kind=${pub.kind}, subscribed=${pub.subscribed}`);
-              if (pub.kind === TrackKind.KIND_VIDEO && pub.subscribed) {
-                markReady();
-                return true;
-              }
-            }
+            markReady();
+            return true;
           }
         }
         return false;
       };
 
-      // Listen for participant connection events
       ctx.room.on(RoomEvent.ParticipantConnected, (participant: any) => {
         console.log(`[avatar][${ts()}] Participant Connected: identity=${participant?.identity}`);
+        if (participant?.identity?.startsWith('lemonslice') || participant?.identity?.includes('avatar')) {
+          markReady();
+        }
       });
 
       // Listen for subscription events
@@ -840,7 +835,7 @@ export default defineAgent({
         // Only fall back to voice-only on concurrent capacity errors (429/503).
         // Transient errors (timeouts, DNS, 500) are retried before giving up.
         const AVATAR_MAX_RETRIES = 3;
-        const AVATAR_BACKOFF_BASE_MS = 2000;
+        const AVATAR_BACKOFF_BASE_MS = 800;
         let avatarConnected = false;
         let lastAvatarErr: any = null;
         let isCapacityError = false;
@@ -890,7 +885,7 @@ export default defineAgent({
         }
 
         if (avatarConnected) {
-          console.log(`[avatar][${ts()}] ✅ Avatar connected successfully. Waiting for video track...`);
+          console.log(`[avatar][${ts()}] ✅ Avatar API connected successfully. Waiting for lemonslice participant to join room...`);
           sendAvatarStatus('SYSTEM_AVATAR_CONNECTED');
 
           // When LemonSlice publishes its first audio track, record avatar-first-frame latency
