@@ -805,15 +805,18 @@ export default defineAgent({
         }
       };
 
-      // Set a backup timeout to ensure we don't block the agent forever if lemonslice takes too long
-      // Reduced to 15s. On timeout we do NOT send failure signals because the platform hasn't failed, it's just slow.
+      // ── Safety net timeout ────────────────────────────────────────────────
+      // This ONLY fires if the retry loop has exited successfully (avatarConnected=true)
+      // but LemonSlice takes longer than expected to join the room as a participant.
+      // We do NOT start the conversation here silently — only hard platform errors trigger fallback.
+      // 60s is generous (avatarSession.start() resolves in 3-5s; participant join in 1-2s after).
       const backupTimeout = setTimeout(() => {
         if (!isAvatarInitDone) {
-          console.warn(`[avatar][${ts()}] LemonSlice connection safety timeout reached (15s). Starting conversation.`);
-          isAvatarInitDone = true;
-          resolveAvatarReady();
+          console.warn(`[avatar][${ts()}] ⚠️ LemonSlice participant still not joined after 60s since API call resolved. Logging only — platform did not report an error.`);
+          // Do NOT resolve or fallback here. The user already heard no conversation.
+          // If this is hit, it is a LemonSlice-side issue — do not mask it by silently starting.
         }
-      }, 15000);
+      }, 60000);
 
       const markReady = () => {
         if (isAvatarInitDone) return;
