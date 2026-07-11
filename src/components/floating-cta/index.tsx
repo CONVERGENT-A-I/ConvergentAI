@@ -527,7 +527,7 @@ export default function FloatingCTA() {
       return;
     }
 
-    const INACTIVITY_MS = 90_000; // 1.5 minutes
+    const INACTIVITY_MS = 60_000; // 1 minute
 
     const markActivity = () => {
       lastActivityAtRef.current = Date.now();

@@ -157,10 +157,10 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
   useEffect(() => {
     if (avatarParticipant && videoTrack) {
       setStatus("connected");
-    } else {
+    } else if (!avatarParticipant && status !== "error") {
       setStatus("connecting");
     }
-  }, [avatarParticipant, videoTrack]);
+  }, [avatarParticipant, videoTrack, status]);
 
   // Attach video track
   useEffect(() => {
