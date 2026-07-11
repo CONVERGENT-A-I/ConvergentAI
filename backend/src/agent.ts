@@ -151,8 +151,40 @@ class AilanaVoiceAgent extends voice.Agent {
 
     // 2. Trigger the current turn's extraction asynchronously in the background
     if (userMessage?.textContent) {
-      this.contextManager.triggerBackgroundExtraction(userMessage.textContent);
-      console.log(`[agent-hook]: Current turn background extraction triggered asynchronously.`);
+      const currentTurnNumber = this.contextManager.triggerBackgroundExtraction(userMessage.textContent);
+      console.log(`[agent-hook]: Current turn background extraction triggered asynchronously (turn=${currentTurnNumber}).`);
+
+      // ── Universal transition gate ─────────────────────────────────────────
+      // Each field in this Set is the LAST answer in a section. When confirmed,
+      // the background extraction advances the state to a new section/stage, and
+      // Ailana must proactively deliver mandatory speech (bridge phrase, consent
+      // disclosure, closing offer, next question, underwriting result, etc.).
+      //
+      // Without awaiting, updateInstructionsCallback() writes stale instructions —
+      // Ailana acknowledges the answer but goes silent, forcing the user to nudge.
+      //
+      // By awaiting only on these known transition points, we guarantee Ailana
+      // speaks the correct next content immediately.
+      // Cost: ~400–800ms per transition, each happening at most ONCE per session.
+      const TRANSITION_TRIGGER_FIELDS = new Set([
+        'co_borrower',              // Stage 1  last field → Stage 2 bridge + income question
+        'job_tenure_type',          // Stage 2  last field → Stage 2 Closing Offer (verbatim)
+        'stage2_closing_offer',     // Stage 2  YES        → Stage 3A consent disclosure (verbatim)
+        'soft_pull_authorization',  // Stage 3A consent    → Prefill walkthrough start
+        'prefill_name_address',     // Prefill  step 1     → Prefill step 2 (employer)
+        'prefill_employer',         // Prefill  step 2     → Prefill step 3 (accounts)
+        'prefill_accounts',         // Prefill  step 3     → Prefill step 4 (credit range)
+        'prefill_credit_range',     // Prefill  last step  → Stage 3B (marital status)
+        'hmda',                     // Stage 3B last field → Submit confirmation speech (verbatim)
+        'submit_confirmation',      // Stage 3B YES        → Stage 4 underwriting result
+      ]);
+
+      const currentPending = this.contextManager.getPendingField();
+      if (currentPending !== null && TRANSITION_TRIGGER_FIELDS.has(currentPending)) {
+        console.log(`[agent-hook]: Transition-triggering field "${currentPending}" detected — awaiting extraction for immediate state update...`);
+        const waited = await this.contextManager.waitForExtraction(currentTurnNumber, 1500);
+        console.log(`[agent-hook]: Transition extraction for "${currentPending}" ${waited ? 'completed ✅' : 'timed out ⚠️ (proceeding with best-effort state)'}. Proceeding to instructions update.`);
+      }
     }
 
     // ── [perf] Instructions update ───────────────────────────────────────────
