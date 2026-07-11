@@ -273,23 +273,7 @@ export default defineAgent({
       modelID: 'eleven_turbo_v2_5',
     });
 
-    // Quick connectivity smoke-test for ElevenLabs (non-blocking)
-    (async () => {
-      const t0 = Date.now();
-      try {
-        const resp = await fetch('https://api.elevenlabs.io/v1/user', {
-          headers: { 'xi-api-key': ailanaConfig.elevenlabsApiKey },
-        });
-        const dur = Date.now() - t0;
-        if (resp.ok) {
-          console.log(`[agent-startup] ElevenLabs API reachable — HTTP ${resp.status} in ${dur}ms`);
-        } else {
-          console.error(`[agent-startup] ElevenLabs API returned HTTP ${resp.status} in ${dur}ms — check ELEVENLABS_API_KEY`);
-        }
-      } catch (err: any) {
-        console.error(`[agent-startup] ElevenLabs API connectivity test FAILED after ${Date.now() - t0}ms: ${err?.message ?? err}`);
-      }
-    })();
+
 
     const createVadAgent = () => {
       console.log('[agent]: Creating Cascaded agent (Cerebras LLM + Cartesia STT + ElevenLabs TTS + LemonSlice Avatar)...');
