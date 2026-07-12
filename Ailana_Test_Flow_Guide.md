@@ -179,10 +179,130 @@ Use this script for both **Text Chat** and **Voice Call** channels to confirm co
 
 ---
 
-## 🔍 Validation Checklist (What to watch for)
+## 📋 Alternative Test Script: Refinance Flow
+
+Use this script to validate Ailana's behavior when the borrower's goal is to **refinance** their existing mortgage.
+
+### 🎬 Stage 1: Greeting & Intent Discovery
+1.  **Ailana (Greeting)**:
+    *"Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?"*
+2.  **You say**:
+    *"Hi, my name is Sohail and I want to refinance my current home."*
+3.  **Ailana should respond**:
+    *   Greet by name and ask for occupancy: *"Nice to meet you, Sohail! Refinancing is a great way to optimize your loan terms. Will this be for your primary residence — the home you live in — or is it a second home or investment property?"*
+4.  **You say**:
+    *"It is my primary residence."*
+5.  **Ailana should respond**:
+    *   Ask for existing relationship: *"Do you currently have an account or active services with your lending institution?"*
+6.  **You say**:
+    *"Yes, I have a checking account."*
+7.  **Ailana should respond**:
+    *   Ask for timeline: *"When are you hoping to complete this refinance?"*
+8.  **You say**:
+    *"Within the next 6 months."*
+9. **Ailana should respond**:
+    *   Ask for co-borrower: *"Will there be a co-borrower joining you on this application, or are you applying on your own?"*
+10. **You say**:
+    *"I am applying on my own."*
+11. **Ailana should respond with the Stage 1 Bridge**:
+    *   *Expected Bridge*: *"Understood, thank you. That gives me a great starting point. Now I would like to spend a few minutes exploring your financial picture -- income, current debts, credit profile, and a few other details -- so I can map out the loan programs that may be most relevant to your situation. To start, what is your gross annual household income before taxes?"*
+
+---
+
+### 🎬 Stage 2: Pre-Qualification Discovery (Refinance specific answers)
+12. **You say**:
+    *"I make about 180,000 dollars a year."*
+13. **Ailana should confirm Gross Income**:
+    *   *Verbatim Ask*: *"Just to confirm -- you mentioned $180,000 as your gross annual income. Is that right?"*
+14. **You say**:
+    *"Yes."*
+15. **Ailana should respond**:
+    *   Ask for monthly debt: *"Great, thanks for confirming. Next, could you tell me about your recurring monthly debt payments, such as car loans, student loans, or credit card minimums?"*
+16. **You say**:
+    *"I pay 500 dollars a month."*
+17. **Ailana should confirm Debt**:
+    *   *Verbatim Ask*: *"Just to confirm -- you mentioned $500 as your monthly debt. Is that right?"*
+18. **You say**:
+    *"Yes."*
+19. **Ailana should respond**:
+    *   Ask for credit score: *"Great, thanks for confirming. To help me get a better sense of your options, how would you describe your current credit score--either as a specific number or a general range?"*
+20. **You say**:
+    *"My credit score is 740."*
+21. **Ailana should respond**:
+    *   *No confirmation.* Ask for down payment: *"Got it. Now, how much cash do you plan to bring to the table — or if you are doing a cash-out refinance, how much equity do you want to draw?"* (If none, say $0).
+22. **You say**:
+    *"None, zero dollars."*
+23. **Ailana should confirm Down Payment**:
+    *   *Verbatim Ask*: *"Just to confirm -- you mentioned $0 as your down payment. Is that right?"*
+24. **You say**:
+    *"Yes."*
+25. **Ailana should respond**:
+    *   Ask if they rent or own: *"Great, thanks for confirming. Do you currently rent your home, or do you own?"*
+26. **You say**:
+    *"I own my home."*
+27. **Ailana should respond**:
+    *   *No confirmation.* Ask about realtor: *"Understood. Have you connected with a real estate agent, or are you working without one?"* (realtors are not used for refinances).
+28. **You say**:
+    *"No agent needed since it's a refinance."*
+29. **Ailana should respond**:
+    *   *No confirmation.* Ask for target price (interpreted as current home value in a refinance): *"Got it. What is the estimated current value of the home you are refinancing?"*
+30. **You say**:
+    *"About 450,000 dollars."*
+31. **Ailana should confirm target price/value**:
+    *   *Verbatim Ask*: *"Just to confirm -- you mentioned $450,000 as your target purchase price [or estimated property value]. Is that right?"*
+32. **You say**:
+    *"Yes."*
+33. **Ailana should respond**:
+    *   Ask for property type: *"Great, thanks for confirming. What type of property is this--would that be a single-family home, condo, townhome, multi-family, or something else?"*
+34. **You say**:
+    *"A single family home."*
+35. **Ailana should respond**:
+    *   Ask for military/rural: *"Got it, a single-family home. Do you have any military service history, or is the property in a rural area?"*
+36. **You say**:
+    *"No military service and it is in a suburban area."*
+37. **Ailana should respond**:
+    *   Ask for job tenure/income type: *"Thank you for clarifying. To wrap things up, could you tell me a bit about your current job tenure and the type of income you have, such as whether you're salaried, hourly, or self-employed?"*
+38. **You say**:
+    *"I've been at my job for 5 years salaried."*
+39. **Ailana should respond with the Stage 2 to Stage 3 Closing Transition Offer**:
+    *   *Ailana should ask verbatim whether they are ready to submit their information for eligibility review.*
+
+---
+
+## 💬 Generic Prompts & Educational Q&A Test Scenarios
+
+Verify Ailana's conversational responses for out-of-sequence questions and generic topics:
+
+### 🏠 Scenario A: Understanding PMI (Asked during Stage 2)
+1. **You ask**: *"What is PMI?"*
+2. **Ailana should respond with Educational Q&A guidance**:
+   *"PMI stands for Private Mortgage Insurance. On conventional loans, lenders require it when your down payment is less than 20% — it is a protection policy for the lender, and the cost is included in your monthly payment. The good news is it is not permanent — once your equity reaches 20%, you can request cancellation. Would you like to know more about how it works or how to avoid it?"*
+3. **Check**: Ensure she answers accurately and then steering-corrects back to the pending Stage 2 question.
+
+### 🎖️ Scenario B: VA Loan Eligibility (Asked during Stage 2)
+1. **You ask**: *"Can you tell me about VA loans? Am I eligible?"*
+2. **Ailana should respond**:
+   *"A VA loan is a mortgage benefit administered by the U.S. Department of Veterans Affairs, available exclusively to those who have served in the military. Its most significant advantages are no down payment required, no private mortgage insurance, and competitive interest rates... Do you or your co-borrower have military service history?"*
+
+### 📉 Scenario C: Bankruptcy waiting periods (Asked during Stage 2)
+1. **You ask**: *"Can I get a mortgage if I had a bankruptcy recently?"*
+2. **Ailana should respond**:
+   *"Yes, it is very possible. Most loan programs establish waiting periods after a significant credit event... Chapter 7 typically has a 2-year waiting period for FHA and 4 years for conventional from the discharge date..."*
+
+### 💬 Scenario D: Non-mortgage or general chat (Chitchat guardrails)
+1. **You say**: *"What is your favorite food?"* or *"Tell me a joke."*
+2. **Ailana should respond**:
+   *   Acknowledge the chitchat briefly, politely decline to elaborate, and steer immediately back to the pending mortgage field. 
+   *   *Example*: *"I'm an AI mortgage assistant, so I don't eat food, but I'd love to help you get back to your home loan. We were discussing your down payment. How much cash do you have available?"*
+
+---
+
+## 🔍 Validation Checklist (Updated)
 
 *   [x] **SSN and DOB Exclusion**: Verify that the system does not ask for or collect the borrower's SSN or DOB at any stage. It goes straight from dependents to employment details during Stage 3B.
 *   [x] **Correct Stage 1 sequence**: Six variables collected in sequence before the Bridge activates.
 *   [x] **Correct Stage 2 sequence**: Ten variables collected in sequence with confirmations active only for numeric inputs.
 *   [x] **No Paraphrasing on Disclosures**: Verify verbatim consent scripts are delivered exactly.
 *   [x] **Clean workflow compilation**: Build runs cleanly with zero types discrepancies.
+*   [x] **Proactive Stage 4 AUS Result**: Verify Ailana proactively states the underwriting outcome (Approve, Approve with Conditions, Refer, or Suspend) immediately after application submission without waiting for a user nudge.
+

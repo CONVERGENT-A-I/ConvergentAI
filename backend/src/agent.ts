@@ -12,7 +12,7 @@ import { RoomEvent, TrackKind } from '@livekit/rtc-node';
 import { fileURLToPath } from 'url';
 import * as openai from '@livekit/agents-plugin-openai';
 import * as cartesia from '@livekit/agents-plugin-cartesia';
-import { LoggedElevenLabsTTS } from './metrics/logged-elevenlabs-tts.js';
+import { LoggedCartesiaTTS } from './metrics/logged-cartesia-tts.js';
 import { ailanaConfig } from './config/ailana-config.js';
 import { SessionContextManager } from './context/session-context-manager.js';
 import { LatencyTracker, ts } from './metrics/latency-tracker.js';
@@ -249,8 +249,7 @@ export default defineAgent({
       val ? `✓ present (…${val.slice(-4)})` : '✗ MISSING';
     console.log('[agent-startup] ══ Environment variable audit ══');
     console.log(`[agent-startup]  CARTESIA_KEY          : ${envCheck('CARTESIA_KEY', ailanaConfig.cartesiaKey)}`);
-    console.log(`[agent-startup]  ELEVENLABS_API_KEY    : ${envCheck('ELEVENLABS_API_KEY', ailanaConfig.elevenlabsApiKey)}`);
-    console.log(`[agent-startup]  ELEVENLABS_VOICE_ID   : ${ailanaConfig.elevenlabsVoiceId ? '✓ ' + ailanaConfig.elevenlabsVoiceId : '✗ MISSING'}`);
+    console.log(`[agent-startup]  CARTESIA_VOICE_ID    : ${ailanaConfig.cartesiaVoiceId ? '✓ ' + ailanaConfig.cartesiaVoiceId : '✗ MISSING'}`);
     console.log(`[agent-startup]  LEMONSLICE_API_KEY    : ${envCheck('LEMONSLICE_API_KEY', ailanaConfig.lemonsliceApiKey)}`);
     console.log(`[agent-startup]  LEMONSLICE_AGENT_ID   : ${ailanaConfig.lemonsliceAgentId ? '✓ ' + ailanaConfig.lemonsliceAgentId : '✗ MISSING'}`);
     console.log(`[agent-startup]  CEREBRAS_API_KEY      : ${envCheck('CEREBRAS_API_KEY', ailanaConfig.cerebrasApiKey)}`);
@@ -290,25 +289,25 @@ export default defineAgent({
       model: 'ink-2',
     });
 
-    // ── ElevenLabs TTS ───────────────────────────────────────────────────────
-    console.log(`[agent]: Loading ElevenLabs TTS (eleven_turbo_v2_5, voiceId=${ailanaConfig.elevenlabsVoiceId || 'MISSING'})...`);
-    if (!ailanaConfig.elevenlabsApiKey) {
-      console.error('[agent-startup] FATAL: ELEVENLABS_API_KEY is not set — TTS will fail!');
+    // ── Cartesia TTS ─────────────────────────────────────────────────────────
+    console.log(`[agent]: Loading Cartesia TTS (sonic-3, voiceId=${ailanaConfig.cartesiaVoiceId || 'MISSING'})...`);
+    if (!ailanaConfig.cartesiaKey) {
+      console.error('[agent-startup] FATAL: CARTESIA_KEY is not set — TTS will fail!');
     }
-    if (!ailanaConfig.elevenlabsVoiceId) {
-      console.warn('[agent-startup] WARNING: ELEVENLABS_VOICE_ID is not set — using default voice ID.');
+    if (!ailanaConfig.cartesiaVoiceId) {
+      console.warn('[agent-startup] WARNING: CARTESIA_VOICE_ID is not set — using default voice ID.');
     }
 
-    const sessionTts = new LoggedElevenLabsTTS({
-      apiKey: ailanaConfig.elevenlabsApiKey,
-      voiceId: ailanaConfig.elevenlabsVoiceId,
-      modelID: 'eleven_turbo_v2_5',
+    const sessionTts = new LoggedCartesiaTTS({
+      apiKey: ailanaConfig.cartesiaKey,
+      voice: ailanaConfig.cartesiaVoiceId,
+      model: 'sonic-3',
     });
 
 
 
     const createVadAgent = () => {
-      console.log('[agent]: Creating Cascaded agent (Cerebras LLM + Cartesia STT + ElevenLabs TTS + LemonSlice Avatar)...');
+      console.log('[agent]: Creating Cascaded agent (Cerebras LLM + Cartesia STT + Cartesia TTS + LemonSlice Avatar)...');
       return new AilanaVoiceAgent({
         instructions: contextManager.getActiveInstructions(),
         stt: sessionStt,
@@ -1019,7 +1018,7 @@ export default defineAgent({
       }
     })();
 
-    const activeModelName = 'cascade-livekit-inference (Cerebras GPT-OSS 120B + ElevenLabs + LemonSlice Avatar)';
+    const activeModelName = 'cascade-livekit-inference (Cerebras GPT-OSS 120B + Cartesia TTS + LemonSlice Avatar)';
     console.log(
       `[agent]: Ready — model=${activeModelName}, prompt=${ailanaConfig.promptVersion}, compact@${ailanaConfig.compactEveryNTurns} turns / ${ailanaConfig.forceCompactInputTokens} tokens`,
     );
