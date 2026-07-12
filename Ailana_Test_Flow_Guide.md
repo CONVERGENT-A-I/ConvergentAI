@@ -229,27 +229,27 @@ Use this script to validate Ailana's behavior when the borrower's goal is to **r
 20. **You say**:
     *"My credit score is 740."*
 21. **Ailana should respond**:
-    *   *No confirmation.* Ask for down payment: *"Got it. Now, how much cash do you plan to bring to the table — or if you are doing a cash-out refinance, how much equity do you want to draw?"* (If none, say $0).
+    *   *No confirmation.* Ask for cash/equity: *"Got it. Now, how much cash do you plan to bring to the table — or if you are doing a cash-out refinance, how much equity do you want to draw?"* (If none, say $0).
 22. **You say**:
     *"None, zero dollars."*
-23. **Ailana should confirm Down Payment**:
-    *   *Verbatim Ask*: *"Just to confirm -- you mentioned $0 as your down payment. Is that right?"*
+23. **Ailana should confirm Down Payment/Equity Draw**:
+    *   *Verbatim Ask*: *"Just to confirm — you mentioned $0 as your down payment or equity draw. Is that right?"*
 24. **You say**:
     *"Yes."*
 25. **Ailana should respond**:
-    *   Ask if they rent or own: *"Great, thanks for confirming. Do you currently rent your home, or do you own?"*
+    *   Confirm property ownership: *"Great, thanks for confirming. Since you are looking to refinance, you currently own the property you're refinancing, correct?"*
 26. **You say**:
-    *"I own my home."*
+    *"Yes, I own my home."*
 27. **Ailana should respond**:
-    *   *No confirmation.* Ask about realtor: *"Understood. Have you connected with a real estate agent, or are you working without one?"* (realtors are not used for refinances).
+    *   *No confirmation.* Ask about realtor: *"Understood. For refinancing, a real estate agent is typically not involved, but just to confirm, you are handling this process independently without an agent, correct?"*
 28. **You say**:
     *"No agent needed since it's a refinance."*
 29. **Ailana should respond**:
-    *   *No confirmation.* Ask for target price (interpreted as current home value in a refinance): *"Got it. What is the estimated current value of the home you are refinancing?"*
+    *   *No confirmation.* Ask for estimated property value: *"Got it. What is the estimated current market value of the home you are refinancing?"*
 30. **You say**:
     *"About 450,000 dollars."*
-31. **Ailana should confirm target price/value**:
-    *   *Verbatim Ask*: *"Just to confirm -- you mentioned $450,000 as your target purchase price [or estimated property value]. Is that right?"*
+31. **Ailana should confirm estimated property value**:
+    *   *Verbatim Ask*: *"Just to confirm — you mentioned $450,000 as your estimated property value. Is that right?"*
 32. **You say**:
     *"Yes."*
 33. **Ailana should respond**:

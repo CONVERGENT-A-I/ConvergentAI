@@ -64,7 +64,7 @@ export function buildLayer2(stage: string = '1', profile: BorrowerProfile = {}):
     return buildStage1Instructions();
   }
   if (stage === '2') {
-    return buildStage2Instructions();
+    return buildStage2Instructions(profile);
   }
   if (stage === '3') {
     return buildStage3Instructions();
