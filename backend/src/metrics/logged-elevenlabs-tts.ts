@@ -56,6 +56,10 @@ export class LoggedElevenLabsTTS extends elevenlabs.TTS {
           };
         }
 
+        if (prop === Symbol.asyncIterator) {
+          return () => receiver;
+        }
+
         const val = Reflect.get(target, prop, receiver);
         if (typeof val === 'function') {
           return val.bind(target);

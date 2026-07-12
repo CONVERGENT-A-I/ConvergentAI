@@ -47,6 +47,13 @@ export class LoggedCartesiaTTS extends cartesia.TTS {
               return res;
             }
             
+            const event = res.value;
+            if (event && typeof event === 'object' && 'frame' in event) {
+              if (frameCount < 5) {
+                console.log(`[cartesia-tts-debug] Frame ${frameCount}: sampleRate=${event.frame.sampleRate}, channels=${event.frame.channels}, samples=${event.frame.samplesPerChannel}, bytes=${event.frame.data.length}`);
+              }
+            }
+
             if (frameCount === 0) {
               const ttft = Date.now() - t0;
               console.log(`[cartesia-tts][${ts()}] FIRST AUDIO FRAME received from Cartesia (TTFT since initialization: ${ttft}ms)`);
@@ -54,6 +61,10 @@ export class LoggedCartesiaTTS extends cartesia.TTS {
             frameCount++;
             return res;
           };
+        }
+
+        if (prop === Symbol.asyncIterator) {
+          return () => receiver;
         }
 
         // Transparently forward all other properties/methods (maintains prototype chain and internal states)

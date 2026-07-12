@@ -302,6 +302,8 @@ export default defineAgent({
       apiKey: ailanaConfig.cartesiaKey,
       voice: ailanaConfig.cartesiaVoiceId,
       model: 'sonic-3.5',
+      sampleRate: 16000,
+      volume: 0.8,
     });
 
 

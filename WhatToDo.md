@@ -15,14 +15,16 @@ This document outlines the active and upcoming tasks to finalize the Ailana conv
   * Added goal-specific Stage 2 prompting instructions that re-phrase home buying questions to refinance-specific terms (Down Payment ➔ Cash/Equity, Rent/Own ➔ Own property check, Realtor ➔ Independent check, Target Price ➔ Estimated home value).
   * Passed the borrower profile variables to the Stage 2 instruction builder to toggle rules dynamically.
   * Tested the refinance flow successfully, confirming natural dialogue flow and correct confirmations.
+- [x] **Change Cartesia Voice ID to Skylar**
+  * Retrieved Cartesia Voice ID for "Skylar - Friendly Guide" (`db6b0ed5-d5d3-463d-ae85-518a07d3c2b4`).
+  * Updated `cartesiaVoiceId` config fallback value in `ailana-config.ts` to use Skylar's voice ID.
 
 ---
 
 ## 🚀 Upcoming & Pending Tasks
 
 ### 🎙️ Voice & Persona Tweaks
-- [ ] **Change Cartesia Voice ID**
-  * Switch the default Cartesia voice from the current "Midwestern Woman / Ruth" (`11af83e2-23eb-452f-956e-7fee218ccb5c`) to another voice once David provides the final voice selection.
+*(No active tasks)*
 
 ### 🏛️ Loan Program Enhancements
 - [ ] **Implement HELOC (Home Equity Line of Credit) Support**

@@ -29,7 +29,7 @@ export const ailanaConfig = {
   get groqApiKey() { return process.env.GROQ_API_KEY ?? ''; },
   get openaiApiKey() { return process.env.OPENAI_API_KEY ?? ''; },
   get cartesiaKey() { return process.env.CARTESIA_KEY ?? ''; },
-  get cartesiaVoiceId() { return process.env.AILANA_VOICE_ID ?? '11af83e2-23eb-452f-956e-7fee218ccb5c'; },
+  get cartesiaVoiceId() { return process.env.AILANA_VOICE_ID ?? 'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4'; },
   get elevenlabsApiKey() { return process.env.ELEVENLABS_API_KEY ?? ''; },
   get elevenlabsVoiceId() { return process.env.ELEVENLABS_VOICE_ID ?? 'EST9Ui6982FZPSi7gCHi'; },
   get lemonsliceApiKey() { return process.env.LEMONSLICE_API_KEY ?? ''; },
