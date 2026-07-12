@@ -11,6 +11,10 @@ This document outlines the active and upcoming tasks to finalize the Ailana conv
   * Created a custom `LoggedCartesiaTTS` wrapper class to preserve latency tracking (stream start, text push, and time-to-first-audio-frame logs).
   * Removed ElevenLabs credentials checks and updated backend configurations.
   * Verified compile-time safety and verified zero TypeScript warnings.
+- [x] **Refinancing Conversational Flow Refinement**
+  * Added goal-specific Stage 2 prompting instructions that re-phrase home buying questions to refinance-specific terms (Down Payment ➔ Cash/Equity, Rent/Own ➔ Own property check, Realtor ➔ Independent check, Target Price ➔ Estimated home value).
+  * Passed the borrower profile variables to the Stage 2 instruction builder to toggle rules dynamically.
+  * Tested the refinance flow successfully, confirming natural dialogue flow and correct confirmations.
 
 ---
 
@@ -24,9 +28,11 @@ This document outlines the active and upcoming tasks to finalize the Ailana conv
 - [ ] **Implement HELOC (Home Equity Line of Credit) Support**
   * Members 1st Federal Credit Union handles a large volume of HELOCs.
   * *Task*: Integrate the HELOC product recommendation rules and prompt scripts once David provides the specific HELOC prompting guidelines.
-- [ ] **Fix Refinancing Conversational Management Flow**
-  * *Issue*: While the home purchase flow is fully operational and smooth, David indicated Ailana had difficulties managing the refinance engagement sequence.
-  * *Task*: Analyze the refinance path, ensure all prequalification questions make sense for existing homeowners (e.g., target price is property value, down payment is handled or skipped as $0, realtor is skipped), and verify the transitions flow correctly.
+
+### ⚖️ Compliance & Data Requirements
+- [ ] **Collect Legal Name & Address Prior to Soft Pull**
+  * *Requirement*: Legally, a soft credit pull cannot be initiated without first obtaining the user's legal name and current address. Currently, Ailana asks for soft pull consent first, then displays name/address pre-filled from the soft pull profile.
+  * *Task*: Rearrange the conversational flow so that Ailana explicitly collects or confirms the user's legal name and physical address *before* the soft pull consent disclosure is delivered.
 
 ### 🧠 General Prompting & Future Scope
 - [ ] **Complete Generic Prompting / Out-of-Sequence Support**
