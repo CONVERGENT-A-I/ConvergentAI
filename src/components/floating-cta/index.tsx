@@ -1141,7 +1141,11 @@ export default function FloatingCTA() {
                             <LiveKitRoom
                               key={roomName}
                               video={false}
-                              audio={false}
+                              audio={{
+                                noiseSuppression: true,
+                                echoCancellation: true,
+                                autoGainControl: true,
+                              }}
                               token={token || ""}
                               serverUrl={lkUrl || ""}
                               connect={true}

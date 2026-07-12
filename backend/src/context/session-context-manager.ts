@@ -1,4 +1,4 @@
-import { llm, type voice } from '@livekit/agents';
+﻿﻿﻿import { llm, type voice } from '@livekit/agents';
 import type { LLM } from '@livekit/agents-plugin-openai';
 import { ailanaConfig } from '../config/ailana-config.js';
 import {
@@ -338,9 +338,9 @@ export class SessionContextManager {
 
       if (res.value === 'yes') {
         this.activeStage = '3A';
-        this.currentPendingField = 'soft_pull_authorization';
-        this.profile.soft_pull_consent = 'pending';
-        console.log('[context-manager]: Ã¢Å“â€¦ stage3_closing_offer accepted! Transitioning to STAGE 3A Soft Pull Consent!');
+        this.currentPendingField = 'legal_name';
+        console.log('[context-manager]: stage3_closing_offer accepted! Transitioning to STAGE 3A Legal Name!');
+
       } else if (res.value === 'no') {
         this.currentPendingField = 'advisor_connection_offer';
         console.log('[context-manager]: stage3_closing_offer declined. Transitioning to advisor_connection_offer.');
@@ -1258,51 +1258,51 @@ export class SessionContextManager {
       this.fieldAttempts[this.currentPendingField] = 0;
     }
     // Ã¢â€â‚¬Ã¢â€â‚¬ Stage 1 Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
-    if (!this.profile.borrower_name_confirmed) {
-      this.currentPendingField = 'borrower_name';
-    } else if (!this.profile.mortgage_goal_confirmed) {
-      this.currentPendingField = 'mortgage_goal';
-    } else if (!this.profile.occupancy_confirmed) {
-      this.currentPendingField = 'occupancy';
-    } else if (!this.profile.existing_relationship_confirmed) {
-      this.currentPendingField = 'existing_relationship';
-    } else if (!this.profile.timeline_confirmed) {
-      this.currentPendingField = 'timeline';
-    } else if (!this.profile.co_borrower_confirmed) {
-      this.currentPendingField = 'co_borrower';
-    // Ã¢â€â‚¬Ã¢â€â‚¬ Stage 1 Ã¢â€ â€™ Stage 2 transition Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
-    } else if (this.activeStage === '1') {
-      this.activeStage = '2';
-      this.currentPendingField = 'gross_annual_income';
-      this.profile.bridge_to_say = 'stage1_to_stage2';
-      console.log('[context-manager]: Ã¢Å“â€¦ Transitioning to STAGE 2 Pre-Qualification Discovery!');
-    // Ã¢â€â‚¬Ã¢â€â‚¬ Stage 2 Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
-    } else if (!this.profile.gross_annual_income_confirmed) {
-      this.currentPendingField = 'gross_annual_income';
-    } else if (!this.profile.monthly_debt_confirmed) {
-      this.currentPendingField = 'monthly_debt';
-    } else if (!this.profile.credit_range_confirmed) {
-      this.currentPendingField = 'credit_range';
-    } else if (!this.profile.down_payment_confirmed) {
-      this.currentPendingField = 'down_payment';
-    } else if (!this.profile.rent_own_confirmed) {
-      this.currentPendingField = 'rent_own';
-    } else if (!this.profile.realtor_status_confirmed) {
-      this.currentPendingField = 'realtor_status';
-    } else if (!this.profile.target_price_confirmed) {
-      this.currentPendingField = 'target_price';
-    } else if (!this.profile.property_type_confirmed) {
-      this.currentPendingField = 'property_type';
-    } else if (!this.profile.military_rural_confirmed) {
-      this.currentPendingField = 'military_rural';
-    } else if (!this.profile.job_tenure_type_confirmed) {
-      this.currentPendingField = 'job_tenure_type';
-    // Ã¢â€â‚¬Ã¢â€â‚¬ Stage 2 Ã¢â€ â€™ Stage 3 transition Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+    if (this.activeStage === '1') {
+      if (!this.profile.borrower_name_confirmed) {
+        this.currentPendingField = 'borrower_name';
+      } else if (!this.profile.mortgage_goal_confirmed) {
+        this.currentPendingField = 'mortgage_goal';
+      } else if (!this.profile.occupancy_confirmed) {
+        this.currentPendingField = 'occupancy';
+      } else if (!this.profile.existing_relationship_confirmed) {
+        this.currentPendingField = 'existing_relationship';
+      } else if (!this.profile.timeline_confirmed) {
+        this.currentPendingField = 'timeline';
+      } else if (!this.profile.co_borrower_confirmed) {
+        this.currentPendingField = 'co_borrower';
+      } else {
+        this.activeStage = '2';
+        this.currentPendingField = 'gross_annual_income';
+        this.profile.bridge_to_say = 'stage1_to_stage2';
+        console.log('[context-manager]: Transitioning to STAGE 2 Pre-Qualification Discovery!');
+      }
     } else if (this.activeStage === '2') {
-      this.calculateEligibility();
-      this.currentPendingField = 'stage2_closing_offer';
-      console.log('[context-manager]: Ã¢Å“â€¦ Transitioning to STAGE 2 Closing Transition!');
-    // Ã¢â€â‚¬Ã¢â€â‚¬ Stage 3 / 3A Transitions Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+      if (!this.profile.gross_annual_income_confirmed) {
+        this.currentPendingField = 'gross_annual_income';
+      } else if (!this.profile.monthly_debt_confirmed) {
+        this.currentPendingField = 'monthly_debt';
+      } else if (!this.profile.credit_range_confirmed) {
+        this.currentPendingField = 'credit_range';
+      } else if (!this.profile.down_payment_confirmed) {
+        this.currentPendingField = 'down_payment';
+      } else if (!this.profile.rent_own_confirmed) {
+        this.currentPendingField = 'rent_own';
+      } else if (!this.profile.realtor_status_confirmed) {
+        this.currentPendingField = 'realtor_status';
+      } else if (!this.profile.target_price_confirmed) {
+        this.currentPendingField = 'target_price';
+      } else if (!this.profile.property_type_confirmed) {
+        this.currentPendingField = 'property_type';
+      } else if (!this.profile.military_rural_confirmed) {
+        this.currentPendingField = 'military_rural';
+      } else if (!this.profile.job_tenure_type_confirmed) {
+        this.currentPendingField = 'job_tenure_type';
+      } else {
+        this.calculateEligibility();
+        this.currentPendingField = 'stage2_closing_offer';
+        console.log('[context-manager]: Transitioning to STAGE 2 Closing Transition!');
+      }
     } else if (this.activeStage === '3') {
       if (!this.profile.program_comparison_interest_confirmed) {
         this.currentPendingField = 'program_comparison_interest';
@@ -1312,11 +1312,23 @@ export class SessionContextManager {
         this.currentPendingField = 'home_horizon';
       } else {
         this.currentPendingField = 'stage3_closing_offer';
-        console.log('[context-manager]: Ã¢Å“â€¦ Transitioning to STAGE 3 Closing Transition!');
+        console.log('[context-manager]: Transitioning to STAGE 3 Closing Transition!');
       }
     } else if (this.activeStage === '3A') {
       const confirmed = this.profile.prefilled_fields_confirmed || {};
-      if (this.profile.soft_pull_consent === 'accepted') {
+      // -- Pre-consent collection: legal name -> address -> consent disclosure --
+      if (!this.profile.legal_name_confirmed) {
+        this.currentPendingField = 'legal_name';
+      } else if (!this.profile.physical_address_confirmed) {
+        this.currentPendingField = 'physical_address';
+      } else if (!this.profile.soft_pull_consent || this.profile.soft_pull_consent === 'pending') {
+        // Both name and address collected -- now ask for soft pull authorization
+        this.currentPendingField = 'soft_pull_authorization';
+        if (!this.profile.soft_pull_consent) {
+          this.profile.soft_pull_consent = 'pending';
+        }
+      // -- Post-consent: prefill walkthrough or skip to 3B --
+      } else if (this.profile.soft_pull_consent === 'accepted') {
         if (!confirmed.name_address) {
           this.currentPendingField = 'prefill_name_address';
         } else if (!confirmed.employer) {
@@ -1329,13 +1341,13 @@ export class SessionContextManager {
           // Finished prefilled walkthrough, go to Stage 3B (Application completion)
           this.currentPendingField = 'marital_status';
           this.activeStage = '3B';
-          console.log('[context-manager]: Ã¢Å“â€¦ Prefills confirmed! Transitioning to STAGE 3B!');
+          console.log('[context-manager]: Prefills confirmed! Transitioning to STAGE 3B!');
         }
       } else if (this.profile.soft_pull_consent === 'declined') {
         // Go straight to Stage 3B manual completion
         this.currentPendingField = 'marital_status';
         this.activeStage = '3B';
-        console.log('[context-manager]: Ã¢Å“â€¦ Consent declined. Transitioning to STAGE 3B (manual)!');
+        console.log('[context-manager]: Consent declined. Transitioning to STAGE 3B (manual)!');
       }
     } else if (this.activeStage === '3B') {
       if (!this.profile.marital_status_confirmed) {

@@ -429,6 +429,25 @@ export default defineAgent({
       const item = ev.item as llm.ChatMessage;
       if (item?.role === 'assistant' && item.textContent) {
         contextManager.onAgentTurn(item.textContent);
+
+        // ── Publish agent message as a LiveKit chat message ─────────────────
+        // Since TTS audio goes directly to LemonSlice via DataStreamAudioOutput,
+        // the LiveKit TranscriptionSynchronizer never sees audio playout events
+        // and therefore never fires transcriptionReceived events on the frontend.
+        // Publishing the text explicitly as a chat message ensures Ailana's
+        // responses always appear in the chat panel, regardless of audio routing.
+        const msgText = item.textContent;
+        (async () => {
+          try {
+            await ctx.room.localParticipant?.sendText(msgText, { topic: 'lk.chat' });
+          } catch {
+            try {
+              await ctx.room.localParticipant?.sendChatMessage(msgText);
+            } catch (err2) {
+              console.warn('[agent]: Failed to publish assistant message as chat:', err2);
+            }
+          }
+        })();
       }
       try {
         const chatCtx = session.chatCtx;

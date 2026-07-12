@@ -29,7 +29,11 @@ export function RoomControls({ onEnd, mode }: RoomControlsProps) {
   const toggleMic = async () => {
     if (!localParticipant) return;
     try {
-      await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled);
+      await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled, {
+        noiseSuppression: true,
+        echoCancellation: true,
+        autoGainControl: true,
+      });
     } catch (e) {
       console.error("Mic toggle error:", e);
     }

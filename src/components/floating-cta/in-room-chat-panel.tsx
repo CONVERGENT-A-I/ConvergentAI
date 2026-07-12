@@ -104,9 +104,14 @@ export function InRoomChatPanel({ isActive }: InRoomChatPanelProps) {
   // Merge chat messages and transcripts
   const displayMessages = useMemo(() => {
     const combined: any[] = [];
+    const seenTexts = new Set<string>();
 
     // Add manual chat messages
     chatMessages.forEach((msg) => {
+      if (msg.message && msg.message.trim()) {
+        const normalized = msg.message.trim().toLowerCase();
+        seenTexts.add(normalized);
+      }
       combined.push({
         id: msg.id || msg.timestamp.toString(),
         text: msg.message,
@@ -122,7 +127,11 @@ export function InRoomChatPanel({ isActive }: InRoomChatPanelProps) {
     // Add transcript messages
     Object.values(transcripts).forEach((tr) => {
       if (tr.text && tr.text.trim()) {
-        // Don't show empty transcripts
+        const normalized = tr.text.trim().toLowerCase();
+        // If it's an agent transcription and we already have a chat message with the same text, skip it
+        if (tr.isAgent && seenTexts.has(normalized)) {
+          return;
+        }
         combined.push(tr);
       }
     });
