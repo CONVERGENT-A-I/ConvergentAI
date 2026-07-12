@@ -169,7 +169,9 @@ class AilanaVoiceAgent extends voice.Agent {
       const TRANSITION_TRIGGER_FIELDS = new Set([
         'co_borrower',              // Stage 1  last field → Stage 2 bridge + income question
         'job_tenure_type',          // Stage 2  last field → Stage 2 Closing Offer (verbatim)
-        'stage2_closing_offer',     // Stage 2  YES        → Stage 3A consent disclosure (verbatim)
+        'stage2_closing_offer',     // Stage 2  YES        → Stage 3A legal name
+        'legal_name',               // Stage 3A legal name → Stage 3A physical address
+        'physical_address',         // Stage 3A physical address → Stage 3A consent disclosure
         'soft_pull_authorization',  // Stage 3A consent    → Prefill walkthrough start
         'prefill_name_address',     // Prefill  step 1     → Prefill step 2 (employer)
         'prefill_employer',         // Prefill  step 2     → Prefill step 3 (accounts)
@@ -182,7 +184,7 @@ class AilanaVoiceAgent extends voice.Agent {
       const currentPending = this.contextManager.getPendingField();
       if (currentPending !== null && TRANSITION_TRIGGER_FIELDS.has(currentPending)) {
         console.log(`[agent-hook]: Transition-triggering field "${currentPending}" detected — awaiting extraction for immediate state update...`);
-        const waited = await this.contextManager.waitForExtraction(currentTurnNumber, 1500);
+        const waited = await this.contextManager.waitForExtraction(currentTurnNumber, 10000);
         console.log(`[agent-hook]: Transition extraction for "${currentPending}" ${waited ? 'completed ✅' : 'timed out ⚠️ (proceeding with best-effort state)'}. Proceeding to instructions update.`);
       }
     }

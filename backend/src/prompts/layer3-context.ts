@@ -65,6 +65,10 @@ export interface BorrowerProfile {
   financial_priority_confirmed?: boolean;
   home_horizon?: 'long_term' | 'short_term' | null;
   home_horizon_confirmed?: boolean;
+  legal_name?: string | null;
+  legal_name_confirmed?: boolean;
+  physical_address?: string | null;
+  physical_address_confirmed?: boolean;
   soft_pull_consent?: 'pending' | 'accepted' | 'declined' | null;
   employer?: string | null;
   prefilled_fields_confirmed?: {
@@ -107,6 +111,8 @@ const FIELD_LABELS: Record<string, string> = {
   gross_annual_income: 'gross annual household income',
   monthly_debt: 'total monthly debt payments',
   credit_range: 'credit score',
+  legal_name: 'full legal name',
+  physical_address: 'physical address',
   down_payment: 'down payment amount',
   rent_own: 'housing status',
   realtor_status: 'real estate agent connection status',
@@ -198,10 +204,12 @@ export function buildLayer3TurnContext(
     `Comparison Walkthrough:     ${profile.program_comparison_interest ?? 'not yet collected'}`,
     `Financial priority:          ${profile.financial_priority ?? 'not yet collected'}`,
     `Home horizon:                ${profile.home_horizon ?? 'not yet collected'}`,
+    `Legal Name:                  ${profile.legal_name ?? 'not yet collected'} (Confirmed: ${!!profile.legal_name_confirmed})`,
+    `Physical Address:            ${profile.physical_address ?? 'not yet collected'} (Confirmed: ${!!profile.physical_address_confirmed})`,
     `Soft pull consent:           ${profile.soft_pull_consent ?? 'not yet asked'}`,
     profile.soft_pull_consent === 'accepted' ? [
       `MOCK PRE-FILLED DATA RETRIEVED VIA SOFT PULL:`,
-      `  - Full Name & Address to confirm: John Doe, 1234 Maple Avenue, Suite 100, Los Angeles, CA 90012`,
+      `  - Full Name & Address to confirm: ${profile.legal_name || 'John Doe'}, ${profile.physical_address || '1234 Maple Avenue, Suite 100, Los Angeles, CA 90012'}`,
       `  - Employer to confirm: ${profile.employer || 'Nexus Technologies LLC Corp'}`,
       `  - Accounts Summary to confirm: 2 open active credit cards, 1 auto loan, and no negative accounts or late payments in the last 24 months`,
       `  - Credit Range Category to confirm: ${profile.credit_range ? (profile.credit_range + ' range') : (creditRangeCategory + ' range (' + creditRangeLimits + ')')}`,

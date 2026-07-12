@@ -18,13 +18,13 @@ This document outlines the active and upcoming tasks to finalize the Ailana conv
 - [x] **Change Cartesia Voice ID to Skylar**
   * Retrieved Cartesia Voice ID for "Skylar - Friendly Guide" (`db6b0ed5-d5d3-463d-ae85-518a07d3c2b4`).
   * Updated `cartesiaVoiceId` config fallback value in `ailana-config.ts` to use Skylar's voice ID.
+- [x] **Collect Legal Name & Address Prior to Soft Pull**
+  * Rearranged the conversational flow so that Ailana explicitly collects the user's legal name and physical address *before* the soft pull consent disclosure is delivered.
+  * Injected these values into the subsequent pre-filled profile verification steps dynamically.
 
 ---
 
 ## 🚀 Upcoming & Pending Tasks
-
-### 🎙️ Voice & Persona Tweaks
-*(No active tasks)*
 
 ### 🏛️ Loan Program Enhancements
 - [ ] **Implement HELOC (Home Equity Line of Credit) Support**
@@ -32,9 +32,7 @@ This document outlines the active and upcoming tasks to finalize the Ailana conv
   * *Task*: Integrate the HELOC product recommendation rules and prompt scripts once David provides the specific HELOC prompting guidelines.
 
 ### ⚖️ Compliance & Data Requirements
-- [ ] **Collect Legal Name & Address Prior to Soft Pull**
-  * *Requirement*: Legally, a soft credit pull cannot be initiated without first obtaining the user's legal name and current address. Currently, Ailana asks for soft pull consent first, then displays name/address pre-filled from the soft pull profile.
-  * *Task*: Rearrange the conversational flow so that Ailana explicitly collects or confirms the user's legal name and physical address *before* the soft pull consent disclosure is delivered.
+*(No active tasks)*
 
 ### 🧠 General Prompting & Future Scope
 - [ ] **Complete Generic Prompting / Out-of-Sequence Support**

@@ -428,6 +428,40 @@ export class SessionContextManager {
   private async runStage3AExtraction(text: string): Promise<void> {
     const lastQuestion = this.getLastAssistantUtterance();
 
+    if (this.currentPendingField === 'legal_name') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'legal_name',
+        "borrower's full legal name",
+        'string',
+        'Extract the full legal name of the borrower (first and last name, e.g. "John Doe"). If they say "John Doe", extract "John Doe". If not found, return null.'
+      );
+      if (res.value) {
+        this.profile.legal_name = res.value as string;
+        this.profile.legal_name_confirmed = true;
+        this.advanceWorkflow();
+      }
+      return;
+    }
+
+    if (this.currentPendingField === 'physical_address') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'physical_address',
+        "borrower's physical address",
+        'string',
+        'Extract the full physical address of the borrower including city, state, or zip code if mentioned. If they say "123 Maple Street", extract "123 Maple Street". If not found, return null.'
+      );
+      if (res.value) {
+        this.profile.physical_address = res.value as string;
+        this.profile.physical_address_confirmed = true;
+        this.advanceWorkflow();
+      }
+      return;
+    }
+
     if (this.currentPendingField === 'soft_pull_authorization') {
       const decision = await classifyConfirmation(text, lastQuestion, 'soft_pull_consent', 'Do you authorize the soft credit inquiry on that basis?');
       if (decision === 'yes') {
@@ -474,7 +508,20 @@ export class SessionContextManager {
           );
           if (resName.value) {
             this.profile.borrower_name = resName.value as string;
+            this.profile.legal_name = resName.value as string;
             console.log(`[context-manager]: Corrected borrower name to ${resName.value}`);
+          }
+          const resAddress = await extractProfileField(
+            text,
+            lastQuestion,
+            'address_correction',
+            'corrected physical address',
+            'string',
+            'Extract the corrected physical address. If not found, return null.'
+          );
+          if (resAddress.value) {
+            this.profile.physical_address = resAddress.value as string;
+            console.log(`[context-manager]: Corrected physical address to ${resAddress.value}`);
           }
         } else if (step === 'prefill_credit_range') {
           const resCredit = await extractProfileField(
@@ -1058,9 +1105,8 @@ export class SessionContextManager {
     if (field === 'stage2_closing_offer' && offerVal) {
       if (offerVal === 'yes') {
         this.activeStage = '3A';
-        this.currentPendingField = 'soft_pull_authorization';
-        this.profile.soft_pull_consent = 'pending';
-        console.log('[context-manager]: stage2_closing_offer accepted! Transitioning to STAGE 3A Soft Pull Consent!');
+        this.currentPendingField = 'legal_name';
+        console.log('[context-manager]: stage2_closing_offer accepted! Transitioning to STAGE 3A Legal Name!');
       } else if (offerVal === 'no') {
         this.activeStage = '3';
         this.currentPendingField = 'product_fit_walkthrough';
