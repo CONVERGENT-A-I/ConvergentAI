@@ -290,7 +290,7 @@ export default defineAgent({
     });
 
     // ── Cartesia TTS ─────────────────────────────────────────────────────────
-    console.log(`[agent]: Loading Cartesia TTS (sonic-3, voiceId=${ailanaConfig.cartesiaVoiceId || 'MISSING'})...`);
+    console.log(`[agent]: Loading Cartesia TTS (sonic-3.5, voiceId=${ailanaConfig.cartesiaVoiceId || 'MISSING'})...`);
     if (!ailanaConfig.cartesiaKey) {
       console.error('[agent-startup] FATAL: CARTESIA_KEY is not set — TTS will fail!');
     }
@@ -301,7 +301,7 @@ export default defineAgent({
     const sessionTts = new LoggedCartesiaTTS({
       apiKey: ailanaConfig.cartesiaKey,
       voice: ailanaConfig.cartesiaVoiceId,
-      model: 'sonic-3',
+      model: 'sonic-3.5',
     });
 
 
@@ -920,8 +920,8 @@ export default defineAgent({
             // Check for concurrent capacity errors (HTTP 429 Too Many Requests, 503 Service Unavailable)
             // These indicate the avatar service is at capacity — retrying won't help.
             if (statusCode === 429 || statusCode === 503 ||
-                errMsg.includes('429') || errMsg.includes('capacity') ||
-                errMsg.includes('too many') || errMsg.includes('503')) {
+              errMsg.includes('429') || errMsg.includes('capacity') ||
+              errMsg.includes('too many') || errMsg.includes('503')) {
               console.warn(`[avatar][${ts()}] ⚠️  CAPACITY ERROR — skipping remaining retries (status=${statusCode}).`);
               isCapacityError = true;
               break;
