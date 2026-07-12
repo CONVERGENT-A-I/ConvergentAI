@@ -863,25 +863,6 @@ export default defineAgent({
       });
 
       try {
-        // ── Session start: disable RoomIO audio OUTPUT so it cannot overwrite LemonSlice ───
-        // Root cause of the race condition:
-        //   1. session.start() → creates RoomIO internally, which creates a ParticipantAudioOutput
-        //   2. avatarSession.start() → sets session.output.audio = DataStreamAudioOutput ✓
-        //   3. User's mic track subscribes → RoomIO.init() completes → RoomIO.start() writes
-        //      agentSession.output.audio = participantAudioOutput  ← OVERWRITES DataStreamAudioOutput!
-        //   4. TranscriptSynchronizer detaches → firstFrameFut cancelled → avatar silent on turn 2+
-        //
-        // Fix: pass outputOptions: { audioEnabled: false } so RoomIO never creates a
-        // ParticipantAudioOutput at all. LemonSlice's DataStreamAudioOutput stays in place.
-        // Audio INPUT is still enabled so the user's microphone is captured normally.
-        sessionStarted = true;
-        console.log(`[avatar][${ts()}] ┌─────────────────────────────────────────────────────────────┐`);
-        console.log(`[avatar][${ts()}] │  🚀  AVATAR INIT STARTED — Starting AgentSession...          │`);
-        console.log(`[avatar][${ts()}] │      outputOptions.audioEnabled=false (LemonSlice owns audio) │`);
-        console.log(`[avatar][${ts()}] └─────────────────────────────────────────────────────────────┘`);
-        await session.start({ agent: vadAgent, room: ctx.room, outputOptions: { audioEnabled: false } as any });
-        console.log(`[avatar][${ts()}] │  AgentSession ready. Calling LemonSlice AvatarSession.start()...│`);
-
         // ── Avatar connection with retry logic ─────────────────────────────
         // Retry up to 3 times with exponential backoff (2s, 4s, 8s).
         // Only fall back to voice-only on concurrent capacity errors (429/503).
@@ -910,8 +891,21 @@ export default defineAgent({
             console.log(`[avatar][${ts()}] ┌─────────────────────────────────────────────────────────────┐`);
             console.log(`[avatar][${ts()}] │  ✅  LEMONSLICE API RESPONDED — SUCCESS (attempt ${attempt}/${AVATAR_MAX_RETRIES})         │`);
             console.log(`[avatar][${ts()}] │      avatarSession.start() resolved in ${elapsed}ms                  │`);
-            console.log(`[avatar][${ts()}] │      Waiting for LemonSlice participant to join LiveKit room... │`);
+            console.log(`[avatar][${ts()}] │      Starting AgentSession and restoring DataStreamAudioOutput...  │`);
             console.log(`[avatar][${ts()}] └─────────────────────────────────────────────────────────────┘`);
+            
+            // Save the DataStreamAudioOutput set by LemonSlice
+            const dataStreamAudio = session.output.audio;
+
+            // Start the AgentSession (audioEnabled: true creates the audio track for transcription)
+            sessionStarted = true;
+            await session.start({ agent: vadAgent, room: ctx.room });
+
+            // Restore the DataStreamAudioOutput so TTS audio goes directly to the avatar
+            if (dataStreamAudio) {
+              session.output.audio = dataStreamAudio;
+            }
+
             avatarConnected = true;
             break;
           } catch (err: any) {
@@ -986,6 +980,11 @@ export default defineAgent({
             console.error(`[avatar][${ts()}] ╚══════════════════════════════════════════════════════════════╝`);
             sendAvatarStatus('SYSTEM_AVATAR_CONN_FAILED', errMsg);
           }
+
+          // Fallback session start (voice-only mode)
+          sessionStarted = true;
+          await session.start({ agent: vadAgent, room: ctx.room });
+
           isAvatarInitDone = true;
           resolveAvatarReady();
           clearTimeout(backupTimeout);
