@@ -863,14 +863,23 @@ export default defineAgent({
       });
 
       try {
-        // PRE-START the AgentSession BEFORE starting the AvatarSession.
-        // This ensures the session pipeline is active, and prevents the SDK
-        // from subsequently overwriting lemonslice's DataStreamAudioOutput back to SyncedAudioOutput.
+        // ── Session start: disable RoomIO audio OUTPUT so it cannot overwrite LemonSlice ───
+        // Root cause of the race condition:
+        //   1. session.start() → creates RoomIO internally, which creates a ParticipantAudioOutput
+        //   2. avatarSession.start() → sets session.output.audio = DataStreamAudioOutput ✓
+        //   3. User's mic track subscribes → RoomIO.init() completes → RoomIO.start() writes
+        //      agentSession.output.audio = participantAudioOutput  ← OVERWRITES DataStreamAudioOutput!
+        //   4. TranscriptSynchronizer detaches → firstFrameFut cancelled → avatar silent on turn 2+
+        //
+        // Fix: pass outputOptions: { audioEnabled: false } so RoomIO never creates a
+        // ParticipantAudioOutput at all. LemonSlice's DataStreamAudioOutput stays in place.
+        // Audio INPUT is still enabled so the user's microphone is captured normally.
         sessionStarted = true;
         console.log(`[avatar][${ts()}] ┌─────────────────────────────────────────────────────────────┐`);
-        console.log(`[avatar][${ts()}] │  🚀  AVATAR INIT STARTED — Pre-starting AgentSession...      │`);
+        console.log(`[avatar][${ts()}] │  🚀  AVATAR INIT STARTED — Starting AgentSession...          │`);
+        console.log(`[avatar][${ts()}] │      outputOptions.audioEnabled=false (LemonSlice owns audio) │`);
         console.log(`[avatar][${ts()}] └─────────────────────────────────────────────────────────────┘`);
-        await session.start({ agent: vadAgent, room: ctx.room });
+        await session.start({ agent: vadAgent, room: ctx.room, outputOptions: { audioEnabled: false } as any });
         console.log(`[avatar][${ts()}] │  AgentSession ready. Calling LemonSlice AvatarSession.start()...│`);
 
         // ── Avatar connection with retry logic ─────────────────────────────
