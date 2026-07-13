@@ -6,9 +6,10 @@ import { RoomEvent } from "livekit-client";
 
 interface AgentReadinessCheckProps {
   onAgentReady: (ready: boolean) => void;
+  mode?: string;
 }
 
-export function AgentReadinessCheck({ onAgentReady }: AgentReadinessCheckProps) {
+export function AgentReadinessCheck({ onAgentReady, mode }: AgentReadinessCheckProps) {
   const participants = useRemoteParticipants();
   const room = useRoomContext();
   const [agentSignaledReady, setAgentSignaledReady] = useState(false);
@@ -40,8 +41,24 @@ export function AgentReadinessCheck({ onAgentReady }: AgentReadinessCheckProps) 
   }, [participants]);
 
   useEffect(() => {
-    onAgentReady(participants.length > 0 && agentSignaledReady);
-  }, [participants, agentSignaledReady, onAgentReady]);
+    if (mode === "loan-officer") {
+      // In loan-officer mode, we're ready as soon as ANY remote participant joins
+      // (that's the SIP participant / loan officer). No need to wait for SYSTEM_AGENT_READY.
+      const hasSipParticipant = participants.some(
+        (p) =>
+          p.identity?.startsWith("sip-fspbx-") ||
+          p.identity?.startsWith("sip_") ||
+          p.kind === 3 // ParticipantKind.SIP
+      );
+      // Ready when SIP joins; or fallback: any participant if we already had agent signal
+      const isReady =
+        participants.length > 0 &&
+        (hasSipParticipant || agentSignaledReady);
+      onAgentReady(isReady);
+    } else {
+      onAgentReady(participants.length > 0 && agentSignaledReady);
+    }
+  }, [participants, agentSignaledReady, onAgentReady, mode]);
 
   return null;
 }

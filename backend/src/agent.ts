@@ -660,9 +660,9 @@ export default defineAgent({
 
       if (messageText === 'SYSTEM_TRANSFER_MLO') {
         isHibernating = true;
-        console.log(`[agent]: Agent hibernating. Initiating SIP transfer...`);
+        console.log(`[agent]: 🛌 Agent hibernating for MLO transfer. Shutting down audio pipeline...`);
 
-        // Stop current LLM/TTS generation
+        // 1. Interrupt any in-progress LLM/TTS generation immediately
         try {
           if ((session as any)._started) {
             session.interrupt();
@@ -671,21 +671,23 @@ export default defineAgent({
           console.warn('[agent]: Failed to interrupt session:', e);
         }
 
-        // Mute the agent's microphone track so it cannot be heard by anyone in the room
-        // (Removing invalid track?.mute() - session.interrupt() combined with setSubscribed(false) is sufficient)
-
-        // Stop listening to all current users
+        // 2. Unsubscribe from ALL remote participant tracks so VAD receives no audio.
+        //    This prevents the agent from hearing/responding to the SIP IVR or the loan officer.
+        //    With no audio input, the LLM pipeline starves and generates no further responses.
         for (const p of ctx.room.remoteParticipants.values()) {
           for (const pub of p.trackPublications.values()) {
-            if (pub.subscribed) pub.setSubscribed(false);
+            try { pub.setSubscribed(false); } catch (_) {}
           }
         }
+        console.log('[agent]: 🔇 All tracks unsubscribed. User and loan officer now on direct line.');
 
+        // 3. Dial the SIP trunk to bring the loan officer into the room
         try {
           const { transferRoomToMloQueue } = await import('./utils/sipTransfer.js');
           transferRoomToMloQueue({
             roomName: ctx.room.name || '',
-            ...(participantIdentity ? { userIdentity: participantIdentity } : {}),
+          }).then((res) => {
+            console.log(`[agent]: 📞 SIP Transfer initiated successfully:`, res);
           }).catch((err) => console.error(`[agent]: SIP Transfer failed:`, err));
         } catch (err) {
           console.error(`[agent]: SIP Transfer setup failed:`, err);

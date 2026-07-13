@@ -215,6 +215,7 @@ export default function FloatingCTA() {
       }
 
       const urlRoom = searchParams.get("room");
+      const activeMode = mode ?? pendingMode;
       const generatedRoomName =
         urlRoom ||
         (!forceNewRoom && roomName
@@ -224,8 +225,6 @@ export default function FloatingCTA() {
       if (!roomName || roomName !== generatedRoomName) {
         setRoomName(generatedRoomName);
       }
-
-      const activeMode = mode ?? pendingMode;
 
       if (!participantIdentityRef.current) {
         participantIdentityRef.current = `guest_${Math.floor(Math.random() * 10000)}`;
@@ -356,7 +355,7 @@ export default function FloatingCTA() {
     } else {
       if (isLkConnected && flowPhase === "live") {
         // Already connected — just switch the visual mode, no reconnect needed.
-        // This handles Video ↔ Voice ↔ Chat channel switching seamlessly.
+        // This handles Video ↔ Voice ↔ Chat ↔ Loan Officer channel switching seamlessly.
         if (mode === "loan-officer")
           console.log(
             `[ui-loan-officer]: ✅ Already live. Switching to loan-officer mode.`
@@ -1181,6 +1180,7 @@ export default function FloatingCTA() {
                             >
                               <AgentReadinessCheck
                                 onAgentReady={setIsAgentReady}
+                                mode={pendingMode}
                               />
                               <AvatarStatusListener
                                 onAvatarStatus={handleAvatarStatus}
@@ -1235,8 +1235,7 @@ export default function FloatingCTA() {
                                       }`}
                                   >
                                     {/* REC badge - only when connected */}
-                                    {isLkConnected &&
-                                      isAgentReady && (
+                                    {isLkConnected && isAgentReady && (
                                         <div className="absolute top-3 left-3 z-50 flex items-center gap-1.5 sm:gap-2 bg-black/50 backdrop-blur-md p-1.5 sm:px-2.5 sm:py-1 rounded-full border border-red-500/30">
                                           <motion.div
                                             animate={{ opacity: [1, 0.4, 1] }}
