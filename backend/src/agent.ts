@@ -170,6 +170,7 @@ class AilanaVoiceAgent extends voice.Agent {
         'co_borrower',              // Stage 1  last field → Stage 2 bridge + income question
         'job_tenure_type',          // Stage 2  last field → Stage 2 Closing Offer (verbatim)
         'stage2_closing_offer',     // Stage 2  YES        → Stage 3A legal name
+        'refinance_type',           // Stage 2  refinance_type → Stage 2 target_price
         'legal_name',               // Stage 3A legal name → Stage 3A physical address
         'physical_address',         // Stage 3A physical address → Stage 3A consent disclosure
         'soft_pull_authorization',  // Stage 3A consent    → Prefill walkthrough start

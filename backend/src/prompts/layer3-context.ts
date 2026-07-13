@@ -37,6 +37,9 @@ export interface BorrowerProfile {
   realtor_status?: 'yes' | 'no' | null;
   realtor_status_confirmed?: boolean;
 
+  refinance_type?: 'cash_out' | 'rate_term' | null;
+  refinance_type_confirmed?: boolean;
+
   target_price?: number | null;
   target_price_confirmed?: boolean;
 
@@ -111,6 +114,7 @@ const FIELD_LABELS: Record<string, string> = {
   monthly_debt: 'total monthly debt payments',
   credit_range: 'credit score',
   legal_name: 'full legal name',
+  refinance_type: 'refinance type',
   physical_address: 'physical address',
   down_payment: 'down payment amount',
   rent_own: 'housing status',
@@ -153,9 +157,21 @@ export function buildLayer3TurnContext(
   const fmt = (val?: number | null) =>
     val != null ? `$${val.toLocaleString()}` : 'not yet collected';
 
-  // ── Stage 2 profile block ─────────────────────────────────────────────────
-  const stage2Block = [
-    '=== BORROWER PROFILE (Stage 2 — Pre-Qualification) ===',
+  const isRefinanceGoal = profile.mortgage_goal === 'refinance';
+
+  const stage2Block = isRefinanceGoal ? [
+    '=== BORROWER PROFILE (Stage 2 — Pre-Qualification Discovery) ===',
+    `Gross annual income:   ${fmt(profile.gross_annual_income)} (Confirmed: ${!!profile.gross_annual_income_confirmed})`,
+    `Monthly debt:          ${fmt(profile.monthly_debt)} (Confirmed: ${!!profile.monthly_debt_confirmed})`,
+    `Credit score:          ${profile.credit_range ?? 'not yet collected'} (Confirmed: ${!!profile.credit_range_confirmed})`,
+    `Refinance type:        ${profile.refinance_type ?? 'not yet collected'} (Confirmed: ${!!profile.refinance_type_confirmed})`,
+    `Est property value:    ${fmt(profile.target_price)} (Confirmed: ${!!profile.target_price_confirmed})`,
+    `Property type:         ${profile.property_type ?? 'not yet collected'} (Confirmed: ${!!profile.property_type_confirmed})`,
+    `Military/Rural status: ${profile.military_rural ?? 'not yet collected'} (Confirmed: ${!!profile.military_rural_confirmed})`,
+    `Job tenure/type:       ${profile.job_tenure_type ?? 'not yet collected'} (Confirmed: ${!!profile.job_tenure_type_confirmed})`,
+    '=== END STAGE 2 ===',
+  ].join('\n') : [
+    '=== BORROWER PROFILE (Stage 2 — Pre-Qualification Discovery) ===',
     `Gross annual income:   ${fmt(profile.gross_annual_income)} (Confirmed: ${!!profile.gross_annual_income_confirmed})`,
     `Monthly debt:          ${fmt(profile.monthly_debt)} (Confirmed: ${!!profile.monthly_debt_confirmed})`,
     `Credit score:          ${profile.credit_range ?? 'not yet collected'} (Confirmed: ${!!profile.credit_range_confirmed})`,
@@ -245,9 +261,13 @@ export function buildLayer3TurnContext(
   ].join('\n');
 
   // ── Current task line ─────────────────────────────────────────────────────
+  const isRef = profile.mortgage_goal === 'refinance';
   let taskLine = '';
   if (profile.pending_confirm_field && profile.pending_confirm_value) {
-    const label = FIELD_LABELS[profile.pending_confirm_field] ?? profile.pending_confirm_field;
+    let label = FIELD_LABELS[profile.pending_confirm_field] ?? profile.pending_confirm_field;
+    if (isRef && profile.pending_confirm_field === 'target_price') {
+      label = 'estimated property value';
+    }
     taskLine = `CURRENT TASK:\nConfirm the value of "${profile.pending_confirm_value}" for ${label}. Do NOT ask for the next field yet.`;
   } else if (pendingField) {
     taskLine = `CURRENT TASK:\nCollect ${pendingField}\n\nDO NOT ASK FOR ANY OTHER FIELD.`;
@@ -258,12 +278,24 @@ export function buildLayer3TurnContext(
   // ── Confirmation instruction (only when a field was just extracted) ────────
   let confirmBlock = '';
   if (profile.pending_confirm_field && profile.pending_confirm_value) {
-    const label = FIELD_LABELS[profile.pending_confirm_field] ?? profile.pending_confirm_field;
-    confirmBlock =
-      `\nCONFIRM THIS TURN:\n` +
-      `The borrower just mentioned "${profile.pending_confirm_value}" as their ${label}.\n` +
-      `Say EXACTLY: "Just to confirm — you mentioned ${profile.pending_confirm_value} as your ${label}. Is that right?"\n` +
-      `Do NOT ask for any other field. Wait for their yes/no before continuing.`;
+    let label = FIELD_LABELS[profile.pending_confirm_field] ?? profile.pending_confirm_field;
+    if (isRef && profile.pending_confirm_field === 'target_price') {
+      label = 'estimated property value';
+    }
+
+    if (isRef && profile.pending_confirm_field === 'target_price') {
+      confirmBlock =
+        `\nCONFIRM THIS TURN:\n` +
+        `The borrower just mentioned "${profile.pending_confirm_value}" as their estimated property value.\n` +
+        `Say EXACTLY: "Ok, we will use the value of ${profile.pending_confirm_value} as the value, correct?"\n` +
+        `Do NOT ask for any other field. Wait for their yes/no before continuing.`;
+    } else {
+      confirmBlock =
+        `\nCONFIRM THIS TURN:\n` +
+        `The borrower just mentioned "${profile.pending_confirm_value}" as their ${label}.\n` +
+        `Say EXACTLY: "Just to confirm — you mentioned ${profile.pending_confirm_value} as your ${label}. Is that right?"\n` +
+        `Do NOT ask for any other field. Wait for their yes/no before continuing.`;
+    }
   }
 
   // ── Stage transition bridge instruction ───────────────────────────────────

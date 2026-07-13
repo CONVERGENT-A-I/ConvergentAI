@@ -25,6 +25,11 @@ This document outlines the active and upcoming tasks to finalize the Ailana conv
   * Completely removed the voluntary HMDA questions (ethnicity, race, sex) from the conversational stages.
   * Configured the workflow to transition directly from declarations (bankruptcy/foreclosure) to the submit confirmation prompt.
   * Updated the testing guide (`Ailana_Test_Flow_Guide.md`) to align with the revised flow.
+- [x] **Customize Refinancing Stage 2 Pre-qualification Flow**
+  * Tailored Stage 2 discovery sequence for refinance goals.
+  * Bypassed down payment, rent/own check, and realtor status questions.
+  * Added refinance type (cash-out vs rate and term) collection.
+  * Re-worded estimated property value questions and updated confirmation scripts.
 
 ---
 

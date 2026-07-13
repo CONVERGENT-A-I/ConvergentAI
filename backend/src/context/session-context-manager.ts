@@ -1,4 +1,4 @@
-﻿﻿import { llm, type voice } from '@livekit/agents';
+﻿import { llm, type voice } from '@livekit/agents';
 import type { LLM } from '@livekit/agents-plugin-openai';
 import { ailanaConfig } from '../config/ailana-config.js';
 import {
@@ -941,7 +941,9 @@ export class SessionContextManager {
         additionalInstructions: 'Extract the credit score number (e.g. 720) or range/tier (e.g. "Excellent", "680-700"). If they decline, skip, or say they don\'t know, set "declined" to true. If not mentioned, return null.',
       });
     }
-    if (!this.profile.rent_own_confirmed) {
+    const isRef = this.profile.mortgage_goal === 'refinance';
+
+    if (!isRef && !this.profile.rent_own_confirmed) {
       allFields.push({
         name: 'rent_own',
         description: 'Whether they rent, own, or own and plan to sell their current home',
@@ -949,12 +951,20 @@ export class SessionContextManager {
         additionalInstructions: 'Extract "rent", "own", or "own_selling". If they own and plan to sell, return "own_selling". If they own but do not mention selling, return "own". If they rent, return "rent". If not found, return null.',
       });
     }
-    if (!this.profile.realtor_status_confirmed) {
+    if (!isRef && !this.profile.realtor_status_confirmed) {
       allFields.push({
         name: 'realtor_status',
         description: 'Whether they have connected with a real estate agent',
         expectedType: 'string',
         additionalInstructions: 'Extract "yes" or "no". If they have an agent/realtor, return "yes". If not, return "no". If not found, return null.',
+      });
+    }
+    if (isRef && !this.profile.refinance_type_confirmed) {
+      allFields.push({
+        name: 'refinance_type',
+        description: 'Whether they want a cash-out refinance or rate and term refinance',
+        expectedType: 'string',
+        additionalInstructions: 'Extract "cash_out" or "rate_term". If they say cash out, equity draw, take cash out, return "cash_out". If they say rate and term, lower monthly payment, reduce rate, change terms, return "rate_term". If not found, return null.',
       });
     }
     if (!this.profile.property_type_confirmed) {
@@ -1041,6 +1051,14 @@ export class SessionContextManager {
       this.profile.realtor_status_confirmed = true;
       anyUpdates = true;
       console.log(`[context-manager] Stage2: realtor_status=${rs}`);
+    }
+
+    const rt = results.refinance_type?.value;
+    if ((rt === 'cash_out' || rt === 'rate_term') && !this.profile.refinance_type_confirmed) {
+      this.profile.refinance_type = rt;
+      this.profile.refinance_type_confirmed = true;
+      anyUpdates = true;
+      console.log(`[context-manager] Stage2: refinance_type=${rt}`);
     }
 
     const pt = results.property_type?.value;
@@ -1265,17 +1283,21 @@ export class SessionContextManager {
         console.log('[context-manager]: Transitioning to STAGE 2 Pre-Qualification Discovery!');
       }
     } else if (this.activeStage === '2') {
+      const isRef = this.profile.mortgage_goal === 'refinance';
+
       if (!this.profile.gross_annual_income_confirmed) {
         this.currentPendingField = 'gross_annual_income';
       } else if (!this.profile.monthly_debt_confirmed) {
         this.currentPendingField = 'monthly_debt';
       } else if (!this.profile.credit_range_confirmed) {
         this.currentPendingField = 'credit_range';
-      } else if (!this.profile.down_payment_confirmed) {
+      } else if (isRef && !this.profile.refinance_type_confirmed) {
+        this.currentPendingField = 'refinance_type';
+      } else if (!isRef && !this.profile.down_payment_confirmed) {
         this.currentPendingField = 'down_payment';
-      } else if (!this.profile.rent_own_confirmed) {
+      } else if (!isRef && !this.profile.rent_own_confirmed) {
         this.currentPendingField = 'rent_own';
-      } else if (!this.profile.realtor_status_confirmed) {
+      } else if (!isRef && !this.profile.realtor_status_confirmed) {
         this.currentPendingField = 'realtor_status';
       } else if (!this.profile.target_price_confirmed) {
         this.currentPendingField = 'target_price';
@@ -1809,11 +1831,12 @@ If no correction/change is found, return null.`
     } else if (field === 'co_borrower') {
       this.profile.co_borrower = 'no';
       this.profile.co_borrower_confirmed = true;
-    } else if (['gross_annual_income', 'monthly_debt', 'credit_range', 'down_payment', 'target_price', 'rent_own', 'realtor_status', 'property_type', 'military_rural', 'job_tenure_type'].includes(field)) {
+    } else if (['gross_annual_income', 'monthly_debt', 'credit_range', 'refinance_type', 'down_payment', 'target_price', 'rent_own', 'realtor_status', 'property_type', 'military_rural', 'job_tenure_type'].includes(field)) {
       if (['gross_annual_income', 'monthly_debt', 'down_payment', 'target_price'].includes(field)) {
         this.commitStage2Value(field, null, true);
       } else {
         if (field === 'credit_range') this.profile.credit_range = null;
+        if (field === 'refinance_type') this.profile.refinance_type = 'rate_term';
         if (field === 'rent_own') this.profile.rent_own = 'rent';
         if (field === 'realtor_status') this.profile.realtor_status = 'no';
         if (field === 'property_type') this.profile.property_type = 'single_family';

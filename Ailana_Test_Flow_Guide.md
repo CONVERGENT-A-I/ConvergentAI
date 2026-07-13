@@ -225,42 +225,30 @@ Use this script to validate Ailana's behavior when the borrower's goal is to **r
 20. **You say**:
     *"My credit score is 740."*
 21. **Ailana should respond**:
-    *   *No confirmation.* Ask for cash/equity: *"Got it. Now, how much cash do you plan to bring to the table — or if you are doing a cash-out refinance, how much equity do you want to draw?"* (If none, say $0).
+    *   *No confirmation.* Ask for refinance type: *"Got it. Are you considering a 'cash-out' refinance, or are you wanting to reduce your monthly payment through a rate and term refinance?"*
 22. **You say**:
-    *"None, zero dollars."*
-23. **Ailana should confirm Down Payment/Equity Draw**:
-    *   *Verbatim Ask*: *"Just to confirm — you mentioned $0 as your down payment or equity draw. Is that right?"*
+    *"I want to do a rate and term refinance to lower my payment."*
+23. **Ailana should respond**:
+    *   *No confirmation.* Ask for estimated property value: *"Got it, rate and term. What is the estimated market value of your home you wish to refinance?"*
 24. **You say**:
-    *"Yes."*
-25. **Ailana should respond**:
-    *   Confirm property ownership: *"Great, thanks for confirming. Since you are looking to refinance, you currently own the property you're refinancing, correct?"*
-26. **You say**:
-    *"Yes, I own my home."*
-27. **Ailana should respond**:
-    *   *No confirmation.* Ask about realtor: *"Understood. For refinancing, a real estate agent is typically not involved, but just to confirm, you are handling this process independently without an agent, correct?"*
-28. **You say**:
-    *"No agent needed since it's a refinance."*
-29. **Ailana should respond**:
-    *   *No confirmation.* Ask for estimated property value: *"Got it. What is the estimated current market value of the home you are refinancing?"*
-30. **You say**:
     *"About 450,000 dollars."*
-31. **Ailana should confirm estimated property value**:
-    *   *Verbatim Ask*: *"Just to confirm — you mentioned $450,000 as your estimated property value. Is that right?"*
-32. **You say**:
+25. **Ailana should confirm estimated property value**:
+    *   *Verbatim Ask*: *"Ok, we will use the value of $450,000 as the value, correct?"*
+26. **You say**:
     *"Yes."*
-33. **Ailana should respond**:
-    *   Ask for property type: *"Great, thanks for confirming. What type of property is this--would that be a single-family home, condo, townhome, multi-family, or something else?"*
-34. **You say**:
+27. **Ailana should respond**:
+    *   Ask for property type: *"Great. What type of property is this--would that be a single-family home, condo, townhome, multi-family, or something else?"*
+28. **You say**:
     *"A single family home."*
-35. **Ailana should respond**:
+29. **Ailana should respond**:
     *   Ask for military/rural: *"Got it, a single-family home. Do you have any military service history, or is the property in a rural area?"*
-36. **You say**:
+30. **You say**:
     *"No military service and it is in a suburban area."*
-37. **Ailana should respond**:
+31. **Ailana should respond**:
     *   Ask for job tenure/income type: *"Thank you for clarifying. To wrap things up, could you tell me a bit about your current job tenure and the type of income you have, such as whether you're salaried, hourly, or self-employed?"*
-38. **You say**:
+32. **You say**:
     *"I've been at my job for 5 years salaried."*
-39. **Ailana should respond with the Stage 2 to Stage 3 Closing Transition Offer**:
+33. **Ailana should respond with the Stage 2 to Stage 3 Closing Transition Offer**:
     *   *Ailana should ask verbatim whether they are ready to submit their information for eligibility review.*
 
 ---
