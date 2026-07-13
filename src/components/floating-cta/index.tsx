@@ -59,6 +59,8 @@ export default function FloatingCTA() {
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [isIntroBlurring, setIsIntroBlurring] = useState(true);
   const [complianceChecked, setComplianceChecked] = useState(false);
+  // Incremented each time a brand-new session starts — forces LiveKitRoom to fully remount
+  const [sessionKey, setSessionKey] = useState(0);
 
   const [isFallbackMode, setIsFallbackMode] = useState(false);
   const [avatarFallbackReason, setAvatarFallbackReason] = useState<"capacity" | "failed" | null>(null);
@@ -352,15 +354,12 @@ export default function FloatingCTA() {
       setFlowPhase("intro");
       setIsIntroComplete(true); // Skip intro video, show compliance directly
     } else {
-      if (isLkConnected || flowPhase === "intro" || flowPhase === "live") {
+      if (isLkConnected && flowPhase === "live" && pendingMode === mode) {
+        // Genuinely mid-session in this mode — nothing to do
         if (mode === "loan-officer")
           console.log(
-            `[ui-loan-officer]: ✅ User agreed, already connected (or in intro/live). Transitioning to live mode.`
+            `[ui-loan-officer]: ✅ Already live in loan-officer mode. Ignoring.`
           );
-        if (!token && mode !== "voice") {
-          fetchToken(mode, true);
-        }
-        setFlowPhase("live");
         return;
       }
       if (mode === "loan-officer")
@@ -418,6 +417,8 @@ export default function FloatingCTA() {
     setMloParticipantName(null);
     setMloCallSeconds(0);
     hasMloJoinedRef.current = false;
+    // Bump key so LiveKitRoom remounts fresh on next open
+    setSessionKey((k) => k + 1);
   };
 
   // Full restart: tear down the broken connection and establish a fresh one.
@@ -467,7 +468,9 @@ export default function FloatingCTA() {
     } else if (!isOpen && hasOpenedRef.current) {
       resetSession();
       hasOpenedRef.current = false;
-      fetchToken("video"); // Pre-fetch a new token for the next connection
+      // Do NOT pre-fetch here — stale pre-fetched tokens cause the
+      // "stuck on Setting up your session" bug when the CTA is reopened
+      // (the LiveKitRoom connects but no backend agent is running for it).
     }
   }, [isOpen]);
 
@@ -1139,7 +1142,7 @@ export default function FloatingCTA() {
                             className="absolute inset-0 flex flex-col items-center justify-center p-0"
                           >
                             <LiveKitRoom
-                              key={roomName}
+                              key={`${sessionKey}-${roomName}`}
                               video={false}
                               audio={{
                                 noiseSuppression: true,
