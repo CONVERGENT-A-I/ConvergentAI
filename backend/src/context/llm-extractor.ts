@@ -1,15 +1,13 @@
 import { OpenAI } from 'openai';
-import { ailanaConfig, getDynamicGroqApiKey } from '../config/ailana-config.js';
+import { ailanaConfig } from '../config/ailana-config.js';
 
-const openaiClient = new OpenAI({
+// Extraction client — uses gemma-4-31b
+const fastClient = new OpenAI({
   apiKey: ailanaConfig.cerebrasApiKey,
   baseURL: ailanaConfig.cerebrasBaseUrl,
 });
 
-const groqClient = new OpenAI({
-  apiKey: getDynamicGroqApiKey() || ailanaConfig.groqApiKey,
-  baseURL: 'https://api.groq.com/openai/v1',
-});
+const EXTRACTION_MODEL = 'gemma-4-31b';
 
 export interface ExtractionResult {
   value: string | number | null;
@@ -46,36 +44,58 @@ User input: "${userInput}"`;
 
   let content: string | null = null;
 
+  // [perf] llm-extractor is called from onUserTurn which runs CONCURRENTLY with
+  // the main pipeline via Promise.race(). Log thread context explicitly.
+  const _perfExtractSingle_start = performance.now();
+  console.log(`[perf] llm-extractor extractProfileField("${fieldName}"): START (running concurrent with main LLM if race not yet resolved)`);
+
   try {
-    openaiClient.apiKey = ailanaConfig.cerebrasApiKey;
-    const response = await openaiClient.chat.completions.create({
-      model: 'gpt-oss-120b',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.0,
-    });
-    content = response.choices[0]?.message?.content || null;
-  } catch (error: any) {
-    console.warn(`[llm-extractor] Cerebras failed for ${fieldName}, falling back to Groq:`, error?.message ?? error);
-    try {
-      groqClient.apiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
-      const response = await groqClient.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.0,
-      });
-      content = response.choices[0]?.message?.content || null;
-    } catch (groqError: any) {
-      console.error(`[llm-extractor] Groq fallback failed for ${fieldName}:`, groqError?.message ?? groqError);
+    // Retry once for transient Cerebras errors
+    let cerebrasErr: any = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const _perfCerebrasCallStart = performance.now();
+        const response = await fastClient.chat.completions.create({
+          model: EXTRACTION_MODEL,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.0,
+        });
+        const _perfCerebrasCallMs = (performance.now() - _perfCerebrasCallStart).toFixed(1);
+        console.log(`[perf] llm-extractor extractProfileField("${fieldName}"): Cerebras call (attempt ${attempt + 1}) took ${_perfCerebrasCallMs}ms`);
+        console.log(`[llm-extractor] Extracted "${fieldName}" raw JSON:`, content);
+        content = response.choices[0]?.message?.content || null;
+        cerebrasErr = null;
+        break;
+      } catch (error: any) {
+        cerebrasErr = error;
+        const statusCode = error?.status ?? error?.statusCode;
+        if (attempt === 0 && (statusCode === 500 || statusCode === 502 || statusCode === 503)) {
+          // Brief pause only for transient server errors
+          console.log(`[perf] llm-extractor extractProfileField("${fieldName}"): retry backoff 200ms (status=${statusCode})`);
+          await new Promise(resolve => setTimeout(resolve, 200));
+          continue;
+        }
+        break;
+      }
     }
+    if (cerebrasErr) {
+      throw cerebrasErr;
+    }
+  } catch (error: any) {
+    const statusCode = error?.status ?? error?.statusCode;
+    console.error(`[llm-extractor] Cerebras failed for "${fieldName}" (status: ${statusCode}):`, error?.message ?? error);
+    if (statusCode === 400) {
+      console.error(`[llm-extractor] HTTP 400 full error response for "${fieldName}":`, JSON.stringify(error?.error ?? error?.body ?? { message: error?.message, code: error?.code, status: statusCode }, null, 2));
+    }
+    // content stays null; caller receives { value: null, declined: false }
   }
+
+  const _perfExtractSingle_ms = (performance.now() - _perfExtractSingle_start).toFixed(1);
+  console.log(`[perf] llm-extractor extractProfileField("${fieldName}"): TOTAL ${_perfExtractSingle_ms}ms (content=${content ? 'ok' : 'null'})`);
 
   if (!content) {
     return { value: null, declined: false };
@@ -148,36 +168,59 @@ User input: "${userInput}"`;
 
   let content: string | null = null;
 
+  // [perf] extractMultipleFields runs inside onUserTurn which is raced against
+  // a 400ms timeout. Log start so we can confirm it is on a separate async tick.
+  const _fieldNames = fields.map(f => f.name).join(', ');
+  const _perfExtractMulti_start = performance.now();
+  console.log(`[perf] llm-extractor extractMultipleFields([${_fieldNames}]): START`);
+
   try {
-    openaiClient.apiKey = ailanaConfig.cerebrasApiKey;
-    const response = await openaiClient.chat.completions.create({
-      model: 'gpt-oss-120b',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.0,
-    });
-    content = response.choices[0]?.message?.content || null;
-  } catch (error: any) {
-    console.warn(`[llm-extractor] Cerebras failed for multiple fields, falling back to Groq:`, error?.message ?? error);
-    try {
-      groqClient.apiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
-      const response = await groqClient.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.0,
-      });
-      content = response.choices[0]?.message?.content || null;
-    } catch (groqError: any) {
-      console.error(`[llm-extractor] Groq fallback failed for multiple fields:`, groqError?.message ?? groqError);
+    // Retry once for transient Cerebras errors
+    let cerebrasErr: any = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const _perfCerebrasCallStart = performance.now();
+        const response = await fastClient.chat.completions.create({
+          model: EXTRACTION_MODEL,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.0,
+        });
+        const _perfCerebrasCallMs = (performance.now() - _perfCerebrasCallStart).toFixed(1);
+        console.log(`[perf] llm-extractor extractMultipleFields([${_fieldNames}]): Cerebras call (attempt ${attempt + 1}) took ${_perfCerebrasCallMs}ms`);
+        console.log(`[llm-extractor] Extracted multi-field raw JSON:`, content);
+        content = response.choices[0]?.message?.content || null;
+        cerebrasErr = null;
+        break;
+      } catch (error: any) {
+        cerebrasErr = error;
+        const statusCode = error?.status ?? error?.statusCode;
+        if (attempt === 0 && (statusCode === 500 || statusCode === 502 || statusCode === 503)) {
+          // Brief pause only for transient server errors
+          console.log(`[perf] llm-extractor extractMultipleFields([${_fieldNames}]): retry backoff 200ms (status=${statusCode})`);
+          await new Promise(resolve => setTimeout(resolve, 200));
+          continue;
+        }
+        break;
+      }
     }
+    if (cerebrasErr) {
+      throw cerebrasErr;
+    }
+  } catch (error: any) {
+    const statusCode = error?.status ?? error?.statusCode;
+    console.error(`[llm-extractor] Cerebras failed for multi-field extraction [${fields.map(f => f.name).join(', ')}] (status: ${statusCode}):`, error?.message ?? error);
+    if (statusCode === 400) {
+      console.error(`[llm-extractor] HTTP 400 full error response for multi-field extraction:`, JSON.stringify(error?.error ?? error?.body ?? { message: error?.message, code: error?.code, status: statusCode }, null, 2));
+    }
+    // content stays null; caller receives empty results
   }
+
+  const _perfExtractMulti_ms = (performance.now() - _perfExtractMulti_start).toFixed(1);
+  console.log(`[perf] llm-extractor extractMultipleFields([${_fieldNames}]): TOTAL ${_perfExtractMulti_ms}ms (content=${content ? 'ok' : 'null'})`);
 
   const results: Record<string, ExtractionResult> = {};
   for (const f of fields) {
@@ -235,36 +278,56 @@ User response: "${userInput}"`;
 
   let content: string | null = null;
 
+  const _perfClassify_start = performance.now();
+  console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): START`);
+
   try {
-    openaiClient.apiKey = ailanaConfig.cerebrasApiKey;
-    const response = await openaiClient.chat.completions.create({
-      model: 'gpt-oss-120b',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.0,
-    });
-    content = response.choices[0]?.message?.content || null;
-  } catch (error: any) {
-    console.warn(`[llm-extractor] Cerebras classify failed for ${fieldName}, falling back to Groq:`, error?.message ?? error);
-    try {
-      groqClient.apiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
-      const response = await groqClient.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.0,
-      });
-      content = response.choices[0]?.message?.content || null;
-    } catch (groqError: any) {
-      console.error(`[llm-extractor] Groq classify fallback failed for ${fieldName}:`, groqError?.message ?? groqError);
+    // Retry once for transient Cerebras errors
+    let cerebrasErr: any = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const _perfCerebrasCallStart = performance.now();
+        const response = await fastClient.chat.completions.create({
+          model: EXTRACTION_MODEL,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.0,
+        });
+        const _perfCerebrasCallMs = (performance.now() - _perfCerebrasCallStart).toFixed(1);
+        console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): Cerebras call (attempt ${attempt + 1}) took ${_perfCerebrasCallMs}ms`);
+        console.log(`[llm-extractor] Classified confirmation for "${fieldName}" raw JSON:`, content);
+        content = response.choices[0]?.message?.content || null;
+        cerebrasErr = null;
+        break;
+      } catch (error: any) {
+        cerebrasErr = error;
+        const statusCode = error?.status ?? error?.statusCode;
+        if (attempt === 0 && (statusCode === 500 || statusCode === 502 || statusCode === 503)) {
+          // Brief pause only for transient server errors
+          console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): retry backoff 200ms (status=${statusCode})`);
+          await new Promise(resolve => setTimeout(resolve, 200));
+          continue;
+        }
+        break;
+      }
     }
+    if (cerebrasErr) {
+      throw cerebrasErr;
+    }
+  } catch (error: any) {
+    const statusCode = error?.status ?? error?.statusCode;
+    console.error(`[llm-extractor] Cerebras classify failed for "${fieldName}" (status: ${statusCode}):`, error?.message ?? error);
+    if (statusCode === 400) {
+      console.error(`[llm-extractor] HTTP 400 full error response for classifyConfirmation "${fieldName}":`, JSON.stringify(error?.error ?? error?.body ?? { message: error?.message, code: error?.code, status: statusCode }, null, 2));
+    }
+    // content stays null; caller returns 'ambiguous'
   }
+
+  const _perfClassify_ms = (performance.now() - _perfClassify_start).toFixed(1);
+  console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): TOTAL ${_perfClassify_ms}ms (content=${content ? 'ok' : 'null'})`);
 
   if (content) {
     try {

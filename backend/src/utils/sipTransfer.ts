@@ -45,7 +45,7 @@ export async function transferRoomToMloQueue({ roomName }: { roomName: string })
         participantIdentity: `sip-fspbx-${roomName}`.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 90),
         participantName: `FSPBX ${requiredEnv('SIP_CALL_TO')}`,
         ...(process.env.SIP_FROM_NUMBER ? { fromNumber: process.env.SIP_FROM_NUMBER } : {}),
-        playRingtone: false
+        playDialtone: true
       }
     );
 

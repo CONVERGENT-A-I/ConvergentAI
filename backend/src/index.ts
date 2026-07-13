@@ -65,64 +65,25 @@ app.post('/api/get-token', async (req: Request, res: Response) => {
 
     const token = await at.toJwt();
 
-    // --- KEYFRAME LABS INTEGRATION ---
-    let keyframeMetadata = null;
-    const keyframeApiKey = process.env.KEYFRAME_API_KEY;
-    const personaSlug = process.env.KEYFRAME_PERSONA_SLUG;
-
-    if (keyframeApiKey && personaSlug) {
-      try {
-        console.log(`[server]: Requesting Keyframe session for persona: ${personaSlug}`);
-        const kfRes = await fetch("https://api.keyframelabs.com/v1/sessions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${keyframeApiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            persona_slug: personaSlug,
-            emotion: "happy" // Set default mood to smile
-          }),
-        });
-
-        if (kfRes.ok) {
-          const raw = await kfRes.json();
-          console.log(`[server]: Keyframe raw response:`, JSON.stringify(raw, null, 2));
-
-          // Normalize: API may return flat { server_url, participant_token, agent_identity }
-          // OR nested { session_details: { server_url, ... }, voice_agent_details: { ... } }
-          if (raw.session_details) {
-            keyframeMetadata = {
-              server_url: raw.session_details.server_url,
-              participant_token: raw.session_details.participant_token,
-              agent_identity: raw.session_details.agent_identity,
-            };
-          } else {
-            keyframeMetadata = {
-              server_url: raw.server_url,
-              participant_token: raw.participant_token,
-              agent_identity: raw.agent_identity,
-            };
-          }
-          console.log(`[server]: Keyframe session normalized →`, keyframeMetadata);
-        } else {
-          const errorBody = await kfRes.text();
-          console.error(`[server]: Keyframe API Error (${kfRes.status}):`, errorBody);
-        }
-      } catch (error) {
-        console.error('[server]: Failed to fetch Keyframe session:', error);
-      }
-    }
-    // ---------------------------------
-
     res.json({
       token,
       serverUrl: wsUrl,
-      keyframe: keyframeMetadata
     });
   } catch (error) {
     console.error('Error generating LiveKit token:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+// Legacy telemetry endpoint — kept for any remaining frontend instrumentation
+app.post('/api/log-telemetry', (req: Request, res: Response) => {
+  try {
+    const { event, durationMs, details } = req.body;
+    console.log(`[client-telemetry] event=${event} duration=${durationMs}ms details=${JSON.stringify(details || {})}`);
+    res.json({ status: 'success' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to write telemetry' });
   }
 });
 
@@ -149,13 +110,22 @@ app.listen(PORT, async () => {
     // Resolve path cleanly using import.meta.url
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    const agentFilePath = path.join(__dirname, 'agent.ts');
 
-    const agentProcess = fork(agentFilePath, ['dev'], {
-      execArgv: ['--import', 'tsx'],
-      env: process.env,
-      stdio: 'inherit'
-    });
+    // In production (running compiled dist/index.js), fork the compiled agent.js.
+    // In development (running src/index.ts via tsx), fork agent.ts with tsx.
+    const isCompiledDist = __filename.endsWith('.js');
+    const agentFilePath = isCompiledDist
+      ? path.join(__dirname, 'agent.js')   // production: run compiled JS
+      : path.join(__dirname, 'agent.ts');  // development: run TS via tsx
+
+    const forkOptions = isCompiledDist
+      ? { env: { ...process.env, LIVEKIT_LOG_LEVEL: 'info' }, stdio: 'inherit' as const }
+      : { execArgv: ['--import', 'tsx'], env: { ...process.env, LIVEKIT_LOG_LEVEL: 'info' }, stdio: 'inherit' as const };
+
+    console.log(`[server]: Starting Agent Worker — ${isCompiledDist ? 'production (compiled JS)' : 'development (tsx TS)'}`);
+    console.log(`[server]: Agent worker file: ${agentFilePath}`);
+
+    const agentProcess = fork(agentFilePath, ['dev'], forkOptions);
 
     agentProcess.on('error', (err) => {
       console.error(`[server]: Failed to start Agent Worker:`, err);

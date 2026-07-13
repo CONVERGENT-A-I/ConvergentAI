@@ -5,15 +5,17 @@ if (process.platform === 'win32') {
   }
 }
 
-import { type JobContext, ServerOptions, cli, voice, llm, inference } from '@livekit/agents';
-import { RoomEvent } from '@livekit/rtc-node';
 import dotenv from 'dotenv';
+dotenv.config();
+import { type JobContext, ServerOptions, cli, voice, llm, inference, defineAgent } from '@livekit/agents';
+import { RoomEvent, TrackKind } from '@livekit/rtc-node';
 import { fileURLToPath } from 'url';
 import * as openai from '@livekit/agents-plugin-openai';
 import * as cartesia from '@livekit/agents-plugin-cartesia';
-import { ailanaConfig, getDynamicGroqApiKey } from './config/ailana-config.js';
+import { LoggedCartesiaTTS } from './metrics/logged-cartesia-tts.js';
+import { ailanaConfig } from './config/ailana-config.js';
 import { SessionContextManager } from './context/session-context-manager.js';
-import { LatencyTracker } from './metrics/latency-tracker.js';
+import { LatencyTracker, ts } from './metrics/latency-tracker.js';
 import {
   buildBaseInstructions,
   buildVoiceInstructions,
@@ -21,15 +23,9 @@ import {
   RESUME_USER_INPUT,
 } from './prompts/index.js';
 import { logPromptBudget } from './context/context-budget.js';
-import { evaluateEmotion } from './utils/avatar-emotion-engine.js';
+import { AvatarSession } from '@livekit/agents-plugin-lemonslice';
 import { BackchannelEngine } from './utils/backchannel-engine.js';
 import { OpenAI } from 'openai';
-
-// Proxy client for Cerebras with transparent fallback to Groq on 429
-const groqClient = new OpenAI({
-  apiKey: getDynamicGroqApiKey() || ailanaConfig.groqApiKey,
-  baseURL: 'https://api.groq.com/openai/v1',
-});
 
 const cerebrasClient = new OpenAI({
   apiKey: ailanaConfig.cerebrasApiKey,
@@ -39,63 +35,170 @@ const cerebrasClient = new OpenAI({
 const originalCerebrasCreate = cerebrasClient.chat.completions.create.bind(cerebrasClient.chat.completions);
 
 cerebrasClient.chat.completions.create = (async function (body: any, options: any) {
-  try {
-    console.log(`[cerebras-proxy]: Sending request to Cerebras: model=${body.model}`);
-    return await originalCerebrasCreate(body, options);
-  } catch (err: any) {
-    const statusCode = err?.status ?? err?.statusCode;
-    console.warn(`[cerebras-proxy]: Cerebras API error (status: ${statusCode}):`, err?.message ?? err);
+  let lastErr: any = null;
+  // Retry once with backoff for transient Cerebras errors before falling back
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const t0 = Date.now();
+    try {
+      if (attempt === 0) {
+        console.log(`[cerebras-proxy][${ts()}] Sending request to Cerebras: model=${body.model}`);
+      } else {
+        console.log(`[cerebras-proxy][${ts()}] Retry #${attempt} to Cerebras: model=${body.model}`);
+      }
 
-    if (statusCode === 429 || (err?.message && err.message.includes('429'))) {
-      console.warn(`[cerebras-proxy]: 429 Rate Limit Exceeded. Falling back to Groq Llama-3.3-70b!`);
-      const fallbackBody = {
-        ...body,
-        model: 'llama-3.3-70b-versatile',
-      };
-      // Remove Cerebras specific parameters that Groq doesn't support
-      delete fallbackBody.reasoning_effort;
-      delete fallbackBody.reasoning_format;
+      const result = await originalCerebrasCreate(body, options);
 
-      groqClient.apiKey = getDynamicGroqApiKey() || ailanaConfig.groqApiKey;
-      return await groqClient.chat.completions.create(fallbackBody, options);
+      // If it's a stream, intercept it to track first token, end stream timings, and log the full response
+      if (result && typeof (result as any)[Symbol.asyncIterator] === 'function') {
+        const originalIterator = (result as any)[Symbol.asyncIterator].bind(result);
+        const accumulatedChunks: any[] = [];
+
+        (result as any)[Symbol.asyncIterator] = function () {
+          const iterator = originalIterator();
+          let isFirst = true;
+
+          return {
+            async next() {
+              const nextResult = await iterator.next();
+              if (nextResult.done) {
+                const totalDur = Date.now() - t0;
+                console.log(`[cerebras-proxy][${ts()}] Stream complete (Total: ${totalDur}ms, chunks: ${accumulatedChunks.length})`);
+                return nextResult;
+              }
+              if (isFirst) {
+                isFirst = false;
+                const ttft = Date.now() - t0;
+                console.log(`[cerebras-proxy][${ts()}] First chunk/token received (TTFT: ${ttft}ms)`);
+              }
+              if (nextResult.value) {
+                accumulatedChunks.push(nextResult.value);
+              }
+              return nextResult;
+            },
+            [Symbol.asyncIterator]() {
+              return this;
+            }
+          };
+        };
+      } else {
+        const dur = Date.now() - t0;
+        console.log(`[cerebras-proxy][${ts()}] Non-streaming response received (Dur: ${dur}ms)`);
+      }
+
+      return result;
+    } catch (err: any) {
+      lastErr = err;
+      const statusCode = err?.status ?? err?.statusCode;
+      console.warn(`[cerebras-proxy][${ts()}] Cerebras API error (status: ${statusCode}, attempt: ${attempt}):`, err?.message ?? err);
+
+      // Log full error body for HTTP 400
+      if (statusCode === 400) {
+        console.error(`[cerebras-proxy][${ts()}] HTTP 400 full error response:`, JSON.stringify(err?.error ?? err?.body ?? { message: err?.message, code: err?.code, status: statusCode }, null, 2));
+      }
+
+      // On first attempt with a retryable error, wait and retry once
+      if (attempt === 0 && (statusCode === 400 || statusCode === 500 || statusCode === 502 || statusCode === 503)) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        continue;
+      }
+
+      // No Groq fallback — propagate the Cerebras error directly
+      throw err;
     }
-    throw err;
   }
+  throw lastErr;
 } as any);
 
+
 class CerebrasLLM extends openai.LLM {
-  override chat(args: any) {
-    args.extraKwargs = {
-      ...args.extraKwargs,
-      reasoning_effort: ailanaConfig.cerebrasReasoningEffort,
-      reasoning_format: 'hidden',
-    };
-    return super.chat(args);
-  }
+  // gemma-4-31b does not support reasoning_effort or reasoning_format parameters.
 }
 
 class AilanaVoiceAgent extends voice.Agent {
   constructor(
     options: voice.AgentOptions<any>,
     private contextManager: SessionContextManager,
-    private updateInstructions: () => void
+    private updateInstructionsCallback: () => void
   ) {
     super(options);
   }
 
   override async onUserTurnCompleted(chatCtx: any, userMessage: any): Promise<void> {
+    // ── [perf] EOU boundary timestamp ────────────────────────────────────────
+    const _perfEouEnd = performance.now();
     console.log(`[agent-hook]: onUserTurnCompleted hook triggered with message: "${userMessage?.textContent}"`);
 
     this.contextManager.setLowConfidenceFlag(false);
 
-    if (userMessage?.textContent) {
-      await this.contextManager.onUserTurn(userMessage.textContent);
+    // 1. Checkpoint: Wait for the previous turn's extraction to complete (if any)
+    const prevTurn = this.contextManager.getCurrentTurnCount();
+    if (prevTurn > 0) {
+      const _perfCheckpointStart = performance.now();
+      const pendingCount = this.contextManager.getPendingExtractionCount();
+      const maxWaitMs = pendingCount > 1 ? 0 : 300; // Circuit breaker: 0ms wait if backlog > 1
+
+      console.log(`[checkpoint] Gating on previous turn ${prevTurn} extraction. Pending count: ${pendingCount}. Max wait: ${maxWaitMs}ms`);
+
+      const completed = await this.contextManager.waitForExtraction(prevTurn, maxWaitMs);
+      const waitDur = performance.now() - _perfCheckpointStart;
+
+      if (completed) {
+        console.log(`[checkpoint] Previous turn ${prevTurn} extraction resolved normally. Waited: ${waitDur.toFixed(1)}ms`);
+      } else {
+        console.warn(`[checkpoint] Previous turn ${prevTurn} extraction timed out or skipped. Waited: ${waitDur.toFixed(1)}ms`);
+      }
     }
 
+    // 2. Trigger the current turn's extraction asynchronously in the background
+    if (userMessage?.textContent) {
+      const currentTurnNumber = this.contextManager.triggerBackgroundExtraction(userMessage.textContent);
+      console.log(`[agent-hook]: Current turn background extraction triggered asynchronously (turn=${currentTurnNumber}).`);
+
+      // ── Universal transition gate ─────────────────────────────────────────
+      // Each field in this Set is the LAST answer in a section. When confirmed,
+      // the background extraction advances the state to a new section/stage, and
+      // Ailana must proactively deliver mandatory speech (bridge phrase, consent
+      // disclosure, closing offer, next question, underwriting result, etc.).
+      //
+      // Without awaiting, updateInstructionsCallback() writes stale instructions —
+      // Ailana acknowledges the answer but goes silent, forcing the user to nudge.
+      //
+      // By awaiting only on these known transition points, we guarantee Ailana
+      // speaks the correct next content immediately.
+      // Cost: ~400–800ms per transition, each happening at most ONCE per session.
+      const TRANSITION_TRIGGER_FIELDS = new Set([
+        'co_borrower',              // Stage 1  last field → Stage 2 bridge + income question
+        'job_tenure_type',          // Stage 2  last field → Stage 2 Closing Offer (verbatim)
+        'stage2_closing_offer',     // Stage 2  YES        → Stage 3A legal name
+        'refinance_type',           // Stage 2  refinance_type → Stage 2 target_price
+        'legal_name',               // Stage 3A legal name → Stage 3A physical address
+        'physical_address',         // Stage 3A physical address → Stage 3A consent disclosure
+        'soft_pull_authorization',  // Stage 3A consent    → Prefill walkthrough start
+        'prefill_name_address',     // Prefill  step 1     → Prefill step 2 (employer)
+        'prefill_employer',         // Prefill  step 2     → Prefill step 3 (accounts)
+        'prefill_accounts',         // Prefill  step 3     → Prefill step 4 (credit range)
+        'prefill_credit_range',     // Prefill  last step  → Stage 3B (marital status)
+        'declarations',             // Stage 3B last field → Submit confirmation speech (verbatim)
+        'submit_confirmation',      // Stage 3B YES        → Stage 4 underwriting result
+      ]);
+
+      const currentPending = this.contextManager.getPendingField();
+      if (currentPending !== null && TRANSITION_TRIGGER_FIELDS.has(currentPending)) {
+        console.log(`[agent-hook]: Transition-triggering field "${currentPending}" detected — awaiting extraction for immediate state update...`);
+        const waited = await this.contextManager.waitForExtraction(currentTurnNumber, 10000);
+        console.log(`[agent-hook]: Transition extraction for "${currentPending}" ${waited ? 'completed ✅' : 'timed out ⚠️ (proceeding with best-effort state)'}. Proceeding to instructions update.`);
+      }
+    }
+
+    // ── [perf] Instructions update ───────────────────────────────────────────
+    const _perfInstructionsStart = performance.now();
     // Update original instructions in the session
-    this.updateInstructions();
+    this.updateInstructionsCallback();
+    const _perfInstructionsMs = (performance.now() - _perfInstructionsStart).toFixed(1);
+    console.log(`[perf] updateInstructions (getActiveInstructions + chatCtx write): ${_perfInstructionsMs}ms`);
 
     // Update local mutable chatCtx copy to align the LLM prompt for the current generation
+    const _perfCtxUpdateStart = performance.now();
     const activeInstructions = this.contextManager.getActiveInstructions();
     const systemItem = (chatCtx.items.find(
       (item: any) => item.type === 'message' && item.id === 'lk.agent_task.instructions'
@@ -116,10 +219,14 @@ class AilanaVoiceAgent extends voice.Agent {
       }));
       console.log(`[agent-hook]: Local mutable chatCtx system instructions prepended.`);
     }
+    const _perfCtxUpdateMs = (performance.now() - _perfCtxUpdateStart).toFixed(1);
+    console.log(`[perf] chatCtx local copy update: ${_perfCtxUpdateMs}ms`);
+
+    // ── [perf] Total EOU→instructions gap ────────────────────────────────────
+    const _perfTotalMs = (performance.now() - _perfEouEnd).toFixed(1);
+    console.log(`[perf] EOU->instructions-update gap: ${_perfTotalMs}ms`);
   }
 }
-
-dotenv.config();
 
 process.on('uncaughtException', (err) => {
   if (err?.message?.includes('audio_end_ms') || (err as any)?.context?.error?.message?.includes('audio_end_ms')) {
@@ -134,15 +241,37 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
-export default {
+export default defineAgent({
   async entry(ctx: JobContext) {
     console.log(`[agent]: Receiving job for room: ${ctx.room.name}`);
 
+    // ── STARTUP ENVIRONMENT DIAGNOSTICS ──────────────────────────────────────
+    // Printed on every job start so GCP logs show exactly which secrets were
+    // injected. Keys are shown as present/MISSING + last-4 chars only.
+    const envCheck = (key: string, val: string) =>
+      val ? `✓ present (…${val.slice(-4)})` : '✗ MISSING';
+    console.log('[agent-startup] ══ Environment variable audit ══');
+    console.log(`[agent-startup]  CARTESIA_KEY          : ${envCheck('CARTESIA_KEY', ailanaConfig.cartesiaKey)}`);
+    console.log(`[agent-startup]  CARTESIA_VOICE_ID    : ${ailanaConfig.cartesiaVoiceId ? '✓ ' + ailanaConfig.cartesiaVoiceId : '✗ MISSING'}`);
+    console.log(`[agent-startup]  LEMONSLICE_API_KEY    : ${envCheck('LEMONSLICE_API_KEY', ailanaConfig.lemonsliceApiKey)}`);
+    console.log(`[agent-startup]  LEMONSLICE_AGENT_ID   : ${ailanaConfig.lemonsliceAgentId ? '✓ ' + ailanaConfig.lemonsliceAgentId : '✗ MISSING'}`);
+    console.log(`[agent-startup]  CEREBRAS_API_KEY      : ${envCheck('CEREBRAS_API_KEY', ailanaConfig.cerebrasApiKey)}`);
+    console.log(`[agent-startup]  LIVEKIT_URL           : ${process.env.LIVEKIT_URL ?? '✗ MISSING'}`);
+    console.log(`[agent-startup]  LIVEKIT_API_KEY       : ${process.env.LIVEKIT_API_KEY ? '✓ present' : '✗ MISSING'}`);
+    console.log('[agent-startup] ════════════════════════════════');
+    // ─────────────────────────────────────────────────────────────────────────
+
+    let resolveAvatarReady: () => void = () => { };
+    const avatarReadyPromise = new Promise<void>((resolve) => {
+      resolveAvatarReady = resolve;
+    });
+    let isAvatarInitDone = false;
+
     const metrics = new LatencyTracker();
     const summarizationLlm = new openai.LLM({
-      model: 'llama-3.3-70b-versatile',
-      baseURL: 'https://api.groq.com/openai/v1',
-      apiKey: getDynamicGroqApiKey() || ailanaConfig.groqApiKey,
+      model: 'gemma-4-31b',
+      baseURL: ailanaConfig.cerebrasBaseUrl,
+      apiKey: ailanaConfig.cerebrasApiKey,
     });
     const contextManager = new SessionContextManager(summarizationLlm, metrics);
 
@@ -153,26 +282,43 @@ export default {
       prefixPaddingDuration: 200,
     });
 
-    console.log(`[agent]: Loading Cartesia STT/TTS (ink-2 / sonic-3.5)...`);
+    // ── Cartesia STT ──────────────────────────────────────────────────────────
+    console.log(`[agent]: Loading Cartesia STT (ink-2)...`);
+    if (!ailanaConfig.cartesiaKey) {
+      console.error('[agent-startup] FATAL: CARTESIA_KEY is not set — STT will fail!');
+    }
     const sessionStt = new cartesia.STT({
       apiKey: ailanaConfig.cartesiaKey,
       model: 'ink-2',
     });
 
-    const sessionTts = new cartesia.TTS({
+    // ── Cartesia TTS ─────────────────────────────────────────────────────────
+    console.log(`[agent]: Loading Cartesia TTS (sonic-3.5, voiceId=${ailanaConfig.cartesiaVoiceId || 'MISSING'})...`);
+    if (!ailanaConfig.cartesiaKey) {
+      console.error('[agent-startup] FATAL: CARTESIA_KEY is not set — TTS will fail!');
+    }
+    if (!ailanaConfig.cartesiaVoiceId) {
+      console.warn('[agent-startup] WARNING: CARTESIA_VOICE_ID is not set — using default voice ID.');
+    }
+
+    const sessionTts = new LoggedCartesiaTTS({
       apiKey: ailanaConfig.cartesiaKey,
       voice: ailanaConfig.cartesiaVoiceId,
       model: 'sonic-3.5',
+      sampleRate: 16000,
+      volume: 0.8,
     });
 
+
+
     const createVadAgent = () => {
-      console.log('[agent]: Creating Cascaded agent (Cerebras LLM + Cartesia STT/TTS)...');
+      console.log('[agent]: Creating Cascaded agent (Cerebras LLM + Cartesia STT + Cartesia TTS + LemonSlice Avatar)...');
       return new AilanaVoiceAgent({
         instructions: contextManager.getActiveInstructions(),
         stt: sessionStt,
         vad: sessionVad,
         llm: new CerebrasLLM({
-          model: 'gpt-oss-120b',
+          model: 'gemma-4-31b',
           client: cerebrasClient,
         }),
         tts: sessionTts,
@@ -183,6 +329,7 @@ export default {
           },
           interruption: {
             minDuration: ailanaConfig.vadInterruptMinDurationMs,
+            minWords: ailanaConfig.vadInterruptMinWords,
             mode: 'vad' as const,
           },
           preemptiveGeneration: {
@@ -198,6 +345,8 @@ export default {
     let voiceMuted = false;
     let isHibernating = false;
     let greetingGenerated = false;
+    let sessionStarted = false;
+    let pendingGreeting = false;
 
     const session = new voice.AgentSession({
       userAwayTimeout: null,
@@ -208,6 +357,7 @@ export default {
         },
         interruption: {
           minDuration: ailanaConfig.vadInterruptMinDurationMs,
+          minWords: ailanaConfig.vadInterruptMinWords,
           mode: 'vad' as const,
         },
         preemptiveGeneration: {
@@ -237,9 +387,41 @@ export default {
 
     let currentAgentState = 'initializing';
 
-    // Emotion tracking state
-    let emotionEvalInterval: NodeJS.Timeout | null = null;
-    let lastBroadcastedEmotion = 'happy';
+    // ── Silent-turn re-prompt state ───────────────────────────────────────────
+    // Tracks whether Ailana produced audible speech after each user turn.
+    // When a VAD false-positive aborts LLM generation mid-stream, Ailana goes
+    // silent. This guard detects that case and re-asks the pending question.
+    let hasSpeechThisTurn = false;
+    let silentTurnTimer: ReturnType<typeof setTimeout> | null = null;
+    // Timestamp when agent entered 'thinking' — used to ignore preemptive-
+    // generation cycles (SDK-internal thinking→listening rounds that complete
+    // in <200ms and should never trigger a re-prompt).
+    let thinkingStartAt = 0;
+
+    // Map of pending field → natural re-ask wording.
+    // Only used as a fallback when Ailana produced zero speech for a user turn.
+    // No flow logic here — the contextManager still owns all state transitions.
+    const PENDING_FIELD_REPROMPT: Record<string, string> = {
+      // Stage 1
+      borrower_name:          'I apologize — it seems there was a brief interruption. Could you tell me your name?',
+      mortgage_goal:          'I apologize for that. Are you looking to buy a new home, refinance an existing mortgage, or explore a home equity option?',
+      occupancy:              'I apologize for the interruption. Will this be for your primary residence, a second home, or an investment property?',
+      existing_relationship:  'I apologize — it seems my response did not come through. Do you currently have an account or active services with your lending institution?',
+      timeline:               'I apologize for that. When are you hoping to complete this?',
+      co_borrower:            'I apologize for the interruption. Will there be a co-borrower joining you on this application, or will you be applying on your own?',
+      // Stage 2
+      gross_annual_income:    'I apologize for that. What is your gross annual household income before taxes?',
+      monthly_debt:           'I apologize for the interruption. What are your total monthly recurring debt payments — things like car loans, student loans, or credit card minimums?',
+      credit_range:           'I apologize for that. How would you describe your current credit score — either as a specific number or a general range?',
+      refinance_type:         'I apologize for the interruption. Are you considering a cash-out refinance, or are you wanting to reduce your monthly payment through a rate and term refinance?',
+      target_price:           'I apologize for that. What is the estimated market value of the home you wish to refinance?',
+      down_payment:           'I apologize for the interruption. How much do you have available for a down payment?',
+      rent_own:               'I apologize for that. Do you currently rent, or do you own your home?',
+      realtor_status:         'I apologize for the interruption. Have you connected with a real estate agent yet?',
+      property_type:          'I apologize for that. What type of property is this — a single-family home, condo, townhome, multi-family, or something else?',
+      military_rural:         'I apologize for the interruption. Do you have any military service history, or is the property in a rural area?',
+      job_tenure_type:        'I apologize for that. Could you tell me a bit about your current job tenure and the type of income you have — for example, whether you are salaried, hourly, or self-employed?',
+    };
 
     session.on(voice.AgentSessionEventTypes.Error, (err: any) => {
       if (err?.message?.includes('audio_end_ms')) return;
@@ -253,88 +435,119 @@ export default {
         currentAgentState = newState;
         console.log(`[agent-debug]: Agent state: ${oldState} → ${newState}`);
 
+        if (newState === 'thinking') {
+          // Record when thinking started so the silent-turn guard can filter
+          // out instant preemptive-generation cycles (SDK-internal rounds that
+          // complete in <200ms before the real LLM call even starts).
+          thinkingStartAt = Date.now();
+          hasSpeechThisTurn = false;
+        }
+
         if (newState === 'speaking') {
           if (oldState === 'thinking') {
             metrics.markAgentSpeaking();
           }
+          // Mark avatar render start — LemonSlice receives TTS audio from this moment
+          metrics.markAvatarRenderStart();
+          // First audio frame of the avatar track arrives with a short processing delay;
+          // markAvatarFirstFrame() is called from the TrackPublished / TrackSubscribed handler below.
 
-          // Avatar emotion: Start polling the streaming LLM text to react mid-sentence
-          if (emotionEvalInterval) clearInterval(emotionEvalInterval);
-          emotionEvalInterval = setInterval(() => {
-            try {
-              const items = session.chatCtx?.items || [];
-              const lastAssistantItem = items.slice().reverse().find(
-                (i): i is llm.ChatMessage => i.type === 'message' && i.role === 'assistant'
-              );
-              if (lastAssistantItem?.textContent) {
-                const emotion = evaluateEmotion(lastAssistantItem.textContent);
-                if (emotion !== lastBroadcastedEmotion) {
-                  lastBroadcastedEmotion = emotion;
-                  const emotionPayload = new TextEncoder().encode(JSON.stringify({
-                    type: 'AVATAR_EMOTION',
-                    emotion,
-                  }));
-                  ctx.room.localParticipant?.publishData(emotionPayload, {
-                    reliable: true,
-                    topic: 'avatar_emotion',
-                  });
-                  console.log(`[agent-debug]: Avatar emotion → ${emotion} (mid-stream)`);
-                }
-              }
-            } catch (e) {
-              // Ignore polling errors
-            }
-          }, 500);
-        } else {
-          // If not speaking (e.g. listening, thinking, idle), stop polling
-          if (emotionEvalInterval) {
-            clearInterval(emotionEvalInterval);
-            emotionEvalInterval = null;
+          // ── Silent-turn guard: agent started speaking → cancel any pending re-prompt
+          if (silentTurnTimer !== null) {
+            clearTimeout(silentTurnTimer);
+            silentTurnTimer = null;
           }
+          hasSpeechThisTurn = true;
         }
 
         if (newState === 'listening' && (session as any)._started && !voiceMuted && !isHibernating) {
           backchannelEngine.reset();
           prepareContext().catch(err => console.error('[agent-error]: Idle prepareContext failed:', err));
 
-          // Avatar emotion: return to happy resting face when idle
-          try {
-            if (lastBroadcastedEmotion !== 'happy') {
-              lastBroadcastedEmotion = 'happy';
-              const happyPayload = new TextEncoder().encode(JSON.stringify({
-                type: 'AVATAR_EMOTION',
-                emotion: 'happy',
-              }));
-              ctx.room.localParticipant?.publishData(happyPayload, {
-                reliable: true,
-                topic: 'avatar_emotion',
-              });
-              console.log(`[agent-debug]: Avatar emotion → happy (idle)`);
+          // ── Silent-turn guard: thinking → listening with no speech produced
+          // Fires when LLM generation was aborted mid-stream (Ailana goes silent).
+          // We wait 2s then re-ask the pending question.
+          // Guard: ignore preemptive-generation cycles — those complete in <200ms
+          // (SDK fires a quick thinking→listening before the real LLM call starts).
+          const thinkingDurationMs = Date.now() - thinkingStartAt;
+          const wasRealThinkingCycle = thinkingDurationMs >= 200;
+          if (oldState === 'thinking' && !hasSpeechThisTurn && wasRealThinkingCycle) {
+            const pendingField = contextManager.getPendingField();
+            const repromptText = pendingField ? PENDING_FIELD_REPROMPT[pendingField] : null;
+            if (repromptText && (session as any)._started) {
+              console.log(`[silent-turn-guard]: Detected empty turn (thinking→listening after ${thinkingDurationMs}ms, no speech). Scheduling re-prompt for field="${pendingField}" in 2s.`);
+              if (silentTurnTimer !== null) clearTimeout(silentTurnTimer);
+              silentTurnTimer = setTimeout(() => {
+                silentTurnTimer = null;
+                // Only fire if still in listening state (not speaking or thinking already)
+                if (currentAgentState !== 'listening') {
+                  console.log(`[silent-turn-guard]: Re-prompt cancelled — agent moved to "${currentAgentState}" before timer fired.`);
+                  return;
+                }
+                // Only fire if the pending field hasn't changed (no turn happened in between)
+                if (contextManager.getPendingField() !== pendingField) {
+                  console.log(`[silent-turn-guard]: Re-prompt cancelled — pending field changed from "${pendingField}" to "${contextManager.getPendingField()}".`);
+                  return;
+                }
+                console.log(`[silent-turn-guard]: Firing re-prompt for field="${pendingField}".`);
+                try {
+                  session.say(repromptText, { addToChatCtx: true });
+                  contextManager.onAgentTurn(repromptText);
+                } catch (err) {
+                  console.warn('[silent-turn-guard]: Failed to fire re-prompt:', err);
+                }
+              }, 2000);
             }
-          } catch (e) {
-            // Non-critical — don't break agent flow
+          } else if (oldState === 'thinking' && !wasRealThinkingCycle) {
+            console.log(`[silent-turn-guard]: Ignoring preemptive-gen cycle (thinking lasted only ${thinkingDurationMs}ms).`);
           }
+
+          // Reset speech tracker at the start of a new listening window
+          hasSpeechThisTurn = false;
         }
       }
     });
 
+    // STT: final transcript ready — mark pipeline stage
     session.on(voice.AgentSessionEventTypes.UserInputTranscribed, async (ev: any) => {
-      if (!ev.isFinal) {
-        return;
-      }
+      if (!ev.isFinal) return;
       if (!ev.transcript?.trim()) return;
 
-      console.log(`[agent-debug]: User input transcribed (isFinal=true): "${ev.transcript}"`);
-      backchannelEngine.reset();
+      const transcript = ev.transcript as string;
+      console.log(`[pipeline][${ts()}] STT final transcript: "${transcript}"`);
+      metrics.markSttComplete(transcript);
       metrics.markUserTurnEnd();
       metrics.startTurn();
     });
 
     session.on(voice.AgentSessionEventTypes.ConversationItemAdded, (ev: any) => {
       const item = ev.item as llm.ChatMessage;
-      console.log(`[agent-debug]: Conversation item added: role=${item?.role}, content="${item?.textContent}"`);
       if (item?.role === 'assistant' && item.textContent) {
+        hasSpeechThisTurn = true;
+        if (silentTurnTimer !== null) {
+          clearTimeout(silentTurnTimer);
+          silentTurnTimer = null;
+        }
         contextManager.onAgentTurn(item.textContent);
+
+        // ── Publish agent message as a LiveKit chat message ─────────────────
+        // Since TTS audio goes directly to LemonSlice via DataStreamAudioOutput,
+        // the LiveKit TranscriptionSynchronizer never sees audio playout events
+        // and therefore never fires transcriptionReceived events on the frontend.
+        // Publishing the text explicitly as a chat message ensures Ailana's
+        // responses always appear in the chat panel, regardless of audio routing.
+        const msgText = item.textContent;
+        (async () => {
+          try {
+            await ctx.room.localParticipant?.sendText(msgText, { topic: 'lk.chat' });
+          } catch {
+            try {
+              await ctx.room.localParticipant?.sendChatMessage(msgText);
+            } catch (err2) {
+              console.warn('[agent]: Failed to publish assistant message as chat:', err2);
+            }
+          }
+        })();
       }
       try {
         const chatCtx = session.chatCtx;
@@ -347,14 +560,22 @@ export default {
       }
     });
 
+    // MetricsCollected fires with LLM TTFT data from the LiveKit pipeline
     session.on(voice.AgentSessionEventTypes.MetricsCollected, (ev: any) => {
       const m = ev.metrics;
-      if (m?.type === 'realtime_model_metrics') {
+      if (m?.type === 'llm_metrics') {
+        const ttft = m.ttftMs ?? -1;
+        const tokens = m.promptTokens ?? 0;
+        metrics.markLlmFirstToken();       // idempotent — only records once
+        metrics.markLlmComplete();
+        metrics.recordRealtimeMetrics(ttft, tokens);
+        console.log(`[pipeline][${ts()}] LLM metrics — TTFT=${ttft}ms  prompt_tokens=${tokens}  completion_tokens=${m.completionTokens ?? '?'}`);
+      } else if (m?.type === 'tts_metrics') {
+        const dur = m.duration ?? -1;
+        metrics.markTtsComplete();
+        console.log(`[pipeline][${ts()}] TTS metrics — audio_dur=${dur}ms`);
+      } else if (m?.type === 'realtime_model_metrics') {
         metrics.recordRealtimeMetrics(m.ttftMs ?? -1, m.inputTokens ?? 0);
-        contextManager.onRealtimeInputTokens(m.inputTokens ?? 0);
-      } else if (m?.type === 'llm_metrics') {
-        metrics.recordRealtimeMetrics(m.ttftMs ?? -1, m.promptTokens ?? 0);
-        contextManager.onRealtimeInputTokens(m.promptTokens ?? 0);
       }
     });
 
@@ -408,12 +629,10 @@ export default {
 
         console.log(`[agent]: Dispatching text-only reply to Cerebras client proxy...`);
         const completion = await cerebrasClient.chat.completions.create({
-          model: 'gpt-oss-120b',
+          model: 'gemma-4-31b',
           messages: messages as any,
           max_tokens: 500,
           temperature: 0.6,
-          reasoning_effort: ailanaConfig.cerebrasReasoningEffort,
-          reasoning_format: 'hidden',
         } as any);
 
         const reply = completion.choices?.[0]?.message?.content?.trim();
@@ -441,9 +660,9 @@ export default {
 
       if (messageText === 'SYSTEM_TRANSFER_MLO') {
         isHibernating = true;
-        console.log(`[agent]: Agent hibernating. Initiating SIP transfer...`);
+        console.log(`[agent]: 🛌 Agent hibernating for MLO transfer. Shutting down audio pipeline...`);
 
-        // Stop current LLM/TTS generation
+        // 1. Interrupt any in-progress LLM/TTS generation immediately
         try {
           if ((session as any)._started) {
             session.interrupt();
@@ -452,21 +671,23 @@ export default {
           console.warn('[agent]: Failed to interrupt session:', e);
         }
 
-        // Mute the agent's microphone track so it cannot be heard by anyone in the room
-        // (Removing invalid track?.mute() - session.interrupt() combined with setSubscribed(false) is sufficient)
-
-        // Stop listening to all current users
+        // 2. Unsubscribe from ALL remote participant tracks so VAD receives no audio.
+        //    This prevents the agent from hearing/responding to the SIP IVR or the loan officer.
+        //    With no audio input, the LLM pipeline starves and generates no further responses.
         for (const p of ctx.room.remoteParticipants.values()) {
           for (const pub of p.trackPublications.values()) {
-            if (pub.subscribed) pub.setSubscribed(false);
+            try { pub.setSubscribed(false); } catch (_) {}
           }
         }
+        console.log('[agent]: 🔇 All tracks unsubscribed. User and loan officer now on direct line.');
 
+        // 3. Dial the SIP trunk to bring the loan officer into the room
         try {
           const { transferRoomToMloQueue } = await import('./utils/sipTransfer.js');
           transferRoomToMloQueue({
             roomName: ctx.room.name || '',
-            ...(participantIdentity ? { userIdentity: participantIdentity } : {}),
+          }).then((res) => {
+            console.log(`[agent]: 📞 SIP Transfer initiated successfully:`, res);
           }).catch((err) => console.error(`[agent]: SIP Transfer failed:`, err));
         } catch (err) {
           console.error(`[agent]: SIP Transfer setup failed:`, err);
@@ -508,32 +729,39 @@ export default {
         const targetMode = messageText.split(':')[1] || 'video';
         console.log(`[agent]: Channel started (${targetMode}).`);
 
+        if (!isAvatarInitDone) {
+          console.log(`[agent]: SYSTEM_CHANNEL_START received before avatar ready. Waiting for avatar initialization...`);
+          await avatarReadyPromise;
+          console.log(`[agent]: Avatar ready. Resuming deferred SYSTEM_CHANNEL_START handler.`);
+        }
+
         if (greetingGenerated) {
-          console.log(`[agent]: Greeting already generated. Ignoring duplicate start signal.`);
           return;
         }
 
         greetingGenerated = true;
-
         const greetingText = "Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?";
 
-        if ((session as any)._started) {
-          console.log(`[agent]: Session already started. Generating greeting now...`);
-          metrics.startTurn();
-          metrics.markAgentSpeaking();
-          session.say(greetingText, { addToChatCtx: true });
-          return;
-        }
-
         try {
-          await session.start({ agent: vadAgent, room: ctx.room });
-          console.log(`[agent]: Realtime session started. Mode ${targetMode} ready.`);
+          if (!(session as any)._started) {
+            sessionStarted = true;
+            await session.start({ agent: vadAgent, room: ctx.room });
+            console.log(`[agent]: Session started on SYSTEM_CHANNEL_START.`);
+          }
+
+          // Always send SYSTEM_AGENT_READY signal to let the frontend hide the loading screen
+          const readyPayload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_AGENT_READY" }));
+          await ctx.room.localParticipant?.publishData(readyPayload, { reliable: true, topic: "lk-chat" });
+          console.log(`[agent]: Sent SYSTEM_AGENT_READY signal.`);
 
           metrics.startTurn();
           metrics.markAgentSpeaking();
           session.say(greetingText, { addToChatCtx: true });
+          console.log(`[agent]: Greeting fired.`);
         } catch (err) {
-          console.error(`[agent]: Failed to start session:`, err);
+          console.error(`[agent]: Failed to start session on SYSTEM_CHANNEL_START:`, err);
+          greetingGenerated = false;
+          sessionStarted = false;
         }
         return;
       }
@@ -582,6 +810,47 @@ export default {
       }
     });
 
+    // Start the session the moment the user unmutes their microphone.
+    // This aligns the audio pipeline clock (T=0) with the first real voice packet,
+    // preventing the silence-prepend backlog caused by a clock gap.
+    ctx.room.on(RoomEvent.TrackUnmuted, async (pub, participant) => {
+      if (isHibernating) return;
+      if (pub.kind !== TrackKind.KIND_AUDIO) return;
+      if (!participant?.identity?.startsWith('guest_')) return;
+      if (sessionStarted) return;
+
+      if (!isAvatarInitDone) {
+        console.log(`[agent]: User mic unmuted but avatar not ready yet. Waiting for avatar initialization before starting session...`);
+        await avatarReadyPromise;
+        console.log(`[agent]: Avatar ready. Proceeding with session start on mic unmute.`);
+        if (sessionStarted) return;
+      }
+
+      sessionStarted = true;
+      console.log(`[agent]: User mic unmuted (identity: ${participant?.identity}). Starting AgentSession now...`);
+      try {
+        await session.start({ agent: vadAgent, room: ctx.room });
+        console.log(`[agent]: Realtime session started successfully.`);
+
+        const readyPayload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_AGENT_READY" }));
+        await ctx.room.localParticipant?.publishData(readyPayload, { reliable: true, topic: "lk-chat" });
+        console.log(`[agent]: Sent SYSTEM_AGENT_READY signal.`);
+
+        // If the channel start signal already arrived while we were waiting, say greeting now
+        const greetingText = "Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?";
+        if (pendingGreeting && !greetingGenerated) {
+          greetingGenerated = true;
+          metrics.startTurn();
+          metrics.markAgentSpeaking();
+          session.say(greetingText, { addToChatCtx: true });
+          console.log(`[agent]: Pending greeting fired after session start.`);
+        }
+      } catch (err) {
+        console.error(`[agent]: Failed to start session on TrackUnmuted:`, err);
+        sessionStarted = false;
+      }
+    });
+
     ctx.room.on(RoomEvent.DataReceived, async (payload, participant, _kind, topic) => {
       try {
         const identity = participant?.identity;
@@ -622,32 +891,279 @@ export default {
     await ctx.connect();
     console.log(`[agent]: Connected to room: ${ctx.room.name}`);
 
-    // Pre-start the session so WebRTC audio tracks are established
-    // before the client sends SYSTEM_CHANNEL_START. This minimizes greeting latency.
-    try {
-      console.log(`[agent]: Pre-starting session on connect...`);
-      await session.start({ agent: vadAgent, room: ctx.room });
-      console.log(`[agent]: Realtime session pre-started successfully.`);
+    // ── LemonSlice Avatar Session ─────────────────────────────────────────
+    // Start the avatar AFTER connecting so it can join the same room.
+    // The avatar publishes its video/audio as a native LiveKit participant;
+    // the frontend simply renders those tracks — no separate WebRTC session needed.
+    const lsApiKey = ailanaConfig.lemonsliceApiKey;
+    const lsAgentId = ailanaConfig.lemonsliceAgentId;
+    console.log(`[avatar][${ts()}] LemonSlice credentials check: API Key ${lsApiKey ? 'PRESENT (len=' + lsApiKey.length + ', ends with ' + lsApiKey.slice(-4) + ')' : 'MISSING'}, Agent ID: ${lsAgentId || 'MISSING'}`);
 
-      // Send SYSTEM_AGENT_READY to the client so it knows the session is fully start-completed
-      const readyPayload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_AGENT_READY" }));
-      await ctx.room.localParticipant?.publishData(readyPayload, {
-        reliable: true,
-        topic: "lk-chat",
+    if (lsApiKey && lsAgentId) {
+      // Quick LemonSlice API reachability test (non-blocking)
+      (async () => {
+        const t0 = Date.now();
+        try {
+          const resp = await fetch('https://api.lemon-slice.com/v1/agents', {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${lsApiKey}` },
+          });
+          const dur = Date.now() - t0;
+          console.log(`[avatar][${ts()}] LemonSlice API ping: HTTP ${resp.status} in ${dur}ms`);
+        } catch (err: any) {
+          console.error(`[avatar][${ts()}] LemonSlice API ping FAILED: ${err?.message ?? err}`);
+        }
+      })();
+
+      // Helper to send avatar status messages to frontend
+      const sendAvatarStatus = async (status: string, detail?: string) => {
+        try {
+          const payload = new TextEncoder().encode(JSON.stringify({
+            message: status,
+            ...(detail ? { detail } : {}),
+          }));
+          await ctx.room.localParticipant?.publishData(payload, { reliable: true, topic: 'lk-chat' });
+          console.log(`[avatar][${ts()}] Sent ${status} to frontend${detail ? ` (${detail})` : ''}`);
+        } catch (e: any) {
+          console.warn(`[avatar][${ts()}] Failed to send ${status}:`, e?.message);
+        }
+      };
+
+      // ── Safety net timeout ────────────────────────────────────────────────
+      // This ONLY fires if the retry loop has exited successfully (avatarConnected=true)
+      // but LemonSlice takes longer than expected to join the room as a participant.
+      // We do NOT start the conversation here silently — only hard platform errors trigger fallback.
+      // 60s is generous (avatarSession.start() resolves in 3-5s; participant join in 1-2s after).
+      const backupTimeout = setTimeout(() => {
+        if (!isAvatarInitDone) {
+          console.warn(`[avatar][${ts()}] ⚠️ LemonSlice participant still not joined after 60s since API call resolved. Logging only — platform did not report an error.`);
+          // Do NOT resolve or fallback here. The user already heard no conversation.
+          // If this is hit, it is a LemonSlice-side issue — do not mask it by silently starting.
+        }
+      }, 60000);
+
+      const markReady = () => {
+        if (isAvatarInitDone) return;
+        clearTimeout(backupTimeout);
+        isAvatarInitDone = true;
+        resolveAvatarReady();
+        console.log(`[avatar][${ts()}] ╔══════════════════════════════════════════════════════════════╗`);
+        console.log(`[avatar][${ts()}] ║  ✅  AVATAR READY — LemonSlice participant joined the room    ║`);
+        console.log(`[avatar][${ts()}] ║      Conversation is now unblocked. Greeting will fire.       ║`);
+        console.log(`[avatar][${ts()}] ╚══════════════════════════════════════════════════════════════╝`);
+      };
+
+      const checkExisting = () => {
+        console.log(`[avatar][${ts()}] Checking existing remote participants. Count=${ctx.room.remoteParticipants.size}`);
+        for (const p of ctx.room.remoteParticipants.values()) {
+          console.log(`[avatar][${ts()}] Found remote participant: identity=${p.identity}`);
+          if (p.identity.startsWith('lemonslice') || p.identity.includes('avatar')) {
+            markReady();
+            return true;
+          }
+        }
+        return false;
+      };
+
+      ctx.room.on(RoomEvent.ParticipantConnected, (participant: any) => {
+        console.log(`[avatar][${ts()}] Participant Connected: identity=${participant?.identity}`);
+        if (participant?.identity?.startsWith('lemonslice') || participant?.identity?.includes('avatar')) {
+          markReady();
+        }
       });
-      console.log(`[agent]: Sent SYSTEM_AGENT_READY signal.`);
-    } catch (err) {
-      console.error(`[agent]: Failed to pre-start session on connect:`, err);
+
+      // Listen for subscription events
+      ctx.room.on(RoomEvent.TrackSubscribed, (track: any, pub: any, participant: any) => {
+        console.log(`[avatar][${ts()}] TrackSubscribed event fired: identity=${participant?.identity}, kind=${pub.kind}, subscribed=${pub.subscribed}`);
+        if (participant?.identity?.startsWith('lemonslice') || participant?.identity?.includes('avatar')) {
+          console.log(`[avatar][${ts()}] LemonSlice participant track subscribed — kind=${pub.kind}`);
+          if (pub.kind === TrackKind.KIND_VIDEO) {
+            markReady();
+          }
+        }
+      });
+
+      try {
+        // ── Avatar connection with retry logic ─────────────────────────────
+        // Retry up to 3 times with exponential backoff (2s, 4s, 8s).
+        // Only fall back to voice-only on concurrent capacity errors (429/503).
+        // Transient errors (timeouts, DNS, 500) are retried before giving up.
+        const AVATAR_MAX_RETRIES = 3;
+        const AVATAR_BACKOFF_BASE_MS = 800;
+        let avatarConnected = false;
+        let lastAvatarErr: any = null;
+        let isCapacityError = false;
+
+        const avatarFlowStart = Date.now();
+        for (let attempt = 1; attempt <= AVATAR_MAX_RETRIES; attempt++) {
+          console.log(`[avatar][${ts()}] ┌─────────────────────────────────────────────────────────────┐`);
+          console.log(`[avatar][${ts()}] │  🔄  ATTEMPT ${attempt}/${AVATAR_MAX_RETRIES} — Calling LemonSlice avatarSession.start()   │`);
+          console.log(`[avatar][${ts()}] │      agentId = ${lsAgentId}`);
+          console.log(`[avatar][${ts()}] │      BLOCKING until LemonSlice responds...                   │`);
+          console.log(`[avatar][${ts()}] └─────────────────────────────────────────────────────────────┘`);
+          try {
+            const avatarSession = new AvatarSession({
+              agentId: lsAgentId,
+              apiKey: lsApiKey,
+            });
+            const avatarStartT = Date.now();
+            await avatarSession.start(session, ctx.room);
+            const elapsed = Date.now() - avatarStartT;
+            console.log(`[avatar][${ts()}] ┌─────────────────────────────────────────────────────────────┐`);
+            console.log(`[avatar][${ts()}] │  ✅  LEMONSLICE API RESPONDED — SUCCESS (attempt ${attempt}/${AVATAR_MAX_RETRIES})         │`);
+            console.log(`[avatar][${ts()}] │      avatarSession.start() resolved in ${elapsed}ms                  │`);
+            console.log(`[avatar][${ts()}] │      Starting AgentSession and restoring DataStreamAudioOutput...  │`);
+            console.log(`[avatar][${ts()}] └─────────────────────────────────────────────────────────────┘`);
+            
+            // Save the DataStreamAudioOutput set by LemonSlice
+            const dataStreamAudio = session.output.audio;
+
+            // Start the AgentSession (audioEnabled: true creates the audio track for transcription)
+            sessionStarted = true;
+            await session.start({ agent: vadAgent, room: ctx.room });
+
+            // Restore the DataStreamAudioOutput so TTS audio goes directly to the avatar
+            if (dataStreamAudio) {
+              session.output.audio = dataStreamAudio;
+            }
+
+            avatarConnected = true;
+            break;
+          } catch (err: any) {
+            lastAvatarErr = err;
+            const statusCode = err?.statusCode ?? err?.status ?? err?.code;
+            const errMsg = err?.message ?? String(err);
+            const elapsed = Date.now() - avatarFlowStart;
+
+            console.error(`[avatar][${ts()}] ╔══════════════════════════════════════════════════════════════╗`);
+            console.error(`[avatar][${ts()}] ║  ❌  LEMONSLICE API RESPONDED — ERROR (attempt ${attempt}/${AVATAR_MAX_RETRIES})           ║`);
+            console.error(`[avatar][${ts()}] ║      elapsed    : ${elapsed}ms`);
+            console.error(`[avatar][${ts()}] ║      HTTP code  : ${statusCode ?? 'n/a'}`);
+            console.error(`[avatar][${ts()}] ║      message    : ${errMsg}`);
+            if (attempt === 1) {
+              console.error(`[avatar][${ts()}] ║      stack      : ${err?.stack?.split('\n')[1]?.trim() ?? 'no stack'}`);
+            }
+            console.error(`[avatar][${ts()}] ╚══════════════════════════════════════════════════════════════╝`);
+
+            // Check for concurrent capacity errors (HTTP 429 Too Many Requests, 503 Service Unavailable)
+            // These indicate the avatar service is at capacity — retrying won't help.
+            if (statusCode === 429 || statusCode === 503 ||
+              errMsg.includes('429') || errMsg.includes('capacity') ||
+              errMsg.includes('too many') || errMsg.includes('503')) {
+              console.warn(`[avatar][${ts()}] ⚠️  CAPACITY ERROR — skipping remaining retries (status=${statusCode}).`);
+              isCapacityError = true;
+              break;
+            }
+
+            // For non-capacity errors, retry with exponential backoff
+            if (attempt < AVATAR_MAX_RETRIES) {
+              const delayMs = AVATAR_BACKOFF_BASE_MS * Math.pow(2, attempt - 1);
+              console.log(`[avatar][${ts()}] ⏳  Waiting ${delayMs}ms before retry ${attempt + 1}/${AVATAR_MAX_RETRIES}...`);
+              await new Promise(resolve => setTimeout(resolve, delayMs));
+            } else {
+              console.error(`[avatar][${ts()}] ❌  All ${AVATAR_MAX_RETRIES} attempts exhausted. No more retries.`);
+            }
+          }
+        }
+
+        if (avatarConnected) {
+          console.log(`[avatar][${ts()}] ▶  Avatar API call succeeded. Sending SYSTEM_AVATAR_CONNECTED to frontend. Waiting for participant...`);
+          sendAvatarStatus('SYSTEM_AVATAR_CONNECTED');
+
+          // When LemonSlice publishes its first track, record latency
+          ctx.room.on(RoomEvent.TrackPublished, (pub: any, participant: any) => {
+            if (participant?.identity?.startsWith('lemonslice') || participant?.identity?.includes('avatar')) {
+              console.log(`[avatar][${ts()}] 📹  LemonSlice track published — kind=${pub.kind} source=${pub.source}`);
+              metrics.markAvatarFirstFrame();
+            }
+          });
+
+          // Trigger immediate check in case participant joined before listener was registered
+          checkExisting();
+        } else {
+          // All retries exhausted or capacity error — fall back to voice-only
+          const errMsg = lastAvatarErr?.message ?? String(lastAvatarErr);
+          if (isCapacityError) {
+            console.warn(`[avatar][${ts()}] ╔══════════════════════════════════════════════════════════════╗`);
+            console.warn(`[avatar][${ts()}] ║  ⚠️   FALLBACK: AVATAR CAPACITY LIMITED                        ║`);
+            console.warn(`[avatar][${ts()}] ║       LemonSlice is at concurrent session capacity (429/503). ║`);
+            console.warn(`[avatar][${ts()}] ║       Sending SYSTEM_AVATAR_CAPACITY_LIMITED to frontend.     ║`);
+            console.warn(`[avatar][${ts()}] ║       Conversation will start in voice-only mode.             ║`);
+            console.warn(`[avatar][${ts()}] ╚══════════════════════════════════════════════════════════════╝`);
+            sendAvatarStatus('SYSTEM_AVATAR_CAPACITY_LIMITED', errMsg);
+          } else {
+            console.error(`[avatar][${ts()}] ╔══════════════════════════════════════════════════════════════╗`);
+            console.error(`[avatar][${ts()}] ║  ❌   FALLBACK: AVATAR PLATFORM ERROR                          ║`);
+            console.error(`[avatar][${ts()}] ║       All ${AVATAR_MAX_RETRIES} retries failed with a platform error.          ║`);
+            console.error(`[avatar][${ts()}] ║       Sending SYSTEM_AVATAR_CONN_FAILED to frontend.          ║`);
+            console.error(`[avatar][${ts()}] ║       Conversation will start in voice-only mode.             ║`);
+            console.error(`[avatar][${ts()}] ║       Last error: ${errMsg}`);
+            console.error(`[avatar][${ts()}] ╚══════════════════════════════════════════════════════════════╝`);
+            sendAvatarStatus('SYSTEM_AVATAR_CONN_FAILED', errMsg);
+          }
+
+          // Fallback session start (voice-only mode)
+          sessionStarted = true;
+          await session.start({ agent: vadAgent, room: ctx.room });
+
+          isAvatarInitDone = true;
+          resolveAvatarReady();
+          clearTimeout(backupTimeout);
+        }
+      } catch (err: any) {
+        // This outer catch handles AgentSession pre-start failure (not avatar-specific)
+        console.error(`[avatar][${ts()}] FAILED to pre-start AgentSession:`, err);
+        console.error(`[avatar][${ts()}]   Error message : ${err?.message ?? String(err)}`);
+        console.error(`[avatar][${ts()}]   Error stack   : ${err?.stack ?? 'no stack'}`);
+        isAvatarInitDone = true;
+        resolveAvatarReady();
+        clearTimeout(backupTimeout);
+      }
+    } else {
+      console.warn(`[avatar][${ts()}] LemonSlice credentials missing — avatar DISABLED.`);
+      console.warn(`[avatar][${ts()}]   LEMONSLICE_API_KEY   : ${lsApiKey ? 'present' : 'MISSING'}`);
+      console.warn(`[avatar][${ts()}]   LEMONSLICE_AGENT_ID  : ${lsAgentId ? lsAgentId : 'MISSING'}`);
+      isAvatarInitDone = true;
+      resolveAvatarReady();
     }
 
-    const activeModelName = 'cascade-livekit-inference (Cerebras GPT-OSS 120B + Cartesia)';
+    // Measure connection latency to Cerebras API endpoint on start
+    (async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch(`${ailanaConfig.cerebrasBaseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${ailanaConfig.cerebrasApiKey}`
+          },
+          body: JSON.stringify({
+            model: 'gemma-4-31b',
+            messages: [{ role: 'user', content: 'ping' }],
+            max_tokens: 1,
+          })
+        });
+        const duration = Date.now() - start;
+        console.log(`[latency-check][${ts()}] Cerebras API connection roundtrip test completed in ${duration}ms (HTTP Status: ${res.status})`);
+      } catch (err: any) {
+        const duration = Date.now() - start;
+        console.warn(`[latency-check][${ts()}] Cerebras API connection test returned error after ${duration}ms: ${err?.message || err}`);
+      }
+    })();
+
+    const activeModelName = 'cascade-livekit-inference (Cerebras GPT-OSS 120B + Cartesia TTS + LemonSlice Avatar)';
     console.log(
       `[agent]: Ready — model=${activeModelName}, prompt=${ailanaConfig.promptVersion}, compact@${ailanaConfig.compactEveryNTurns} turns / ${ailanaConfig.forceCompactInputTokens} tokens`,
     );
   },
-};
+});
 
-if (process.argv[1] && process.argv[1].endsWith('agent.ts')) {
+// Support both:
+//   development:  tsx src/agent.ts dev   (process.argv[1] ends with agent.ts)
+//   production:   node dist/agent.js dev (process.argv[1] ends with agent.js)
+const _argv1 = process.argv[1] ?? '';
+if (_argv1.endsWith('agent.ts') || _argv1.endsWith('agent.js')) {
+  console.log(`[agent-cli] Starting LiveKit agent worker (argv1=${_argv1})...`);
   cli.runApp(
     new ServerOptions({
       agent: fileURLToPath(import.meta.url),

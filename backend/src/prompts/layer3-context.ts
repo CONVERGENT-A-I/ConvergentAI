@@ -37,6 +37,9 @@ export interface BorrowerProfile {
   realtor_status?: 'yes' | 'no' | null;
   realtor_status_confirmed?: boolean;
 
+  refinance_type?: 'cash_out' | 'rate_term' | null;
+  refinance_type_confirmed?: boolean;
+
   target_price?: number | null;
   target_price_confirmed?: boolean;
 
@@ -65,6 +68,10 @@ export interface BorrowerProfile {
   financial_priority_confirmed?: boolean;
   home_horizon?: 'long_term' | 'short_term' | null;
   home_horizon_confirmed?: boolean;
+  legal_name?: string | null;
+  legal_name_confirmed?: boolean;
+  physical_address?: string | null;
+  physical_address_confirmed?: boolean;
   soft_pull_consent?: 'pending' | 'accepted' | 'declined' | null;
   employer?: string | null;
   prefilled_fields_confirmed?: {
@@ -88,11 +95,10 @@ export interface BorrowerProfile {
   declarations_bankruptcy?: boolean | null;
   declarations_foreclosure?: boolean | null;
   declarations_confirmed?: boolean;
-  hmda_completed?: boolean;
   ready_to_submit?: boolean;
 
   // ── Stage 4 ──────────────────────────────────────────────────────────────
-  aus_status?: 'waiting' | 'approve' | 'refer' | 'timeout' | null;
+  aus_status?: 'waiting' | 'approve' | 'approve_with_conditions' | 'refer' | 'suspend' | 'timeout' | null;
   aus_confirmed?: boolean;
   checklist_discussed?: boolean;
 }
@@ -107,6 +113,9 @@ const FIELD_LABELS: Record<string, string> = {
   gross_annual_income: 'gross annual household income',
   monthly_debt: 'total monthly debt payments',
   credit_range: 'credit score',
+  legal_name: 'full legal name',
+  refinance_type: 'refinance type',
+  physical_address: 'physical address',
   down_payment: 'down payment amount',
   rent_own: 'housing status',
   realtor_status: 'real estate agent connection status',
@@ -119,7 +128,6 @@ const FIELD_LABELS: Record<string, string> = {
   employment_details: 'employment details',
   checking_savings: 'checking and savings balance',
   declarations: 'declarations',
-  hmda: 'voluntary HMDA questions',
   submit_confirmation: 'submission confirmation',
   program_comparison_interest: 'program comparison interest',
   financial_priority: 'financial priority',
@@ -149,9 +157,21 @@ export function buildLayer3TurnContext(
   const fmt = (val?: number | null) =>
     val != null ? `$${val.toLocaleString()}` : 'not yet collected';
 
-  // ── Stage 2 profile block ─────────────────────────────────────────────────
-  const stage2Block = [
-    '=== BORROWER PROFILE (Stage 2 — Pre-Qualification) ===',
+  const isRefinanceGoal = profile.mortgage_goal === 'refinance';
+
+  const stage2Block = isRefinanceGoal ? [
+    '=== BORROWER PROFILE (Stage 2 — Pre-Qualification Discovery) ===',
+    `Gross annual income:   ${fmt(profile.gross_annual_income)} (Confirmed: ${!!profile.gross_annual_income_confirmed})`,
+    `Monthly debt:          ${fmt(profile.monthly_debt)} (Confirmed: ${!!profile.monthly_debt_confirmed})`,
+    `Credit score:          ${profile.credit_range ?? 'not yet collected'} (Confirmed: ${!!profile.credit_range_confirmed})`,
+    `Refinance type:        ${profile.refinance_type ?? 'not yet collected'} (Confirmed: ${!!profile.refinance_type_confirmed})`,
+    `Est property value:    ${fmt(profile.target_price)} (Confirmed: ${!!profile.target_price_confirmed})`,
+    `Property type:         ${profile.property_type ?? 'not yet collected'} (Confirmed: ${!!profile.property_type_confirmed})`,
+    `Military/Rural status: ${profile.military_rural ?? 'not yet collected'} (Confirmed: ${!!profile.military_rural_confirmed})`,
+    `Job tenure/type:       ${profile.job_tenure_type ?? 'not yet collected'} (Confirmed: ${!!profile.job_tenure_type_confirmed})`,
+    '=== END STAGE 2 ===',
+  ].join('\n') : [
+    '=== BORROWER PROFILE (Stage 2 — Pre-Qualification Discovery) ===',
     `Gross annual income:   ${fmt(profile.gross_annual_income)} (Confirmed: ${!!profile.gross_annual_income_confirmed})`,
     `Monthly debt:          ${fmt(profile.monthly_debt)} (Confirmed: ${!!profile.monthly_debt_confirmed})`,
     `Credit score:          ${profile.credit_range ?? 'not yet collected'} (Confirmed: ${!!profile.credit_range_confirmed})`,
@@ -198,10 +218,12 @@ export function buildLayer3TurnContext(
     `Comparison Walkthrough:     ${profile.program_comparison_interest ?? 'not yet collected'}`,
     `Financial priority:          ${profile.financial_priority ?? 'not yet collected'}`,
     `Home horizon:                ${profile.home_horizon ?? 'not yet collected'}`,
+    `Legal Name:                  ${profile.legal_name ?? 'not yet collected'} (Confirmed: ${!!profile.legal_name_confirmed})`,
+    `Physical Address:            ${profile.physical_address ?? 'not yet collected'} (Confirmed: ${!!profile.physical_address_confirmed})`,
     `Soft pull consent:           ${profile.soft_pull_consent ?? 'not yet asked'}`,
     profile.soft_pull_consent === 'accepted' ? [
       `MOCK PRE-FILLED DATA RETRIEVED VIA SOFT PULL:`,
-      `  - Full Name & Address to confirm: John Doe, 1234 Maple Avenue, Suite 100, Los Angeles, CA 90012`,
+      `  - Full Name & Address to confirm: ${profile.legal_name || 'John Doe'}, ${profile.physical_address || '1234 Maple Avenue, Suite 100, Los Angeles, CA 90012'}`,
       `  - Employer to confirm: ${profile.employer || 'Nexus Technologies LLC Corp'}`,
       `  - Accounts Summary to confirm: 2 open active credit cards, 1 auto loan, and no negative accounts or late payments in the last 24 months`,
       `  - Credit Range Category to confirm: ${profile.credit_range ? (profile.credit_range + ' range') : (creditRangeCategory + ' range (' + creditRangeLimits + ')')}`,
@@ -226,7 +248,6 @@ export function buildLayer3TurnContext(
     `Checking/Savings:    ${profile.checking_savings_balance !== undefined && profile.checking_savings_balance !== null ? `$${profile.checking_savings_balance.toLocaleString()}` : 'not yet collected'}`,
     `Bankruptcy:          ${profile.declarations_bankruptcy !== undefined && profile.declarations_bankruptcy !== null ? (profile.declarations_bankruptcy ? 'Yes' : 'No') : 'not yet collected'}`,
     `Foreclosure:         ${profile.declarations_foreclosure !== undefined && profile.declarations_foreclosure !== null ? (profile.declarations_foreclosure ? 'Yes' : 'No') : 'not yet collected'}`,
-    `HMDA Demographics:  ${profile.hmda_completed ? 'Completed' : 'Not yet collected'}`,
     `Ready to Submit:     ${profile.ready_to_submit ? 'Yes' : 'No'}`,
     '=== END STAGE 3B ===',
   ].join('\n');
@@ -240,9 +261,13 @@ export function buildLayer3TurnContext(
   ].join('\n');
 
   // ── Current task line ─────────────────────────────────────────────────────
+  const isRef = profile.mortgage_goal === 'refinance';
   let taskLine = '';
   if (profile.pending_confirm_field && profile.pending_confirm_value) {
-    const label = FIELD_LABELS[profile.pending_confirm_field] ?? profile.pending_confirm_field;
+    let label = FIELD_LABELS[profile.pending_confirm_field] ?? profile.pending_confirm_field;
+    if (isRef && profile.pending_confirm_field === 'target_price') {
+      label = 'estimated property value';
+    }
     taskLine = `CURRENT TASK:\nConfirm the value of "${profile.pending_confirm_value}" for ${label}. Do NOT ask for the next field yet.`;
   } else if (pendingField) {
     taskLine = `CURRENT TASK:\nCollect ${pendingField}\n\nDO NOT ASK FOR ANY OTHER FIELD.`;
@@ -253,12 +278,24 @@ export function buildLayer3TurnContext(
   // ── Confirmation instruction (only when a field was just extracted) ────────
   let confirmBlock = '';
   if (profile.pending_confirm_field && profile.pending_confirm_value) {
-    const label = FIELD_LABELS[profile.pending_confirm_field] ?? profile.pending_confirm_field;
-    confirmBlock =
-      `\nCONFIRM THIS TURN:\n` +
-      `The borrower just mentioned "${profile.pending_confirm_value}" as their ${label}.\n` +
-      `Say EXACTLY: "Just to confirm — you mentioned ${profile.pending_confirm_value} as your ${label}. Is that right?"\n` +
-      `Do NOT ask for any other field. Wait for their yes/no before continuing.`;
+    let label = FIELD_LABELS[profile.pending_confirm_field] ?? profile.pending_confirm_field;
+    if (isRef && profile.pending_confirm_field === 'target_price') {
+      label = 'estimated property value';
+    }
+
+    if (isRef && profile.pending_confirm_field === 'target_price') {
+      confirmBlock =
+        `\nCONFIRM THIS TURN:\n` +
+        `The borrower just mentioned "${profile.pending_confirm_value}" as their estimated property value.\n` +
+        `Say EXACTLY: "Ok, we will use the value of ${profile.pending_confirm_value} as the value, correct?"\n` +
+        `Do NOT ask for any other field. Wait for their yes/no before continuing.`;
+    } else {
+      confirmBlock =
+        `\nCONFIRM THIS TURN:\n` +
+        `The borrower just mentioned "${profile.pending_confirm_value}" as their ${label}.\n` +
+        `Say EXACTLY: "Just to confirm — you mentioned ${profile.pending_confirm_value} as your ${label}. Is that right?"\n` +
+        `Do NOT ask for any other field. Wait for their yes/no before continuing.`;
+    }
   }
 
   // ── Stage transition bridge instruction ───────────────────────────────────

@@ -36,6 +36,7 @@ import { ContextualHelp } from "./contextual-help";
 import { ActivityTracker } from "./activity-tracker";
 import { MloDetector } from "./mlo-detector";
 import { AgentReadinessCheck } from "./agent-readiness-check";
+import { AvatarStatusListener, type AvatarStatus } from "./avatar-status-listener";
 import { ChannelStartTrigger } from "./channel-start-trigger";
 import { MediaGuard } from "./media-guard";
 import { LoanOfficerLiveUI, LoanOfficerQueueUI } from "./loan-officer-queue";
@@ -50,7 +51,6 @@ export default function FloatingCTA() {
   const [isIntroComplete, setIsIntroComplete] = useState(true);
   const [token, setToken] = useState<string | null>(null);
   const [lkUrl, setLkUrl] = useState<string | null>(null);
-  const [keyframeMetaData, setKeyframeMetaData] = useState<any>(null);
   const [isLkConnected, setIsLkConnected] = useState(false);
   const [isAgentReady, setIsAgentReady] = useState(false);
   const [pendingMode, setPendingMode] = useState<PendingMode>("video");
@@ -59,8 +59,11 @@ export default function FloatingCTA() {
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [isIntroBlurring, setIsIntroBlurring] = useState(true);
   const [complianceChecked, setComplianceChecked] = useState(false);
+  // Incremented each time a brand-new session starts — forces LiveKitRoom to fully remount
+  const [sessionKey, setSessionKey] = useState(0);
 
   const [isFallbackMode, setIsFallbackMode] = useState(false);
+  const [avatarFallbackReason, setAvatarFallbackReason] = useState<"capacity" | "failed" | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<string>("");
   const [isOffline, setIsOffline] = useState(false);
   const [showEndCallConfirm, setShowEndCallConfirm] = useState(false);
@@ -96,6 +99,30 @@ export default function FloatingCTA() {
     return () => {
       console.error = originalError;
     };
+  }, []);
+
+  // Handle avatar status messages from the backend
+  const handleAvatarStatus = useCallback((status: AvatarStatus, detail?: string) => {
+    if (status === "connected") {
+      // Avatar connected — clear any fallback state
+      setIsFallbackMode(false);
+      setAvatarFallbackReason(null);
+      setConnectionStatus("");
+    } else if (status === "capacity") {
+      // Avatar at concurrent capacity — show fallback banner
+      setIsFallbackMode(true);
+      setAvatarFallbackReason("capacity");
+      setConnectionStatus("Avatar at capacity — using voice mode");
+      // Auto-dismiss the banner after 8 seconds
+      setTimeout(() => setIsFallbackMode(false), 8000);
+    } else if (status === "failed") {
+      // Avatar connection failed after retries — brief informational toast
+      setIsFallbackMode(true);
+      setAvatarFallbackReason("failed");
+      setConnectionStatus("Avatar couldn't connect — continuing with voice");
+      // Auto-dismiss the banner after 5 seconds
+      setTimeout(() => setIsFallbackMode(false), 5000);
+    }
   }, []);
 
   const isFetchingRef = useRef(false);
@@ -183,16 +210,12 @@ export default function FloatingCTA() {
         flowPhaseRef.current = "connecting";
       }
 
-      // Only reset intro state when actually starting an intro flow,
-      // not on reconnections that skip straight to live.
       if (mode === "intro-avatar") {
         setIsIntroComplete(false);
       }
-      if (!isLkConnected) {
-        setKeyframeMetaData(null);
-      }
 
       const urlRoom = searchParams.get("room");
+      const activeMode = mode ?? pendingMode;
       const generatedRoomName =
         urlRoom ||
         (!forceNewRoom && roomName
@@ -202,8 +225,6 @@ export default function FloatingCTA() {
       if (!roomName || roomName !== generatedRoomName) {
         setRoomName(generatedRoomName);
       }
-
-      const activeMode = mode ?? pendingMode;
 
       if (!participantIdentityRef.current) {
         participantIdentityRef.current = `guest_${Math.floor(Math.random() * 10000)}`;
@@ -244,23 +265,12 @@ export default function FloatingCTA() {
         connectionTimeoutRef.current = null;
       }
 
+      tokenFetchedAtRef.current = Date.now();
       setToken(data.token);
       setLkUrl(data.serverUrl);
 
-      // Provider Fallback Logic:
-      // If user requested video/avatar but service returned no metadata, downgrade to voice
-      if (!data.keyframe && activeMode !== "voice") {
-        console.warn(
-          "[fetchToken]: Avatar service unavailable. Falling back to Voice."
-        );
-        setIsFallbackMode(true);
-        setPendingMode("voice");
-        setConnectionStatus("Avatar unavailable. Switching to Voice...");
-      } else {
-        setKeyframeMetaData(data.keyframe ?? null);
-        setIsFallbackMode(false);
-        setConnectionStatus("");
-      }
+      setIsFallbackMode(false);
+      setConnectionStatus("");
 
       // Use the ref to read the phase at the time the async call resolves (avoids stale closure)
       if (flowPhaseRef.current !== "intro") {
@@ -299,7 +309,7 @@ export default function FloatingCTA() {
         console.log(
           `[ui-loan-officer]: ✅ User agreed, already connected (or in intro/live). Transitioning to live mode.`
         );
-        if (!keyframeMetaData) {
+        if (!token) {
           fetchToken(mode);
         }
         setFlowPhase("live");
@@ -311,6 +321,9 @@ export default function FloatingCTA() {
       fetchToken(mode);
     }
   };
+
+  // Track when the token was fetched to identify if it is stale
+  const tokenFetchedAtRef = useRef<number | null>(null);
 
   const handleAIAction = (mode: PendingMode) => {
     if (mode === "loan-officer") {
@@ -340,22 +353,29 @@ export default function FloatingCTA() {
       setFlowPhase("intro");
       setIsIntroComplete(true); // Skip intro video, show compliance directly
     } else {
-      if (isLkConnected || flowPhase === "intro" || flowPhase === "live") {
+      if (isLkConnected && flowPhase === "live") {
+        // Already connected — just switch the visual mode, no reconnect needed.
+        // This handles Video ↔ Voice ↔ Chat ↔ Loan Officer channel switching seamlessly.
         if (mode === "loan-officer")
           console.log(
-            `[ui-loan-officer]: ✅ User agreed, already connected (or in intro/live). Transitioning to live mode.`
+            `[ui-loan-officer]: ✅ Already live. Switching to loan-officer mode.`
           );
-        if (!keyframeMetaData && mode !== "voice") {
-          fetchToken(mode);
-        }
-        setFlowPhase("live");
+        else
+          console.log(`[ui] Switching channel mode to ${mode} without reconnect.`);
+        setPendingMode(mode);
         return;
       }
       if (mode === "loan-officer")
         console.log(
           `[ui-loan-officer]: 🔄 Not connected yet, fetching LiveKit token for mode...`
         );
-      fetchToken(mode);
+
+      // Not connected — always fetch a fresh token + room for a new session.
+      console.log("[ui] Fetching fresh token and room session.");
+      setToken(null);
+      setLkUrl(null);
+      setRoomName("");
+      fetchToken(mode, true);
     }
   };
 
@@ -367,10 +387,10 @@ export default function FloatingCTA() {
     }
   }, [searchParams]);
 
-  // Pre-fetch LiveKit token and Keyframe metadata on mount to skip connection delay
+  // Do NOT pre-fetch on mount anymore. Pre-fetching causes tokens to sit in memory
+  // and expire when users idle on the page. We will fetch tokens cleanly when the user clicks the CTA.
   useEffect(() => {
-    if (isFetchingRef.current || token) return;
-    fetchToken("video");
+    // Left empty intentionally to prevent pre-fetch timeouts/expiration
   }, []);
 
   // Centralised session reset — nukes all LiveKit / flow state so the
@@ -385,7 +405,6 @@ export default function FloatingCTA() {
     setRoomName("");
     setIsVideoReady(false);
     setIsIntroBlurring(true);
-    setKeyframeMetaData(null);
     setHasAgreed(true);
     setIsIntroComplete(true);
     setComplianceChecked(true);
@@ -401,6 +420,8 @@ export default function FloatingCTA() {
     setMloParticipantName(null);
     setMloCallSeconds(0);
     hasMloJoinedRef.current = false;
+    // Bump key so LiveKitRoom remounts fresh on next open
+    setSessionKey((k) => k + 1);
   };
 
   // Full restart: tear down the broken connection and establish a fresh one.
@@ -416,7 +437,6 @@ export default function FloatingCTA() {
     setIsLkConnected(false);
     setIsAgentReady(false);
     setRoomName("");
-    setKeyframeMetaData(null);
     setIsVideoReady(false);
     setConnectionStatus("");
     setIsOffline(false);
@@ -451,7 +471,9 @@ export default function FloatingCTA() {
     } else if (!isOpen && hasOpenedRef.current) {
       resetSession();
       hasOpenedRef.current = false;
-      fetchToken("video"); // Pre-fetch a new token for the next connection
+      // Do NOT pre-fetch here — stale pre-fetched tokens cause the
+      // "stuck on Setting up your session" bug when the CTA is reopened
+      // (the LiveKitRoom connects but no backend agent is running for it).
     }
   }, [isOpen]);
 
@@ -511,7 +533,7 @@ export default function FloatingCTA() {
       return;
     }
 
-    const INACTIVITY_MS = 90_000; // 1.5 minutes
+    const INACTIVITY_MS = 60_000; // 1 minute
 
     const markActivity = () => {
       lastActivityAtRef.current = Date.now();
@@ -1123,9 +1145,13 @@ export default function FloatingCTA() {
                             className="absolute inset-0 flex flex-col items-center justify-center p-0"
                           >
                             <LiveKitRoom
-                              key={roomName}
+                              key={`${sessionKey}-${roomName}`}
                               video={false}
-                              audio={false}
+                              audio={{
+                                noiseSuppression: true,
+                                echoCancellation: true,
+                                autoGainControl: true,
+                              }}
                               token={token || ""}
                               serverUrl={lkUrl || ""}
                               connect={true}
@@ -1154,6 +1180,10 @@ export default function FloatingCTA() {
                             >
                               <AgentReadinessCheck
                                 onAgentReady={setIsAgentReady}
+                                mode={pendingMode}
+                              />
+                              <AvatarStatusListener
+                                onAvatarStatus={handleAvatarStatus}
                               />
                               <MloDetector onMloStatusChange={handleMloStatusChange} />
                               <MediaGuard mode={pendingMode} />
@@ -1164,16 +1194,20 @@ export default function FloatingCTA() {
                                 mode={pendingMode}
                               />
 
-                              {/* Fallback Notification Overlay */}
+                              {/* Fallback Notification Overlay — shown only for capacity limits or connection failures */}
                               <AnimatePresence>
                                 {isFallbackMode && (
                                   <motion.div
                                     initial={{ opacity: 0, y: -20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -20 }}
-                                    className="absolute top-16 left-1/2 -translate-x-1/2 z-[100] w-full max-w-[280px]"
+                                    className="absolute top-16 left-1/2 -translate-x-1/2 z-[100] w-full max-w-[320px]"
                                   >
-                                    <div className="bg-amber-500 text-black px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-center shadow-[0_0_30px_rgba(245,158,11,0.3)] border border-white/20">
+                                    <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-center border border-white/20 ${
+                                      avatarFallbackReason === "capacity"
+                                        ? "bg-amber-500 text-black shadow-[0_0_30px_rgba(245,158,11,0.3)]"
+                                        : "bg-blue-500/90 text-white shadow-[0_0_30px_rgba(59,130,246,0.3)]"
+                                    }`}>
                                       {connectionStatus ||
                                         "Avatar Unavailable - Using Voice"}
                                     </div>
@@ -1201,8 +1235,7 @@ export default function FloatingCTA() {
                                       }`}
                                   >
                                     {/* REC badge - only when connected */}
-                                    {isLkConnected &&
-                                      isAgentReady && (
+                                    {isLkConnected && isAgentReady && (
                                         <div className="absolute top-3 left-3 z-50 flex items-center gap-1.5 sm:gap-2 bg-black/50 backdrop-blur-md p-1.5 sm:px-2.5 sm:py-1 rounded-full border border-red-500/30">
                                           <motion.div
                                             animate={{ opacity: [1, 0.4, 1] }}
@@ -1264,7 +1297,6 @@ export default function FloatingCTA() {
                                       ) : (
                                         <VideoStage
                                           mode={pendingMode}
-                                          keyframeMetadata={keyframeMetaData}
                                           hideControls
                                         />
                                       )}
@@ -1321,11 +1353,7 @@ export default function FloatingCTA() {
                                 </div>
                               </div>
 
-                              {/* Always render audio for loan-officer mode (SIP audio),
-                                  or when no Keyframe avatar is active (voice mode) */}
-                              {(pendingMode === "loan-officer" || !keyframeMetaData) && (
-                                <RoomAudioRenderer />
-                              )}
+                              <RoomAudioRenderer />
                             </LiveKitRoom>
                           </motion.div>
                         )}

@@ -22,16 +22,21 @@ export const ailanaConfig = {
   /** Force compact when Realtime reports input tokens above this (latency-safe threshold) */
   forceCompactInputTokens: envInt('AILANA_FORCE_COMPACT_INPUT_TOKENS', 6000),
 
-  vadMinSilenceMs: envInt('AILANA_VAD_MIN_SILENCE_MS', 350),
+  vadMinSilenceMs: envInt('AILANA_VAD_MIN_SILENCE_MS', 400),
   vadEndpointMinDelayMs: envInt('AILANA_VAD_ENDPOINT_MIN_DELAY_MS', 350),
-  vadInterruptMinDurationMs: envInt('AILANA_VAD_INTERRUPT_MIN_DURATION_MS', 350),
+  vadInterruptMinDurationMs: envInt('AILANA_VAD_INTERRUPT_MIN_DURATION_MS', 500),
+  vadInterruptMinWords: envInt('AILANA_VAD_INTERRUPT_MIN_WORDS', 1),
 
   get groqApiKey() { return process.env.GROQ_API_KEY ?? ''; },
   get openaiApiKey() { return process.env.OPENAI_API_KEY ?? ''; },
-  cartesiaKey: process.env.CARTESIA_KEY ?? '',
-  cartesiaVoiceId: process.env.AILANA_VOICE_ID ?? '11af83e2-23eb-452f-956e-7fee218ccb5c',
+  get cartesiaKey() { return process.env.CARTESIA_KEY ?? ''; },
+  get cartesiaVoiceId() { return process.env.AILANA_VOICE_ID ?? 'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4'; },
+  get elevenlabsApiKey() { return process.env.ELEVENLABS_API_KEY ?? ''; },
+  get elevenlabsVoiceId() { return process.env.ELEVENLABS_VOICE_ID ?? 'EST9Ui6982FZPSi7gCHi'; },
+  get lemonsliceApiKey() { return process.env.LEMONSLICE_API_KEY ?? ''; },
+  get lemonsliceAgentId() { return process.env.LEMONSLICE_AGENT_ID ?? ''; },
   get cerebrasApiKey() { return process.env.CEREBRAS_API_KEY ?? ''; },
-  cerebrasBaseUrl: process.env.CEREBRAS_BASE_URL ?? 'https://api.cerebras.ai/v1',
+  cerebrasBaseUrl: 'https://api.cerebras.ai/v1',
   cerebrasReasoningEffort: process.env.CEREBRAS_REASONING_EFFORT ?? 'low',
 };
 

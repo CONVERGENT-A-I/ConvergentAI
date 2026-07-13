@@ -2,8 +2,6 @@ export const env = {
   LIVEKIT_API_KEY: process.env.LIVEKIT_API_KEY,
   LIVEKIT_API_SECRET: process.env.LIVEKIT_API_SECRET,
   LIVEKIT_URL: process.env.LIVEKIT_URL,
-  KEYFRAME_API_KEY: process.env.KEYFRAME_API_KEY,
-  KEYFRAME_PERSONA_SLUG: process.env.KEYFRAME_PERSONA_SLUG,
 };
 
 export function validateServerEnv() {

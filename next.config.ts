@@ -8,6 +8,19 @@ const securityHeaders = [
   { key: "X-XSS-Protection", value: "1; mode=block" },
 ];
 
+// Prevents the CDN / reverse-proxy in front of the GCP VM from caching HTML
+// pages indefinitely. Next.js by default emits s-maxage=31536000 for fully
+// static pages which means a new deployment is invisible until the CDN TTL
+// expires. Setting no-store on HTML routes fixes this.
+// Static assets (/_next/static/**) are EXCLUDED from this rule — they use
+// content-hash filenames so long-lived caching there is safe and desirable.
+const noCacheHeader = [
+  {
+    key: "Cache-Control",
+    value: "no-store, must-revalidate",
+  },
+];
+
 const nextConfig: NextConfig = {
   // Keyframe Labs packages are ESM-only — Next.js must transpile them
   transpilePackages: [
@@ -17,9 +30,15 @@ const nextConfig: NextConfig = {
   ],
   async headers() {
     return [
+      // Security headers on every response
       {
         source: "/(.*)",
         headers: securityHeaders,
+      },
+      // Disable CDN caching for HTML pages only (not static assets)
+      {
+        source: "/((?!_next/static|_next/image|favicon.ico).*)",
+        headers: noCacheHeader,
       },
     ];
   },
