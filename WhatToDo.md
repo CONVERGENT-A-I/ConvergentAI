@@ -35,9 +35,6 @@ This document outlines the active and upcoming tasks to finalize the Ailana conv
   * Members 1st Federal Credit Union handles a large volume of HELOCs.
   * *Task*: Integrate the HELOC product recommendation rules and prompt scripts once David provides the specific HELOC prompting guidelines.
 
-### ⚖️ Compliance & Data Requirements
-*(No active tasks)*
-
 ### 🧠 General Prompting & Future Scope
 - [ ] **Complete Generic Prompting / Out-of-Sequence Support**
   * Improve robustness when users ask general mortgage questions (e.g., interest rate queries, escrow, amortization) or engage in chitchat mid-stage.
