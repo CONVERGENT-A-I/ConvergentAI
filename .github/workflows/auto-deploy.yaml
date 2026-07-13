@@ -127,8 +127,10 @@ jobs:
           echo "==> Stop old containers"
           dc down || true
           export DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1
-          echo "==> Rebuild + recreate"
-          dc up -d --build
+          echo "==> Rebuild images (no cache)"
+          dc build --pull --no-cache
+          echo "==> Start containers"
+          dc up -d --force-recreate --remove-orphans
           echo "==> Verify"
           docker ps | grep convergent || true
           echo "==> Cleanup (keep recent build cache for fast rebuilds)"
