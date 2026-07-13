@@ -329,6 +329,7 @@ export default defineAgent({
           },
           interruption: {
             minDuration: ailanaConfig.vadInterruptMinDurationMs,
+            minWords: ailanaConfig.vadInterruptMinWords,
             mode: 'vad' as const,
           },
           preemptiveGeneration: {
@@ -356,6 +357,7 @@ export default defineAgent({
         },
         interruption: {
           minDuration: ailanaConfig.vadInterruptMinDurationMs,
+          minWords: ailanaConfig.vadInterruptMinWords,
           mode: 'vad' as const,
         },
         preemptiveGeneration: {
@@ -385,6 +387,42 @@ export default defineAgent({
 
     let currentAgentState = 'initializing';
 
+    // ── Silent-turn re-prompt state ───────────────────────────────────────────
+    // Tracks whether Ailana produced audible speech after each user turn.
+    // When a VAD false-positive aborts LLM generation mid-stream, Ailana goes
+    // silent. This guard detects that case and re-asks the pending question.
+    let hasSpeechThisTurn = false;
+    let silentTurnTimer: ReturnType<typeof setTimeout> | null = null;
+    // Timestamp when agent entered 'thinking' — used to ignore preemptive-
+    // generation cycles (SDK-internal thinking→listening rounds that complete
+    // in <200ms and should never trigger a re-prompt).
+    let thinkingStartAt = 0;
+
+    // Map of pending field → natural re-ask wording.
+    // Only used as a fallback when Ailana produced zero speech for a user turn.
+    // No flow logic here — the contextManager still owns all state transitions.
+    const PENDING_FIELD_REPROMPT: Record<string, string> = {
+      // Stage 1
+      borrower_name:          'I apologize — it seems there was a brief interruption. Could you tell me your name?',
+      mortgage_goal:          'I apologize for that. Are you looking to buy a new home, refinance an existing mortgage, or explore a home equity option?',
+      occupancy:              'I apologize for the interruption. Will this be for your primary residence, a second home, or an investment property?',
+      existing_relationship:  'I apologize — it seems my response did not come through. Do you currently have an account or active services with your lending institution?',
+      timeline:               'I apologize for that. When are you hoping to complete this?',
+      co_borrower:            'I apologize for the interruption. Will there be a co-borrower joining you on this application, or will you be applying on your own?',
+      // Stage 2
+      gross_annual_income:    'I apologize for that. What is your gross annual household income before taxes?',
+      monthly_debt:           'I apologize for the interruption. What are your total monthly recurring debt payments — things like car loans, student loans, or credit card minimums?',
+      credit_range:           'I apologize for that. How would you describe your current credit score — either as a specific number or a general range?',
+      refinance_type:         'I apologize for the interruption. Are you considering a cash-out refinance, or are you wanting to reduce your monthly payment through a rate and term refinance?',
+      target_price:           'I apologize for that. What is the estimated market value of the home you wish to refinance?',
+      down_payment:           'I apologize for the interruption. How much do you have available for a down payment?',
+      rent_own:               'I apologize for that. Do you currently rent, or do you own your home?',
+      realtor_status:         'I apologize for the interruption. Have you connected with a real estate agent yet?',
+      property_type:          'I apologize for that. What type of property is this — a single-family home, condo, townhome, multi-family, or something else?',
+      military_rural:         'I apologize for the interruption. Do you have any military service history, or is the property in a rural area?',
+      job_tenure_type:        'I apologize for that. Could you tell me a bit about your current job tenure and the type of income you have — for example, whether you are salaried, hourly, or self-employed?',
+    };
+
     session.on(voice.AgentSessionEventTypes.Error, (err: any) => {
       if (err?.message?.includes('audio_end_ms')) return;
       console.error('[agent-error]: Session error:', err);
@@ -397,6 +435,14 @@ export default defineAgent({
         currentAgentState = newState;
         console.log(`[agent-debug]: Agent state: ${oldState} → ${newState}`);
 
+        if (newState === 'thinking') {
+          // Record when thinking started so the silent-turn guard can filter
+          // out instant preemptive-generation cycles (SDK-internal rounds that
+          // complete in <200ms before the real LLM call even starts).
+          thinkingStartAt = Date.now();
+          hasSpeechThisTurn = false;
+        }
+
         if (newState === 'speaking') {
           if (oldState === 'thinking') {
             metrics.markAgentSpeaking();
@@ -405,11 +451,59 @@ export default defineAgent({
           metrics.markAvatarRenderStart();
           // First audio frame of the avatar track arrives with a short processing delay;
           // markAvatarFirstFrame() is called from the TrackPublished / TrackSubscribed handler below.
+
+          // ── Silent-turn guard: agent started speaking → cancel any pending re-prompt
+          if (silentTurnTimer !== null) {
+            clearTimeout(silentTurnTimer);
+            silentTurnTimer = null;
+          }
+          hasSpeechThisTurn = true;
         }
 
         if (newState === 'listening' && (session as any)._started && !voiceMuted && !isHibernating) {
           backchannelEngine.reset();
           prepareContext().catch(err => console.error('[agent-error]: Idle prepareContext failed:', err));
+
+          // ── Silent-turn guard: thinking → listening with no speech produced
+          // Fires when LLM generation was aborted mid-stream (Ailana goes silent).
+          // We wait 2s then re-ask the pending question.
+          // Guard: ignore preemptive-generation cycles — those complete in <200ms
+          // (SDK fires a quick thinking→listening before the real LLM call starts).
+          const thinkingDurationMs = Date.now() - thinkingStartAt;
+          const wasRealThinkingCycle = thinkingDurationMs >= 200;
+          if (oldState === 'thinking' && !hasSpeechThisTurn && wasRealThinkingCycle) {
+            const pendingField = contextManager.getPendingField();
+            const repromptText = pendingField ? PENDING_FIELD_REPROMPT[pendingField] : null;
+            if (repromptText && (session as any)._started) {
+              console.log(`[silent-turn-guard]: Detected empty turn (thinking→listening after ${thinkingDurationMs}ms, no speech). Scheduling re-prompt for field="${pendingField}" in 2s.`);
+              if (silentTurnTimer !== null) clearTimeout(silentTurnTimer);
+              silentTurnTimer = setTimeout(() => {
+                silentTurnTimer = null;
+                // Only fire if still in listening state (not speaking or thinking already)
+                if (currentAgentState !== 'listening') {
+                  console.log(`[silent-turn-guard]: Re-prompt cancelled — agent moved to "${currentAgentState}" before timer fired.`);
+                  return;
+                }
+                // Only fire if the pending field hasn't changed (no turn happened in between)
+                if (contextManager.getPendingField() !== pendingField) {
+                  console.log(`[silent-turn-guard]: Re-prompt cancelled — pending field changed from "${pendingField}" to "${contextManager.getPendingField()}".`);
+                  return;
+                }
+                console.log(`[silent-turn-guard]: Firing re-prompt for field="${pendingField}".`);
+                try {
+                  session.say(repromptText, { addToChatCtx: true });
+                  contextManager.onAgentTurn(repromptText);
+                } catch (err) {
+                  console.warn('[silent-turn-guard]: Failed to fire re-prompt:', err);
+                }
+              }, 2000);
+            }
+          } else if (oldState === 'thinking' && !wasRealThinkingCycle) {
+            console.log(`[silent-turn-guard]: Ignoring preemptive-gen cycle (thinking lasted only ${thinkingDurationMs}ms).`);
+          }
+
+          // Reset speech tracker at the start of a new listening window
+          hasSpeechThisTurn = false;
         }
       }
     });
@@ -429,6 +523,11 @@ export default defineAgent({
     session.on(voice.AgentSessionEventTypes.ConversationItemAdded, (ev: any) => {
       const item = ev.item as llm.ChatMessage;
       if (item?.role === 'assistant' && item.textContent) {
+        hasSpeechThisTurn = true;
+        if (silentTurnTimer !== null) {
+          clearTimeout(silentTurnTimer);
+          silentTurnTimer = null;
+        }
         contextManager.onAgentTurn(item.textContent);
 
         // ── Publish agent message as a LiveKit chat message ─────────────────
