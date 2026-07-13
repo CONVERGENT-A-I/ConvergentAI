@@ -39,12 +39,14 @@ jobs:
           # git_dir = PARENT folder that holds ConvergentAI/ (and docker/)
           if [ "$TARGET" = "production" ]; then
             echo "branch=main"                                       >> "$GITHUB_OUTPUT"
+            echo "vm_name=convergent-ai"                             >> "$GITHUB_OUTPUT"
             echo "git_dir=/opt/convergent-ai/convergent-prod"        >> "$GITHUB_OUTPUT"
             echo "compose_dir=/opt/convergent-ai/convergent-prod/docker"    >> "$GITHUB_OUTPUT"
             echo "env_name=production"                               >> "$GITHUB_OUTPUT"
             echo "secret_prefix=prod-convergent"                     >> "$GITHUB_OUTPUT"
           else
-            echo "branch=dev"                                            >> "$GITHUB_OUTPUT"
+            echo "branch=dev"                                           >> "$GITHUB_OUTPUT"
+            echo "vm_name=convergent-dev"                               >> "$GITHUB_OUTPUT"
             echo "git_dir=/opt/convergent-ai/convergent-dev"            >> "$GITHUB_OUTPUT"
             echo "compose_dir=/opt/convergent-ai/convergent-dev/docker" >> "$GITHUB_OUTPUT"
             echo "env_name=dev"                                         >> "$GITHUB_OUTPUT"
@@ -145,9 +147,10 @@ jobs:
       - name: Deploy to GCP VM (${{ steps.env.outputs.env_name }})
         run: |
           set -euo pipefail
-          gcloud compute ssh convergent-ai \
+          echo "Deploying to VM: ${{ steps.env.outputs.vm_name }}"
+          gcloud compute ssh  ${{ steps.env.outputs.vm_name }} \
             --zone us-east1-b \
             --project ailana-488814 \
             --tunnel-through-iap \
             --quiet \
-            --command="sudo bash -s" < remote_deploy.sh
+            --command="sudo bash -s" < remote_deploy.sh           
