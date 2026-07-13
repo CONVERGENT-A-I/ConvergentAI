@@ -156,13 +156,9 @@ Use this script for both **Text Chat** and **Voice Call** channels to confirm co
     *   Ask standard declarations (bankruptcy/foreclosure): *"These next few questions are standard on every mortgage application — they're not judgment calls, just accurate record-keeping. In the past seven years, have you had a bankruptcy, foreclosure, or short sale on any property? It's completely fine if the answer is yes — it's just important that we have it right."*
 61. **You say**:
     *"No bankruptcy or foreclosure."*
-62. **Ailana should respond**:
-    *   Acknowledge and explain voluntary nature of HMDA details: *"These last questions are required by federal law but entirely optional for you to answer — they are used for fair lending monitoring, not for your application decision. Would you like to provide your race, sex, and ethnicity, or skip these?"*
-63. **You say**:
-    *"I prefer to skip these."*
-64. **Ailana should respond with Stage Completion Submit query**:
+62. **Ailana should respond with Stage Completion Submit query**:
     *   *Submission script*: *"Sohail, your application is complete. I am going to submit this to our underwriting system for review. This typically takes just a few moments. I will share the result with you as soon as it comes back, and one of our licensed loan officers will be in touch to walk you through the next steps. Ready to submit?"*
-65. **You say**:
+63. **You say**:
     *"Yes, submit it."*
 
 ---
@@ -170,11 +166,11 @@ Use this script for both **Text Chat** and **Voice Call** channels to confirm co
 ### 🎬 Stage 4: Underwriting Handoff & Checklist
 *Goal: Await simulated underwriting status ➔ Present Conditional Approval or Referral ➔ Walk through required checklist of income/asset documents.*
 
-66. **Ailana should respond with Underwriting Wait status**:
+64. **Ailana should respond with Underwriting Wait status**:
     *   *Waiting script*: *"I've submitted your application. Now, we wait for the underwriting system to review it..."*
-67. **You say**:
+65. **You say**:
     *"What is the status of my review?"*
-68. **Ailana should respond with Underwriting Decision & Document Checklist**:
+66. **Ailana should respond with Underwriting Decision & Document Checklist**:
     *   *If Approved*: *"Excellent news! The system has returned a conditional approval for your Conventional Fixed Rate loan. To move your application to the final underwriting review, we will need to gather a few documents: (1) your most recent 2 years of Tax Returns and W-2s, (2) your last 30 days of consecutive paystubs, and (3) your most recent 60 days of complete bank statements (checking and savings) showing source of down payment. Does that make sense, and do you have these documents available?"*
 
 ---

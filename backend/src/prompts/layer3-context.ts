@@ -92,7 +92,6 @@ export interface BorrowerProfile {
   declarations_bankruptcy?: boolean | null;
   declarations_foreclosure?: boolean | null;
   declarations_confirmed?: boolean;
-  hmda_completed?: boolean;
   ready_to_submit?: boolean;
 
   // ── Stage 4 ──────────────────────────────────────────────────────────────
@@ -125,7 +124,6 @@ const FIELD_LABELS: Record<string, string> = {
   employment_details: 'employment details',
   checking_savings: 'checking and savings balance',
   declarations: 'declarations',
-  hmda: 'voluntary HMDA questions',
   submit_confirmation: 'submission confirmation',
   program_comparison_interest: 'program comparison interest',
   financial_priority: 'financial priority',
@@ -234,7 +232,6 @@ export function buildLayer3TurnContext(
     `Checking/Savings:    ${profile.checking_savings_balance !== undefined && profile.checking_savings_balance !== null ? `$${profile.checking_savings_balance.toLocaleString()}` : 'not yet collected'}`,
     `Bankruptcy:          ${profile.declarations_bankruptcy !== undefined && profile.declarations_bankruptcy !== null ? (profile.declarations_bankruptcy ? 'Yes' : 'No') : 'not yet collected'}`,
     `Foreclosure:         ${profile.declarations_foreclosure !== undefined && profile.declarations_foreclosure !== null ? (profile.declarations_foreclosure ? 'Yes' : 'No') : 'not yet collected'}`,
-    `HMDA Demographics:  ${profile.hmda_completed ? 'Completed' : 'Not yet collected'}`,
     `Ready to Submit:     ${profile.ready_to_submit ? 'Yes' : 'No'}`,
     '=== END STAGE 3B ===',
   ].join('\n');

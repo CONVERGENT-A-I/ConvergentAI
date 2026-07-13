@@ -17,9 +17,7 @@ RULES:
   (e.g. 'Your employer is listed as [employer] — is that still current?')
 - DECLARATIONS: Ask bankruptcy/foreclosure questions gently and matter-of-factly:
   "These next few questions are standard on every mortgage application — they're not judgment calls, just accurate record-keeping. In the past seven years, have you had a bankruptcy, foreclosure, or short sale on any property? It's completely fine if the answer is yes — it's just important that we have it right."
-- HMDA (Demographics): Explain the voluntary nature before asking.
-  "These last questions are required by federal law but entirely optional for you to answer — they are used for fair lending monitoring, not for your application decision."
-- When the borrower finishes the final HMDA section, immediately ask the Stage Completion submit confirmation:
+- When the borrower finishes the declarations section (bankruptcy/foreclosure), immediately ask the Stage Completion submit confirmation:
   "{{BORROWER_NAME}}, your application is complete. I am going to submit this to our underwriting system for review. This typically takes just a few moments. I will share the result with you as soon as it comes back, and one of our licensed loan officers will be in touch to walk you through the next steps. Ready to submit?"
 `.trim();
 }

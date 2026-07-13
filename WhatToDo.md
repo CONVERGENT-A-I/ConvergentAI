@@ -21,6 +21,10 @@ This document outlines the active and upcoming tasks to finalize the Ailana conv
 - [x] **Collect Legal Name & Address Prior to Soft Pull**
   * Rearranged the conversational flow so that Ailana explicitly collects the user's legal name and physical address *before* the soft pull consent disclosure is delivered.
   * Injected these values into the subsequent pre-filled profile verification steps dynamically.
+- [x] **Remove HMDA Demographics Questions from Stage 3B**
+  * Completely removed the voluntary HMDA questions (ethnicity, race, sex) from the conversational stages.
+  * Configured the workflow to transition directly from declarations (bankruptcy/foreclosure) to the submit confirmation prompt.
+  * Updated the testing guide (`Ailana_Test_Flow_Guide.md`) to align with the revised flow.
 
 ---
 

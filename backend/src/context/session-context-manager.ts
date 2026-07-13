@@ -1,4 +1,4 @@
-﻿﻿﻿import { llm, type voice } from '@livekit/agents';
+﻿﻿import { llm, type voice } from '@livekit/agents';
 import type { LLM } from '@livekit/agents-plugin-openai';
 import { ailanaConfig } from '../config/ailana-config.js';
 import {
@@ -735,19 +735,6 @@ export class SessionContextManager {
       return;
     }
 
-    if (field === 'hmda') {
-      const res = await extractProfileField(
-        text, lastQuestion, 'hmda',
-        'HMDA demographic details or whether the user wants to skip', 'string',
-        'Determine if the user has answered the fair lending questions (e.g. provided race, sex) or explicitly said they want to skip, refuse, or prefer not to answer. If they provided demographics or explicitly skipped, return "yes". If not sure, return null.'
-      );
-      if (res.value === 'yes') {
-        this.profile.hmda_completed = true;
-        this.advanceWorkflow();
-      }
-      return;
-    }
-
     // Fallback: if no matching field handler, try to advance
     this.advanceWorkflow();
   }
@@ -1360,8 +1347,6 @@ export class SessionContextManager {
         this.currentPendingField = 'checking_savings';
       } else if (!this.profile.declarations_confirmed) {
         this.currentPendingField = 'declarations';
-      } else if (!this.profile.hmda_completed) {
-        this.currentPendingField = 'hmda';
       } else if (!this.profile.ready_to_submit) {
         this.currentPendingField = 'submit_confirmation';
       } else {
@@ -1862,7 +1847,6 @@ If no correction/change is found, return null.`
         this.profile.declarations_foreclosure = false;
         this.profile.declarations_confirmed = true;
       }
-      if (field === 'hmda') this.profile.hmda_completed = true;
       if (field === 'submit_confirmation') this.profile.ready_to_submit = true;
     }
 

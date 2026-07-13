@@ -177,7 +177,7 @@ class AilanaVoiceAgent extends voice.Agent {
         'prefill_employer',         // Prefill  step 2     → Prefill step 3 (accounts)
         'prefill_accounts',         // Prefill  step 3     → Prefill step 4 (credit range)
         'prefill_credit_range',     // Prefill  last step  → Stage 3B (marital status)
-        'hmda',                     // Stage 3B last field → Submit confirmation speech (verbatim)
+        'declarations',             // Stage 3B last field → Submit confirmation speech (verbatim)
         'submit_confirmation',      // Stage 3B YES        → Stage 4 underwriting result
       ]);
 
