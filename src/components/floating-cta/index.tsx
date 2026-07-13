@@ -354,12 +354,16 @@ export default function FloatingCTA() {
       setFlowPhase("intro");
       setIsIntroComplete(true); // Skip intro video, show compliance directly
     } else {
-      if (isLkConnected && flowPhase === "live" && pendingMode === mode) {
-        // Genuinely mid-session in this mode — nothing to do
+      if (isLkConnected && flowPhase === "live") {
+        // Already connected — just switch the visual mode, no reconnect needed.
+        // This handles Video ↔ Voice ↔ Chat channel switching seamlessly.
         if (mode === "loan-officer")
           console.log(
-            `[ui-loan-officer]: ✅ Already live in loan-officer mode. Ignoring.`
+            `[ui-loan-officer]: ✅ Already live. Switching to loan-officer mode.`
           );
+        else
+          console.log(`[ui] Switching channel mode to ${mode} without reconnect.`);
+        setPendingMode(mode);
         return;
       }
       if (mode === "loan-officer")
@@ -367,7 +371,7 @@ export default function FloatingCTA() {
           `[ui-loan-officer]: 🔄 Not connected yet, fetching LiveKit token for mode...`
         );
 
-      // Always fetch a fresh token + room when starting a new session
+      // Not connected — always fetch a fresh token + room for a new session.
       console.log("[ui] Fetching fresh token and room session.");
       setToken(null);
       setLkUrl(null);
