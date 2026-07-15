@@ -307,6 +307,7 @@ export default defineAgent({
       model: 'sonic-3.5',
       sampleRate: 16000,
       volume: 0.8,
+      speed: 1.1,
     });
 
 
@@ -1005,7 +1006,15 @@ export default defineAgent({
             const avatarSession = new AvatarSession({
               agentId: lsAgentId,
               apiKey: lsApiKey,
+              // agentPrompt controls expressions WHILE SPEAKING
+              agentPrompt: 'a warm, cheerful, and friendly person talking with a genuine smile and gentle hand gestures',
+              // agent_idle_prompt controls expressions WHILE LISTENING/IDLE
+              // LemonSlice default is "a serious person" — overriding to look happy and attentive
+              extraPayload: {
+                agent_idle_prompt: 'a happy, curious, and attentive person listening with a warm smile and slight head nods',
+              },
             });
+
             const avatarStartT = Date.now();
             await avatarSession.start(session, ctx.room);
             const elapsed = Date.now() - avatarStartT;
