@@ -275,29 +275,6 @@ export function buildLayer3TurnContext(
     taskLine = 'CURRENT TASK:\nAll fields for this stage collected.';
   }
 
-  // ── Confirmation instruction (only when a field was just extracted) ────────
-  let confirmBlock = '';
-  if (profile.pending_confirm_field && profile.pending_confirm_value) {
-    let label = FIELD_LABELS[profile.pending_confirm_field] ?? profile.pending_confirm_field;
-    if (isRef && profile.pending_confirm_field === 'target_price') {
-      label = 'estimated property value';
-    }
-
-    if (isRef && profile.pending_confirm_field === 'target_price') {
-      confirmBlock =
-        `\nCONFIRM THIS TURN:\n` +
-        `The borrower just mentioned "${profile.pending_confirm_value}" as their estimated property value.\n` +
-        `Say EXACTLY: "Ok, we will use the value of ${profile.pending_confirm_value} as the value, correct?"\n` +
-        `Do NOT ask for any other field. Wait for their yes/no before continuing.`;
-    } else {
-      confirmBlock =
-        `\nCONFIRM THIS TURN:\n` +
-        `The borrower just mentioned "${profile.pending_confirm_value}" as their ${label}.\n` +
-        `Say EXACTLY: "Just to confirm — you mentioned ${profile.pending_confirm_value} as your ${label}. Is that right?"\n` +
-        `Do NOT ask for any other field. Wait for their yes/no before continuing.`;
-    }
-  }
-
   // ── Stage transition bridge instruction ───────────────────────────────────
   let bridgeBlock = '';
   if (profile.bridge_to_say === 'stage1_to_stage2') {
@@ -338,7 +315,7 @@ export function buildLayer3TurnContext(
   if (stage === '4' || stage === '5') {
     blocks.push(stage4Block);
   }
-  blocks.push(taskLine + confirmBlock + bridgeBlock + stage2ClosingBlock + consentBlock + lowConfidenceBlock);
+  blocks.push(taskLine + bridgeBlock + stage2ClosingBlock + consentBlock + lowConfidenceBlock);
 
   const vaEligibilityReferenceBlock = `
 === VA ELIGIBILITY DETAIL — PROMPT REFERENCE ===

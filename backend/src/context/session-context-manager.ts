@@ -1,4 +1,4 @@
-﻿import { llm, type voice } from '@livekit/agents';
+import { llm, type voice } from '@livekit/agents';
 import type { LLM } from '@livekit/agents-plugin-openai';
 import { ailanaConfig } from '../config/ailana-config.js';
 import {
@@ -1098,9 +1098,9 @@ export class SessionContextManager {
         this.commitStage2Value(field, null, true);
         anyUpdates = true;
       } else if (numResult?.value !== null && numResult?.value !== undefined) {
-        this.profile.pending_confirm_field = field;
-        this.profile.pending_confirm_value = `$${(numResult.value as number).toLocaleString()}`;
-        console.log(`[context-manager] Stage2: extracted ${field}=${numResult.value}, awaiting confirm`);
+        const rawValue = `$${(numResult.value as number).toLocaleString()}`;
+        console.log(`[context-manager] Stage2: extracted and committing ${field}=${numResult.value} directly`);
+        this.commitStage2Value(field, rawValue, false);
         anyUpdates = true;
       }
     }
@@ -1796,12 +1796,9 @@ If no correction/change is found, return null.`
       const field = parts[0]?.trim();
       const newVal = parts.slice(1).join(':')?.trim();
       if (field && newVal && confirmedFields.includes(field)) {
-        console.log(`[context-manager] Global: Correction detected for ${field} to ${newVal}`);
-        this.profile.pending_confirm_field = field;
-        this.profile.pending_confirm_value = newVal;
-
-        // Reset confirmed flag
-        (this.profile as any)[`${field}_confirmed`] = false;
+        console.log(`[context-manager] Global: Correction detected for ${field} to ${newVal} — committing immediately`);
+        this.commitGlobalValue(field, newVal);
+        this.advanceWorkflow();
         return true;
       }
     }
