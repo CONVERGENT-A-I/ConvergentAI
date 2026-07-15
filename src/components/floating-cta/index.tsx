@@ -1522,7 +1522,7 @@ export default function FloatingCTA() {
         )}
       </AnimatePresence>
 
-      {/* <ActionButton
+      <ActionButton
         onClick={() => {
           setIsOpen(true);
           if (flowPhaseRef.current === "idle") {
@@ -1532,7 +1532,7 @@ export default function FloatingCTA() {
             fetchToken("video");
           }
         }}
-      /> */}
+      />
     </>
   );
 }
