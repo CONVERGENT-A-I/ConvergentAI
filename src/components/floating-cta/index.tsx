@@ -1203,11 +1203,10 @@ export default function FloatingCTA() {
                                     exit={{ opacity: 0, y: -20 }}
                                     className="absolute top-16 left-1/2 -translate-x-1/2 z-[100] w-full max-w-[320px]"
                                   >
-                                    <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-center border border-white/20 ${
-                                      avatarFallbackReason === "capacity"
+                                    <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-center border border-white/20 ${avatarFallbackReason === "capacity"
                                         ? "bg-amber-500 text-black shadow-[0_0_30px_rgba(245,158,11,0.3)]"
                                         : "bg-blue-500/90 text-white shadow-[0_0_30px_rgba(59,130,246,0.3)]"
-                                    }`}>
+                                      }`}>
                                       {connectionStatus ||
                                         "Avatar Unavailable - Using Voice"}
                                     </div>
@@ -1236,25 +1235,25 @@ export default function FloatingCTA() {
                                   >
                                     {/* REC badge - only when connected */}
                                     {isLkConnected && isAgentReady && (
-                                        <div className="absolute top-3 left-3 z-50 flex items-center gap-1.5 sm:gap-2 bg-black/50 backdrop-blur-md p-1.5 sm:px-2.5 sm:py-1 rounded-full border border-red-500/30">
-                                          <motion.div
-                                            animate={{ opacity: [1, 0.4, 1] }}
-                                            transition={{
-                                              duration: 1.5,
-                                              repeat: Infinity,
-                                              ease: "easeInOut",
-                                            }}
-                                          >
-                                            <Circle className="h-2.5 w-2.5 fill-red-500 text-red-500" />
-                                          </motion.div>
-                                          <span className="hidden sm:inline text-[9px] font-black text-white uppercase tracking-widest">
-                                            Rec
-                                          </span>
-                                          <span className="hidden sm:inline text-[9px] font-mono text-white/70">
-                                            {formatTime(recordingSeconds)}
-                                          </span>
-                                        </div>
-                                      )}
+                                      <div className="absolute top-3 left-3 z-50 flex items-center gap-1.5 sm:gap-2 bg-black/50 backdrop-blur-md p-1.5 sm:px-2.5 sm:py-1 rounded-full border border-red-500/30">
+                                        <motion.div
+                                          animate={{ opacity: [1, 0.4, 1] }}
+                                          transition={{
+                                            duration: 1.5,
+                                            repeat: Infinity,
+                                            ease: "easeInOut",
+                                          }}
+                                        >
+                                          <Circle className="h-2.5 w-2.5 fill-red-500 text-red-500" />
+                                        </motion.div>
+                                        <span className="hidden sm:inline text-[9px] font-black text-white uppercase tracking-widest">
+                                          Rec
+                                        </span>
+                                        <span className="hidden sm:inline text-[9px] font-mono text-white/70">
+                                          {formatTime(recordingSeconds)}
+                                        </span>
+                                      </div>
+                                    )}
 
                                     {/* Contextual help overlay */}
                                     {isLkConnected && isAgentReady && (
@@ -1522,7 +1521,7 @@ export default function FloatingCTA() {
         )}
       </AnimatePresence>
 
-      <ActionButton
+      {/* <ActionButton
         onClick={() => {
           setIsOpen(true);
           if (flowPhaseRef.current === "idle") {
@@ -1532,7 +1531,7 @@ export default function FloatingCTA() {
             fetchToken("video");
           }
         }}
-      />
+      /> */}
     </>
   );
 }
