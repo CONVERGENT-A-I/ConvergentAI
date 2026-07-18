@@ -1121,12 +1121,18 @@ export default function FloatingCTA() {
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 0 }}
-                          className="absolute inset-0 z-40 flex items-center justify-center"
+                          className="flex flex-col items-center justify-center text-center px-6"
                         >
-                          <LogoLoader
-                            title="Initializing Session..."
-                            subtitle="Establishing Secure Bridge"
-                          />
+                          <div className="relative mb-8">
+                            <div className="absolute inset-0 rounded-full border-2 border-[#00b4d8]/20 animate-ping" />
+                            <RefreshCw className="h-16 w-16 text-[#00b4d8] animate-spin opacity-40" />
+                          </div>
+                          <h3 className="text-xl font-bold text-white mb-2 tracking-tight">
+                            Initializing Session
+                          </h3>
+                          <p className="text-[#00b4d8]/60 text-[10px] font-bold uppercase tracking-[0.2em]">
+                            Establishing Secure Bridge
+                          </p>
                         </motion.div>
                       )}
 
