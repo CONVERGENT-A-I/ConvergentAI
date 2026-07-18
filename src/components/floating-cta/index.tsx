@@ -41,6 +41,7 @@ import { ChannelStartTrigger } from "./channel-start-trigger";
 import { MediaGuard } from "./media-guard";
 import { LoanOfficerLiveUI, LoanOfficerQueueUI } from "./loan-officer-queue";
 import { NetworkQualityBanner } from "./network-quality-banner";
+import { LogoLoader } from "./logo-loader";
 
 import VideoStage from "../video-stage";
 
@@ -1120,18 +1121,12 @@ export default function FloatingCTA() {
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 0 }}
-                          className="flex flex-col items-center justify-center text-center px-6"
+                          className="absolute inset-0 z-40 flex items-center justify-center"
                         >
-                          <div className="relative mb-8">
-                            <div className="absolute inset-0 rounded-full border-2 border-[#00b4d8]/20 animate-ping" />
-                            <RefreshCw className="h-16 w-16 text-[#00b4d8] animate-spin opacity-40" />
-                          </div>
-                          <h3 className="text-xl font-bold text-white mb-2 tracking-tight">
-                            Initializing Session
-                          </h3>
-                          <p className="text-[#00b4d8]/60 text-[10px] font-bold uppercase tracking-[0.2em]">
-                            Establishing Secure Bridge
-                          </p>
+                          <LogoLoader
+                            title="Initializing Session..."
+                            subtitle="Establishing Secure Bridge"
+                          />
                         </motion.div>
                       )}
 
@@ -1268,20 +1263,10 @@ export default function FloatingCTA() {
 
                                     {/* Subtle connecting indicator (non-blocking) */}
                                     {(!isLkConnected || !isAgentReady) && (
-                                      <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm">
-                                        <div className="relative mb-6">
-                                          <div className="absolute inset-0 rounded-full border-2 border-[#00b4d8]/30 animate-ping" />
-                                          <div className="h-14 w-14 rounded-full border-2 border-[#00b4d8]/20 flex items-center justify-center">
-                                            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#00b4d8] to-[#023e8a] animate-pulse" />
-                                          </div>
-                                        </div>
-                                        <p className="text-white/90 font-semibold text-sm">
-                                          Setting up your session...
-                                        </p>
-                                        <p className="text-white/40 text-xs mt-1">
-                                          This usually takes a few seconds
-                                        </p>
-                                      </div>
+                                      <LogoLoader
+                                        title="Setting up your session..."
+                                        subtitle="This usually takes a few seconds"
+                                      />
                                     )}
 
                                     <div className="absolute inset-0">

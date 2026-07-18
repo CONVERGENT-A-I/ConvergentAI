@@ -479,63 +479,64 @@ export class SessionContextManager {
       this.currentPendingField === 'prefill_credit_range'
     ) {
       const step = this.currentPendingField;
-      const decision = await classifyConfirmation(text, lastQuestion, step, 'Does that look right or is anything out of date?');
-      
+
+      // 1. Build list of correction fields to extract in parallel
+      const correctionFields: FieldToExtract[] = [];
+      if (step === 'prefill_employer') {
+        correctionFields.push({
+          name: 'employer_correction',
+          description: 'corrected employer name',
+          expectedType: 'string',
+          additionalInstructions: 'Extract the corrected employer name mentioned by the user (e.g. "Hexler Tech"). If not found, return null.'
+        });
+      } else if (step === 'prefill_name_address') {
+        correctionFields.push({
+          name: 'name_correction',
+          description: 'corrected borrower name',
+          expectedType: 'string',
+          additionalInstructions: 'Extract the corrected borrower full name. If not found, return null.'
+        }, {
+          name: 'address_correction',
+          description: 'corrected physical address',
+          expectedType: 'string',
+          additionalInstructions: 'Extract the corrected physical address. If not found, return null.'
+        });
+      } else if (step === 'prefill_credit_range') {
+        correctionFields.push({
+          name: 'credit_correction',
+          description: 'corrected credit score or range',
+          expectedType: 'string',
+          additionalInstructions: 'Extract the corrected credit score or range. If not found, return null.'
+        });
+      }
+
+      // 2. Parallel LLM execution: run decision classification and correction extraction concurrently!
+      const decisionPromise = classifyConfirmation(text, lastQuestion, step, 'Does that look right or is anything out of date?');
+      const extractionPromise = correctionFields.length > 0
+        ? extractMultipleFields(text, lastQuestion, correctionFields)
+        : Promise.resolve(null);
+
+      const [decision, extractionResults] = await Promise.all([decisionPromise, extractionPromise]);
+
       const confirmed = this.profile.prefilled_fields_confirmed || {};
-      
-      if (decision === 'no') {
-        if (step === 'prefill_employer') {
-          const res = await extractProfileField(
-            text,
-            lastQuestion,
-            'employer_correction',
-            'corrected employer name',
-            'string',
-            'Extract the corrected employer name mentioned by the user (e.g. "Hexler Tech"). If not found, return null.'
-          );
-          if (res.value) {
-            this.profile.employer = res.value as string;
-            console.log(`[context-manager]: Corrected employer to ${res.value}`);
-          }
+
+      if (decision === 'no' && extractionResults) {
+        if (step === 'prefill_employer' && extractionResults.employer_correction?.value) {
+          this.profile.employer = extractionResults.employer_correction.value as string;
+          console.log(`[context-manager]: Corrected employer to ${extractionResults.employer_correction.value}`);
         } else if (step === 'prefill_name_address') {
-          const resName = await extractProfileField(
-            text,
-            lastQuestion,
-            'name_correction',
-            'corrected borrower name',
-            'string',
-            'Extract the corrected borrower full name. If not found, return null.'
-          );
-          if (resName.value) {
-            this.profile.borrower_name = resName.value as string;
-            this.profile.legal_name = resName.value as string;
-            console.log(`[context-manager]: Corrected borrower name to ${resName.value}`);
+          if (extractionResults.name_correction?.value) {
+            this.profile.borrower_name = extractionResults.name_correction.value as string;
+            this.profile.legal_name = extractionResults.name_correction.value as string;
+            console.log(`[context-manager]: Corrected borrower name to ${extractionResults.name_correction.value}`);
           }
-          const resAddress = await extractProfileField(
-            text,
-            lastQuestion,
-            'address_correction',
-            'corrected physical address',
-            'string',
-            'Extract the corrected physical address. If not found, return null.'
-          );
-          if (resAddress.value) {
-            this.profile.physical_address = resAddress.value as string;
-            console.log(`[context-manager]: Corrected physical address to ${resAddress.value}`);
+          if (extractionResults.address_correction?.value) {
+            this.profile.physical_address = extractionResults.address_correction.value as string;
+            console.log(`[context-manager]: Corrected physical address to ${extractionResults.address_correction.value}`);
           }
-        } else if (step === 'prefill_credit_range') {
-          const resCredit = await extractProfileField(
-            text,
-            lastQuestion,
-            'credit_correction',
-            'corrected credit score or range',
-            'string',
-            'Extract the corrected credit score or range. If not found, return null.'
-          );
-          if (resCredit.value) {
-            this.profile.credit_range = resCredit.value as string;
-            console.log(`[context-manager]: Corrected credit range to ${resCredit.value}`);
-          }
+        } else if (step === 'prefill_credit_range' && extractionResults.credit_correction?.value) {
+          this.profile.credit_range = extractionResults.credit_correction.value as string;
+          console.log(`[context-manager]: Corrected credit range to ${extractionResults.credit_correction.value}`);
         }
       }
 
@@ -923,14 +924,9 @@ export class SessionContextManager {
   // Stage 2 extraction — two-phase: extract → await confirm
   // ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-  private async runStage2Extraction(text: string): Promise<void> {
-    // -- SINGLE-CALL extraction: merge categorical opportunistic scan + pending field -------------
-    // Builds ONE field list that includes both opportunistic categorical fields AND the specific
-    // field being asked, then makes a single extractMultipleFields call instead of 2 sequential calls.
-
+  private buildStage2ExtractionFields(): { allFields: FieldToExtract[], pendingIsNumeric: boolean } {
     const allFields: FieldToExtract[] = [];
     const field = this.currentPendingField;
-    const lastQuestion = this.getLastAssistantUtterance();
 
     // Opportunistic categorical fields (always included while unconfirmed)
     if (!this.profile.credit_range_confirmed) {
@@ -1017,12 +1013,11 @@ export class SessionContextManager {
       });
     }
 
-    if (allFields.length === 0) {
-      this.advanceWorkflow();
-      return;
-    }
+    return { allFields, pendingIsNumeric };
+  }
 
-    const results = await extractMultipleFields(text, lastQuestion, allFields);
+  private applyStage2ExtractionResults(results: any, pendingIsNumeric: boolean): void {
+    const field = this.currentPendingField;
     let anyUpdates = false;
 
     // Process categorical fields
@@ -1127,21 +1122,51 @@ export class SessionContextManager {
       this.advanceWorkflow();
     }
   }
+
+  private async runStage2Extraction(text: string): Promise<void> {
+    const { allFields, pendingIsNumeric } = this.buildStage2ExtractionFields();
+
+    if (allFields.length === 0) {
+      this.advanceWorkflow();
+      return;
+    }
+
+    const lastQuestion = this.getLastAssistantUtterance();
+    const results = await extractMultipleFields(text, lastQuestion, allFields);
+    this.applyStage2ExtractionResults(results, pendingIsNumeric);
+  }
   private async handleStage2Confirmation(text: string): Promise<void> {
     const field = this.profile.pending_confirm_field!;
     const rawValue = this.profile.pending_confirm_value!;
     const lastQuestion = this.getLastAssistantUtterance();
 
-    const decision = await classifyConfirmation(text, lastQuestion, field, rawValue);
+    const { allFields, pendingIsNumeric } = this.buildStage2ExtractionFields();
+
+    // ─── Parallel LLM Calls Execution ───
+    const decisionPromise = classifyConfirmation(text, lastQuestion, field, rawValue);
+    const extractionPromise = allFields.length > 0
+      ? extractMultipleFields(text, lastQuestion, allFields)
+      : Promise.resolve(null);
+
+    const [decision, extractionResults] = await Promise.all([decisionPromise, extractionPromise]);
 
     if (decision === 'yes') {
-      console.log(`[context-manager] Stage2: ${field} confirmed Ã¢â€ â€™ ${rawValue}`);
+      console.log(`[context-manager] Stage2: ${field} confirmed -> ${rawValue}`);
       this.commitStage2Value(field, rawValue, false);
+      if (extractionResults) {
+        // Remove the pending field from the extraction results to prevent double-committing/overwriting
+        if (field && extractionResults[field]) {
+          delete extractionResults[field];
+        }
+        this.applyStage2ExtractionResults(extractionResults, false);
+      }
     } else if (decision === 'no') {
-      console.log(`[context-manager] Stage2: ${field} correction incoming Ã¢â‚¬â€ resetting pending`);
+      console.log(`[context-manager] Stage2: ${field} correction incoming -> resetting pending`);
       this.profile.pending_confirm_field = null;
       this.profile.pending_confirm_value = null;
-      await this.runStage2Extraction(text);
+      if (extractionResults) {
+        this.applyStage2ExtractionResults(extractionResults, pendingIsNumeric);
+      }
     }
   }
 

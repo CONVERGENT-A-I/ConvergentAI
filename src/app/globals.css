@@ -34,6 +34,63 @@
   --color-brand-green: var(--brand-blue); /* Maps old brand green buttons to Electric Blue */
   --color-background: var(--bg-primary);
   --color-foreground: var(--text-primary);
+
+  --animate-spin-slow: spin-slow 15s linear infinite;
+  --animate-spin-reverse: spin-reverse 10s linear infinite;
+  --animate-pulse-glow: pulse-glow 4s ease-in-out infinite;
+  --animate-breath-glow: breath-glow 5s ease-in-out infinite;
+  --animate-breath-badge: breath-badge 5s ease-in-out infinite;
+
+  @keyframes spin-slow {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes spin-reverse {
+    from {
+      transform: rotate(360deg);
+    }
+    to {
+      transform: rotate(0deg);
+    }
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% {
+      transform: scale(0.9);
+      opacity: 0.45;
+      filter: blur(20px);
+    }
+    50% {
+      transform: scale(1.1);
+      opacity: 0.8;
+      filter: blur(32px);
+    }
+  }
+
+  @keyframes breath-glow {
+    0%, 100% {
+      transform: scale(0.7);
+      opacity: 0.25;
+    }
+    50% {
+      transform: scale(1.25);
+      opacity: 0.9;
+    }
+  }
+
+  @keyframes breath-badge {
+    0%, 100% {
+      transform: scale(0.98);
+    }
+    50% {
+      transform: scale(1.02);
+    }
+  }
 }
 
 :root {
