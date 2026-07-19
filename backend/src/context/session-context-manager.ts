@@ -103,6 +103,14 @@ export class SessionContextManager {
     const promise = (async () => {
       const t0 = performance.now();
       try {
+        // ── [perf] 50ms head-start for the main LLM pipeline ─────────────────
+        // Both this extractor and the main pipelineReply call Cerebras almost
+        // simultaneously. Without a delay, they compete for the same inference
+        // slot, adding up to ~700ms of queuing latency to the main reply on
+        // ~20-30% of turns (the 186ms→1311ms Segment A swing).
+        // A 50ms pause here ensures the main LLM call is already in-flight
+        // before the extractor fires, eliminating the contention window.
+        await new Promise<void>(r => setTimeout(r, 50));
         await clonedManager.onUserTurn(text);
         const duration = performance.now() - t0;
         

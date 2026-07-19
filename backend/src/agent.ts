@@ -450,8 +450,9 @@ export default defineAgent({
           }
           // Mark avatar render start — LemonSlice receives TTS audio from this moment
           metrics.markAvatarRenderStart();
-          // First audio frame of the avatar track arrives with a short processing delay;
-          // markAvatarFirstFrame() is called from the TrackPublished / TrackSubscribed handler below.
+          // First audio frame of the avatar track: markAvatarFirstFrame() is called
+          // from BOTH ActiveSpeakersChanged (primary) and TrackSubscribed (secondary/safety net).
+          // The idempotency guard ensures only the first event records the metric.
 
           // ── Silent-turn guard: agent started speaking → cancel any pending re-prompt
           if (silentTurnTimer !== null) {
@@ -815,6 +816,15 @@ export default defineAgent({
     ctx.room.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
       if (isHibernating) {
         pub.setSubscribed(false);
+      }
+      // Secondary avatar first-frame trigger: TrackSubscribed fires earlier than
+      // ActiveSpeakersChanged on fast turns where the SDK cleans up the task
+      // lifecycle before the speaker list updates (the "firstFrameFut cancelled"
+      // race condition). The idempotency guard in markAvatarFirstFrame() ensures
+      // only the first event wins — no double-counting.
+      if (participant?.identity?.startsWith('lemonslice') || participant?.identity?.includes('avatar')) {
+        console.log(`[avatar][${ts()}] 🎯  TrackSubscribed from avatar — triggering markAvatarFirstFrame() as safety net`);
+        metrics.markAvatarFirstFrame();
       }
     });
 

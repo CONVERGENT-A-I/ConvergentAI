@@ -34,6 +34,11 @@ export class LatencyTracker {
 
   startTurn(): number {
     this.turnNumber += 1;
+    // Cancel any pending avatar-frame fallback timeout from the previous turn
+    if (this._avatarFrameTimeoutHandle) {
+      clearTimeout(this._avatarFrameTimeoutHandle);
+      this._avatarFrameTimeoutHandle = undefined;
+    }
     // Reset pipeline timestamps for new turn
     this.t_stt_start = undefined;
     this.t_stt_complete = undefined;
@@ -96,19 +101,41 @@ export class LatencyTracker {
   // ── Avatar rendering latency (LemonSlice) ──────────────────────────────
   private t_avatar_render_start: number | undefined;
   private t_avatar_first_frame: number | undefined;
+  private _avatarFrameTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
 
   /** Called when the agent state transitions to 'speaking' — avatar starts processing TTS audio. */
   markAvatarRenderStart(): void {
     this.t_avatar_render_start = Date.now();
+    const renderStartSnapshot = this.t_avatar_render_start;
     const lag = this.t_tts_start ? this.t_avatar_render_start - this.t_tts_start : -1;
     console.log(`[pipeline][${ts()}] AVATAR render start  lag_after_tts_start=${lag}ms`);
+
+    // ── Per-turn race-condition safety net ───────────────────────────────────
+    // The ActiveSpeakersChanged event sometimes fires AFTER the LiveKit SDK has
+    // cleaned up the TTS task (the "firstFrameFut cancelled" bug). When that
+    // happens, markAvatarFirstFrame() is never called and tts_to_avatar_ms
+    // stays at -1 forever. This timeout fires after 1500ms as a guaranteed
+    // fallback, preventing -1 metrics and broken state on any turn.
+    if (this._avatarFrameTimeoutHandle) {
+      clearTimeout(this._avatarFrameTimeoutHandle);
+    }
+    this._avatarFrameTimeoutHandle = setTimeout(() => {
+      this._avatarFrameTimeoutHandle = undefined;
+      // Only fire if this is still the same turn (render start hasn't been reset)
+      if (this.t_avatar_render_start === renderStartSnapshot && !this.t_avatar_first_frame) {
+        console.warn(`[pipeline][${ts()}] ⚠️  Avatar first-frame timeout — ActiveSpeakersChanged never fired. Firing fallback estimate.`);
+        this.markAvatarFirstFrame();
+      }
+    }, 1500);
   }
 
   /** Called when the LiveKit agent-speaking event fires — avatar first audio frame is live. */
   markAvatarFirstFrame(): void {
     if (this.t_avatar_first_frame) return; // only record once per turn
+    if (!this.t_avatar_render_start) return; // guard: only valid after markAvatarRenderStart() — prevents
+                                              // premature recording from TrackSubscribed at session init
     this.t_avatar_first_frame = Date.now();
-    const sinceRenderStart = this.t_avatar_render_start ? this.t_avatar_first_frame - this.t_avatar_render_start : -1;
+    const sinceRenderStart = this.t_avatar_first_frame - this.t_avatar_render_start;
     const sinceTtsStart = this.t_tts_start ? this.t_avatar_first_frame - this.t_tts_start : -1;
     const sinceUserTurn = this.pendingUserTurnEnd ? this.t_avatar_first_frame - this.pendingUserTurnEnd : -1;
     console.log(JSON.stringify({
