@@ -1007,11 +1007,12 @@ export default defineAgent({
               agentId: lsAgentId,
               apiKey: lsApiKey,
               // agentPrompt controls expressions WHILE SPEAKING
-              agentPrompt: 'a warm, cheerful, and friendly person talking with a genuine smile and gentle hand gestures',
+              agentPrompt: 'a warm, cheerful, and friendly person talking with a genuine smile and gentle hand gestures, always looking directly at the camera',
               // agent_idle_prompt controls expressions WHILE LISTENING/IDLE
               // LemonSlice default is "a serious person" — overriding to look happy and attentive
+              // IMPORTANT: explicitly instruct to maintain eye contact — without this the avatar looks down/around
               extraPayload: {
-                agent_idle_prompt: 'a happy, curious, and attentive person listening with a warm smile and slight head nods',
+                agent_idle_prompt: 'a happy, attentive person looking directly into the camera with steady eye contact, warm smile, slight head nods, never looking down or away',
               },
             });
 
