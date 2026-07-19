@@ -118,9 +118,25 @@ class AilanaVoiceAgent extends voice.Agent {
   constructor(
     options: voice.AgentOptions<any>,
     private contextManager: SessionContextManager,
-    private updateInstructionsCallback: () => void
+    private updateInstructionsCallback: () => void,
+    private metrics: LatencyTracker
   ) {
     super(options);
+  }
+
+  override async sttNode(audio: any, modelSettings: any) {
+    this.metrics.markSttStart();
+    return super.sttNode(audio, modelSettings);
+  }
+
+  override async llmNode(chatCtx: any, toolCtx: any, modelSettings: any) {
+    this.metrics.markLlmStart();
+    return super.llmNode(chatCtx, toolCtx, modelSettings);
+  }
+
+  override async ttsNode(text: any, modelSettings: any) {
+    this.metrics.markTtsStart();
+    return super.ttsNode(text, modelSettings);
   }
 
   override async onUserTurnCompleted(chatCtx: any, userMessage: any): Promise<void> {
@@ -130,24 +146,8 @@ class AilanaVoiceAgent extends voice.Agent {
 
     this.contextManager.setLowConfidenceFlag(false);
 
-    // 1. Checkpoint: Wait for the previous turn's extraction to complete (if any)
-    const prevTurn = this.contextManager.getCurrentTurnCount();
-    if (prevTurn > 0) {
-      const _perfCheckpointStart = performance.now();
-      const pendingCount = this.contextManager.getPendingExtractionCount();
-      const maxWaitMs = pendingCount > 1 ? 0 : 300; // Circuit breaker: 0ms wait if backlog > 1
-
-      console.log(`[checkpoint] Gating on previous turn ${prevTurn} extraction. Pending count: ${pendingCount}. Max wait: ${maxWaitMs}ms`);
-
-      const completed = await this.contextManager.waitForExtraction(prevTurn, maxWaitMs);
-      const waitDur = performance.now() - _perfCheckpointStart;
-
-      if (completed) {
-        console.log(`[checkpoint] Previous turn ${prevTurn} extraction resolved normally. Waited: ${waitDur.toFixed(1)}ms`);
-      } else {
-        console.warn(`[checkpoint] Previous turn ${prevTurn} extraction timed out or skipped. Waited: ${waitDur.toFixed(1)}ms`);
-      }
-    }
+    // [gating-optimization]: Removed the 300ms previous-turn extraction gating
+    // to allow background extraction for normal turns to execute fully asynchronously.
 
     // 2. Trigger the current turn's extraction asynchronously in the background
     if (userMessage?.textContent) {
@@ -337,7 +337,7 @@ export default defineAgent({
             enabled: false,
           },
         } as any,
-      }, contextManager, updateSessionInstructions);
+      }, contextManager, updateSessionInstructions, metrics);
     };
 
     let vadAgent = createVadAgent();
@@ -799,6 +799,13 @@ export default defineAgent({
       }
     });
 
+    ctx.room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
+      const isSpeaking = speakers.some((p) => p.identity?.startsWith('lemonslice') || p.identity?.includes('avatar'));
+      if (isSpeaking) {
+        metrics.markAvatarFirstFrame();
+      }
+    });
+
     ctx.room.on(RoomEvent.TrackPublished, (pub, participant) => {
       if (isHibernating) {
         pub.setSubscribed(false);
@@ -1013,6 +1020,7 @@ export default defineAgent({
               // IMPORTANT: explicitly instruct to maintain eye contact — without this the avatar looks down/around
               extraPayload: {
                 agent_idle_prompt: 'a happy, attentive person looking directly into the camera with steady eye contact, warm smile, slight head nods, never looking down or away',
+                model: 'flash',
               },
             });
 
@@ -1080,11 +1088,10 @@ export default defineAgent({
           console.log(`[avatar][${ts()}] ▶  Avatar API call succeeded. Sending SYSTEM_AVATAR_CONNECTED to frontend. Waiting for participant...`);
           sendAvatarStatus('SYSTEM_AVATAR_CONNECTED');
 
-          // When LemonSlice publishes its first track, record latency
+          // Log track publication but do not mark first frame here (done dynamically on speakers changed)
           ctx.room.on(RoomEvent.TrackPublished, (pub: any, participant: any) => {
             if (participant?.identity?.startsWith('lemonslice') || participant?.identity?.includes('avatar')) {
               console.log(`[avatar][${ts()}] 📹  LemonSlice track published — kind=${pub.kind} source=${pub.source}`);
-              metrics.markAvatarFirstFrame();
             }
           });
 
