@@ -136,6 +136,11 @@ class AilanaVoiceAgent extends voice.Agent {
 
   override async ttsNode(text: any, modelSettings: any) {
     this.metrics.markTtsStart();
+    // Also arm the avatar-frame fallback timeout from here — this is called
+    // before the LiveKit SDK’s internal firstFrameFut lifecycle, so the 1500ms
+    // safety-net timeout starts even on turns where the SDK cancels firstFrameFut
+    // before the 'speaking' state is emitted (the race condition turns).
+    this.metrics.markAvatarRenderStart();
     return super.ttsNode(text, modelSettings);
   }
 

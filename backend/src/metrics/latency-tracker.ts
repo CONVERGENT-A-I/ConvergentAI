@@ -103,12 +103,21 @@ export class LatencyTracker {
   private t_avatar_first_frame: number | undefined;
   private _avatarFrameTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
 
-  /** Called when the agent state transitions to 'speaking' — avatar starts processing TTS audio. */
+  /** Called when TTS starts (ttsNode) AND again when agent state → speaking.
+   *  First call (ttsNode) arms the 1500ms safety-net timeout early, so it fires
+   *  even on race-condition turns where the 'speaking' state is never reached.
+   *  Second call (speaking state) refreshes the timestamp for accurate lag logging
+   *  and resets the timeout with the more precise start time.
+   */
   markAvatarRenderStart(): void {
+    const isFirstCall = !this.t_avatar_render_start;
     this.t_avatar_render_start = Date.now();
     const renderStartSnapshot = this.t_avatar_render_start;
     const lag = this.t_tts_start ? this.t_avatar_render_start - this.t_tts_start : -1;
-    console.log(`[pipeline][${ts()}] AVATAR render start  lag_after_tts_start=${lag}ms`);
+    if (isFirstCall) {
+      // Only log on the first call (from ttsNode) to avoid duplicate lines
+      console.log(`[pipeline][${ts()}] AVATAR render start  lag_after_tts_start=${lag}ms`);
+    }
 
     // ── Per-turn race-condition safety net ───────────────────────────────────
     // The ActiveSpeakersChanged event sometimes fires AFTER the LiveKit SDK has
@@ -116,6 +125,9 @@ export class LatencyTracker {
     // happens, markAvatarFirstFrame() is never called and tts_to_avatar_ms
     // stays at -1 forever. This timeout fires after 1500ms as a guaranteed
     // fallback, preventing -1 metrics and broken state on any turn.
+    // Calling from ttsNode (first) ensures the timeout is armed BEFORE the
+    // SDK's firstFrameFut lifecycle can race and cancel — even if the 'speaking'
+    // state never fires.
     if (this._avatarFrameTimeoutHandle) {
       clearTimeout(this._avatarFrameTimeoutHandle);
     }
@@ -128,6 +140,7 @@ export class LatencyTracker {
       }
     }, 1500);
   }
+
 
   /** Called when the LiveKit agent-speaking event fires — avatar first audio frame is live. */
   markAvatarFirstFrame(): void {

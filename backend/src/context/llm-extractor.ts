@@ -1,13 +1,24 @@
 import { OpenAI } from 'openai';
 import { ailanaConfig } from '../config/ailana-config.js';
 
-// Extraction client — uses gemma-4-31b
+// ── Extractor client ─────────────────────────────────────────────────
+// Uses the cerebrasExtractorApiKey, which reads CEREBRAS_EXTRACTOR_API_KEY
+// from the environment (falls back to CEREBRAS_API_KEY if not set).
+// Setting a separate API key routes extractor requests through a different
+// Cerebras account — completely separate request pool, zero queue contention
+// with the main LLM. With a single account key, both share the same pool.
 const fastClient = new OpenAI({
-  apiKey: ailanaConfig.cerebrasApiKey,
+  apiKey: ailanaConfig.cerebrasExtractorApiKey,
   baseURL: ailanaConfig.cerebrasBaseUrl,
 });
 
+// gemma-4-31b: fast, reliable, fully supports response_format: json_object.
+// Uses cerebrasExtractorApiKey — set CEREBRAS_EXTRACTOR_API_KEY to a second
+// Cerebras account key to route extractor requests to a separate request pool,
+// eliminating any queue contention with the main LLM.
 const EXTRACTION_MODEL = 'gemma-4-31b';
+
+
 
 export interface ExtractionResult {
   value: string | number | null;
@@ -63,11 +74,14 @@ User input: "${userInput}"`;
           ],
           response_format: { type: 'json_object' },
           temperature: 0.0,
+          // Single-field extraction: response is always {"value": "...", "declined": false}
+          // 100 tokens covers any field value (incl. long strings like addresses) + JSON overhead.
+          max_tokens: 100,
         });
         const _perfCerebrasCallMs = (performance.now() - _perfCerebrasCallStart).toFixed(1);
         console.log(`[perf] llm-extractor extractProfileField("${fieldName}"): Cerebras call (attempt ${attempt + 1}) took ${_perfCerebrasCallMs}ms`);
-        console.log(`[llm-extractor] Extracted "${fieldName}" raw JSON:`, content);
         content = response.choices[0]?.message?.content || null;
+        console.log(`[llm-extractor] Extracted "${fieldName}" raw JSON:`, content);
         cerebrasErr = null;
         break;
       } catch (error: any) {
@@ -188,11 +202,14 @@ User input: "${userInput}"`;
           ],
           response_format: { type: 'json_object' },
           temperature: 0.0,
+          // Multi-field extraction: response is {"field1": {"value": ..., "declined": false}, ...}
+          // Up to 6 fields × ~35 tokens per field + JSON overhead = 250 tokens.
+          max_tokens: 250,
         });
         const _perfCerebrasCallMs = (performance.now() - _perfCerebrasCallStart).toFixed(1);
         console.log(`[perf] llm-extractor extractMultipleFields([${_fieldNames}]): Cerebras call (attempt ${attempt + 1}) took ${_perfCerebrasCallMs}ms`);
-        console.log(`[llm-extractor] Extracted multi-field raw JSON:`, content);
         content = response.choices[0]?.message?.content || null;
+        console.log(`[llm-extractor] Extracted multi-field raw JSON:`, content);
         cerebrasErr = null;
         break;
       } catch (error: any) {
@@ -295,11 +312,14 @@ User response: "${userInput}"`;
           ],
           response_format: { type: 'json_object' },
           temperature: 0.0,
+          // Confirmation: response is only {"decision": "yes|no|ambiguous"}
+          // 50 tokens to accommodate any model preamble + the JSON object.
+          max_tokens: 50,
         });
         const _perfCerebrasCallMs = (performance.now() - _perfCerebrasCallStart).toFixed(1);
         console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): Cerebras call (attempt ${attempt + 1}) took ${_perfCerebrasCallMs}ms`);
-        console.log(`[llm-extractor] Classified confirmation for "${fieldName}" raw JSON:`, content);
         content = response.choices[0]?.message?.content || null;
+        console.log(`[llm-extractor] Classified confirmation for "${fieldName}" raw JSON:`, content);
         cerebrasErr = null;
         break;
       } catch (error: any) {

@@ -36,6 +36,9 @@ export const ailanaConfig = {
   get lemonsliceApiKey() { return process.env.LEMONSLICE_API_KEY ?? ''; },
   get lemonsliceAgentId() { return process.env.LEMONSLICE_AGENT_ID ?? ''; },
   get cerebrasApiKey() { return process.env.CEREBRAS_API_KEY ?? ''; },
+  // Optional dedicated key for the background extractor (separate Cerebras account = zero queue contention).
+  // Falls back to the main key if not set \u2014 still benefits from separate GPU cluster via different model.
+  get cerebrasExtractorApiKey() { return process.env.CEREBRAS_EXTRACTOR_API_KEY ?? process.env.CEREBRAS_API_KEY ?? ''; },
   cerebrasBaseUrl: 'https://api.cerebras.ai/v1',
   cerebrasReasoningEffort: process.env.CEREBRAS_REASONING_EFFORT ?? 'low',
 };
