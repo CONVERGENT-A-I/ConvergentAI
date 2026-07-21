@@ -748,6 +748,13 @@ export default defineAgent({
         const targetMode = messageText.split(':')[1] || 'video';
         console.log(`[agent]: Channel started (${targetMode}).`);
 
+        if (greetingGenerated) {
+          return;
+        }
+
+        // Flag pendingGreeting so TrackUnmuted or avatarReady handler knows a greeting is queued
+        pendingGreeting = true;
+
         if (!isAvatarInitDone) {
           console.log(`[agent]: SYSTEM_CHANNEL_START received before avatar ready. Waiting for avatar initialization...`);
           await avatarReadyPromise;
@@ -759,6 +766,7 @@ export default defineAgent({
         }
 
         greetingGenerated = true;
+        pendingGreeting = false;
         const greetingText = "Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?";
 
         try {
@@ -875,6 +883,7 @@ export default defineAgent({
         const greetingText = "Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?";
         if (pendingGreeting && !greetingGenerated) {
           greetingGenerated = true;
+          pendingGreeting = false;
           metrics.startTurn();
           metrics.markAgentSpeaking();
           session.say(greetingText, { addToChatCtx: true });
