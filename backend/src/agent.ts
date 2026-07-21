@@ -36,7 +36,7 @@ const originalCerebrasCreate = cerebrasClient.chat.completions.create.bind(cereb
 
 cerebrasClient.chat.completions.create = (async function (body: any, options: any) {
   let lastErr: any = null;
-  if (body && !body.reasoning_effort) {
+  if (body && body.model === 'gpt-oss-120b' && !body.reasoning_effort) {
     body.reasoning_effort = ailanaConfig.cerebrasReasoningEffort;
   }
   // Retry once with backoff for transient Cerebras errors before falling back
@@ -114,7 +114,7 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
 
 
 class CerebrasLLM extends openai.LLM {
-  // gpt-oss-120b with reasoning_effort: 'none' for maximum generation speed (~3000 tps)
+  // gemma-4-31b does not support reasoning_effort or reasoning_format parameters.
 }
 
 class AilanaVoiceAgent extends voice.Agent {
@@ -277,7 +277,7 @@ export default defineAgent({
 
     const metrics = new LatencyTracker();
     const summarizationLlm = new openai.LLM({
-      model: 'gpt-oss-120b',
+      model: 'gemma-4-31b',
       baseURL: ailanaConfig.cerebrasBaseUrl,
       apiKey: ailanaConfig.cerebrasApiKey,
     });
@@ -327,7 +327,7 @@ export default defineAgent({
         stt: sessionStt,
         vad: sessionVad,
         llm: new CerebrasLLM({
-          model: 'gpt-oss-120b',
+          model: 'gemma-4-31b',
           client: cerebrasClient,
         }),
         tts: sessionTts,
@@ -651,8 +651,7 @@ export default defineAgent({
 
         console.log(`[agent]: Dispatching text-only reply to Cerebras client proxy...`);
         const completion = await cerebrasClient.chat.completions.create({
-          model: 'gpt-oss-120b',
-          reasoning_effort: ailanaConfig.cerebrasReasoningEffort,
+          model: 'gemma-4-31b',
           messages: messages as any,
           max_tokens: 500,
           temperature: 0.6,
@@ -1200,8 +1199,7 @@ export default defineAgent({
             'Authorization': `Bearer ${ailanaConfig.cerebrasApiKey}`
           },
           body: JSON.stringify({
-            model: 'gpt-oss-120b',
-            reasoning_effort: 'low',
+            model: 'gemma-4-31b',
             messages: [{ role: 'user', content: 'ping' }],
             max_tokens: 1,
           })
@@ -1214,7 +1212,7 @@ export default defineAgent({
       }
     })();
 
-    const activeModelName = 'cascade-livekit-inference (Cerebras GPT-OSS 120B + Cartesia TTS + LemonSlice Avatar)';
+    const activeModelName = 'cascade-livekit-inference (Cerebras Gemma 4 31B + Cartesia TTS + LemonSlice Avatar)';
     console.log(
       `[agent]: Ready — model=${activeModelName}, prompt=${ailanaConfig.promptVersion}, compact@${ailanaConfig.compactEveryNTurns} turns / ${ailanaConfig.forceCompactInputTokens} tokens`,
     );
