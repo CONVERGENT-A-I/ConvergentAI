@@ -427,6 +427,8 @@ export default defineAgent({
       property_type:          'I apologize for that. What type of property is this — a single-family home, condo, townhome, multi-family, or something else?',
       military_rural:         'I apologize for the interruption. Do you have any military service history, or is the property in a rural area?',
       job_tenure_type:        'I apologize for that. Could you tell me a bit about your current job tenure and the type of income you have — for example, whether you are salaried, hourly, or self-employed?',
+      // Stage 4
+      checklist_acknowledgement: 'I apologize for that interruption. Do you have these documents available, or would you like to go through any of them?',
     };
 
     session.on(voice.AgentSessionEventTypes.Error, (err: any) => {
@@ -498,8 +500,18 @@ export default defineAgent({
                 }
                 console.log(`[silent-turn-guard]: Firing re-prompt for field="${pendingField}".`);
                 try {
-                  session.say(repromptText, { addToChatCtx: true });
-                  contextManager.onAgentTurn(repromptText);
+                  // For Stage 4 transitions, use generateReply so the LLM produces
+                  // the full AUS result announcement with the correct Stage 4 context,
+                  // rather than speaking a generic static re-prompt.
+                  if (contextManager.getActiveStage() === '4') {
+                    console.log(`[silent-turn-guard]: Stage 4 detected — using generateReply for AUS result delivery.`);
+                    metrics.startTurn();
+                    metrics.markGenerateReply();
+                    session.generateReply({ userInput: 'The application has been submitted to underwriting. Please announce the result to the borrower.' });
+                  } else {
+                    session.say(repromptText, { addToChatCtx: true });
+                    contextManager.onAgentTurn(repromptText);
+                  }
                 } catch (err) {
                   console.warn('[silent-turn-guard]: Failed to fire re-prompt:', err);
                 }

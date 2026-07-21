@@ -1090,6 +1090,18 @@ export class SessionContextManager {
       } else if (jtLower.includes('w2') || jtLower.includes('salary') || jtLower.includes('w-2')) {
         this.profile.self_employed = false;
       }
+      // Pre-populate employment_years from job_tenure_type to avoid re-asking in Stage 3B.
+      // The LLM typically extracts summaries like "5 years, W2 salary" or "2 yrs, self-employed".
+      if (this.profile.employment_years === undefined) {
+        const yearsMatch = jt.match(/(\d+)\+?\s*(?:years?|yrs?)/i);
+        if (yearsMatch) {
+          this.profile.employment_years = parseInt(yearsMatch[1]!, 10);
+          console.log(`[context-manager] Stage2: pre-populated employment_years=${this.profile.employment_years} from job_tenure_type`);
+        } else if (/less\s+than\s+(?:a|one|1)\s*year/i.test(jt) || /(\d+)\s*months?/i.test(jt)) {
+          this.profile.employment_years = 0;
+          console.log(`[context-manager] Stage2: pre-populated employment_years=0 from job_tenure_type (less than a year)`);
+        }
+      }
       anyUpdates = true;
       console.log(`[context-manager] Stage2: job_tenure_type=${jt}`);
     }
@@ -1392,6 +1404,21 @@ export class SessionContextManager {
         console.log('[context-manager]: Consent declined. Transitioning to STAGE 3B (manual)!');
       }
     } else if (this.activeStage === '3B') {
+      // Auto-confirm employment_details if sub-fields were already populated
+      // from Stage 2 job_tenure_type — prevents re-asking questions the borrower
+      // already answered during pre-qualification.
+      if (
+        !this.profile.employment_confirmed &&
+        this.profile.self_employed !== undefined &&
+        this.profile.employment_years !== undefined
+      ) {
+        this.profile.employment_confirmed = true;
+        if (this.profile.employment_position === undefined) {
+          this.profile.employment_position = this.profile.job_tenure_type ?? 'Previously provided';
+        }
+        console.log('[context-manager]: employment_details auto-confirmed from Stage 2 job_tenure_type data.');
+      }
+
       if (!this.profile.marital_status_confirmed) {
         this.currentPendingField = 'marital_status';
       } else if (!this.profile.dependents_confirmed) {
