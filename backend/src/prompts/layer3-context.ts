@@ -58,7 +58,7 @@ export interface BorrowerProfile {
   pending_confirm_value?: string | null;
 
   // Active transition bridge phrase to output next response
-  bridge_to_say?: 'stage1_to_stage2' | 'stage2_to_stage3' | null;
+  bridge_to_say?: 'stage1_to_stage2' | 'stage2_to_stage3' | 'stage3A_to_stage3B' | null;
 
   // ── Stage 3 / 3A ─────────────────────────────────────────────────────────
   eligible_products?: string[] | null;
@@ -281,6 +281,8 @@ export function buildLayer3TurnContext(
     bridgeBlock = `\n\n*** MANDATORY TRANSITION — DO NOT SKIP ***\nYour response for this turn MUST follow this exact structure:\n1. One brief sentence acknowledging what the borrower just said (e.g. "Got it." or "Understood, thank you.").\n2. Then say the following transition phrase VERBATIM, word-for-word:\n"That gives me a great starting point. Now I would like to spend a few minutes exploring your financial picture — income, current debts, credit profile, and a few other details — so I can map out the loan programs that may be most relevant to your situation."\n3. Then immediately ask for ${pendingField}.\nDo NOT skip this transition regardless of what the borrower just said. Do NOT replace the verbatim phrase with your own words.`;
   } else if (profile.bridge_to_say === 'stage2_to_stage3') {
     bridgeBlock = `\n\n*** MANDATORY TRANSITION — DO NOT SKIP ***\nYour response for this turn MUST follow this exact structure:\n1. One brief sentence acknowledging what the borrower just said.\n2. Then say the following transition phrase VERBATIM, word-for-word:\n"Based on what you have shared, I can walk you through the loan programs that may be most relevant to your situation and answer any questions you have about the process."\nDo NOT skip this transition regardless of what the borrower just said. Do NOT replace the verbatim phrase with your own words.`;
+  } else if (profile.bridge_to_say === 'stage3A_to_stage3B') {
+    bridgeBlock = `\n\n*** MANDATORY TRANSITION — DO NOT SKIP ***\nYour response for this turn MUST follow this exact structure:\n1. One brief sentence acknowledging what the borrower just confirmed (e.g. "Great, your soft pull details are confirmed!").\n2. Then say the following transition phrase VERBATIM, word-for-word:\n"To finalize the remaining application questions for our underwriting check, I just have a few quick questions."\n3. Then immediately ask for their marital status: "First, what is your current marital status?"\nDo NOT skip this transition regardless of what the borrower just said. Do NOT replace the verbatim phrase with your own words.`;
   }
 
   // ── Stage 2 Closing Offer Instruction ──────────────────────────────────────

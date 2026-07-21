@@ -1395,12 +1395,14 @@ export class SessionContextManager {
           // Finished prefilled walkthrough, go to Stage 3B (Application completion)
           this.currentPendingField = 'marital_status';
           this.activeStage = '3B';
+          this.profile.bridge_to_say = 'stage3A_to_stage3B';
           console.log('[context-manager]: Prefills confirmed! Transitioning to STAGE 3B!');
         }
       } else if (this.profile.soft_pull_consent === 'declined') {
         // Go straight to Stage 3B manual completion
         this.currentPendingField = 'marital_status';
         this.activeStage = '3B';
+        this.profile.bridge_to_say = 'stage3A_to_stage3B';
         console.log('[context-manager]: Consent declined. Transitioning to STAGE 3B (manual)!');
       }
     } else if (this.activeStage === '3B') {
