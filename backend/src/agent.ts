@@ -1029,12 +1029,17 @@ export default defineAgent({
               agentId: lsAgentId,
               apiKey: lsApiKey,
               // agentPrompt controls expressions WHILE SPEAKING
-              agentPrompt: 'a warm, cheerful, and friendly person talking with a genuine smile and gentle hand gestures, always looking directly at the camera',
+              // Use short affect keywords — LemonSlice's DiT model responds better to
+              // evocative descriptors than long behavioral instructions. Removing rigid
+              // gaze-locking ("always looking directly at the camera") allows natural
+              // saccades and blinks, preventing the "bionic stare" effect.
+              agentPrompt: 'a friendly, relaxed professional speaking naturally with gentle hand gestures and a warm smile',
               // agent_idle_prompt controls expressions WHILE LISTENING/IDLE
-              // LemonSlice default is "a serious person" — overriding to look happy and attentive
-              // IMPORTANT: explicitly instruct to maintain eye contact — without this the avatar looks down/around
+              // LemonSlice default is "a serious person" — overriding with short positive
+              // affect keywords. Negative constraints ("never looking down") are poorly
+              // handled by diffusion models and can cause the opposite of intended behavior.
               extraPayload: {
-                agent_idle_prompt: 'a happy, attentive person looking directly into the camera with steady eye contact, warm smile, slight head nods, never looking down or away',
+                agent_idle_prompt: 'attentive, warmly curious, softly smiling, eye contact with the viewer',
                 model: 'flash',
               },
             });
