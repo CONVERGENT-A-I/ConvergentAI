@@ -12,11 +12,11 @@ const fastClient = new OpenAI({
   baseURL: ailanaConfig.cerebrasBaseUrl,
 });
 
-// gemma-4-31b: fast, reliable, fully supports response_format: json_object.
+// gpt-oss-120b with reasoning_effort: 'low': extremely fast (~3000 tps) with minimal reasoning overhead.
 // Uses cerebrasExtractorApiKey — set CEREBRAS_EXTRACTOR_API_KEY to a second
 // Cerebras account key to route extractor requests to a separate request pool,
 // eliminating any queue contention with the main LLM.
-const EXTRACTION_MODEL = 'gemma-4-31b';
+const EXTRACTION_MODEL = 'gpt-oss-120b';
 
 
 
@@ -68,6 +68,7 @@ User input: "${userInput}"`;
         const _perfCerebrasCallStart = performance.now();
         const response = await fastClient.chat.completions.create({
           model: EXTRACTION_MODEL,
+          reasoning_effort: (ailanaConfig.cerebrasReasoningEffort as any) ?? 'low',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
@@ -196,6 +197,7 @@ User input: "${userInput}"`;
         const _perfCerebrasCallStart = performance.now();
         const response = await fastClient.chat.completions.create({
           model: EXTRACTION_MODEL,
+          reasoning_effort: (ailanaConfig.cerebrasReasoningEffort as any) ?? 'low',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },

@@ -36,6 +36,9 @@ const originalCerebrasCreate = cerebrasClient.chat.completions.create.bind(cereb
 
 cerebrasClient.chat.completions.create = (async function (body: any, options: any) {
   let lastErr: any = null;
+  if (body && !body.reasoning_effort) {
+    body.reasoning_effort = ailanaConfig.cerebrasReasoningEffort;
+  }
   // Retry once with backoff for transient Cerebras errors before falling back
   for (let attempt = 0; attempt < 2; attempt++) {
     const t0 = Date.now();
@@ -111,7 +114,7 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
 
 
 class CerebrasLLM extends openai.LLM {
-  // gemma-4-31b does not support reasoning_effort or reasoning_format parameters.
+  // gpt-oss-120b with reasoning_effort: 'none' for maximum generation speed (~3000 tps)
 }
 
 class AilanaVoiceAgent extends voice.Agent {
@@ -274,7 +277,7 @@ export default defineAgent({
 
     const metrics = new LatencyTracker();
     const summarizationLlm = new openai.LLM({
-      model: 'gemma-4-31b',
+      model: 'gpt-oss-120b',
       baseURL: ailanaConfig.cerebrasBaseUrl,
       apiKey: ailanaConfig.cerebrasApiKey,
     });
@@ -324,7 +327,7 @@ export default defineAgent({
         stt: sessionStt,
         vad: sessionVad,
         llm: new CerebrasLLM({
-          model: 'gemma-4-31b',
+          model: 'gpt-oss-120b',
           client: cerebrasClient,
         }),
         tts: sessionTts,
@@ -648,7 +651,8 @@ export default defineAgent({
 
         console.log(`[agent]: Dispatching text-only reply to Cerebras client proxy...`);
         const completion = await cerebrasClient.chat.completions.create({
-          model: 'gemma-4-31b',
+          model: 'gpt-oss-120b',
+          reasoning_effort: ailanaConfig.cerebrasReasoningEffort,
           messages: messages as any,
           max_tokens: 500,
           temperature: 0.6,
@@ -1196,7 +1200,8 @@ export default defineAgent({
             'Authorization': `Bearer ${ailanaConfig.cerebrasApiKey}`
           },
           body: JSON.stringify({
-            model: 'gemma-4-31b',
+            model: 'gpt-oss-120b',
+            reasoning_effort: 'low',
             messages: [{ role: 'user', content: 'ping' }],
             max_tokens: 1,
           })
