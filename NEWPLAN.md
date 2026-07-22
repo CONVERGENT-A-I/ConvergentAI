@@ -1,727 +1,767 @@
-# Technical Implementation Plan: Ailana & DavidNEWDoc.md (v7.0) Full Alignment
+# Affordability Panel — Step-by-Step Implementation Plan
 
-This document outlines the complete, sequential implementation stages to align the Convergent AI codebase with the [DavidNEWDoc.md](file:///c:/Users/Sherry/Documents/Convergent_AI/DavidNEWDoc.md) Version 7.0 prompt reference specifications, including the removal of SSN/DOB requirements.
+Based on `Affordability_Panel.md` (v8.4 Master Prompt Spec) and `Affordability_Panel_Mobile.md` (v1.1 Build Spec).
 
-Each change is structured as **Problem → Solution → Result** to eliminate ambiguity during implementation.
-
----
-
-## Stage 1: Core Configuration, Branding Neutralization, and Greeting Reconciliation [DONE] ✅
-
-This stage touches the foundational constants and configuration values that propagate throughout the entire system. No stage logic or state machine changes occur here — only static text, config values, and response length rules.
+Each step is structured as **Problem → Solution → Result** and maps to a concrete, testable unit of work.
 
 ---
 
-### 1.1. Lower Cerebras Reasoning Effort to `'low'`
+## Stage 1: Backend Foundation — Rate Config, Profile Fields & Stage 2.5 State Machine
+
+This stage wires up everything the backend needs before any UI renders — the representative rate config, the new `Stage 2.5` state in the session manager, and the `BorrowerProfile` fields the panel depends on.
+
+---
+
+### Step 1.1 — Add Representative Rate to Config
 
 **Problem:**
-The current default in [ailana-config.ts](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/config/ailana-config.ts) (line 35) sets `cerebrasReasoningEffort` to `'medium'`. The user has explicitly requested low reasoning for the main conversational LLM (gpt-oss-120b / Cerebras) to save latency and token cost.
+The affordability panel's PITIA calculation requires a single, centrally managed representative rate (e.g., `6.875%` for a 30-year fixed conventional loan). This rate is not in the codebase yet. There is no config entry, no env var, and no way for the calculation engine to know which rate to use. Without it, all payment estimates will be wrong or impossible to compute.
 
 **Solution:**
-Change the fallback default on line 35 of `ailana-config.ts`:
+In `backend/src/config/ailana-config.ts`, add the following to the exported config object:
 ```typescript
-cerebrasReasoningEffort: process.env.CEREBRAS_REASONING_EFFORT ?? 'low',
+representativeRate: parseFloat(process.env.REPRESENTATIVE_RATE ?? '0.06875'),  // 6.875% default
+representativeRateType: process.env.REPRESENTATIVE_RATE_TYPE ?? '30-year fixed conventional',
+incomeBandThreshold: parseFloat(process.env.INCOME_BAND_THRESHOLD ?? '0.28'),   // 28% front-end DTI
+dtiBandThreshold: parseFloat(process.env.DTI_BAND_THRESHOLD ?? '0.45'),         // 45% back-end DTI
+dtiHardCeiling: parseFloat(process.env.DTI_HARD_CEILING ?? '0.50'),             // 50% FHLMC hard ceiling
+propertyTaxRate: parseFloat(process.env.PROPERTY_TAX_RATE ?? '0.012'),          // 1.2% national avg
+homeownersInsRate: parseFloat(process.env.HOMEOWNERS_INS_RATE ?? '0.005'),      // 0.5% national avg
+conventionalPmiRate: parseFloat(process.env.CONVENTIONAL_PMI_RATE ?? '0.0085'),  // 0.85% national avg
+fhaMipRate: parseFloat(process.env.FHA_MIP_RATE ?? '0.0055'),                   // 0.55% annual
+usdaAnnualFeeRate: parseFloat(process.env.USDA_ANNUAL_FEE_RATE ?? '0.0035'),    // 0.35% annual
 ```
-Verify that all call-sites in [agent.ts](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/agent.ts) and [llm-extractor.ts](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/context/llm-extractor.ts) that reference `ailanaConfig.cerebrasReasoningEffort` correctly inherit this value (no overrides).
+Also add corresponding env var entries (with current values) to `.env.local`.
 
 **Result:**
-All Cerebras API calls default to `low` reasoning effort unless overridden by the environment variable. No functional change needed anywhere else — the pipeline already reads this config value.
+All affordability panel calculations source from a single config object. Updating the representative rate is a one-line env var change followed by a redeploy — no code changes needed. The config is immediately available everywhere via `import { ailanaConfig } from '../config/ailana-config.js'`.
 
 ---
 
-### 1.2. Neutralize Institution Branding Fallback (Compliance Rule #8)
+### Step 1.2 — Add Stage 2.5 Profile Fields to `BorrowerProfile`
 
 **Problem:**
-The current Layer 1 system prompt in [ailana-system.ts](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/prompts/ailana-system.ts) (line 9) defaults `creditUnion` to `'First Community Credit Union'` and positions Ailana as a *"Premier Mortgage Advisor for ${creditUnion}"* (line 11). DavidNEWDoc.md v6.0 (Change Log, line 9-11; Compliance Rule #8, line 641) explicitly requires:
-- All `{{Credit_Union_Name}}` references replaced with `"your lending institution"`.
-- All "credit union member" language replaced with neutral borrower language.
-- Ailana's identity must be institution-neutral.
-
-The current framing violates this on two levels: the fallback name is a specific credit union, and the role title assumes a single institution relationship.
+The `BorrowerProfile` interface in `layer3-context.ts` has no fields tracking Stage 2.5 state. When the panel renders, the system needs to know: Has the panel been shown? What did the borrower last set the sliders to? What was the resulting income/DTI band status? Has the borrower submitted for AUS review? What did AUS return? None of these are tracked anywhere in the profile today.
 
 **Solution:**
-In `ailana-system.ts`, change line 9 and the prompt text:
+Add a new `// ── Stage 2.5 ──` section to `BorrowerProfile` in `backend/src/prompts/layer3-context.ts`:
 ```typescript
-// Line 9: Change the fallback
-const creditUnion = process.env.CREDIT_UNION_NAME || 'your lending institution';
-
-// Line 11: Rewrite the identity line to be institution-neutral
-You are Ailana, an AI mortgage assistant deployed by ${creditUnion}.
+// ── Stage 2.5 (Affordability Panel) ──────────────────────────────────────
+affordability_panel_rendered?: boolean;         // True once the panel has been displayed
+affordability_purchase_price?: number | null;   // Slider value at last interaction
+affordability_down_payment?: number | null;     // Slider value at last interaction
+affordability_income_band?: 'within' | 'above' | null;  // Last computed income band status
+affordability_dti_band?: 'within' | 'above' | null;     // Last computed DTI band status
+affordability_submitted?: boolean;              // True after borrower clicks Submit for Review
+affordability_aus_status?: 'pending' | 'approve_eligible' | 'refer' | null;
+affordability_prequel_letter_sent?: boolean;    // True after FD1 pre-qual letter emailed
 ```
-The persona description (line 12-13) should also be neutralized — remove "like a trusted loan officer a borrower has been referred to by a friend" and replace with language consistent with DavidNEWDoc.md's "educational and assistive" framing:
-```
-You are warm, knowledgeable, and approachable — an educational guide who helps borrowers understand
-the mortgage process and prepares them to speak with a licensed mortgage loan officer.
-```
-
-**Result:**
-If no `CREDIT_UNION_NAME` env var is set, the system prompt says *"an AI mortgage assistant deployed by your lending institution"*. If a specific name is provided, it substitutes in. This matches the document's design for multi-institution deployment (CUs, IMBs, brokers, community banks).
-
----
-
-### 1.3. Reconcile the Session Opening Greeting (All Locations)
-
-**Problem:**
-The greeting text appears in **three separate locations** and none of them match the v6.0 specification.
-
-| Location | Current text | v6.0 required text |
-|---|---|---|
-| [agent.ts](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/agent.ts) (line 504) | *"Hi, my name is Ailana and I am an AI mortgage assistant who can respond to all of your mortgage questions and provide other services."* | *"Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?"* |
-| [stage1-greeting.ts](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/prompts/stage1-greeting.ts) (line 12) | Same old greeting baked into the instruction | Same v6.0 text |
-| [ailana-system.ts](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/prompts/ailana-system.ts) (line 113, `GREETING_USER_INPUT`) | Same old greeting | Same v6.0 text |
-| [live-chat-panel.tsx](file:///c:/Users/Sherry/Documents/Convergent_AI/src/components/live-chat-panel.tsx) (line 58) | *"Hi! I'm Ailana, your AI mortgage assistant. How can I help you today?"* | Same v6.0 text |
-
-The DavidNEWDoc.md explicitly states (line 47): *"This greeting is fixed and should not be modified by the LLM at runtime. It is a scripted opening, not a generated response."*
-
-**Solution:**
-Update all four locations to the exact v6.0 greeting string:
-```
-Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?
-```
-
-In `stage1-greeting.ts`, update the instruction on line 12 to reference this exact text.
-In `agent.ts`, update the `greetingText` constant on line 504.
-In `ailana-system.ts`, update the `GREETING_USER_INPUT` export on line 112-113.
-In `live-chat-panel.tsx`, update the initial chat message on line 58.
-
-**Result:**
-The greeting is identical across WebRTC audio, text chat, and the LLM instruction layer. Compliant with FCC 2024 AI disclosure guidance and SAFE Act transparency (DavidNEWDoc.md line 45-47).
-
----
-
-### 1.4. Apply Response Length Audit and Philosophy
-
-**Problem:**
-The prior v6.0 prompt design resulted in Ailana delivering long, detailed answers by default (such as the 17-paragraph VA loan eligibility guidelines or full bankruptcy waiting periods). This can overwhelm borrowers, especially in voice mode.
-
-**Solution:**
-Implement the Version 7.0 response length philosophy in `buildLayer1()` and individual stage prompts:
-- Enforce the **concise default response** audit for educational questions: Ailana delivers a brief, 2–3 sentence default response.
-- Move complex, specific guidelines (such as the FHA/Conventional waiting periods for Q21, or service categories/funding fees for Q31) to **follow-up handling slots** in the LLM instruction templates. These details are only output dynamically if the borrower shares their specific scenario or asks a direct follow-up question.
-
-**Result:**
-Ailana's default replies remain short and conversational. Detailed information is gated behind borrower engagement and follow-up, providing a natural conversational flow.
-
----
-
-### 1.5. Align SAFE Act and Compliance Reference Summary (v7.0)
-
-**Problem:**
-The compliance boundaries need to match the updated Version 7.0 list, which includes the new credit reporting service (CRS) API updates that do not require SSN or DOB for the initial soft pull/eligibility review.
-
-**Solution:**
-Rewrite the SAFE Act and Compliance reference block in `buildLayer1()` (matching v7.0 compliance summary and the SSN/DOB exclusion):
-```
-SAFE ACT — ABSOLUTE PROHIBITIONS (apply at all times, all stages):
-- Never quote a specific interest rate, APR, discount point costs, or fee amounts.
-- Never calculate or estimate a monthly payment directly — payment estimates are produced only by the AUS eligibility review system.
-- Never direct a borrower toward a specific loan product. Present educational comparisons only.
-- Never tell a borrower they are approved, qualified, or disqualified. Framing is always conditional.
-- Soft pull consent is handled via a separate formal disclosure flow — you invite, the disclosure system obtains consent.
-- Immediately offer to connect with a licensed mortgage loan officer (MLO) if a borrower requests a rate quote, product recommendation, credit decision, or licensed guidance.
-- Disclose your AI nature at first contact and whenever directly asked.
-- Use "your lending institution" as the standard placeholder to remain institution-neutral.
-- Do NOT collect or require the borrower's Social Security Number (SSN) or Date of Birth (DOB) for the initial soft pull / eligibility review, as the latest CRS API does not require them.
-```
-
-**Result:**
-The LLM matches all 9 compliance items of the Version 7.0 summary, and specifically excludes SSN and DOB from the soft pull data gathering scope.
-
----
-
-## Stage 2: Stage 1 Field Expansion — Occupancy, Relationship, and Co-Borrower [DONE] ✅
-
-This stage modifies the Stage 1 discovery flow to collect the fields required by DavidNEWDoc.md Section 1B (Q9-Q13) instead of the current 4-field set.
-
-**Current Stage 1 fields:** `borrower_name` → `mortgage_goal` → `timeline` → `property_state`
-**Required Stage 1 fields (v6.0):** `borrower_name` → `mortgage_goal` (Q9) → `occupancy` (Q10) → `existing_relationship` (Q11) → `timeline` (Q12) → `co_borrower` (Q13)
-
----
-
-### 2.1. Remove `property_state` from Stage 1
-
-**Problem:**
-The current code collects `property_state` as the final Stage 1 field (lines 498-516 of `session-context-manager.ts`). DavidNEWDoc.md Section 1B does not include a property state question — Q9-Q13 cover intent, occupancy, existing relationship, timeline, and co-borrower only. Property location is tangentially covered in Stage 2 via Q43 (military/rural question), but there is no explicit "which state?" question in the document.
-
-**Solution:**
-- Remove `property_state` and `property_state_confirmed` from the `BorrowerProfile` interface in `layer3-context.ts` (lines 12-13).
-- Remove the `property_state` extraction logic from `runStage1Extraction()` in `session-context-manager.ts` (lines 498-516).
-- Remove the `property_state_confirmed` check from `advanceWorkflow()` (lines 733-734).
-- Remove the `property_state` display from `buildLayer3TurnContext()` (lines 105-109, line 117, line 80 of FIELD_LABELS).
-- Remove the `property_state` mention from the Stage 1 instructions in `stage1-greeting.ts` (line 7).
-
-**Result:**
-Stage 1 no longer asks about property state. The conversation flow matches DavidNEWDoc.md Section 1B exactly. If property location data is needed later, it can be inferred from the property details collected in Stage 2.
-
----
-
-### 2.2. Add `occupancy`, `existing_relationship`, and `co_borrower` Fields
-
-**Problem:**
-DavidNEWDoc.md Section 1B (Q10, Q11, Q13) requires three fields that do not exist in the current Stage 1 flow:
-- **Q10 — Occupancy**: Primary residence, rental, or investment. Affects loan program eligibility, down payment, and rate tiers.
-- **Q11 — Existing Relationship**: Whether the borrower has worked with the institution before. Affects tone personalization.
-- **Q13 — Co-Borrower**: Whether anyone else is applying on the loan. Affects combined income, DTI, and credit evaluation.
-
-Note: `co_borrower` currently exists in the `BorrowerProfile` (line 53) but is placed under Stage 3B (application completion). Per v6.0, it must be collected in Stage 1 so the discovery path accounts for both borrowers from the start.
-
-**Solution:**
-In [layer3-context.ts](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/prompts/layer3-context.ts), add to the Stage 1 section of `BorrowerProfile`:
+Also add field labels to `FIELD_LABELS`:
 ```typescript
-// ── Stage 1 ──────────────────────────────────────────────────────
-borrower_name?: string | null;
-borrower_name_confirmed?: boolean;
-
-mortgage_goal?: string | null;          // Q9: purchase | refinance | equity
-mortgage_goal_confirmed?: boolean;
-
-occupancy?: string | null;              // Q10: primary | secondary | investment
-occupancy_confirmed?: boolean;
-
-existing_relationship?: string | null;  // Q11: yes | no
-existing_relationship_confirmed?: boolean;
-
-timeline?: string | null;               // Q12
-timeline_confirmed?: boolean;
-
-co_borrower?: string | null;            // Q13: yes | no
-co_borrower_confirmed?: boolean;
-```
-
-Move `co_borrower` and `co_borrower_confirmed` OUT of the Stage 3B section (lines 53-54) and into Stage 1 above.
-
-Update `FIELD_LABELS` to include:
-```typescript
-occupancy: 'occupancy type',
-existing_relationship: 'existing relationship with lending institution',
-co_borrower: 'co-borrower status',
-```
-
-Update the Stage 1 profile block in `buildLayer3TurnContext()` to display all six fields:
-```
-Name:                  ${profile.borrower_name ?? 'not yet collected'}
-Goal:                  ${profile.mortgage_goal ?? 'not yet collected'}
-Occupancy:             ${profile.occupancy ?? 'not yet collected'}
-Existing Relationship: ${profile.existing_relationship ?? 'not yet collected'}
-Timeline:              ${profile.timeline ?? 'not yet collected'}
-Co-Borrower:           ${profile.co_borrower ?? 'not yet collected'}
+affordability_purchase_price: 'target purchase price (affordability panel)',
+affordability_down_payment: 'down payment (affordability panel)',
+affordability_aus_status: 'AUS eligibility review result',
 ```
 
 **Result:**
-The `BorrowerProfile` interface and Layer 3 display now reflect the exact 6-field Stage 1 structure from DavidNEWDoc.md. `co_borrower` is collected early (Stage 1) so combined-income DTI calculations in Stage 2 can account for it.
+The session state machine can track every key affordability panel event. The LLM gets accurate `Stage 2.5` context on every turn, and Ailana can narrate correctly (e.g., knowing the last slider state when the borrower asks a follow-up question).
 
 ---
 
-### 2.3. Update Stage 1 Extraction Logic
+### Step 1.3 — Add Stage 2.5 to the State Machine in `session-context-manager.ts`
 
 **Problem:**
-The `runStage1Extraction()` method in `session-context-manager.ts` (lines 453-517) currently handles only 4 fields: `borrower_name`, `mortgage_goal`, `timeline`, `property_state`. It needs to handle 6 fields in the new order.
+The current state machine in `session-context-manager.ts` has stages `'1' → '2' → '3' → '3A' → '3B' → '4' → '5'`. There is no `'2.5'` stage. When all Stage 2 fields are collected and the borrower accepts the eligibility review (currently `stage2_closing_offer → 'yes'`), the system jumps directly to `'3A'` (legal name + soft pull consent). But per the spec, accepting the eligibility review should first go to Stage 2.5 (show the affordability panel), and only after the borrower submits the panel for AUS review does the system advance to findings delivery. The affordability panel itself is currently non-existent.
 
 **Solution:**
-Rewrite `runStage1Extraction()` to extract the following fields in sequence:
-1. `borrower_name` — Keep existing extraction logic (lines 456-469). No change.
-2. `mortgage_goal` — Expand the extraction instruction to include `"home equity"` as a third option per Q9: *"purchase a home, refinance an existing mortgage, or explore something else like a home equity option"*. Currently only supports `"purchase"` or `"refinance"`.
-3. `occupancy` — **New.** Extract `'primary'`, `'secondary'`, or `'investment'` from the borrower's response. Extraction instruction: `'Extract occupancy type — primary residence, second home, or investment property. Return "primary", "secondary", or "investment". If not found, return null.'`
-4. `existing_relationship` — **New.** Extract `'yes'` or `'no'`. Extraction instruction: `'Determine if the borrower has previously worked with or has an existing relationship with their lending institution. Return "yes" or "no". If not found, return null.'`
-5. `timeline` — Keep existing extraction logic (lines 484-497). No change.
-6. `co_borrower` — **New for Stage 1.** Extract `'yes'` or `'no'`. Extraction instruction: `'Determine if anyone else (spouse, partner, family member) will be applying on this loan. Return "yes" or "no". If not found, return null.'`
+In `session-context-manager.ts`:
+
+1. In `runStage3Extraction()` (around line 347), change the `stage2_closing_offer → 'yes'` transition from:
+   ```typescript
+   this.activeStage = '3A';
+   this.currentPendingField = 'legal_name';
+   ```
+   To:
+   ```typescript
+   this.activeStage = '2.5';
+   this.currentPendingField = 'affordability_panel_active';
+   this.profile.affordability_panel_rendered = true;
+   // Seed the panel defaults from Stage 2 conversational answers
+   this.profile.affordability_purchase_price = this.profile.target_price ?? null;
+   this.profile.affordability_down_payment = this.profile.down_payment ?? null;
+   ```
+
+2. Add a new private method `runStage25Extraction(text: string)`:
+   ```typescript
+   private async runStage25Extraction(text: string): Promise<void> {
+     const field = this.currentPendingField;
+
+     if (field === 'affordability_panel_active') {
+       // Borrower exploring panel — listen for submit intent
+       const res = await extractProfileField(text, ..., 'affordability_action',
+         'Extract "submit" if borrower says submit, continue, proceed, let\'s do it. ' +
+         'Extract "update_income" if borrower wants to correct income. ' +
+         'Extract "question" if borrower is asking a question about the panel. ' +
+         'Extract "drop_off" if borrower wants to stop or come back later. null otherwise.');
+
+       if (res.value === 'submit') {
+         this.profile.affordability_submitted = true;
+         this.profile.affordability_aus_status = 'pending';
+         this.currentPendingField = 'affordability_aus_pending';
+         // Trigger AUS submission (Step 3.1)
+       } else if (res.value === 'update_income') {
+         this.currentPendingField = 'affordability_income_correction';
+       } else if (res.value === 'drop_off') {
+         this.currentPendingField = 'affordability_drop_off';
+       }
+       return;
+     }
+
+     if (field === 'affordability_income_correction') {
+       // Extract corrected income, update profile, return to panel_active
+       ...
+     }
+
+     if (field === 'affordability_drop_off') {
+       // Borrower declines — session save, offer summary email
+       ...
+     }
+
+     if (field === 'affordability_aus_pending') {
+       // AUS result will arrive async — handled in Step 3.1
+       return;
+     }
+   }
+   ```
+
+3. In `extractAndApply()` (around line 300), add the branch:
+   ```typescript
+   } else if (this.activeStage === '2.5') {
+     await this.runStage25Extraction(trimmed);
+   }
+   ```
 
 **Result:**
-Stage 1 collects all six v6.0 required fields in the correct order. The state machine does not advance to Stage 2 until all six are confirmed.
+The state machine now has a fully functional `Stage 2.5` state. After the borrower accepts the eligibility review, the session transitions to `'2.5'` and stays there while they explore the affordability panel. Submission from the panel triggers AUS processing. The session only advances to findings delivery after AUS returns.
 
 ---
 
-### 2.4. Update `advanceWorkflow()` for Stage 1
+## Stage 2: Backend Calculation Engine & AUS Submission Service
+
+This stage builds the server-side math and the AUS submission payload — the core logic the UI will call.
+
+---
+
+### Step 2.1 — Build the Affordability Calculation Utility
 
 **Problem:**
-The `advanceWorkflow()` method (lines 725-828) checks Stage 1 fields in order: `borrower_name` → `mortgage_goal` → `timeline` → `property_state`. This must be rewritten to match the new 6-field sequence.
+There is no server-side function that can compute PITIA + status bands given a purchase price, down payment, income, debts, and program type. The panel needs this calculation on every slider change (in `VOICE_MODE`) and on AUS submission (in both modes). Without it, neither the UI's real-time updates nor the server-side voice-only path can produce any numbers.
 
 **Solution:**
-Replace the Stage 1 section of `advanceWorkflow()` (lines 726-739) with:
+Create a new file `backend/src/utils/affordability-calculator.ts`:
 ```typescript
-// ── Stage 1 ──────────────────────────────────────────────────────
-if (!this.profile.borrower_name_confirmed) {
-  this.currentPendingField = 'borrower_name';
-} else if (!this.profile.mortgage_goal_confirmed) {
-  this.currentPendingField = 'mortgage_goal';
-} else if (!this.profile.occupancy_confirmed) {
-  this.currentPendingField = 'occupancy';
-} else if (!this.profile.existing_relationship_confirmed) {
-  this.currentPendingField = 'existing_relationship';
-} else if (!this.profile.timeline_confirmed) {
-  this.currentPendingField = 'timeline';
-} else if (!this.profile.co_borrower_confirmed) {
-  this.currentPendingField = 'co_borrower';
-// ── Stage 1 → Stage 2 transition ────────────────────────────────
-} else if (this.activeStage === '1') {
-  this.activeStage = '2';
-  this.currentPendingField = 'gross_annual_income';
-  this.profile.bridge_to_say = 'stage1_to_stage2';
-  console.log('[context-manager]: ✅ Transitioning to STAGE 2!');
+import { ailanaConfig } from '../config/ailana-config.js';
+
+export interface AffordabilityInput {
+  purchasePrice: number;
+  downPayment: number;
+  grossAnnualIncome: number;
+  totalMonthlyDebt: number;       // From soft pull tradeline minimums
+  programType: 'conventional' | 'fha' | 'va' | 'usda';
+}
+
+export interface AffordabilityResult {
+  loanAmount: number;
+  ltv: number;
+  monthlyPI: number;              // Principal & Interest
+  monthlyTax: number;             // Property tax estimate
+  monthlyInsurance: number;       // Homeowners insurance estimate
+  monthlyMI: number;              // Mortgage insurance
+  totalPITIA: number;             // Full monthly payment
+  incomeBand: 'within' | 'above';
+  dtiBand: 'within' | 'above';
+  dti: number;                    // For internal use / audit log — NOT displayed to borrower
+}
+
+export function calculateAffordability(input: AffordabilityInput): AffordabilityResult {
+  const { purchasePrice, downPayment, grossAnnualIncome,
+          totalMonthlyDebt, programType } = input;
+  const cfg = ailanaConfig;
+
+  // Core loan metrics
+  const loanAmount = purchasePrice - downPayment;
+  const ltv = loanAmount / purchasePrice;
+  const monthlyIncome = grossAnnualIncome / 12;
+
+  // P&I using standard amortization: M = P[r(1+r)^n]/[(1+r)^n-1]
+  const monthlyRate = cfg.representativeRate / 12;
+  const n = 360; // 30 years
+  const monthlyPI = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, n))
+                    / (Math.pow(1 + monthlyRate, n) - 1);
+
+  // Tax & Insurance (national average defaults)
+  const monthlyTax = (purchasePrice * cfg.propertyTaxRate) / 12;
+  const monthlyInsurance = (purchasePrice * cfg.homeownersInsRate) / 12;
+
+  // Program-aware MI
+  let monthlyMI = 0;
+  if (programType === 'conventional') {
+    monthlyMI = ltv > 0.80 ? (loanAmount * cfg.conventionalPmiRate) / 12 : 0;
+  } else if (programType === 'fha') {
+    monthlyMI = (loanAmount * cfg.fhaMipRate) / 12;
+  } else if (programType === 'va') {
+    monthlyMI = 0; // One-time funding fee at closing — not monthly
+  } else if (programType === 'usda') {
+    monthlyMI = (loanAmount * cfg.usdaAnnualFeeRate) / 12;
+  }
+
+  const totalPITIA = monthlyPI + monthlyTax + monthlyInsurance + monthlyMI;
+  const dti = (totalMonthlyDebt + totalPITIA) / monthlyIncome;
+
+  return {
+    loanAmount,
+    ltv,
+    monthlyPI,
+    monthlyTax,
+    monthlyInsurance,
+    monthlyMI,
+    totalPITIA,
+    incomeBand: totalPITIA / monthlyIncome <= cfg.incomeBandThreshold ? 'within' : 'above',
+    dtiBand: dti <= cfg.dtiBandThreshold ? 'within' : 'above',
+    dti,
+  };
 }
 ```
 
 **Result:**
-Stage 1 now gates on all 6 fields before transitioning. The order matches v6.0 Section 1B exactly.
+Any part of the system (REST API endpoint, WebSocket handler, voice-mode narration path) can import `calculateAffordability()` and get a complete, spec-compliant PITIA breakdown and band statuses in one call. The function is pure and testable with no side effects.
 
 ---
 
-### 2.5. Update Stage 1 Prompt Instructions
+### Step 2.2 — Build the AUS Submission Payload Builder & Mock Endpoint
 
 **Problem:**
-[stage1-greeting.ts](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/prompts/stage1-greeting.ts) currently instructs the LLM to collect name, goal, timeline, and property state. This must reflect the new 6-field set and the v6.0 greeting.
+When the borrower clicks "Submit for review," the system needs to package all collected profile data into a MISMO 3.4 format payload and send it to the AUS (Fannie Mae DU / Freddie Mac LPA via Encompass Developer Connect API). There is no payload builder, no AUS client, and no endpoint for this today. The spec defines exactly which fields go in the payload (Section 3.2 of `Affordability_Panel_Mobile.md`).
 
 **Solution:**
-Rewrite `buildStage1Instructions()`:
-```
-STAGE: Greeting and intent discovery.
-GOAL: Learn (1) borrower name, (2) mortgage goal, (3) occupancy type, (4) existing relationship,
-      (5) timeline, (6) co-borrower status. Collect in that order. Do not skip ahead.
+Create `backend/src/utils/aus-submission.ts` with:
+1. A `buildAusPayload(profile, sliderValues)` function that assembles all required MISMO 3.4 fields from the `BorrowerProfile` plus the current slider positions.
+2. A `submitToAus(payload)` async function that, for now, returns a **mock AUS result** after 2–4 seconds (simulating real AUS latency). The mock returns `'approve_eligible'` 70% of the time and `'refer'` 30%.
 
-RULES:
-- Ask ONE question per turn. Never stack questions.
-- For your very first response (opening greeting), say exactly: "Hi! I am Ailana, an AI mortgage
-  assistant. I can answer your mortgage questions, walk you through loan program information, and
-  help you get started on the path to homeownership. What questions do you have for me today?"
-- Once the borrower responds, proceed to collect their name, then mortgage goal, then occupancy,
-  then existing relationship, then timeline, then co-borrower status — in that exact order.
-- Use their name immediately once shared.
-- Do not ask about finances until Stage 2.
-- Stage transitions are controlled by the system, not by you.
-- Do NOT offer to summarize or ask if they are ready to proceed. Acknowledge and ask for the next
-  field immediately.
-- Do NOT offer to connect with a mortgage advisor during Stage 1.
-- Do NOT ask for contact information (phone, email, address) during Stage 1 or Stage 2.
-```
-
-**Result:**
-The LLM's Stage 1 instruction set matches the DavidNEWDoc.md Section 1B field sequence. No raw questions from the document are embedded — the LLM generates contextual phrasing dynamically based on the field name and description provided in the `CURRENT TASK` block.
-
----
-
-## Stage 3: Stage 2 Field Expansion and Income Terminology Change [DONE] ✅
-
-This stage extends the pre-qualification discovery to cover all 10 fields from DavidNEWDoc.md Section 2B (Q35-Q44), and changes the income field from monthly to annual per the document.
-
-**Current Stage 2 fields:** `gross_monthly_income` → `monthly_debt` → `credit_range` → `down_payment` → `property_value`
-**Required Stage 2 fields (v6.0):** `gross_annual_income` (Q35) → `monthly_debt` (Q36) → `credit_range` (Q37) → `down_payment` (Q38) → `rent_own` (Q39) → `realtor_status` (Q40) → `target_price` (Q41) → `property_type` (Q42) → `military_rural` (Q43) → `job_tenure_type` (Q44)
-
----
-
-### 3.1. Rename `gross_monthly_income` to `gross_annual_income`
-
-**Problem:**
-DavidNEWDoc.md Q35 explicitly asks for *"gross annual household income"*. The current codebase uses `gross_monthly_income` throughout. This is a naming and value interpretation discrepancy. Internally, the DTI calculation in `runUnderwritingRules()` (line 415) divides `debt / income` — if income is now annual, the DTI formula must divide by `income / 12` to get a monthly ratio.
-
-**Solution:**
-- Rename `gross_monthly_income` → `gross_annual_income` and `gross_monthly_income_confirmed` → `gross_annual_income_confirmed` in the `BorrowerProfile` interface.
-- Update `FIELD_LABELS`: `gross_annual_income: 'gross annual household income'`.
-- Update the Stage 2 extraction instruction to ask for annual income.
-- Update `runUnderwritingRules()` and `calculateEligibility()` to convert annual income to monthly when computing DTI: `const monthlyIncome = (this.profile.gross_annual_income ?? 0) / 12;`
-- Update `commitStage2Value()` to handle the renamed field.
-- Update `buildLayer3TurnContext()` stage 2 block display.
-
-**Result:**
-The LLM asks for annual income (matching Q35), stores it as an annual figure, and the backend internally converts to monthly for DTI calculations. No functional change to the DTI logic — just the input scale changes.
-
----
-
-### 3.2. Rename `property_value` to `target_price`
-
-**Problem:**
-DavidNEWDoc.md Q41 asks for *"target price range"* not *"property value"*. While functionally similar, the naming should align with the document for consistency. The field label in user-facing prompts should match Q41's phrasing.
-
-**Solution:**
-- Rename `property_value` → `target_price` and `property_value_confirmed` → `target_price_confirmed` in `BorrowerProfile`.
-- Update all references in `session-context-manager.ts` (extraction, confirmation, advanceWorkflow, calculateEligibility, runUnderwritingRules).
-- Update `FIELD_LABELS`: `target_price: 'target home purchase price range'`.
-- Update the `down_payment` extraction instruction — it currently references `this.profile.property_value` for percentage calculation; change to `this.profile.target_price`.
-
-**Result:**
-Field naming matches the document terminology. All downstream calculations (LTV, eligibility) continue to work identically.
-
----
-
-### 3.3. Add 5 New Stage 2 Fields
-
-**Problem:**
-DavidNEWDoc.md Section 2B includes 5 additional discovery questions not in the current codebase:
-- **Q39 — Rent/Own status** and whether they plan to sell (bridge loan detection)
-- **Q40 — Realtor status** (timeline/readiness indicator)
-- **Q42 — Property type** (affects FHA condo approval, multi-family rules)
-- **Q43 — Military/Rural** (screens for VA/USDA zero-down eligibility)
-- **Q44 — Job tenure and income type** (employment stability, self-employment flag)
-
-**Solution:**
-Add to `BorrowerProfile` in the Stage 2 section:
 ```typescript
-// ── Stage 2 (continued) ─────────────────────────────────────────
-rent_own?: string | null;              // Q39: 'rent' | 'own' | 'own_selling'
-rent_own_confirmed?: boolean;
-
-realtor_status?: string | null;        // Q40: 'yes' | 'no'
-realtor_status_confirmed?: boolean;
-
-property_type?: string | null;         // Q42: 'single_family' | 'condo' | 'townhome' | 'multi_family' | 'other'
-property_type_confirmed?: boolean;
-
-military_rural?: string | null;        // Q43: 'military' | 'rural' | 'both' | 'neither'
-military_rural_confirmed?: boolean;
-
-job_tenure_type?: string | null;       // Q44: free-text summary of tenure + income type
-job_tenure_type_confirmed?: boolean;
-```
-
-Add to `FIELD_LABELS`:
-```typescript
-rent_own: 'current housing status (rent or own)',
-realtor_status: 'real estate agent status',
-property_type: 'property type',
-military_rural: 'military service or rural/suburban property',
-job_tenure_type: 'employment tenure and income type',
-```
-
-Add extraction logic for each field in `runStage2Extraction()`:
-- `rent_own`: Extract whether they rent or own, and if owning, whether they plan to sell. Values: `'rent'`, `'own'`, `'own_selling'`.
-- `realtor_status`: Extract yes/no for whether they have connected with a real estate agent.
-- `property_type`: Extract `'single_family'`, `'condo'`, `'townhome'`, `'multi_family'`, or `'other'`.
-- `military_rural`: Extract military service or rural/suburban property location. Values: `'military'`, `'rural'`, `'both'`, `'neither'`.
-- `job_tenure_type`: Extract as free-text summary (e.g. "3 years, salaried" or "self-employed, 5 years").
-
-These 5 new fields do **NOT** use the confirm-then-advance pattern (no `pending_confirm_field`). They use direct extraction and confirmation like Stage 1 fields (extract → set confirmed → advance). This is because these are categorical/yes-no fields, not dollar amounts that need explicit read-back confirmation.
-
-**Result:**
-Stage 2 now collects all 10 fields from Section 2B. The `military_rural` field feeds into the eligibility engine to flag VA/USDA products (covered in Stage 4). The `rent_own` field surfaces bridge loan scenarios. The `job_tenure_type` field pre-screens for self-employment complexity.
-
----
-
-### 3.4. Update `advanceWorkflow()` for Stage 2
-
-**Problem:**
-The Stage 2 section of `advanceWorkflow()` (lines 742-758) only checks 5 fields. It must check all 10 fields in the new order.
-
-**Solution:**
-Replace the Stage 2 field checks with:
-```typescript
-// ── Stage 2 ──────────────────────────────────────────────────────
-} else if (!this.profile.gross_annual_income_confirmed) {
-  this.currentPendingField = 'gross_annual_income';
-} else if (!this.profile.monthly_debt_confirmed) {
-  this.currentPendingField = 'monthly_debt';
-} else if (!this.profile.credit_range_confirmed) {
-  this.currentPendingField = 'credit_range';
-} else if (!this.profile.down_payment_confirmed) {
-  this.currentPendingField = 'down_payment';
-} else if (!this.profile.rent_own_confirmed) {
-  this.currentPendingField = 'rent_own';
-} else if (!this.profile.realtor_status_confirmed) {
-  this.currentPendingField = 'realtor_status';
-} else if (!this.profile.target_price_confirmed) {
-  this.currentPendingField = 'target_price';
-} else if (!this.profile.property_type_confirmed) {
-  this.currentPendingField = 'property_type';
-} else if (!this.profile.military_rural_confirmed) {
-  this.currentPendingField = 'military_rural';
-} else if (!this.profile.job_tenure_type_confirmed) {
-  this.currentPendingField = 'job_tenure_type';
-```
-
-Note: `down_payment` is collected BEFORE `target_price` because Q38 (down payment) comes before Q41 (target price) in the document.
-
-**Result:**
-The state machine advances through all 10 fields in the exact order specified by DavidNEWDoc.md before triggering the Stage 2 → Stage 3 transition.
-
----
-
-### 3.5. Update Stage 2 Prompt Instructions
-
-**Problem:**
-[stage2-prequalification.ts](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/prompts/stage2-prequalification.ts) currently lists 5 fields. It must list all 10.
-
-**Solution:**
-Rewrite the field list and goal:
-```
-STAGE: Pre-qualification discovery.
-GOAL: Collect the borrower's financial and property picture across 10 fields in this exact order:
-  1. gross_annual_income  — gross annual household income before taxes (a range is fine)
-  2. monthly_debt         — all recurring monthly debt payments (car, student loans, credit cards, etc.)
-  3. credit_range         — credit score estimate as a number (accept tier descriptions if no number known)
-  4. down_payment         — cash set aside or planned for down payment and initial closing costs
-  5. rent_own             — currently renting or owning; if owning, whether they plan to sell
-  6. realtor_status       — whether they have connected with a real estate agent
-  7. target_price         — general target purchase price range for the home
-  8. property_type        — single-family, condo, townhome, multi-family, or other
-  9. military_rural       — military service (current/former) or rural/suburban property location
-  10. job_tenure_type     — how long with current employer, and income type (salary, hourly, self-employed, etc.)
-```
-
-Update the confirmation rules to specify which fields use the dollar-amount confirm pattern (gross_annual_income, monthly_debt, down_payment, target_price) and which use direct extraction (credit_range, rent_own, realtor_status, property_type, military_rural, job_tenure_type).
-
-**Result:**
-The LLM knows the full 10-field sequence and which fields require explicit read-back confirmation. It generates contextual questions for each field without needing the raw Q35-Q44 text from the document.
-
----
-
-### 3.6. Update Stage 2 Profile Block Display
-
-**Problem:**
-The `buildLayer3TurnContext()` Stage 2 block (lines 125-133) only shows 5 fields. It must show all 10.
-
-**Solution:**
-Expand the Stage 2 block to include all 10 fields with their confirmed status:
-```typescript
-const stage2Block = [
-  '=== BORROWER PROFILE (Stage 2 — Pre-Qualification) ===',
-  `Gross annual income:   ${fmt(profile.gross_annual_income)} (Confirmed: ${!!profile.gross_annual_income_confirmed})`,
-  `Monthly debt:          ${fmt(profile.monthly_debt)} (Confirmed: ${!!profile.monthly_debt_confirmed})`,
-  `Credit score:          ${profile.credit_range ?? 'not yet collected'} (Confirmed: ${!!profile.credit_range_confirmed})`,
-  `Down payment:          ${fmt(profile.down_payment)} (Confirmed: ${!!profile.down_payment_confirmed})`,
-  `Rent/Own:              ${profile.rent_own ?? 'not yet collected'} (Confirmed: ${!!profile.rent_own_confirmed})`,
-  `Realtor:               ${profile.realtor_status ?? 'not yet collected'} (Confirmed: ${!!profile.realtor_status_confirmed})`,
-  `Target price:          ${fmt(profile.target_price)} (Confirmed: ${!!profile.target_price_confirmed})`,
-  `Property type:         ${profile.property_type ?? 'not yet collected'} (Confirmed: ${!!profile.property_type_confirmed})`,
-  `Military/Rural:        ${profile.military_rural ?? 'not yet collected'} (Confirmed: ${!!profile.military_rural_confirmed})`,
-  `Job tenure/type:       ${profile.job_tenure_type ?? 'not yet collected'} (Confirmed: ${!!profile.job_tenure_type_confirmed})`,
-  '=== END STAGE 2 ===',
-].join('\n');
-```
-
-**Result:**
-The LLM sees the full state of all 10 Stage 2 fields on every turn, enabling it to reference previously collected data (e.g., "Since you mentioned you're self-employed...") and to know exactly which field is next.
-
----
-
-## Stage 4: Stage 2 Closing Transition and Stage 3 Product Guidance Alignment [DONE] ✅
-
-This stage implements the critical **Stage 2 Closing Transition Prompt** (the first eligibility review offer) and aligns Stage 3's educational Q&A flow with DavidNEWDoc.md Sections 3A and 3B.
-
----
-
-### 4.1. Implement the Stage 2 Closing Transition Prompt
-
-**Problem:**
-DavidNEWDoc.md (lines 429-437) specifies that after completing all Stage 2 questions, Ailana delivers a **Closing Transition Prompt** offering the initial eligibility review / soft pull. This is the **first opportunity** for the soft pull:
-- Borrower says **Yes** → Trigger formal soft pull consent disclosure (separate system component).
-- Borrower says **No / Not yet** → Advance to Stage 3 product education.
-- Borrower asks **what it involves** → Deliver the explanatory paragraph.
-
-The current code has NO such transition — it jumps directly from Stage 2 completion to Stage 3 with a bridge phrase (*"Let me walk you through the options..."*). There is no eligibility review offer at this point.
-
-**Solution:**
-1. Add a new intermediate state between Stage 2 completion and Stage 3. When all 10 Stage 2 fields are confirmed, instead of jumping to Stage 3 immediately, set:
-```typescript
-this.currentPendingField = 'stage2_closing_offer';
-// Don't change activeStage yet — stay in Stage 2 for the transition
-```
-2. Add a new extraction handler for `stage2_closing_offer` that classifies the response:
-   - **Yes/proceed/ready** → Advance to Stage 3A (soft pull consent), set `this.profile.soft_pull_consent = 'pending'`.
-   - **No/not yet/continue exploring** → Advance to Stage 3 (product education), set `this.currentPendingField = 'product_fit_walkthrough'`.
-   - **What does it involve?** → Keep `stage2_closing_offer` pending so the LLM delivers the explanatory response on the next turn, then re-asks.
-3. Update the Stage 2 bridge instructions to deliver the v6.0 closing transition prompt verbatim (DavidNEWDoc.md line 433).
-
-**Result:**
-The borrower gets the first natural opportunity to submit for the eligibility review after Stage 2. If they decline, they proceed to Stage 3 for product education. If they accept, they go straight to the soft pull consent flow (Stage 3A). This matches the document's branching logic exactly.
-
----
-
-### 4.2. Align Stage 3 with DavidNEWDoc.md Sections 3A and 3B
-
-**Problem:**
-The current Stage 3 in [stage3-guidance.ts](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/prompts/stage3-guidance.ts) focuses on presenting 2-3 eligible products, asking "Does that make sense?", then offering the soft pull. DavidNEWDoc.md's Stage 3 is broader:
-- **Section 3A** (Q45-Q61): The borrower asks Ailana extensive educational questions (FHA vs conventional, rates, PMI, escrow, closing process, etc.). Ailana provides thorough responses.
-- **Section 3B** (Q62-Q64): Ailana asks the borrower three product-fit refinement questions:
-  - Q62: Whether they want a program comparison walkthrough.
-  - Q63: Financial priority — low monthly payment vs. faster payoff.
-  - Q64: Long-term vs. short-term home.
-- **Stage 3 Closing Transition**: A second eligibility review offer (if they didn't accept at Stage 2).
-
-The current code conflates product presentation with the soft pull offer and doesn't support the educational Q&A flow or the 3B refinement questions.
-
-**Solution:**
-Restructure Stage 3:
-
-1. **Stage 3 entry point**: When the borrower enters Stage 3 (either from Stage 2 decline or from Stage 1→2→3 progression), set `currentPendingField = 'product_fit_walkthrough'`. The LLM presents product education based on the borrower's profile.
-
-2. **Stage 3 Section 3A handling**: The LLM naturally handles borrower questions about loan programs, rates, PMI, etc., using the educational content from the system prompt. No state machine changes needed — the LLM stays in Stage 3 and answers questions freely. The current `product_selection_feedback` field behavior (lines 120-142) handles this — the LLM waits for the borrower to indicate readiness.
-
-3. **Stage 3 Section 3B**: After product education, advance to collecting the three refinement questions:
-   - `program_comparison_interest` (Q62) — yes/no
-   - `financial_priority` (Q63) — 'low_payment' | 'faster_payoff' | 'balanced'
-   - `home_horizon` (Q64) — 'long_term' | 'short_term'
-   
-   These are informational fields that help calibrate Ailana's educational framing. They do NOT gate eligibility.
-
-4. **Stage 3 Closing Transition**: After Section 3B questions are answered (or if the borrower indicates readiness), deliver the Stage 3 Closing Transition Prompt (DavidNEWDoc.md line 615). Same three-way branching as the Stage 2 closing:
-   - **Yes** → Stage 3A (soft pull consent)
-   - **No** → Offer to connect with a licensed mortgage advisor directly.
-   - **What does it involve?** → Explanatory paragraph, then re-ask.
-
-5. Update `stage3-guidance.ts` prompt instructions to reflect this flow.
-
-**Result:**
-Stage 3 becomes a rich educational exchange (matching 3A) followed by product-fit refinement (matching 3B) and a second eligibility review offer (matching the Stage 3 closing transition). The borrower gets two natural opportunities to opt into the eligibility review — one at the end of Stage 2, one at the end of Stage 3.
-
----
-
-### 4.3. Update Eligibility Calculation with New Fields
-
-**Problem:**
-`calculateEligibility()` (lines 674-719) currently uses only income, debt, credit score, property value, and down payment. The new fields (military_rural, property_type) should influence product eligibility:
-- `military_rural = 'military'` or `'both'` → Add VA Loan to eligible products.
-- `military_rural = 'rural'` or `'both'` → Strengthen USDA eligibility flag.
-- `property_type = 'condo'` → Note FHA condo project approval requirement.
-
-**Solution:**
-Enhance the eligibility rules engine in `calculateEligibility()`:
-```typescript
-// VA Loan: Military service indicated
-if (
-  (this.profile.military_rural === 'military' || this.profile.military_rural === 'both') &&
-  dti <= 50
-) {
-  products.push('VA Loan (Zero down payment, no PMI — for eligible service members)');
+export interface AusPayload {
+  // From soft credit pull
+  creditScore: number;
+  monthlyLiabilities: number;
+  derogatoryFlags: boolean;
+  // From conversational answers
+  grossMonthlyIncome: number;
+  employmentType: string;
+  selfEmployed: boolean;
+  coBorrowerIncome: number;
+  downPayment: number;
+  purchasePrice: number;
+  occupancyType: string;
+  propertyType: string;
+  transactionType: string;
+  // From system
+  representativeRate: number;
+  loanAmount: number;
+  ltv: number;
+  estimatedDti: number;
+  estimatedPitia: number;
 }
 
-// USDA: Rural + credit + DTI
-if (
-  (this.profile.military_rural === 'rural' || this.profile.military_rural === 'both') &&
-  creditScore >= 640 && dti <= 41
-) {
-  products.push('USDA Rural Home Loan (Zero down payment for qualifying properties)');
+export async function submitToAus(payload: AusPayload): Promise<'approve_eligible' | 'refer'> {
+  // TODO: Replace with real Encompass Developer Connect API call
+  await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 2000));
+  return Math.random() < 0.70 ? 'approve_eligible' : 'refer';
 }
 ```
-Also update the income reference from `gross_monthly_income` to `gross_annual_income / 12`.
 
 **Result:**
-Product eligibility recommendations are more accurate because they account for VA/USDA eligibility signals collected in Stage 2. This improves the quality of Stage 3 product guidance.
+The AUS submission has a clean, typed interface. When real Encompass API credentials are available, the `submitToAus()` function body is swapped out — nothing else changes. The mock lets the entire UI and narration flow be fully tested end-to-end before production AUS access is set up.
 
 ---
 
-## Stage 5: Stage 3A/3B Alignment and Bridge Phrase Updates [DONE] ✅
-
-This stage fine-tunes the post-eligibility-review flow (Stage 3A) and the application completion flow (Stage 3B) to use institution-neutral language and align with v6.0 compliance.
-
----
-
-### 5.1. Neutralize Stage 3A Consent Disclosure Language
+### Step 2.3 — Add REST API Endpoint for Panel Calculations
 
 **Problem:**
-The current verbatim consent disclosure in [stage3-guidance.ts](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/prompts/stage3-guidance.ts) (lines 34-35) and the consent block in [layer3-context.ts](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/prompts/layer3-context.ts) (line 240) use the phrase *"not us pulling it on our behalf"*. DavidNEWDoc.md's compliance notes (line 635) state: *"Ailana invites; the disclosure system obtains consent."* The consent disclosure itself is described as a "separate formal disclosure component" — not spoken by Ailana, but triggered by the transition prompts.
+The browser-rendered affordability panel needs to call the backend on every slider change to get updated PITIA and band status. Currently, there is no REST endpoint for this. Without it, the frontend either has to duplicate all the calculation logic (bad — would diverge from backend math) or it cannot update the panel in real time.
 
 **Solution:**
-The consent disclosure remains as a verbatim script spoken by Ailana (this is the current system design since there is no separate disclosure UI component yet), but update the language to be institution-neutral and aligned with v6.0:
+In the Next.js app, create `src/app/api/affordability/calculate/route.ts`:
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { calculateAffordability } from '../../../../backend/src/utils/affordability-calculator';
+
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  const { purchasePrice, downPayment, grossAnnualIncome,
+          totalMonthlyDebt, programType } = body;
+
+  const result = calculateAffordability({
+    purchasePrice, downPayment, grossAnnualIncome,
+    totalMonthlyDebt, programType: programType ?? 'conventional',
+  });
+
+  // IMPORTANT: Never return the raw `dti` or `loanAmount` to the client —
+  // only return what the UI is allowed to display per compliance rules.
+  return NextResponse.json({
+    totalPITIA: result.totalPITIA,
+    monthlyMI: result.monthlyMI,
+    incomeBand: result.incomeBand,
+    dtiBand: result.dtiBand,
+    // dti is intentionally excluded — never displayed to borrower
+  });
+}
 ```
-"Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry —
-it will not affect your credit score in any way. You are the one authorizing it, and your data
-is used only to process your initial eligibility review and pre-fill your mortgage application.
-Do you authorize the soft credit inquiry on that basis?"
+
+Also create `src/app/api/affordability/submit/route.ts` for the AUS submission trigger:
+```typescript
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  // Build payload, call submitToAus, return result
+  ...
+}
 ```
 
 **Result:**
-Consent language is institution-neutral, clearly borrower-authorized, and consistent with v6.0's soft pull framing.
+The frontend panel calls `/api/affordability/calculate` on every slider change (debounced to 300ms) and gets back PITIA, MI, and band statuses. The backend remains the single source of truth for all math. Calling `/api/affordability/submit` triggers AUS processing asynchronously.
 
 ---
 
-### 5.2. Update Bridge Phrases
+## Stage 3: AUS Findings Delivery & Ailana Narration Scripts (Stage 2.5 Prompts)
+
+This stage wires up findings delivery (FD1/FD2) back to the conversational layer and adds the Stage 2.5 narration formulations to Ailana's prompt instructions.
+
+---
+
+### Step 3.1 — AUS Findings Handling & State Transition
 
 **Problem:**
-The bridge phrases in `buildLayer3TurnContext()` (lines 231-235) use casual language:
-- Stage 1→2: *"That gives me a solid picture. I'd like to ask a few questions about your financial situation..."*
-- Stage 2→3: *"Let me walk you through the options that look like the strongest fit."*
-
-DavidNEWDoc.md provides much more detailed transition language (lines 431-437 for Stage 2→3, lines 611-619 for Stage 3 closing).
+After the borrower submits from the affordability panel, the AUS call is async. The state machine sets `affordability_aus_status = 'pending'` but then has no mechanism to receive the AUS result and advance the conversation. The LLM also has no instruction on what to say while AUS is processing (the spec requires the `RFD-LOADING` formulation if > 10 seconds elapse).
 
 **Solution:**
-Replace bridge phrases:
-- **Stage 1→2**: *"That gives me a great starting point. Now I would like to spend a few minutes exploring your financial picture — income, current debts, credit profile, and a few other details — so I can map out the loan programs that may be most relevant to your situation."*
-- **Stage 2→3 (when borrower declined eligibility review)**: *"Based on what you have shared, I can walk you through the loan programs that may be most relevant to your situation and answer any questions you have about the process."*
+1. When `submitToAus()` resolves, call a new method `applyAusResult(result: 'approve_eligible' | 'refer')` on the `SessionContextManager`:
+   ```typescript
+   applyAusResult(result: 'approve_eligible' | 'refer') {
+     this.profile.affordability_aus_status = result === 'approve_eligible' ? 'approve_eligible' : 'refer';
+     this.activeStage = '2.5';
+     this.currentPendingField = result === 'approve_eligible' ? 'fd1_delivery' : 'fd2_delivery';
+   }
+   ```
+2. In the `agent.ts` response loop, after triggering the AUS call, set a 10-second timer. If the AUS has not returned, inject the `RFD-LOADING` narration as a proactive Ailana utterance:
+   ```
+   "Your eligibility review is processing right now — these reviews typically take just a moment, but occasionally take a little longer depending on system volume. Please hold on — I'll have your results for you shortly."
+   ```
+3. In `runStage25Extraction()`, handle `fd1_delivery` and `fd2_delivery` as terminal pending fields that trigger the appropriate verbatim narration from the prompt layer.
 
 **Result:**
-Bridge phrases are educational in tone and consistent with v6.0's conversational style.
+The AUS flow is complete: submit → loading state → result arrives → Ailana speaks FD1 or FD2 → pre-qual letter is emailed (FD1) or MLO routing begins (FD2). No dead air during AUS processing. No borrower is left hanging.
 
 ---
 
-### 5.3. Remove `co_borrower` from Stage 3B
+### Step 3.2 — Add Stage 2.5 Prompt Instructions File
 
 **Problem:**
-Since `co_borrower` is now collected in Stage 1 (per 2.2 above), the Stage 3B extraction logic for `co_borrower` (lines 244-254 in `session-context-manager.ts`) and the `advanceWorkflow()` check in Stage 3B (line 793-794) are redundant.
+Ailana has no instruction layer for Stage 2.5. There is no `stage2.5-affordability.ts` prompt file. Without it, the LLM will not know the mandatory formulations (`Q46`–`Q58`), will not know that it must **never** vocalize dollar figures, and will not know the difference between `FD1`, `FD1-alt`, and `FD2` findings delivery scripts. This means Ailana will either go off-script or say nothing useful when the panel is open.
 
 **Solution:**
-- Remove the `co_borrower` extraction case from `runStage3BExtraction()`.
-- Remove the `co_borrower_confirmed` check from the Stage 3B section of `advanceWorkflow()`.
-- The Stage 3B prompt in `stage3b-completion.ts` should not ask for co-borrower status since it was already collected.
+Create `backend/src/prompts/stage25-affordability.ts` with `buildStage25Instructions()`:
+```typescript
+export function buildStage25Instructions(profile: BorrowerProfile): string {
+  return `
+STAGE: Affordability Scenario Review (Stage 2.5).
+GOAL: Guide the borrower through their affordability summary on screen, support exploration, carry them to a formal eligibility review submission or a licensed loan officer handoff.
+
+PANEL BEHAVIOR RULES (MANDATORY — NEVER DEVIATE):
+- All dollar figures, ratios, and scores are computed by the system and displayed on screen.
+  You MUST NEVER vocalize specific dollar amounts, DTI percentages, or credit scores.
+  Narrate DIRECTION only (e.g., "moved into the typical guideline range").
+- Status bands are always "within typical range" or "above typical range."
+  NEVER use: pass, fail, approved, denied, rejected, red flag.
+- The "Submit for review" button is always available to the borrower.
+  Every narration that describes an above-range result MUST reaffirm that submission is available.
+- You cannot recommend a specific purchase price or down payment value. This is a mandatory SAFE Act boundary.
+  If asked "Just tell me what price to qualify," deliver Q55 verbatim and offer to connect with a loan officer.
+
+FORMULATIONS — DELIVER EXACTLY AS WRITTEN:
+
+Q46 — When panel first appears:
+"Thank you for your patience, [Name] — your initial results are in, and I've placed your affordability summary on your screen. It brings together the income and savings targets you shared with me and the details from your credit review, and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?"
+
+Q47 — Inviting exploration:
+"I've opened your scenario explorer. You are in full control here — you can adjust the target purchase price or your down payment amount, and the summary on your screen will update as you go. I'll describe what changes as you explore. Take your time — there's no wrong way to do this."
+
+Q48 — Narrating a slider change (use the correct variant):
+  WITHIN RANGE: "With that change, your total debt ratio moved into the typical guideline range shown on your screen, and your estimated monthly payment came down as well. These targets are yours to set — keep exploring as long as you like, or let me know when the picture feels right to you."
+  ABOVE RANGE: "With that change, your total debt ratio moved above the typical guideline range shown on your screen. That is simply information for your planning — you're welcome to keep exploring, and you can submit for the formal review at any point either way."
+  MI CHANGE: "You'll notice the mortgage insurance line on your screen responded to your down payment change — on conventional scenarios, that line appears when the down payment is under twenty percent and drops off at twenty percent or more."
+
+Q49 — Proactive submission invitation (deliver once when scenario is within range and borrower pauses):
+"Your scenario has been sitting comfortably within the typical guideline ranges for the targets you've chosen. Whenever you feel ready, you can submit this for the formal eligibility review — that returns your conditional eligibility result along with an estimated payment range, and it does not affect your credit score. There's no obligation, and you're welcome to keep exploring first. Would you like to submit now?"
+
+Q50 — Proactive check-in when above range:
+"I want to check in — the summary on your screen reflects the targets you've set so far. From here you have three good options, and the choice is entirely yours: you can keep adjusting your targets, you can submit for the formal eligibility review exactly as things stand, or I can connect you with a licensed loan officer who can look at possibilities an automated summary doesn't capture — things like down payment assistance programs and specialized loan structures. Which would you prefer?"
+
+Q51 — Routing out-of-scope profiles (NO denial language):
+"Based on your profile, the strongest next step is a conversation with one of our licensed loan officers. Some situations are best reviewed by a person who can consider specialized program options and credit-strengthening strategies that our automated review doesn't cover. I can connect you right now, or schedule a callback at a time that works for you — which do you prefer?"
+
+Q52 — Drop-off / borrower declines:
+"I completely understand — this is one of the biggest financial decisions there is, and pausing to think it through is a perfectly good choice. Your session is securely saved, so whenever you're ready, you can pick up right where you left off. If you'd like, I can email you a summary of the scenarios you explored today so you have it on hand. Would that be helpful?"
+
+Q53 — Mortgage insurance question:
+"That line shows the estimated mortgage insurance for the scenario you're exploring, and it depends on the program type. On conventional scenarios, private mortgage insurance appears when the down payment is under twenty percent — and it isn't permanent; once your equity reaches twenty percent, you can request cancellation. On FHA scenarios, it appears as a mortgage insurance premium, which follows different rules. And on VA scenarios, there's no monthly mortgage insurance at all — you'll see a one-time funding fee instead. As you adjust your down payment, watch that line — it responds in real time."
+
+Q54 — "Does this mean I'm approved?":
+"Not yet — and I want to be really clear about what this summary is and isn't. It's an educational comparison of the scenario you've built against typical program guideline ranges. It is not an approval, a denial, or any kind of loan decision. The formal eligibility review is the step that returns your actual conditional eligibility result — and you can submit for that whenever you're ready. Would you like to?"
+
+Q55 — "Just tell me what price to put in so I qualify" (MANDATORY FORMULATION — never substitute):
+"That's the one thing I have to leave entirely in your hands — mortgage regulations require that these targets stay your choice, so I'm not able to recommend a specific price or down payment amount. What I can do is keep sharing the general program guidelines and describe how your summary responds as you explore. And if you'd like personalized guidance on structuring this, that's exactly what a licensed loan officer is for — I can connect you with one anytime you'd like."
+
+Q56 — Credit score difference from banking app:
+"Great catch — and it's completely normal. Credit scoring uses different models, and the score in your summary comes from the soft credit review, which may use a different model than your banking app. Both may also differ slightly from the score model used in formal mortgage underwriting. Small differences between them are expected and not a cause for concern."
+
+Q57 — "What happens when I click Submit for review?":
+"Your information is packaged and sent through the automated eligibility review. The system applies a current representative rate from our rate sheet and returns your conditional eligibility result along with an estimated payment range — it usually comes back within moments, and it does not affect your credit score. Once the result is in, I'll walk you through what it means, and a licensed loan officer takes you through everything from there."
+
+Q58 — "Can I change the income or debt numbers?":
+"The debt figures come directly from your credit review, so those stay as reported — though if something on that side looks wrong to you, that's absolutely worth flagging, and your licensed loan officer can help you look into it. Your income, on the other hand, is based on what you shared with me — so if it needs updating, just tell me the corrected figure. One tip: we work with your gross income, before taxes, which is often higher than what lands in your bank account each month."
+
+FINDINGS DELIVERY:
+FD1 (Approve/Eligible — auto-send):
+"Wonderful news, [Name] — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built. Your estimated payment range is on your screen now. I've also emailed your pre-qualification letter to you — it's issued by your lending institution, it's valid for ninety days, and it's exactly what real estate agents like to see with an offer. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like."
+
+FD1-alt (Approve/Eligible — MLO-review mode):
+"Wonderful news, [Name] — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built. Your estimated payment range is on your screen now. Your licensed loan officer is putting the final review on your pre-qualification letter right now — it will be in your inbox shortly, issued by your lending institution and valid for ninety days. Would you like me to connect you with them now, or have them reach out at a good time for you?"
+
+FD2 (Refer findings):
+"Thank you for your patience, [Name] — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?"
+
+RFD-LOADING (deliver if AUS takes > 10 seconds):
+"Your eligibility review is processing right now — these reviews typically take just a moment, but occasionally take a little longer depending on system volume. Please hold on — I'll have your results for you shortly and we'll go through everything together."
+`.trim();
+}
+```
+
+Also update `buildLayer3TurnContext()` in `layer3-context.ts` to include a Stage 2.5 block showing slider state and AUS status when `stage === '2.5'`.
 
 **Result:**
-No duplicate data collection. Stage 3B skips straight to marital status ➔ dependents ➔ employment.
+Ailana has a complete, mandatory-formulation instruction layer for Stage 2.5. The LLM will deliver the exact scripted responses with zero improvisation on any compliance-critical formulation. The findings delivery scripts match the spec verbatim.
 
 ---
 
-### 5.4. Eliminate SSN and DOB from all Workflows (Compliance v7.0)
+## Stage 4: Frontend — Affordability Panel UI Component
+
+This stage builds the interactive affordability panel as a React component that renders alongside the Ailana avatar/chat interface.
+
+---
+
+### Step 4.1 — Create the `AffordabilityPanel` React Component
 
 **Problem:**
-Historically, the state machine and prompting instructions requested the borrower's SSN (redirected to an on-screen secure input) and DOB. Per v7.0 CRS integration, these are no longer required for soft pulling or eligibility reviews. Having them in the flow violates minimization and compliance.
+There is no affordability panel UI component anywhere in the codebase. Without it, the interactive screen panel described in the spec cannot render. The panel is the primary visual interface for Stage 2.5 — the borrower uses it to explore scenarios and submit for AUS review. Ailana's narration is meaningless without the on-screen numbers the narration refers to.
 
 **Solution:**
-- Remove all instructions referencing SSN secure redirection and entry from [stage3b-completion.ts](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/prompts/stage3b-completion.ts).
-- Remove the `ssn_confirm` and `ssn_confirmed` fields from the borrower profile state machine and checking logic in [session-context-manager.ts](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/context/session-context-manager.ts).
-- Modify the Stage 3B state check inside `advanceWorkflow()` so it transitions directly from `dependents_confirmed` to `job_title_confirmed` (or equivalent employment variables).
+Create `src/components/affordability-panel.tsx`. The component must include:
+
+1. **Permanent Disclosure Banner** (`Section 2.2`) at the top:
+   ```tsx
+   <div className="disclosure-bar">
+     This is an educational estimate, not a loan decision or offer of credit.
+   </div>
+   ```
+   Styled as a muted but legible label — never hidden, never dismissible.
+
+2. **Status Band Rows** (`Section 2.3 & 2.4`) for INCOME and DTI:
+   ```tsx
+   <BandRow label="INCOME" status={incomeBand} />
+   <BandRow label="DTI (Debt-to-Income)" status={dtiBand} />
+   ```
+   `status='within'` → green left border/badge.
+   `status='above'` → amber left border/badge.
+   No red. No numbers. No pass/fail text.
+
+3. **Estimated Payment Display** (`Section 2.5`):
+   ```tsx
+   <div className="payment-display">
+     <span className="payment-label">ESTIMATED PAYMENT</span>
+     <span className="payment-amount">${totalPITIA.toLocaleString()}/mo</span>
+   </div>
+   <div className="mi-display">
+     <span className="mi-label">MORTGAGE INSURANCE</span>
+     <span className="mi-amount">{miDisplay}</span>
+   </div>
+   ```
+   Payment in `24px bold`. MI in `16px regular`. Both update with `200ms CSS transition`.
+
+4. **Scenario Explorer Sliders** (`Section 2.6`) with paired numeric inputs:
+   ```tsx
+   <SliderWithInput
+     label="Target Purchase Price"
+     value={purchasePrice}
+     min={100000}
+     max={2000000}
+     step={5000}
+     onChange={handlePurchasePriceChange}
+   />
+   <SliderWithInput
+     label="Down Payment"
+     value={downPayment}
+     min={0}
+     max={purchasePrice * 0.5}
+     step={1000}
+     onChange={handleDownPaymentChange}
+   />
+   ```
+   Each `SliderWithInput` has: a large editable dollar input field on top (`inputmode="numeric"`) + the slider below. Changes to either keep the other in sync.
+
+5. **Submit Button** (`Section 2.7`):
+   ```tsx
+   <button
+     id="affordability-submit-btn"
+     className="submit-btn"
+     onClick={handleSubmit}
+     disabled={false}  // NEVER disabled — Regulation B non-discouragement
+   >
+     {isSubmitting ? 'Reviewing...' : 'Submit for review'}
+   </button>
+   ```
+   **Critical**: `disabled` is hardcoded to `false`. The button must never be conditionally disabled based on band status.
+
+6. **State management**: On every slider change, call `/api/affordability/calculate` (debounced to 300ms) and update `totalPITIA`, `monthlyMI`, `incomeBand`, and `dtiBand`. On submit, call `/api/affordability/submit` and show a spinner.
 
 **Result:**
-No dialog block or secure fields are presented to collect SSN or DOB. The borrower completes the pre-qualification and formal application flows without these sensitive fields.
+The affordability panel renders with all spec-compliant display fields. The borrower can drag sliders or type numbers and see PITIA + band status update in real time. The submit button is always visible and always clickable. No dollar ratios or raw percentages are ever displayed.
 
 ---
 
-## Stage 6: Verification & End-to-End Testing [DONE] ✅
-
----
-
-### 6.1. Build Verification
+### Step 4.2 — Integrate the Panel into the Chat/Video Interface
 
 **Problem:**
-All the changes above span 8+ files across the backend and frontend. TypeScript compilation must succeed.
+Even with the `AffordabilityPanel` component built, it has no mounting point in the existing UI. The panel needs to appear alongside the Ailana chat/video interface at the correct moment (when `activeStage === '2.5'`). Currently, `live-chat-panel.tsx` and `video-stage.tsx` have no awareness of Stage 2.5.
 
 **Solution:**
-Run `npm run build` from the project root. Fix any type errors, missing imports, or interface mismatches.
+1. Expose the current `activeStage` and `affordability_panel_rendered` flag from the backend to the frontend via the existing WebSocket/LiveKit session message channel (add a `stage_update` message type that the backend sends whenever `activeStage` changes).
+2. In `live-chat-panel.tsx`, listen for `stage_update` messages. When `stage === '2.5'` and `panel_rendered === true`, conditionally render `<AffordabilityPanel>` in a side-panel column next to the chat thread:
+   ```tsx
+   {activeStage === '2.5' && panelRendered && (
+     <AffordabilityPanel
+       initialPurchasePrice={affordabilityData.purchasePrice}
+       initialDownPayment={affordabilityData.downPayment}
+       grossAnnualIncome={affordabilityData.grossAnnualIncome}
+       totalMonthlyDebt={affordabilityData.totalMonthlyDebt}
+       programType={affordabilityData.programType}
+       onSubmit={handleAffordabilitySubmit}
+     />
+   )}
+   ```
+3. In `video-stage.tsx`, apply the same conditional. Additionally, implement the Picture-in-Picture avatar behavior for mobile (`Section 10.2`): when Stage 2.5 activates, set a CSS class on the avatar element that triggers a transition from full-screen to an `80x80px` fixed corner position.
 
 **Result:**
-Clean build with zero TypeScript errors.
+When Ailana transitions to Stage 2.5 and delivers Q46, the affordability panel appears automatically on the borrower's screen alongside the chat or video interface. No manual action is needed. The panel and chat remain in sync — the borrower can interact with sliders while still hearing/reading Ailana.
 
 ---
 
-### 6.2. Conversational Flow Verification
+### Step 4.3 — Mobile Layout Adaptations (`Section 10`)
 
 **Problem:**
-The state machine now has more fields and branching paths. We need to verify that:
-- Stage 1 collects all 6 fields in order and transitions to Stage 2.
-- Stage 2 collects all 10 fields, then offers the Stage 2 Closing Transition.
-- The closing transition branches correctly (Yes → 3A, No → 3, What? → explain + re-ask).
-- Stage 3 handles educational Q&A and delivers the Stage 3 Closing Transition.
-- The greeting is correct in voice, text chat, and the frontend.
+On mobile viewports (`375px` minimum), displaying both the Ailana video avatar and the interactive panel simultaneously is physically impossible — each requires the full screen width. The spec defines three explicit modality paths (`PANEL_MODE` with PiP, `PANEL_MODE` chat-only, `VOICE_MODE`) that must be handled differently. Without this, the mobile experience will be either broken (overlapping UI) or useless (panel too small to interact with).
 
 **Solution:**
-- Start a local session and run through the full Stage 1 → 2 → 3 flow.
-- Verify the greeting renders correctly in all modes.
-- Test the Stage 2 closing transition with "yes", "no", and "what does that involve?" responses.
-- Verify bridge phrases appear at stage transitions.
-- Confirm the LLM delivers educational responses of appropriate length.
+1. **Modality detection**: Read `session.modality` (set by the backend at session start — `PANEL_MODE` for web/mobile browser, `VOICE_MODE` for telephony) and expose it to the frontend via the `stage_update` message.
+
+2. **Modality 1 — Avatar Video + Panel** (`Section 10.2`): When `modality = PANEL_MODE` and the avatar is visible:
+   - When Stage 2.5 triggers, show a *"Review my options"* button below the avatar.
+   - On tap, apply CSS transitions: avatar shrinks to `80x80px` PiP overlay (`position: fixed; bottom: 16px; right: 16px`), panel expands to `100vw × 100vh`.
+   - PiP is draggable. On tap, restores full avatar; panel minimizes to a bottom sheet handle.
+   - Animated speaking indicator on PiP when Ailana is speaking.
+   - Accessibility label: `"Ailana — tap to restore"`.
+
+3. **Modality 2 — Text/Chat** (`Section 10.3`): Panel renders as an inline card in the chat thread immediately below Ailana's Q46 message. Chat scrolls up above it. No PiP needed.
+
+4. **Modality 3 — Voice/Phone Only** (`Section 10.4`): Panel does not render. Backend `VOICE_MODE` path collects purchase price and down payment conversationally, runs `calculateAffordability()` server-side, and Ailana verbally narrates band status only (no dollar figures). Submit is a verbal confirmation. Results delivered via voice + email.
+
+5. **Touch targets** (`Section 10.5`): Slider thumbs must have a minimum `44×44px` hit area. Submit button minimum `52px` height, full width minus `32px` margins, sticky to bottom of viewport.
 
 **Result:**
-Full end-to-end validation that the conversational flow matches DavidNEWDoc.md v7.0 specification, excluding SSN and DOB.
+The affordability panel works correctly on every viewport and in every engagement modality. Avatar video sessions on mobile use PiP. Chat sessions embed the panel inline. Phone-only sessions skip the UI and use server-side narration. All touch targets meet WCAG 2.1 AA requirements.
 
 ---
 
-## Summary of Files Modified
+## Stage 5: Audit Logging
 
-| File | Changes |
-|---|---|
-| `backend/src/config/ailana-config.ts` | Reasoning effort → `'low'` |
-| `backend/src/prompts/ailana-system.ts` | Branding neutral, greeting, v7.0 response length/philosophy, SAFE Act rules |
-| `backend/src/prompts/stage1-greeting.ts` | 6-field sequence, v7.0 greeting |
-| `backend/src/prompts/stage2-prequalification.ts` | 10-field sequence, annual income, v7.0 audited short default options and follow-up slots |
-| `backend/src/prompts/stage3-guidance.ts` | Section 3A/3B flow, closing transition, consent language, v7.0 audited short default options |
-| `backend/src/prompts/layer3-context.ts` | BorrowerProfile interface, display blocks, field labels |
-| `backend/src/context/session-context-manager.ts` | Extraction logic, advanceWorkflow, eligibility engine, SSN/DOB removal |
-| `backend/src/agent.ts` | Greeting text constant |
-| `src/components/live-chat-panel.tsx` | Frontend greeting text |
-| `backend/src/prompts/stage3b-completion.ts` | Remove co_borrower (moved to Stage 1), remove SSN/DOB scripts |
-| `Ailana_Test_Flow_Guide.md` | Align test scripts and validation checklist to v7.0 and SSN/DOB exclusion |
+### Step 5.1 — Implement Affordability Panel Audit Log
+
+**Problem:**
+Per `Section 5` of the spec and `Compliance Item` in the compliance reference, every affordability panel interaction must be written to a server-side immutable audit log for fair lending monitoring. This is required by ECOA/Regulation B. There is currently no affordability-specific audit logging anywhere in the codebase. Without it, every interaction is unaudited and the system is non-compliant.
+
+**Solution:**
+Create `backend/src/utils/affordability-audit.ts` with an `logAffordabilityEvent()` function:
+```typescript
+export type AffordabilityEventType =
+  | 'panel_rendered'
+  | 'slider_changed'
+  | 'band_status_change'
+  | 'submit_clicked'
+  | 'aus_result_received'
+  | 'prequal_letter_issued'
+  | 'drop_off'
+  | 'scenario_summary_email_sent';
+
+export interface AffordabilityAuditEvent {
+  eventType: AffordabilityEventType;
+  sessionId: string;
+  timestamp: string;          // ISO 8601
+  // Panel rendered
+  borrowerName?: string;
+  transactionType?: string;
+  initialPurchasePrice?: number;
+  initialDownPayment?: number;
+  initialDtiBand?: string;
+  initialIncomeBand?: string;
+  // Slider changed
+  sliderType?: 'purchase_price' | 'down_payment';
+  previousValue?: number;
+  newValue?: number;
+  resultingDtiBand?: string;
+  resultingIncomeBand?: string;
+  resultingEstimatedPayment?: number;
+  // Band status change
+  band?: 'income' | 'dti';
+  previousStatus?: string;
+  newStatus?: string;
+  // Submit & AUS
+  purchasePriceAtSubmission?: number;
+  downPaymentAtSubmission?: number;
+  loanAmountAtSubmission?: number;
+  ltvAtSubmission?: number;
+  estimatedDtiAtSubmission?: number;
+  findingType?: 'Approve/Eligible' | 'Refer';
+  timeToResultMs?: number;
+  // Letter
+  letterId?: string;
+  mloName?: string;
+  mloNmls?: string;
+  deliveryMethod?: string;
+  // Drop-off
+  lastPanelState?: string;
+  dropOffStage?: string;
+}
+
+export async function logAffordabilityEvent(event: AffordabilityAuditEvent): Promise<void> {
+  // Write to persistent server-side log (database table or append-only log file)
+  // Minimum 3-year retention per ECOA/Regulation B
+  console.log('[AUDIT]', JSON.stringify(event));
+  // TODO: Replace with actual database write via Prisma
+}
+```
+
+Call `logAffordabilityEvent()` at every relevant point: when the panel renders, on every slider change, on every band status change, on submit, on AUS result, on letter issued, on drop-off.
+
+**Result:**
+Every affordability panel interaction has an immutable, timestamped audit trail. The log records the minimum fields required for fair lending monitoring as specified in `Section 5.1`. The system is ECOA/Regulation B compliant for audit purposes.
+
+---
+
+## Stage 6: Pre-Qualification Letter Generation
+
+### Step 6.1 — Implement Pre-Qualification Letter Generator
+
+**Problem:**
+When AUS returns `Approve/Eligible` (`FD1`), the spec requires that a pre-qualification letter be generated and emailed to the borrower immediately (auto-send mode) or held for MLO review (MLO-review mode). There is no letter generator, no email sender, and no letter template in the codebase. Without this, the FD1 flow is incomplete — Ailana says the letter has been emailed but nothing actually gets sent.
+
+**Solution:**
+1. Create `backend/src/utils/prequal-letter.ts` with a `generatePrequalLetter()` function that produces an HTML/PDF letter containing exactly the required fields per `Section 7`:
+   - **Title**: `"Pre-Qualification Letter"` (never "Pre-Approval").
+   - **Conditioned language**: *"Based on the information provided, [Borrower Name] appears conditionally eligible for a mortgage up to..."*
+   - **Maximum qualified amount**: From AUS findings.
+   - **Expiration date**: `90 days` from issuance (configurable via `LETTER_VALIDITY` env var).
+   - **Lending institution name and address**: From env config.
+   - **Assigned MLO full name + NMLS number**: From tenant config.
+   - **Date of issuance**.
+   - **What must NOT appear**: No interest rate, no monthly payment estimate, no approval language, no mention of Ailana as issuer.
+
+2. Create `backend/src/utils/email-sender.ts` with a `sendPrequalLetter()` function that emails the letter PDF to the borrower's `Q45` email address after E-SIGN consent is confirmed.
+
+3. Log every letter issuance to the affordability audit log (`prequal_letter_issued` event) with `letter_id`, `mlo_name`, `mlo_nmls`, `delivery_method`, and `timestamp`.
+
+**Result:**
+When AUS returns `Approve/Eligible`, a compliant pre-qualification letter is generated and emailed automatically. The letter is titled correctly ("Pre-Qualification Letter"), contains all required fields, omits all prohibited fields (no rate, no monthly payment, no approval claims), and is logged to the audit trail.
+
+---
+
+## Stage 7: End-to-End Testing & Verification
+
+### Step 7.1 — Backend Unit Tests
+
+**Problem:**
+The calculation engine, AUS payload builder, and audit logger are pure functions that can be unit-tested independently. Without tests, calculation regressions (e.g., a wrong PMI formula) could silently break payment estimates shown to every borrower.
+
+**Solution:**
+Create `backend/src/__tests__/affordability-calculator.test.ts` with test cases covering:
+- Conventional loan, LTV > 80% → PMI appears correctly.
+- Conventional loan, LTV ≤ 80% → MI = $0.
+- FHA loan → MIP at 0.55% regardless of LTV.
+- VA loan → Monthly MI = $0.
+- USDA loan → Annual fee at 0.35%.
+- Income band threshold: verify `within` when PITIA ≤ 28% of monthly income.
+- DTI band threshold: verify `within` when total DTI ≤ 45%, `above` when > 45%.
+- Verify that `dti` is computed correctly and NOT included in the REST API response.
+
+Run: `npm run test` from the project root.
+
+**Result:**
+All calculation paths are verified by automated tests. Any regression in a formula immediately fails the test suite before deployment.
+
+---
+
+### Step 7.2 — Full Conversational Flow Test
+
+**Problem:**
+The Stage 2.5 state machine, narration scripts, and panel integration need to be validated end-to-end with a real session to confirm that all moving parts connect correctly — state transitions, panel rendering, slider updates, AUS mock, findings delivery, and letter generation.
+
+**Solution:**
+Run a complete test session in the browser following this sequence:
+
+1. **Stage 1 → 2 → Stage 2 Closing Offer**: Complete all Stage 1 and Stage 2 fields, reach the `stage2_closing_offer` prompt, say "Yes."
+2. **Panel Appearance**: Verify the affordability panel renders with pre-seeded slider values from Q38 (down payment) and Q41 (target price). Verify Q46 is spoken.
+3. **Slider Interaction**: Move the purchase price slider up. Verify:
+   - PITIA updates within 300ms.
+   - Band status updates correctly.
+   - Ailana delivers Q48 (correct variant — above or within range).
+   - No dollar figures are vocalized by Ailana.
+4. **Submit Button**: Verify the button is always enabled regardless of band status (test with a DTI > 50% scenario).
+5. **Submit Flow**: Click "Submit for review." Verify spinner appears, `RFD-LOADING` fires after 10s if needed, and AUS mock result arrives within 4s.
+6. **FD1 / FD2**: Verify FD1 narration is delivered verbatim when mock returns `approve_eligible`. Verify the pre-qual letter email is triggered (check email or mock output). Verify FD2 narration when mock returns `refer`.
+7. **SAFE Act Boundary (Q55)**: Type "Just tell me what price puts me in range." Verify Ailana delivers the Q55 mandatory formulation without suggesting a price.
+8. **Drop-off / Q52**: Say "I need to think about this." Verify Q52 drop-off handling and session save confirmation.
+9. **Voice Mode**: Test the session in a voice-only context (Modality 3). Verify the panel does not render, Ailana collects price and down payment verbally, narrates band status only, and offers verbal submission.
+
+**Result:**
+End-to-end validation that the entire Stage 2.5 flow — from panel render to AUS findings delivery — works correctly across all compliance boundaries (no vocalized figures, always-enabled submit button, mandatory Q55 refusal, FD1/FD2 verbatim delivery) and across all modalities (chat, video + PiP, voice-only).
+
+---
+
+## File Change Summary
+
+| File | Change Type | What Changes |
+|:---|:---|:---|
+| `backend/src/config/ailana-config.ts` | **MODIFY** | Add `representativeRate`, band thresholds, tax/insurance/MI rate defaults |
+| `.env.local` | **MODIFY** | Add `REPRESENTATIVE_RATE` and all related env vars with current values |
+| `backend/src/prompts/layer3-context.ts` | **MODIFY** | Add Stage 2.5 `BorrowerProfile` fields and Stage 2.5 display block in `buildLayer3TurnContext()` |
+| `backend/src/context/session-context-manager.ts` | **MODIFY** | Add `Stage 2.5` state, `runStage25Extraction()`, AUS result handler, stage transition from `stage2_closing_offer → 'yes'` |
+| `backend/src/utils/affordability-calculator.ts` | **NEW** | PITIA calculation engine with program-aware MI and band status logic |
+| `backend/src/utils/aus-submission.ts` | **NEW** | AUS payload builder and mock AUS client (to be replaced with Encompass API) |
+| `backend/src/utils/affordability-audit.ts` | **NEW** | Affordability panel audit logger (all events → immutable log) |
+| `backend/src/utils/prequal-letter.ts` | **NEW** | Pre-qualification letter generator (HTML/PDF, compliant template) |
+| `backend/src/utils/email-sender.ts` | **NEW** | Email delivery utility for pre-qual letters |
+| `backend/src/prompts/stage25-affordability.ts` | **NEW** | Stage 2.5 LLM instruction layer with all Q46–Q58 mandatory formulations and FD1/FD2/RFD-LOADING scripts |
+| `backend/src/prompts/ailana-system.ts` | **MODIFY** | Include Stage 2.5 instructions when `activeStage === '2.5'` |
+| `src/app/api/affordability/calculate/route.ts` | **NEW** | REST POST endpoint for real-time PITIA calculation |
+| `src/app/api/affordability/submit/route.ts` | **NEW** | REST POST endpoint to trigger AUS submission |
+| `src/components/affordability-panel.tsx` | **NEW** | Interactive affordability panel UI component (sliders, bands, PITIA, submit button) |
+| `src/components/live-chat-panel.tsx` | **MODIFY** | Mount `<AffordabilityPanel>` when Stage 2.5 is active; handle `stage_update` WebSocket messages |
+| `src/components/video-stage.tsx` | **MODIFY** | PiP avatar transition when Stage 2.5 opens on mobile; mount panel component |
+| `backend/src/__tests__/affordability-calculator.test.ts` | **NEW** | Unit tests for all calculation paths and band thresholds |
