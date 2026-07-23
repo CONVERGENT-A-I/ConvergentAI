@@ -24,11 +24,12 @@ function ConnectingOverlay() {
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#050505]/90 z-20">
       <Loader2 className="h-10 w-10 animate-spin text-[#00b4d8]" />
-      <p className="text-sm font-medium tracking-widest uppercase text-gray-400 text-center px-4">
+      {/* Text commented out to prevent brief flashing text before connection resolves */}
+      {/* <p className="text-sm font-medium tracking-widest uppercase text-gray-400 text-center px-4">
         {phase === "init"
           ? "Initializing Avatar..."
           : "Avatar connecting \u2014 this may take a moment..."}
-      </p>
+      </p> */}
     </div>
   );
 }
@@ -36,7 +37,8 @@ function ConnectingOverlay() {
 export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
   const participants = useParticipants();
   const room = useRoomContext();
-  const [status, setStatus] = useState<"connecting" | "connected" | "error">("connecting");
+  const [status, setStatus] = useState<"connecting" | "connected" | "error" | "voice_only">("connecting");
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -62,14 +64,11 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
     };
   }, [room]);
 
-  // Find the LemonSlice avatar participant
-  const avatarParticipant = participants.find((p) =>
-    p.identity.toLowerCase().startsWith("lemonslice") ||
-    p.identity.toLowerCase().includes("avatar")
-  );
+  // Find the remote agent or avatar participant
+  const agentParticipant = participants.find((p) => !p.isLocal);
 
-  const videoPublication = avatarParticipant?.getTrackPublication(Track.Source.Camera);
-  const audioPublication = avatarParticipant?.getTrackPublication(Track.Source.Microphone);
+  const videoPublication = agentParticipant?.getTrackPublication(Track.Source.Camera);
+  const audioPublication = agentParticipant?.getTrackPublication(Track.Source.Microphone);
 
   const videoTrack = videoPublication?.track as any;
   const audioTrack = audioPublication?.track as any;
@@ -123,6 +122,7 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
           agentSilenceBlocksRef.current = 0;
           if (!isAgentSpeakingRef.current) {
             isAgentSpeakingRef.current = true;
+            setIsSpeaking(true);
             turnNumberRef.current += 1;
             const now = performance.now();
             console.log(`[LemonsliceAvatar] [metrics] 🗣️ Avatar playout started for turn ${turnNumberRef.current}`);
@@ -133,6 +133,7 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
             agentSilenceBlocksRef.current += 1;
             if (agentSilenceBlocksRef.current > 35) { // ~500ms at ~60fps
               isAgentSpeakingRef.current = false;
+              setIsSpeaking(false);
               const now = performance.now();
               console.log(`[LemonsliceAvatar] [metrics] 🤫 Avatar playout silenced.`);
               sendTelemetry("client_avatar_playout_silenced", now, { turn: turnNumberRef.current });
@@ -155,12 +156,14 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
   }, [audioTrack, sendTelemetry]);
 
   useEffect(() => {
-    if (avatarParticipant && videoTrack) {
+    if (agentParticipant && videoTrack) {
       setStatus("connected");
-    } else if (!avatarParticipant && status !== "error") {
+    } else if (agentParticipant && audioTrack && !videoTrack) {
+      setStatus("voice_only");
+    } else if (!agentParticipant && status !== "error" && status !== "voice_only") {
       setStatus("connecting");
     }
-  }, [avatarParticipant, videoTrack, status]);
+  }, [agentParticipant, videoTrack, audioTrack, status]);
 
   // Attach video track
   useEffect(() => {
@@ -204,6 +207,60 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
       {/* Connecting overlay — phased messaging during backend retry window */}
       {status === "connecting" && (
         <ConnectingOverlay />
+      )}
+
+      {/* Audio-only premium visualizer fallback UI */}
+      {status === "voice_only" && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#070c10] z-20 overflow-hidden">
+          {/* Decorative ambient glowing orbs */}
+          <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-[#00b4d8]/10 blur-[120px] pointer-events-none" />
+          <div className="absolute -bottom-40 -right-40 w-96 h-96 rounded-full bg-emerald-500/5 blur-[120px] pointer-events-none" />
+
+          {/* Central Pulsing Avatar Ring */}
+          <div className="relative flex items-center justify-center">
+            {/* Outer animated rings */}
+            <div className={`absolute h-40 w-40 rounded-full border border-[#00b4d8]/20 transition-all duration-700 ease-out ${isSpeaking ? 'animate-[ping_2.5s_infinite] scale-125 opacity-100' : 'scale-100 opacity-0'}`} />
+            <div className={`absolute h-32 w-32 rounded-full border border-emerald-500/20 transition-all duration-700 ease-out ${isSpeaking ? 'animate-[ping_3.5s_infinite_1.2s] scale-110 opacity-100' : 'scale-100 opacity-0'}`} />
+
+            {/* Inner premium avatar base */}
+            <div className={`h-24 w-24 rounded-full bg-gradient-to-tr from-[#0b1d33] to-[#070c10] border-2 transition-all duration-300 flex items-center justify-center shadow-[0_0_50px_rgba(0,180,216,0.15)] ${isSpeaking ? 'border-[#00b4d8] shadow-[0_0_60px_rgba(0,180,216,0.35)] scale-105' : 'border-white/10'}`}>
+              <div className="relative h-12 w-12 flex flex-col items-center justify-center">
+                {/* Audio visual waves when speaking */}
+                {isSpeaking ? (
+                  <div className="flex items-end gap-1 h-6">
+                    <span className="w-1 bg-[#00b4d8] rounded-full animate-[bounce_0.8s_infinite]" style={{ animationDelay: '0.1s', height: '0.75rem' }} />
+                    <span className="w-1 bg-[#00b4d8] rounded-full animate-[bounce_0.8s_infinite]" style={{ animationDelay: '0.3s', height: '1.25rem' }} />
+                    <span className="w-1 bg-[#00b4d8] rounded-full animate-[bounce_0.8s_infinite]" style={{ animationDelay: '0.2s', height: '1.5rem' }} />
+                    <span className="w-1 bg-[#00b4d8] rounded-full animate-[bounce_0.8s_infinite]" style={{ animationDelay: '0.4s', height: '1rem' }} />
+                    <span className="w-1 bg-[#00b4d8] rounded-full animate-[bounce_0.8s_infinite]" style={{ animationDelay: '0.5s', height: '0.75rem' }} />
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center gap-1.5">
+                    <div className="h-1.5 w-1.5 rounded-full bg-gray-500 animate-pulse" />
+                    <div className="h-1.5 w-1.5 rounded-full bg-gray-500 animate-pulse" style={{ animationDelay: '0.2s' }} />
+                    <div className="h-1.5 w-1.5 rounded-full bg-gray-500 animate-pulse" style={{ animationDelay: '0.4s' }} />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 text-center px-6 z-10">
+            <h3 className="text-white text-base font-medium tracking-wider">Ailana • AI Mortgage Advisor</h3>
+            <div className="mt-2 flex items-center justify-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00b4d8] opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00b4d8]"></span>
+              </span>
+              <p className="text-gray-400 text-xs font-medium uppercase tracking-widest">
+                {isSpeaking ? "Speaking..." : "Listening..."}
+              </p>
+            </div>
+            <p className="mt-1 text-[11px] text-gray-500 font-medium tracking-wide">
+              Audio-only channel active (avatar offline)
+            </p>
+          </div>
+        </div>
       )}
 
       {/* Voice-only platform fallback UI */}
