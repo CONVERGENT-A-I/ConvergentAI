@@ -553,7 +553,6 @@ Create `src/components/affordability-panel.tsx`. The component must include:
      label="Down Payment"
      value={downPayment}
      min={0}
-     max={purchasePrice} // Allow up to 100% of purchase price per Section 9
      step={1000}
      onChange={handleDownPaymentChange}
    />
@@ -626,9 +625,7 @@ On mobile viewports (`375px` minimum), displaying both the Ailana video avatar a
 
 4. **Modality 3 — Voice/Phone Only** (`Section 10.4`): Panel does not render. Backend `VOICE_MODE` path collects purchase price and down payment conversationally, runs `calculateAffordability()` server-side, and Ailana verbally narrates band status only (no dollar figures). Submit is a verbal confirmation. Results delivered via voice + email.
 
-5. **Contact capture (Q45) Declining Behavior** (`Section 8`): If the borrower declines to share an email or mobile phone at Q45, the eligibility review is NOT blocked. The review runs in-session, results are delivered verbally (and on-screen if in `PANEL_MODE`), but the pre-qualification letter email is bypassed.
-
-6. **Touch targets** (`Section 10.5`): Slider thumbs must have a minimum `44×44px` hit area. Submit button minimum `52px` height, full width minus `32px` margins, sticky to bottom of viewport.
+5. **Touch targets** (`Section 10.5`): Slider thumbs must have a minimum `44×44px` hit area. Submit button minimum `52px` height, full width minus `32px` margins, sticky to bottom of viewport.
 
 **Result:**
 The affordability panel works correctly on every viewport and in every engagement modality. Avatar video sessions on mobile use PiP. Chat sessions embed the panel inline. Phone-only sessions skip the UI and use server-side narration. All touch targets meet WCAG 2.1 AA requirements.
