@@ -55,6 +55,13 @@ affordability_dti_band?: 'within' | 'above' | null;     // Last computed DTI ban
 affordability_submitted?: boolean;              // True after borrower clicks Submit for Review
 affordability_aus_status?: 'pending' | 'approve_eligible' | 'refer' | null;
 affordability_prequel_letter_sent?: boolean;    // True after FD1 pre-qual letter emailed
+
+// ── Delivered Flags / Short Variants (Spec Section 8 / Redundancy) ───────────
+eligibility_review_explained?: boolean;         // Tracks if eligibility review has been explained
+credit_impact_stated?: boolean;                 // Tracks if credit impact has been explained
+pmi_explained?: boolean;                        // Tracks if PMI has been explained
+transition_pitch_delivered?: boolean;           // Tracks if transition pitch was delivered
+dti_above_hard_ceiling?: boolean;               // Tracks if current DTI exceeds 50% hard ceiling
 ```
 Also add field labels to `FIELD_LABELS`:
 ```typescript
@@ -71,34 +78,42 @@ The session state machine can track every key affordability panel event. The LLM
 ### Step 1.3 — Add Stage 2.5 to the State Machine in `session-context-manager.ts`
 
 **Problem:**
-The current state machine in `session-context-manager.ts` has stages `'1' → '2' → '3' → '3A' → '3B' → '4' → '5'`. There is no `'2.5'` stage. When all Stage 2 fields are collected and the borrower accepts the eligibility review (currently `stage2_closing_offer → 'yes'`), the system jumps directly to `'3A'` (legal name + soft pull consent). But per the spec, accepting the eligibility review should first go to Stage 2.5 (show the affordability panel), and only after the borrower submits the panel for AUS review does the system advance to findings delivery. The affordability panel itself is currently non-existent.
+The current state machine in `session-context-manager.ts` has stages `'1' → '2' → '3' → '3A' → '3B' → '4' → '5'`. There is no `'2.5'` stage. When all Stage 2 fields are collected and the borrower accepts the eligibility review, the system jumps to `'3A'` (legal name + address + soft pull consent). Per the spec, the affordability panel (Stage 2.5) requires pre-populated credit and liability data which is only available *after* the soft pull is accepted and executed. Therefore, Stage 2.5 must be sequenced *after* Stage 3A's soft pull runs, but *before* Stage 3B (1003 manual completion). We must also collect contact capture (Q45) at the consent transition.
 
 **Solution:**
 In `session-context-manager.ts`:
 
-1. In `runStage3Extraction()` (around line 347), change the `stage2_closing_offer → 'yes'` transition from:
+1. Update the transition from `stage2_closing_offer` or `stage3_closing_offer` to transition to Stage `'3A'` and start with Q45 contact capture (`email` and `mobile` fields) before asking for name/address:
    ```typescript
-   this.activeStage = '3A';
-   this.currentPendingField = 'legal_name';
+   // Inside applyStage2ExtractionResults() under stage2_closing_offer:
+   if (offerVal === 'yes') {
+     this.activeStage = '3A';
+     this.currentPendingField = 'email'; // Q45 contact capture starts first
+     this.profile.transition_pitch_delivered = true;
+     console.log('[context-manager]: Transitioning to STAGE 3A (Q45 Contact Capture)!');
+   }
    ```
-   To:
-   ```typescript
-   this.activeStage = '2.5';
-   this.currentPendingField = 'affordability_panel_active';
-   this.profile.affordability_panel_rendered = true;
-   // Seed the panel defaults from Stage 2 conversational answers
-   this.profile.affordability_purchase_price = this.profile.target_price ?? null;
-   this.profile.affordability_down_payment = this.profile.down_payment ?? null;
-   ```
+   Add extraction handlers in `runStage3AExtraction()` for `email` and `mobile` fields. If the borrower declines to provide contact information, set them as `null` but proceed with the flow (verbal-only findings).
 
-2. Add a new private method `runStage25Extraction(text: string)`:
+2. Modify Stage `'3A'` completion logic. Once `soft_pull_consent === 'accepted'` and the credit review returns data:
+   - Transition to `activeStage = '2.5'`.
+   - Set `currentPendingField = 'affordability_panel_active'`.
+   - Set `profile.affordability_panel_rendered = true`.
+   - Seed defaults:
+     ```typescript
+     this.profile.affordability_purchase_price = this.profile.target_price ?? null;
+     this.profile.affordability_down_payment = this.profile.down_payment ?? null;
+     ```
+
+3. Add a new private method `runStage25Extraction(text: string)`:
    ```typescript
    private async runStage25Extraction(text: string): Promise<void> {
      const field = this.currentPendingField;
+     const lastQuestion = this.getLastAssistantUtterance();
 
      if (field === 'affordability_panel_active') {
-       // Borrower exploring panel — listen for submit intent
-       const res = await extractProfileField(text, ..., 'affordability_action',
+       // Borrower exploring panel — listen for submit intent or questions
+       const res = await extractProfileField(text, lastQuestion, 'affordability_action',
          'Extract "submit" if borrower says submit, continue, proceed, let\'s do it. ' +
          'Extract "update_income" if borrower wants to correct income. ' +
          'Extract "question" if borrower is asking a question about the panel. ' +
@@ -119,22 +134,46 @@ In `session-context-manager.ts`:
 
      if (field === 'affordability_income_correction') {
        // Extract corrected income, update profile, return to panel_active
-       ...
+       const res = await extractProfileField(text, lastQuestion, 'corrected_income', 'corrected gross annual income', 'number');
+       if (res.value) {
+         this.profile.gross_annual_income = res.value as number;
+         this.profile.gross_annual_income_confirmed = true;
+         this.currentPendingField = 'affordability_panel_active';
+       }
+       return;
      }
 
      if (field === 'affordability_drop_off') {
        // Borrower declines — session save, offer summary email
-       ...
+       const decision = await classifyConfirmation(text, lastQuestion, 'send_summary', 'Would that summary email be helpful?');
+       if (decision === 'yes') {
+         // Trigger summary email (Step 6.2)
+         this.currentPendingField = null;
+         this.activeStage = '5'; // Escalation / Goodbye
+       } else {
+         this.currentPendingField = null;
+         this.activeStage = '5';
+       }
+       return;
      }
 
-     if (field === 'affordability_aus_pending') {
-       // AUS result will arrive async — handled in Step 3.1
+     if (field === 'fd1_delivery_acknowledged' || field === 'fd2_delivery_acknowledged') {
+       // After findings are delivered, borrower decides to proceed to formal application (1003)
+       const decision = await classifyConfirmation(text, lastQuestion, 'proceed_to_1003', 'Would you like to proceed with completing your formal application?');
+       if (decision === 'yes') {
+         // Return to Stage 3A prefill walkthrough to verify assets, employer, etc.
+         this.activeStage = '3A';
+         this.currentPendingField = 'prefill_name_address';
+       } else {
+         this.activeStage = '5'; // MLO Handoff / Escalation
+         this.currentPendingField = null;
+       }
        return;
      }
    }
    ```
 
-3. In `extractAndApply()` (around line 300), add the branch:
+4. In `extractAndApply()` (around line 300), add the branch:
    ```typescript
    } else if (this.activeStage === '2.5') {
      await this.runStage25Extraction(trimmed);
@@ -142,7 +181,7 @@ In `session-context-manager.ts`:
    ```
 
 **Result:**
-The state machine now has a fully functional `Stage 2.5` state. After the borrower accepts the eligibility review, the session transitions to `'2.5'` and stays there while they explore the affordability panel. Submission from the panel triggers AUS processing. The session only advances to findings delivery after AUS returns.
+The state machine properly sequences Stage 2.5. After the borrower authorizes the soft credit pull, the system runs the pull, transitions to Stage 2.5, displays the panel, and allows interactive scenario exploration. After findings delivery, the borrower can choose to hand off to an MLO or continue to the prefilled walkthrough and Stage 3B (1003 manual completion).
 
 ---
 
@@ -180,6 +219,7 @@ export interface AffordabilityResult {
   totalPITIA: number;             // Full monthly payment
   incomeBand: 'within' | 'above';
   dtiBand: 'within' | 'above';
+  dtiAboveHardCeiling: boolean;   // True if back-end DTI > 50% (FHLMC hard ceiling)
   dti: number;                    // For internal use / audit log — NOT displayed to borrower
 }
 
@@ -228,6 +268,7 @@ export function calculateAffordability(input: AffordabilityInput): Affordability
     totalPITIA,
     incomeBand: totalPITIA / monthlyIncome <= cfg.incomeBandThreshold ? 'within' : 'above',
     dtiBand: dti <= cfg.dtiBandThreshold ? 'within' : 'above',
+    dtiAboveHardCeiling: dti > cfg.dtiHardCeiling,
     dti,
   };
 }
@@ -312,6 +353,7 @@ export async function POST(req: NextRequest) {
     monthlyMI: result.monthlyMI,
     incomeBand: result.incomeBand,
     dtiBand: result.dtiBand,
+    dtiAboveHardCeiling: result.dtiAboveHardCeiling,
     // dti is intentionally excluded — never displayed to borrower
   });
 }
@@ -348,7 +390,7 @@ After the borrower submits from the affordability panel, the AUS call is async. 
    applyAusResult(result: 'approve_eligible' | 'refer') {
      this.profile.affordability_aus_status = result === 'approve_eligible' ? 'approve_eligible' : 'refer';
      this.activeStage = '2.5';
-     this.currentPendingField = result === 'approve_eligible' ? 'fd1_delivery' : 'fd2_delivery';
+     this.currentPendingField = result === 'approve_eligible' ? 'fd1_delivery_acknowledged' : 'fd2_delivery_acknowledged';
    }
    ```
 2. In the `agent.ts` response loop, after triggering the AUS call, set a 10-second timer. If the AUS has not returned, inject the `RFD-LOADING` narration as a proactive Ailana utterance:
@@ -396,7 +438,7 @@ Q47 — Inviting exploration:
 
 Q48 — Narrating a slider change (use the correct variant):
   WITHIN RANGE: "With that change, your total debt ratio moved into the typical guideline range shown on your screen, and your estimated monthly payment came down as well. These targets are yours to set — keep exploring as long as you like, or let me know when the picture feels right to you."
-  ABOVE RANGE: "With that change, your total debt ratio moved above the typical guideline range shown on your screen. That is simply information for your planning — you're welcome to keep exploring, and you can submit for the formal review at any point either way."
+  ABOVE RANGE: "With that change, your total debt ratio moved above the typical guideline range shown on your screen. [If dti_above_hard_ceiling set: Note that this scenario falls outside typical program guidelines, but the submit option is still fully available to you.] That is simply information for your planning — you're welcome to keep exploring, and you can submit for the formal review at any point either way."
   MI CHANGE: "You'll notice the mortgage insurance line on your screen responded to your down payment change — on conventional scenarios, that line appears when the down payment is under twenty percent and drops off at twenty percent or more."
 
 Q49 — Proactive submission invitation (deliver once when scenario is within range and borrower pauses):
@@ -412,7 +454,8 @@ Q52 — Drop-off / borrower declines:
 "I completely understand — this is one of the biggest financial decisions there is, and pausing to think it through is a perfectly good choice. Your session is securely saved, so whenever you're ready, you can pick up right where you left off. If you'd like, I can email you a summary of the scenarios you explored today so you have it on hand. Would that be helpful?"
 
 Q53 — Mortgage insurance question:
-"That line shows the estimated mortgage insurance for the scenario you're exploring, and it depends on the program type. On conventional scenarios, private mortgage insurance appears when the down payment is under twenty percent — and it isn't permanent; once your equity reaches twenty percent, you can request cancellation. On FHA scenarios, it appears as a mortgage insurance premium, which follows different rules. And on VA scenarios, there's no monthly mortgage insurance at all — you'll see a one-time funding fee instead. As you adjust your down payment, watch that line — it responds in real time."
+[If pmi_explained is true: "Like we covered earlier — the mortgage insurance line updates in real time based on your program type. On conventional scenarios it drops off once your down payment reaches twenty percent, whereas FHA and VA follow their respective monthly premium or funding fee rules."]
+[If pmi_explained is false: "That line shows the estimated mortgage insurance for the scenario you're exploring, and it depends on the program type. On conventional scenarios, private mortgage insurance appears when the down payment is under twenty percent — and it isn't permanent; once your equity reaches twenty percent, you can request cancellation. On FHA scenarios, it appears as a mortgage insurance premium, which follows different rules. And on VA scenarios, there's no monthly mortgage insurance at all — you'll see a one-time funding fee instead. As you adjust your down payment, watch that line — it responds in real time."]
 
 Q54 — "Does this mean I'm approved?":
 "Not yet — and I want to be really clear about what this summary is and isn't. It's an educational comparison of the scenario you've built against typical program guideline ranges. It is not an approval, a denial, or any kind of loan decision. The formal eligibility review is the step that returns your actual conditional eligibility result — and you can submit for that whenever you're ready. Would you like to?"
@@ -510,7 +553,7 @@ Create `src/components/affordability-panel.tsx`. The component must include:
      label="Down Payment"
      value={downPayment}
      min={0}
-     max={purchasePrice * 0.5}
+     max={purchasePrice} // Allow up to 100% of purchase price per Section 9
      step={1000}
      onChange={handleDownPaymentChange}
    />
@@ -583,7 +626,9 @@ On mobile viewports (`375px` minimum), displaying both the Ailana video avatar a
 
 4. **Modality 3 — Voice/Phone Only** (`Section 10.4`): Panel does not render. Backend `VOICE_MODE` path collects purchase price and down payment conversationally, runs `calculateAffordability()` server-side, and Ailana verbally narrates band status only (no dollar figures). Submit is a verbal confirmation. Results delivered via voice + email.
 
-5. **Touch targets** (`Section 10.5`): Slider thumbs must have a minimum `44×44px` hit area. Submit button minimum `52px` height, full width minus `32px` margins, sticky to bottom of viewport.
+5. **Contact capture (Q45) Declining Behavior** (`Section 8`): If the borrower declines to share an email or mobile phone at Q45, the eligibility review is NOT blocked. The review runs in-session, results are delivered verbally (and on-screen if in `PANEL_MODE`), but the pre-qualification letter email is bypassed.
+
+6. **Touch targets** (`Section 10.5`): Slider thumbs must have a minimum `44×44px` hit area. Submit button minimum `52px` height, full width minus `32px` margins, sticky to bottom of viewport.
 
 **Result:**
 The affordability panel works correctly on every viewport and in every engagement modality. Avatar video sessions on mobile use PiP. Chat sessions embed the panel inline. Phone-only sessions skip the UI and use server-side narration. All touch targets meet WCAG 2.1 AA requirements.
