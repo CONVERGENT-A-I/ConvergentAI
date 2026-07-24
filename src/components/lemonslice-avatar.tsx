@@ -64,13 +64,34 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
     };
   }, [room]);
 
-  // Find the remote agent or avatar participant
-  const agentParticipant = participants.find(
-    (p) => !p.isLocal && (p.identity.includes("avatar") || p.identity.includes("agent"))
-  ) || participants.find((p) => !p.isLocal);
+  // Find the remote agent or avatar participant (prioritizing participant with video track or avatar identity)
+  const agentParticipant =
+    participants.find((p) => !p.isLocal && p.videoTrackPublications.size > 0) ||
+    participants.find(
+      (p) =>
+        !p.isLocal &&
+        (p.identity.toLowerCase().includes("avatar") || p.identity.toLowerCase().includes("lemonslice"))
+    ) ||
+    participants.find(
+      (p) => !p.isLocal && (p.identity.includes("avatar") || p.identity.includes("agent"))
+    ) ||
+    participants.find((p) => !p.isLocal);
 
-  const videoPublication = agentParticipant?.getTrackPublication(Track.Source.Camera);
-  const audioPublication = agentParticipant?.getTrackPublication(Track.Source.Microphone);
+  const videoPublication =
+    agentParticipant?.getTrackPublication(Track.Source.Camera) ||
+    (agentParticipant?.videoTrackPublications
+      ? Array.from(agentParticipant.videoTrackPublications.values() as Iterable<any>)[0]
+      : undefined);
+
+  const audioParticipant =
+    participants.find((p) => !p.isLocal && p.audioTrackPublications.size > 0) ||
+    agentParticipant;
+
+  const audioPublication =
+    audioParticipant?.getTrackPublication(Track.Source.Microphone) ||
+    (audioParticipant?.audioTrackPublications
+      ? Array.from(audioParticipant.audioTrackPublications.values() as Iterable<any>)[0]
+      : undefined);
 
   const videoTrack = videoPublication?.track as any;
   const audioTrack = audioPublication?.track as any;
