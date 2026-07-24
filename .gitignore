@@ -56,6 +56,11 @@ Dockerfile
 docker-compose.yaml
 .dockerignore
 
+# Database (optional for team members)
+# Uncomment these if you want team to commit migrations:
+# prisma/migrations/
+postgres_data/
+pgadmin_data/
 
 livekit-fspbx-bridge
 

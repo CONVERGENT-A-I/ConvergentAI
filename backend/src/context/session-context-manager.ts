@@ -9,6 +9,9 @@ import type { LatencyTracker } from '../metrics/latency-tracker.js';
 import type { BorrowerProfile } from '../prompts/layer3-context.js';
 import { buildSessionPrompt } from '../prompts/ailana-system.js';
 import { extractProfileField, classifyConfirmation, extractMultipleFields, type FieldToExtract } from './llm-extractor.js';
+import { applicationService } from '../services/application-service.js';
+import { conversationService } from '../services/conversation-service.js';
+import { isDatabaseEnabled } from '../services/database.js';
 
 
 export type TurnLogEntry = {
@@ -53,10 +56,23 @@ export class SessionContextManager {
     durationMs?: number;
   }>();
 
+  // Database persistence (optional - only if DATABASE_URL is set)
+  private applicationId: string | null = null;
+  private lastSyncAt = Date.now();
+  private readonly syncIntervalMs = 5000; // Sync every 5 seconds
+  private readonly dbEnabled: boolean;
+
   constructor(
     private readonly summarizationLlm: LLM,
     private readonly metrics: LatencyTracker,
-  ) {}
+  ) {
+    this.dbEnabled = isDatabaseEnabled();
+    if (this.dbEnabled) {
+      console.log('[context-manager] Database persistence ENABLED');
+    } else {
+      console.log('[context-manager] Database persistence DISABLED (no DATABASE_URL found)');
+    }
+  }
 
   clone(): SessionContextManager {
     const cloned = new SessionContextManager(this.summarizationLlm, this.metrics);
@@ -88,6 +104,187 @@ export class SessionContextManager {
     }
     return count;
   }
+
+  // ============================================================================
+  // DATABASE PERSISTENCE (Optional - only if DATABASE_URL is set)
+  // ============================================================================
+
+  /**
+   * Set the application ID for database persistence
+   */
+  setApplicationId(id: string): void {
+    this.applicationId = id;
+    console.log(`[context-manager] Application ID set: ${id}`);
+  }
+
+  /**
+   * Initialize context from database (resume existing application)
+   */
+  async initializeFromDatabase(applicationId: string): Promise<void> {
+    if (!this.dbEnabled || !applicationId) {
+      console.log('[context-manager] Skipping database initialization (database not enabled)');
+      return;
+    }
+
+    try {
+      this.applicationId = applicationId;
+      console.log(`[context-manager] Loading application ${applicationId} from database...`);
+
+      const app = await applicationService.getApplicationWithStages(applicationId);
+      if (!app) {
+        console.log('[context-manager] No existing data found in database, starting fresh');
+        return;
+      }
+
+      // Restore Stage 1
+      if (app.stage1) {
+        this.profile.borrower_name = app.stage1.borrowerName || undefined;
+        this.profile.borrower_name_confirmed = app.stage1.borrowerNameConfirmed;
+        this.profile.mortgage_goal = app.stage1.mortgageGoal || undefined;
+        this.profile.mortgage_goal_confirmed = app.stage1.mortgageGoalConfirmed;
+        this.profile.occupancy = app.stage1.occupancy as any || undefined;
+        this.profile.occupancy_confirmed = app.stage1.occupancyConfirmed;
+        this.profile.existing_relationship = app.stage1.existingRelationship as any || undefined;
+        this.profile.existing_relationship_confirmed = app.stage1.existingRelationshipConfirmed;
+        this.profile.timeline = app.stage1.timeline || undefined;
+        this.profile.timeline_confirmed = app.stage1.timelineConfirmed;
+        this.profile.co_borrower = app.stage1.coBorrower as any || undefined;
+        this.profile.co_borrower_confirmed = app.stage1.coBorrowerConfirmed;
+      }
+
+      // Restore Stage 2
+      if (app.stage2) {
+        this.profile.gross_annual_income = app.stage2.grossAnnualIncome?.toNumber();
+        this.profile.gross_annual_income_confirmed = app.stage2.grossAnnualIncomeConfirmed;
+        this.profile.monthly_debt = app.stage2.monthlyDebt?.toNumber();
+        this.profile.monthly_debt_confirmed = app.stage2.monthlyDebtConfirmed;
+        this.profile.credit_range = app.stage2.creditRange || undefined;
+        this.profile.credit_range_confirmed = app.stage2.creditRangeConfirmed;
+        this.profile.down_payment = app.stage2.downPayment?.toNumber();
+        this.profile.down_payment_confirmed = app.stage2.downPaymentConfirmed;
+        this.profile.target_price = app.stage2.targetPrice?.toNumber();
+        this.profile.target_price_confirmed = app.stage2.targetPriceConfirmed;
+        this.profile.rent_own = app.stage2.rentOwn as any || undefined;
+        this.profile.rent_own_confirmed = app.stage2.rentOwnConfirmed;
+        this.profile.realtor_status = app.stage2.realtorStatus as any || undefined;
+        this.profile.realtor_status_confirmed = app.stage2.realtorStatusConfirmed;
+        this.profile.refinance_type = app.stage2.refinanceType as any || undefined;
+        this.profile.refinance_type_confirmed = app.stage2.refinanceTypeConfirmed;
+        this.profile.property_type = app.stage2.propertyType as any || undefined;
+        this.profile.property_type_confirmed = app.stage2.propertyTypeConfirmed;
+        this.profile.military_rural = app.stage2.militaryRural as any || undefined;
+        this.profile.military_rural_confirmed = app.stage2.militaryRuralConfirmed;
+        this.profile.job_tenure_type = app.stage2.jobTenureType || undefined;
+        this.profile.job_tenure_type_confirmed = app.stage2.jobTenureTypeConfirmed;
+        this.profile.pending_confirm_field = app.stage2.pendingConfirmField || undefined;
+        this.profile.pending_confirm_value = app.stage2.pendingConfirmValue || undefined;
+        this.profile.bridge_to_say = app.stage2.bridgeToSay as any || undefined;
+      }
+
+      // Restore Stage 3 (unified)
+      if (app.stage3) {
+        this.profile.eligible_products = app.stage3.eligibleProducts as string[];
+        this.profile.program_comparison_interest = app.stage3.programComparisonInterest as any || undefined;
+        this.profile.program_comparison_interest_confirmed = app.stage3.programComparisonInterestConfirmed;
+        this.profile.financial_priority = app.stage3.financialPriority as any || undefined;
+        this.profile.financial_priority_confirmed = app.stage3.financialPriorityConfirmed;
+        this.profile.home_horizon = app.stage3.homeHorizon as any || undefined;
+        this.profile.home_horizon_confirmed = app.stage3.homeHorizonConfirmed;
+        this.profile.legal_name = app.stage3.legalName || undefined;
+        this.profile.legal_name_confirmed = app.stage3.legalNameConfirmed;
+        this.profile.physical_address = app.stage3.physicalAddress || undefined;
+        this.profile.physical_address_confirmed = app.stage3.physicalAddressConfirmed;
+        this.profile.soft_pull_consent = app.stage3.softPullConsent as any || undefined;
+        this.profile.employer = app.stage3.employer || undefined;
+        this.profile.prefilled_fields_confirmed = app.stage3.prefilledFieldsConfirmed as any;
+        this.profile.marital_status = app.stage3.maritalStatus as any || undefined;
+        this.profile.marital_status_confirmed = app.stage3.maritalStatusConfirmed;
+        this.profile.dependents = app.stage3.dependents || undefined;
+        this.profile.dependents_confirmed = app.stage3.dependentsConfirmed;
+        this.profile.employment_position = app.stage3.employmentPosition || undefined;
+        this.profile.employment_years = app.stage3.employmentYears?.toNumber();
+        this.profile.self_employed = app.stage3.selfEmployed || undefined;
+        this.profile.employment_confirmed = app.stage3.employmentConfirmed;
+        this.profile.checking_savings_balance = app.stage3.checkingSavingsBalance?.toNumber();
+        this.profile.checking_savings_confirmed = app.stage3.checkingSavingsConfirmed;
+        this.profile.declarations_bankruptcy = app.stage3.declarationsBankruptcy || undefined;
+        this.profile.declarations_foreclosure = app.stage3.declarationsForeclosure || undefined;
+        this.profile.declarations_confirmed = app.stage3.declarationsConfirmed;
+        this.profile.ready_to_submit = app.stage3.readyToSubmit;
+      }
+
+      // Restore Stage 4
+      if (app.stage4) {
+        this.profile.aus_status = app.stage4.ausStatus as any || undefined;
+        this.profile.aus_confirmed = app.stage4.ausConfirmed;
+        this.profile.checklist_discussed = app.stage4.checklistDiscussed;
+      }
+
+      // Restore current stage and field attempts
+      this.activeStage = app.currentStage;
+      this.fieldAttempts = (app.fieldAttempts as Record<string, number>) || {};
+
+      console.log(`[context-manager] ✅ Successfully restored application from database (stage: ${this.activeStage})`);
+    } catch (error) {
+      console.error('[context-manager] ❌ Failed to load from database:', error);
+      console.log('[context-manager] Continuing with fresh state...');
+    }
+  }
+
+  /**
+   * Sync current state to database (called periodically)
+   */
+  async syncToDatabase(): Promise<void> {
+    if (!this.dbEnabled || !this.applicationId) {
+      return; // Silently skip if database not enabled
+    }
+
+    // Throttle syncs to avoid overwhelming database
+    if (Date.now() - this.lastSyncAt < this.syncIntervalMs) {
+      return;
+    }
+
+    try {
+      await applicationService.syncAllStages(
+        this.applicationId,
+        this.profile,
+        this.activeStage
+      );
+      this.lastSyncAt = Date.now();
+      console.log(`[db-sync] ✅ Application ${this.applicationId} synced to database`);
+    } catch (error) {
+      console.error('[db-sync] ❌ Failed to sync to database:', error);
+      // Don't throw - continue operating even if sync fails
+    }
+  }
+
+  /**
+   * Save a conversation turn to database
+   */
+  private async saveConversationTurn(role: 'user' | 'assistant', text: string): Promise<void> {
+    if (!this.dbEnabled || !this.applicationId) {
+      return; // Silently skip if database not enabled
+    }
+
+    try {
+      await conversationService.saveTurn(
+        this.applicationId,
+        role.toUpperCase() as 'USER' | 'ASSISTANT',
+        text,
+        this.turnCount,
+        {
+          lowConfidence: this.lowConfidence,
+        }
+      );
+    } catch (error) {
+      console.error('[db-sync] ❌ Failed to save conversation turn:', error);
+      // Don't throw - continue operating even if save fails
+    }
+  }
+
+  // ============================================================================
+  // END DATABASE PERSISTENCE
+  // ============================================================================
 
   triggerBackgroundExtraction(text: string): number {
     const turnNumber = this.nextExtractionTurn++;
@@ -311,6 +508,11 @@ export class SessionContextManager {
     }
     console.log(`[perf] context-manager stage${this.activeStage} extraction: ${(performance.now() - _tExtract).toFixed(1)}ms`);
     console.log(`[perf] context-manager onUserTurn TOTAL: ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
+    
+    // ── DATABASE PERSISTENCE ────────────────────────────────────────────────
+    // Save user turn to database and sync profile state
+    await this.saveConversationTurn('user', trimmed);
+    await this.syncToDatabase();
   }
 
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢
@@ -819,12 +1021,17 @@ export class SessionContextManager {
     return 'approve';
   }
 
-  onAgentTurn(text: string): void {
+  async onAgentTurn(text: string): Promise<void> {
     const trimmed = text.trim();
     if (!trimmed) return;
     this.turnLog.push({ role: 'assistant', text: trimmed, timestamp: Date.now() });
     this.profile.bridge_to_say = null;
     this.lastProcessedInput = null;
+    
+    // ── DATABASE PERSISTENCE ────────────────────────────────────────────────
+    // Save assistant turn to database
+    await this.saveConversationTurn('assistant', trimmed);
+    await this.syncToDatabase();
   }
 
   private getLastAssistantUtterance(): string | null {

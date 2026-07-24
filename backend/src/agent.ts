@@ -26,6 +26,8 @@ import { logPromptBudget } from './context/context-budget.js';
 import { AvatarSession } from '@livekit/agents-plugin-lemonslice';
 import { BackchannelEngine } from './utils/backchannel-engine.js';
 import { OpenAI } from 'openai';
+import { applicationService } from './services/application-service.js';
+import { isDatabaseEnabled } from './services/database.js';
 
 const cerebrasClient = new OpenAI({
   apiKey: ailanaConfig.cerebrasApiKey,
@@ -283,6 +285,52 @@ export default defineAgent({
     });
     const contextManager = new SessionContextManager(summarizationLlm, metrics);
 
+    // ── DATABASE PERSISTENCE: Create or load application ─────────────────────
+    // Each room session maps to a single application in the database.
+    // Use room name as unique identifier to resume existing sessions.
+    if (isDatabaseEnabled()) {
+      try {
+        const roomName = ctx.room.name;
+        console.log(`[agent-db]: Checking for existing application with roomName="${roomName}"...`);
+        
+        let application = await applicationService.findApplicationByRoomName(roomName);
+        
+        if (application) {
+          console.log(`[agent-db]: ✅ Found existing application (id=${application.id})`);
+          contextManager.setApplicationId(application.id);
+          await contextManager.initializeFromDatabase(application.id);
+          console.log(`[agent-db]: ✅ Context restored from database`);
+        } else {
+          console.log(`[agent-db]: No existing application found, creating new one...`);
+          
+          // Create test user for now (TODO: integrate with actual user authentication)
+          const testUser = await applicationService.createUser({
+            email: `test_${roomName}@convergentai.com`,
+            firstName: 'Test',
+            lastName: 'User',
+            phoneNumber: null,
+          });
+          
+          // Create new application
+          application = await applicationService.createApplication({
+            userId: testUser.id,
+            roomName: roomName,
+            currentStage: '1',
+            status: 'IN_PROGRESS',
+          });
+          
+          console.log(`[agent-db]: ✅ Created new application (id=${application.id}) for user (id=${testUser.id})`);
+          contextManager.setApplicationId(application.id);
+        }
+      } catch (error) {
+        console.error('[agent-db]: ❌ Failed to initialize application:', error);
+        console.log('[agent-db]: Continuing without database persistence...');
+      }
+    } else {
+      console.log('[agent-db]: Database persistence disabled (no DATABASE_URL configured)');
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     console.log(`[agent]: Loading VAD (minSilence=${ailanaConfig.vadMinSilenceMs}ms)...`);
     const sessionVad = new inference.VAD({
       model: 'silero',
@@ -513,7 +561,9 @@ export default defineAgent({
                     session.generateReply({ userInput: 'The application has been submitted to underwriting. Please announce the result to the borrower.' });
                   } else {
                     session.say(repromptText, { addToChatCtx: true });
-                    contextManager.onAgentTurn(repromptText);
+                    contextManager.onAgentTurn(repromptText).catch(err => 
+                      console.error('[agent-error]: Failed to save agent turn:', err)
+                    );
                   }
                 } catch (err) {
                   console.warn('[silent-turn-guard]: Failed to fire re-prompt:', err);
@@ -550,7 +600,9 @@ export default defineAgent({
           clearTimeout(silentTurnTimer);
           silentTurnTimer = null;
         }
-        contextManager.onAgentTurn(item.textContent);
+        contextManager.onAgentTurn(item.textContent).catch(err => 
+          console.error('[agent-error]: Failed to save agent turn:', err)
+        );
 
         // ── Publish agent message as a LiveKit chat message ─────────────────
         // Since TTS audio goes directly to LemonSlice via DataStreamAudioOutput,
@@ -660,7 +712,9 @@ export default defineAgent({
         const reply = completion.choices?.[0]?.message?.content?.trim();
 
         if (reply) {
-          contextManager.onAgentTurn(reply);
+          contextManager.onAgentTurn(reply).catch(err => 
+            console.error('[agent-error]: Failed to save agent turn:', err)
+          );
           console.log(`[agent]: Text-only reply: "${reply}"`);
 
           try {
