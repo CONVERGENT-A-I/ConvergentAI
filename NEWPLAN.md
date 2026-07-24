@@ -12,7 +12,7 @@ This stage wires up everything the backend needs before any UI renders — the r
 
 ---
 
-### Step 1.1 — Add Representative Rate to Config
+### ✅ [DONE] Step 1.1 — Add Representative Rate to Config
 
 **Problem:**
 The affordability panel's PITIA calculation requires a single, centrally managed representative rate (e.g., `6.875%` for a 30-year fixed conventional loan). This rate is not in the codebase yet. There is no config entry, no env var, and no way for the calculation engine to know which rate to use. Without it, all payment estimates will be wrong or impossible to compute.
@@ -38,7 +38,7 @@ All affordability panel calculations source from a single config object. Updatin
 
 ---
 
-### Step 1.2 — Add Stage 2.5 Profile Fields to `BorrowerProfile`
+### ✅ [DONE] Step 1.2 — Add Stage 2.5 Profile Fields to `BorrowerProfile`
 
 **Problem:**
 The `BorrowerProfile` interface in `layer3-context.ts` has no fields tracking Stage 2.5 state. When the panel renders, the system needs to know: Has the panel been shown? What did the borrower last set the sliders to? What was the resulting income/DTI band status? Has the borrower submitted for AUS review? What did AUS return? None of these are tracked anywhere in the profile today.
@@ -75,7 +75,7 @@ The session state machine can track every key affordability panel event. The LLM
 
 ---
 
-### Step 1.3 — Add Stage 2.5 to the State Machine in `session-context-manager.ts`
+### ✅ [DONE] Step 1.3 — Add Stage 2.5 to the State Machine in `session-context-manager.ts`
 
 **Problem:**
 The current state machine in `session-context-manager.ts` has stages `'1' → '2' → '3' → '3A' → '3B' → '4' → '5'`. There is no `'2.5'` stage. When all Stage 2 fields are collected and the borrower accepts the eligibility review, the system jumps to `'3A'` (legal name + address + soft pull consent). Per the spec, the affordability panel (Stage 2.5) requires pre-populated credit and liability data which is only available *after* the soft pull is accepted and executed. Therefore, Stage 2.5 must be sequenced *after* Stage 3A's soft pull runs, but *before* Stage 3B (1003 manual completion). We must also collect contact capture (Q45) at the consent transition.

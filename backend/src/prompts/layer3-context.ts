@@ -97,6 +97,23 @@ export interface BorrowerProfile {
   declarations_confirmed?: boolean;
   ready_to_submit?: boolean;
 
+  // ── Stage 2.5 (Affordability Panel) ──────────────────────────────────────
+  affordability_panel_rendered?: boolean;
+  affordability_purchase_price?: number | null;
+  affordability_down_payment?: number | null;
+  affordability_income_band?: 'within' | 'above' | null;
+  affordability_dti_band?: 'within' | 'above' | null;
+  affordability_submitted?: boolean;
+  affordability_aus_status?: 'pending' | 'approve_eligible' | 'refer' | null;
+  affordability_prequel_letter_sent?: boolean;
+
+  // ── Stage 2.5 Compliance Disclosures & Flags ──────────────────────────────
+  eligibility_review_explained?: boolean;
+  credit_impact_stated?: boolean;
+  pmi_explained?: boolean;
+  transition_pitch_delivered?: boolean;
+  dti_above_hard_ceiling?: boolean;
+
   // ── Stage 4 ──────────────────────────────────────────────────────────────
   aus_status?: 'waiting' | 'approve' | 'approve_with_conditions' | 'refer' | 'suspend' | 'timeout' | null;
   aus_confirmed?: boolean;
@@ -134,6 +151,9 @@ const FIELD_LABELS: Record<string, string> = {
   home_horizon: 'home horizon status',
   aus_status: 'automated underwriting status',
   checklist_discussed: 'documentation checklist confirmation',
+  affordability_purchase_price: 'target purchase price (affordability panel)',
+  affordability_down_payment: 'down payment (affordability panel)',
+  affordability_aus_status: 'AUS eligibility review result',
 };
 
 export function buildLayer3TurnContext(
@@ -303,10 +323,27 @@ export function buildLayer3TurnContext(
     lowConfidenceBlock = `\n\nLOW CONFIDENCE DETECTED:\nThe borrower's last speech was recorded with low audio recognition confidence and was likely garbled or misheard.\nSay EXACTLY: "I'm sorry, I didn't quite catch that. Could you please repeat?"\nDo NOT ask any other question, do NOT confirm fields, do NOT advance stages. Simply prompt for repeat and stop.`;
   }
 
+  // ── Stage 2.5 affordability panel block ───────────────────────────────────
+  const stage25Block = [
+    '=== BORROWER PROFILE (Stage 2.5 — Affordability Panel) ===',
+    `Panel Rendered:            ${!!profile.affordability_panel_rendered}`,
+    `Purchase Price (Slider):   ${profile.affordability_purchase_price ? `$${profile.affordability_purchase_price.toLocaleString()}` : 'not set'}`,
+    `Down Payment (Slider):     ${profile.affordability_down_payment ? `$${profile.affordability_down_payment.toLocaleString()}` : 'not set'}`,
+    `Income Band Status:        ${profile.affordability_income_band ?? 'not computed'}`,
+    `DTI Band Status:           ${profile.affordability_dti_band ?? 'not computed'}`,
+    `Submitted for Review:      ${!!profile.affordability_submitted}`,
+    `AUS Review Result:         ${profile.affordability_aus_status ?? 'not yet submitted'}`,
+    `Pre-Qual Letter Emailed:   ${!!profile.affordability_prequel_letter_sent}`,
+    '=== END STAGE 2.5 ===',
+  ].join('\n');
+
   const blocks: string[] = [];
   blocks.push(stage1Block);
-  if (stage === '2' || stage === '3' || stage === '3A' || stage === '3B' || stage === '4' || stage === '5') {
+  if (stage === '2' || stage === '2.5' || stage === '3' || stage === '3A' || stage === '3B' || stage === '4' || stage === '5') {
     blocks.push(stage2Block);
+  }
+  if (stage === '2.5' || stage === '3' || stage === '3A' || stage === '3B' || stage === '4' || stage === '5') {
+    blocks.push(stage25Block);
   }
   if (stage === '3' || stage === '3A' || stage === '3B' || stage === '4' || stage === '5') {
     blocks.push(stage3Block);

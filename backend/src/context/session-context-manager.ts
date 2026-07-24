@@ -300,6 +300,8 @@ export class SessionContextManager {
       await this.runStage1Extraction(trimmed);
     } else if (this.activeStage === '2') {
       await this.runStage2Extraction(trimmed);
+    } else if (this.activeStage === '2.5') {
+      await this.runStage25Extraction(trimmed);
     } else if (this.activeStage === '3') {
       await this.runStage3Extraction(trimmed);
     } else if (this.activeStage === '3A') {
@@ -311,6 +313,74 @@ export class SessionContextManager {
     }
     console.log(`[perf] context-manager stage${this.activeStage} extraction: ${(performance.now() - _tExtract).toFixed(1)}ms`);
     console.log(`[perf] context-manager onUserTurn TOTAL: ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Stage 2.5 (Affordability Panel) Extraction
+  // ──────────────────────────────────────────────────────────────────────────
+  private async runStage25Extraction(text: string): Promise<void> {
+    const lastQuestion = this.getLastAssistantUtterance();
+    const field = this.currentPendingField;
+
+    if (field === 'affordability_panel_active') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'affordability_action',
+        'whether the user wants to submit for review, update income, ask a question, or pause/drop off',
+        'string',
+        'Extract "submit" if borrower says submit, continue, proceed, let\'s do it, or ready to review. ' +
+        'Extract "update_income" if borrower wants to correct or change income. ' +
+        'Extract "drop_off" if borrower wants to stop, pause, or think about it. null otherwise.'
+      );
+
+      if (res.value === 'submit') {
+        this.profile.affordability_submitted = true;
+        this.profile.affordability_aus_status = 'pending';
+        this.currentPendingField = 'affordability_aus_pending';
+        console.log('[context-manager]: Affordability panel submitted for review! AUS pending.');
+      } else if (res.value === 'update_income') {
+        this.currentPendingField = 'affordability_income_correction';
+      } else if (res.value === 'drop_off') {
+        this.currentPendingField = 'affordability_drop_off';
+      }
+      return;
+    }
+
+    if (field === 'affordability_income_correction') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'gross_annual_income',
+        'borrower gross annual household income',
+        'number',
+        'Extract the updated gross annual income figure mentioned by the user. Return number or null.'
+      );
+      if (res.value && typeof res.value === 'number') {
+        this.profile.gross_annual_income = res.value;
+        this.profile.gross_annual_income_confirmed = true;
+        console.log(`[context-manager]: Corrected income in Stage 2.5 to $${res.value}`);
+      }
+      this.currentPendingField = 'affordability_panel_active';
+      return;
+    }
+
+    if (field === 'affordability_drop_off') {
+      const res = await classifyConfirmation(text, lastQuestion, 'summary_email', 'Would you like me to email you a summary of the scenarios you explored today?');
+      if (res === 'yes') {
+        this.profile.affordability_prequel_letter_sent = true;
+        console.log('[context-manager]: Borrower requested scenario summary email on drop-off.');
+      }
+      this.currentPendingField = 'affordability_panel_active';
+      return;
+    }
+  }
+
+  public applyAusResult(result: 'approve_eligible' | 'refer'): void {
+    this.profile.affordability_aus_status = result;
+    this.activeStage = '2.5';
+    this.currentPendingField = result === 'approve_eligible' ? 'fd1_delivery' : 'fd2_delivery';
+    console.log(`[context-manager]: Applied AUS result: ${result} -> pending field set to ${this.currentPendingField}`);
   }
 
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢
@@ -1392,18 +1462,22 @@ export class SessionContextManager {
         } else if (!confirmed.credit_range) {
           this.currentPendingField = 'prefill_credit_range';
         } else {
-          // Finished prefilled walkthrough, go to Stage 3B (Application completion)
-          this.currentPendingField = 'marital_status';
-          this.activeStage = '3B';
-          this.profile.bridge_to_say = 'stage3A_to_stage3B';
-          console.log('[context-manager]: Prefills confirmed! Transitioning to STAGE 3B!');
+          // Finished prefilled walkthrough, transition to Stage 2.5 (Affordability Panel)
+          this.activeStage = '2.5';
+          this.currentPendingField = 'affordability_panel_active';
+          this.profile.affordability_panel_rendered = true;
+          this.profile.affordability_purchase_price = this.profile.target_price ?? null;
+          this.profile.affordability_down_payment = this.profile.down_payment ?? null;
+          console.log('[context-manager]: Prefills confirmed! Transitioning to STAGE 2.5 (Affordability Panel)!');
         }
       } else if (this.profile.soft_pull_consent === 'declined') {
-        // Go straight to Stage 3B manual completion
-        this.currentPendingField = 'marital_status';
-        this.activeStage = '3B';
-        this.profile.bridge_to_say = 'stage3A_to_stage3B';
-        console.log('[context-manager]: Consent declined. Transitioning to STAGE 3B (manual)!');
+        // Go to Stage 2.5 for manual scenario exploration
+        this.activeStage = '2.5';
+        this.currentPendingField = 'affordability_panel_active';
+        this.profile.affordability_panel_rendered = true;
+        this.profile.affordability_purchase_price = this.profile.target_price ?? null;
+        this.profile.affordability_down_payment = this.profile.down_payment ?? null;
+        console.log('[context-manager]: Consent declined. Transitioning to STAGE 2.5 (Affordability Panel)!');
       }
     } else if (this.activeStage === '3B') {
       // Auto-confirm employment_details if sub-fields were already populated

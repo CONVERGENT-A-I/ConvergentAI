@@ -41,6 +41,18 @@ export const ailanaConfig = {
   get cerebrasExtractorApiKey() { return process.env.CEREBRAS_EXTRACTOR_API_KEY ?? process.env.CEREBRAS_API_KEY ?? ''; },
   cerebrasBaseUrl: 'https://api.cerebras.ai/v1',
   cerebrasReasoningEffort: process.env.CEREBRAS_REASONING_EFFORT ?? 'low',
+
+  /** Affordability Panel Calculation & Rate Configuration */
+  representativeRate: parseFloat(process.env.REPRESENTATIVE_RATE ?? '0.06875'),
+  representativeRateType: process.env.REPRESENTATIVE_RATE_TYPE ?? '30-year fixed conventional',
+  incomeBandThreshold: parseFloat(process.env.INCOME_BAND_THRESHOLD ?? '0.28'),
+  dtiBandThreshold: parseFloat(process.env.DTI_BAND_THRESHOLD ?? '0.45'),
+  dtiHardCeiling: parseFloat(process.env.DTI_HARD_CEILING ?? '0.50'),
+  propertyTaxRate: parseFloat(process.env.PROPERTY_TAX_RATE ?? '0.012'),
+  homeownersInsRate: parseFloat(process.env.HOMEOWNERS_INS_RATE ?? '0.005'),
+  conventionalPmiRate: parseFloat(process.env.CONVENTIONAL_PMI_RATE ?? '0.0085'),
+  fhaMipRate: parseFloat(process.env.FHA_MIP_RATE ?? '0.0055'),
+  usdaAnnualFeeRate: parseFloat(process.env.USDA_ANNUAL_FEE_RATE ?? '0.0035'),
 };
 
 export function getDynamicGroqApiKey(): string {
