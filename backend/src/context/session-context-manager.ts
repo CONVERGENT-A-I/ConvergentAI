@@ -529,10 +529,11 @@ export class SessionContextManager {
         text,
         lastQuestion,
         'affordability_action',
-        'whether the user wants to submit for review, update income, ask a question, or pause/drop off',
+        'whether the user wants to submit for review, update profile details, request data deletion, ask a question, or pause/drop off',
         'string',
         'Extract "submit" if borrower says submit, continue, proceed, let\'s do it, or ready to review. ' +
-        'Extract "update_income" if borrower wants to correct or change income. ' +
+        'Extract "update_profile" if borrower wants to correct or update income, timeline, occupancy, or other details. ' +
+        'Extract "delete_data" if borrower asks to delete their information or stop using data. ' +
         'Extract "drop_off" if borrower wants to stop, pause, or think about it. null otherwise.'
       );
 
@@ -541,22 +542,24 @@ export class SessionContextManager {
         this.profile.affordability_aus_status = 'pending';
         this.currentPendingField = 'affordability_aus_pending';
         console.log('[context-manager]: Affordability panel submitted for review! AUS pending.');
-      } else if (res.value === 'update_income') {
-        this.currentPendingField = 'affordability_income_correction';
+      } else if (res.value === 'update_profile') {
+        this.currentPendingField = 'affordability_profile_correction';
+      } else if (res.value === 'delete_data') {
+        this.currentPendingField = 'affordability_data_deletion';
       } else if (res.value === 'drop_off') {
         this.currentPendingField = 'affordability_drop_off';
       }
       return;
     }
 
-    if (field === 'affordability_income_correction') {
+    if (field === 'affordability_profile_correction' || field === 'affordability_income_correction') {
       const res = await extractProfileField(
         text,
         lastQuestion,
         'gross_annual_income',
-        'borrower gross annual household income',
+        'borrower gross annual household income or other profile updates',
         'number',
-        'Extract the updated gross annual income figure mentioned by the user. Return number or null.'
+        'Extract the updated gross annual income figure mentioned by the user if present. Return number or null.'
       );
       if (res.value && typeof res.value === 'number') {
         this.profile.gross_annual_income = res.value;
@@ -567,13 +570,42 @@ export class SessionContextManager {
       return;
     }
 
-    if (field === 'affordability_drop_off') {
-      const res = await classifyConfirmation(text, lastQuestion, 'summary_email', 'Would you like me to email you a summary of the scenarios you explored today?');
+    if (field === 'affordability_data_deletion') {
+      const res = await classifyConfirmation(text, lastQuestion, 'confirm_deletion', 'Would you like me to start that process for you now?');
       if (res === 'yes') {
-        this.profile.affordability_prequel_letter_sent = true;
-        console.log('[context-manager]: Borrower requested scenario summary email on drop-off.');
+        this.activeStage = '5';
+        this.currentPendingField = null;
+        console.log('[context-manager]: Borrower confirmed data deletion request. Escalating/stopping flow.');
+      } else {
+        this.currentPendingField = 'affordability_panel_active';
       }
-      this.currentPendingField = 'affordability_panel_active';
+      return;
+    }
+
+    if (field === 'affordability_drop_off') {
+      const res = await classifyConfirmation(text, lastQuestion, 'summary_offer', 'Would that summary be helpful?');
+      if (res === 'yes') {
+        this.currentPendingField = 'affordability_drop_off_delivery_method';
+      } else {
+        this.currentPendingField = null;
+        this.activeStage = '5';
+      }
+      return;
+    }
+
+    if (field === 'affordability_drop_off_delivery_method') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'delivery_method',
+        'delivery method preference for summary (email or mobile/SMS)',
+        'string',
+        'Extract "email" if user prefers email, or "sms" if user prefers text/mobile. Return string or null.'
+      );
+      this.profile.affordability_prequel_letter_sent = true;
+      console.log(`[context-manager]: Borrower requested scenario summary on drop-off via ${res.value || 'email'}.`);
+      this.currentPendingField = null;
+      this.activeStage = '5';
       return;
     }
   }

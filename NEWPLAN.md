@@ -115,7 +115,8 @@ In `session-context-manager.ts`:
        // Borrower exploring panel — listen for submit intent or questions
        const res = await extractProfileField(text, lastQuestion, 'affordability_action',
          'Extract "submit" if borrower says submit, continue, proceed, let\'s do it. ' +
-         'Extract "update_income" if borrower wants to correct income. ' +
+         'Extract "update_profile" if borrower wants to correct income, timeline, or other details. ' +
+         'Extract "delete_data" if borrower asks to delete their information. ' +
          'Extract "question" if borrower is asking a question about the panel. ' +
          'Extract "drop_off" if borrower wants to stop or come back later. null otherwise.');
 
@@ -124,36 +125,56 @@ In `session-context-manager.ts`:
          this.profile.affordability_aus_status = 'pending';
          this.currentPendingField = 'affordability_aus_pending';
          // Trigger AUS submission (Step 3.1)
-       } else if (res.value === 'update_income') {
-         this.currentPendingField = 'affordability_income_correction';
+       } else if (res.value === 'update_profile') {
+         this.currentPendingField = 'affordability_profile_correction';
+       } else if (res.value === 'delete_data') {
+         this.currentPendingField = 'affordability_data_deletion';
        } else if (res.value === 'drop_off') {
          this.currentPendingField = 'affordability_drop_off';
        }
        return;
      }
 
-     if (field === 'affordability_income_correction') {
-       // Extract corrected income, update profile, return to panel_active
-       const res = await extractProfileField(text, lastQuestion, 'corrected_income', 'corrected gross annual income', 'number');
+     if (field === 'affordability_profile_correction') {
+       // Extract corrected details, update profile, return to panel_active
+       const res = await extractProfileField(text, lastQuestion, 'corrected_details', 'any corrected profile information', 'string');
        if (res.value) {
-         this.profile.gross_annual_income = res.value as number;
-         this.profile.gross_annual_income_confirmed = true;
+         // Process and update profile fields accordingly
+         this.currentPendingField = 'affordability_panel_active';
+       }
+       return;
+     }
+
+     if (field === 'affordability_data_deletion') {
+       // Borrower requests data deletion
+       const decision = await classifyConfirmation(text, lastQuestion, 'confirm_deletion', 'Would you like me to start that process for you now?');
+       if (decision === 'yes') {
+         this.currentPendingField = null;
+         this.activeStage = '5'; // Flag session for deletion, stop flow
+       } else {
          this.currentPendingField = 'affordability_panel_active';
        }
        return;
      }
 
      if (field === 'affordability_drop_off') {
-       // Borrower declines — session save, offer summary email
-       const decision = await classifyConfirmation(text, lastQuestion, 'send_summary', 'Would that summary email be helpful?');
+       // Borrower declines — session save, offer summary via email/SMS
+       const decision = await classifyConfirmation(text, lastQuestion, 'send_summary', 'Would that be helpful?');
        if (decision === 'yes') {
-         // Trigger summary email (Step 6.2)
-         this.currentPendingField = null;
-         this.activeStage = '5'; // Escalation / Goodbye
+         this.currentPendingField = 'affordability_drop_off_delivery_method';
        } else {
          this.currentPendingField = null;
          this.activeStage = '5';
        }
+       return;
+     }
+
+     if (field === 'affordability_drop_off_delivery_method') {
+       // Extract delivery method preference
+       const res = await extractProfileField(text, lastQuestion, 'delivery_method', 'email or mobile', 'string');
+       // Trigger summary via chosen method (Step 6.2)
+       this.currentPendingField = null;
+       this.activeStage = '5'; // Escalation / Goodbye
        return;
      }
 
@@ -451,7 +472,9 @@ Q51 — Routing out-of-scope profiles (NO denial language):
 "Based on your profile, the strongest next step is a conversation with one of our licensed loan officers. Some situations are best reviewed by a person who can consider specialized program options and credit-strengthening strategies that our automated review doesn't cover. I can connect you right now, or schedule a callback at a time that works for you — which do you prefer?"
 
 Q52 — Drop-off / borrower declines:
-"I completely understand — this is one of the biggest financial decisions there is, and pausing to think it through is a perfectly good choice. Your session is securely saved, so whenever you're ready, you can pick up right where you left off. If you'd like, I can email you a summary of the scenarios you explored today so you have it on hand. Would that be helpful?"
+"I completely understand — this is one of the biggest financial decisions there is, and pausing to think it through is a perfectly good choice. Your session is securely saved, so whenever you're ready, you can pick up right where you left off. If you'd like, I can send you a summary of the scenarios you explored today so you have it on hand. Would that be helpful?"
+If borrower accepts: "I can send that to the email or mobile number on your account — which would you prefer?"
+If borrower declines: "No problem at all. Thank you for spending time with me today..."
 
 Q53 — Mortgage insurance question:
 [If pmi_explained is true: "Like we covered earlier — the mortgage insurance line updates in real time based on your program type. On conventional scenarios it drops off once your down payment reaches twenty percent, whereas FHA and VA follow their respective monthly premium or funding fee rules."]
@@ -464,17 +487,20 @@ Q55 — "Just tell me what price to put in so I qualify" (MANDATORY FORMULATION 
 "That's the one thing I have to leave entirely in your hands — mortgage regulations require that these targets stay your choice, so I'm not able to recommend a specific price or down payment amount. What I can do is keep sharing the general program guidelines and describe how your summary responds as you explore. And if you'd like personalized guidance on structuring this, that's exactly what a licensed loan officer is for — I can connect you with one anytime you'd like."
 
 Q56 — Credit score difference from banking app:
-"Great catch — and it's completely normal. Credit scoring uses different models, and the score in your summary comes from the soft credit review, which may use a different model than your banking app. Both may also differ slightly from the score model used in formal mortgage underwriting. Small differences between them are expected and not a cause for concern."
+"Great catch — and it's completely normal. Credit scoring uses different models, and the score in your summary comes from the soft credit review, which may use a different model than your banking app. Both may also differ slightly from the score model used in formal mortgage underwriting. Small differences between them are expected and not a cause for concern. Mortgage lenders typically pull your credit from all three major bureaus — Equifax, Experian, and TransUnion — in what's called a tri-merge report, and then use the middle of those three scores for qualifying. That's different from most consumer credit apps or banking apps, which usually show you just one score from one bureau, often using a different scoring model too. That's why the number you see day-to-day rarely matches exactly what a lender sees."
 
 Q57 — "What happens when I click Submit for review?":
 "Your information is packaged and sent through the automated eligibility review. The system applies a current representative rate from our rate sheet and returns your conditional eligibility result along with an estimated payment range — it usually comes back within moments, and it does not affect your credit score. Once the result is in, I'll walk you through what it means, and a licensed loan officer takes you through everything from there."
 
 Q58 — "Can I change the income or debt numbers?":
-"The debt figures come directly from your credit review, so those stay as reported — though if something on that side looks wrong to you, that's absolutely worth flagging, and your licensed loan officer can help you look into it. Your income, on the other hand, is based on what you shared with me — so if it needs updating, just tell me the corrected figure. One tip: we work with your gross income, before taxes, which is often higher than what lands in your bank account each month."
+"The debt figures come directly from your credit review, so those stay as reported — though if something on that side looks wrong to you, that's absolutely worth flagging, and your licensed loan officer can help you look into it. Your income, on the other hand, is based on what you shared with me — so if it needs updating, just tell me the corrected figure. One tip: we work with your gross income, before taxes, which is often higher than what lands in your bank account each month. And if anything else you've shared today needs updating — your timeline, occupancy plans, co-borrower details, or anything else — just tell me, and I'll update it before we move forward."
+
+Data Deletion Request — "Can you delete my information?":
+"Absolutely, that's your right. I can pause here and flag your session for deletion, or you can reach out to your lending institution's privacy or member services team directly to formally request your data be removed in accordance with their privacy policy. Would you like me to start that process for you now?"
 
 FINDINGS DELIVERY:
 FD1 (Approve/Eligible — auto-send):
-"Wonderful news, [Name] — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built. Your estimated payment range is on your screen now. I've also emailed your pre-qualification letter to you — it's issued by your lending institution, it's valid for ninety days, and it's exactly what real estate agents like to see with an offer. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like."
+"Wonderful news, [Name] — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built. Your estimated payment range is on your screen now. I've sent your pre-qualification letter to [email] — would you also like it by text? It's issued by your lending institution, it's valid for ninety days, and it's exactly what real estate agents like to see with an offer. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like."
 
 FD1-alt (Approve/Eligible — MLO-review mode):
 "Wonderful news, [Name] — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built. Your estimated payment range is on your screen now. Your licensed loan officer is putting the final review on your pre-qualification letter right now — it will be in your inbox shortly, issued by your lending institution and valid for ninety days. Would you like me to connect you with them now, or have them reach out at a good time for you?"
@@ -482,8 +508,9 @@ FD1-alt (Approve/Eligible — MLO-review mode):
 FD2 (Refer findings):
 "Thank you for your patience, [Name] — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?"
 
-RFD-LOADING (deliver if AUS takes > 10 seconds):
+FD-LOADING (deliver if AUS takes > 10 seconds):
 "Your eligibility review is processing right now — these reviews typically take just a moment, but occasionally take a little longer depending on system volume. Please hold on — I'll have your results for you shortly and we'll go through everything together."
+If additional time passes (30+ seconds): "Still processing — thank you for your patience. The review is running through the automated underwriting system and will be back any moment. I'll walk you through the results as soon as they arrive."
 `.trim();
 }
 ```
@@ -725,12 +752,12 @@ When AUS returns `Approve/Eligible` (`FD1`), the spec requires that a pre-qualif
    - **Date of issuance**.
    - **What must NOT appear**: No interest rate, no monthly payment estimate, no approval language, no mention of Ailana as issuer.
 
-2. Create `backend/src/utils/email-sender.ts` with a `sendPrequalLetter()` function that emails the letter PDF to the borrower's `Q45` email address after E-SIGN consent is confirmed.
+2. Create `backend/src/utils/email-sender.ts` (and a corresponding `backend/src/utils/sms-sender.ts`) with a `sendPrequalLetter()` function that emails or texts the letter PDF to the borrower's `Q45` contact information after E-SIGN consent is confirmed, per their requested delivery method (v8.5 additions).
 
-3. Log every letter issuance to the affordability audit log (`prequal_letter_issued` event) with `letter_id`, `mlo_name`, `mlo_nmls`, `delivery_method`, and `timestamp`.
+3. Log every letter issuance to the affordability audit log (`prequal_letter_issued` event) with `letter_id`, `mlo_name`, `mlo_nmls`, `delivery_method` (email vs SMS), and `timestamp`.
 
 **Result:**
-When AUS returns `Approve/Eligible`, a compliant pre-qualification letter is generated and emailed automatically. The letter is titled correctly ("Pre-Qualification Letter"), contains all required fields, omits all prohibited fields (no rate, no monthly payment, no approval claims), and is logged to the audit trail.
+When AUS returns `Approve/Eligible`, a compliant pre-qualification letter is generated and sent via email (and optionally SMS) automatically. The letter is titled correctly ("Pre-Qualification Letter"), contains all required fields, omits all prohibited fields (no rate, no monthly payment, no approval claims), and is logged to the audit trail.
 
 ---
 
@@ -799,6 +826,7 @@ End-to-end validation that the entire Stage 2.5 flow — from panel render to AU
 | `backend/src/utils/affordability-audit.ts` | **NEW** | Affordability panel audit logger (all events → immutable log) |
 | `backend/src/utils/prequal-letter.ts` | **NEW** | Pre-qualification letter generator (HTML/PDF, compliant template) |
 | `backend/src/utils/email-sender.ts` | **NEW** | Email delivery utility for pre-qual letters |
+| `backend/src/utils/sms-sender.ts` | **NEW** | SMS delivery utility for pre-qual letters and summaries |
 | `backend/src/prompts/stage25-affordability.ts` | **NEW** | Stage 2.5 LLM instruction layer with all Q46–Q58 mandatory formulations and FD1/FD2/RFD-LOADING scripts |
 | `backend/src/prompts/ailana-system.ts` | **MODIFY** | Include Stage 2.5 instructions when `activeStage === '2.5'` |
 | `src/app/api/affordability/calculate/route.ts` | **NEW** | REST POST endpoint for real-time PITIA calculation |
