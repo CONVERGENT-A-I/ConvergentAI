@@ -212,7 +212,7 @@ This stage builds the server-side math and the AUS submission payload — the co
 
 ---
 
-### Step 2.1 — Build the Affordability Calculation Utility
+### ✅ [DONE] Step 2.1 — Build the Affordability Calculation Utility
 
 **Problem:**
 There is no server-side function that can compute PITIA + status bands given a purchase price, down payment, income, debts, and program type. The panel needs this calculation on every slider change (in `VOICE_MODE`) and on AUS submission (in both modes). Without it, neither the UI's real-time updates nor the server-side voice-only path can produce any numbers.

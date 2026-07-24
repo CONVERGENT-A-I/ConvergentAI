@@ -11,7 +11,7 @@
     "start": "node dist/index.js",
     "start:agent": "node dist/agent.js dev",
     "start:full": "npm run build && node dist/agent.js dev",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "tsx src/__tests__/affordability-calculator.test.ts"
   },
   "dependencies": {
     "@livekit/agents": "^1.5.0",
