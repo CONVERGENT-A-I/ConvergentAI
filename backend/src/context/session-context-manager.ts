@@ -9,9 +9,9 @@ import type { LatencyTracker } from '../metrics/latency-tracker.js';
 import type { BorrowerProfile } from '../prompts/layer3-context.js';
 import { buildSessionPrompt } from '../prompts/ailana-system.js';
 import { extractProfileField, classifyConfirmation, extractMultipleFields, type FieldToExtract } from './llm-extractor.js';
-import { applicationService } from '../services/application-service.js';
-import { conversationService } from '../services/conversation-service.js';
-import { isDatabaseEnabled } from '../services/database.js';
+const applicationService: any = null;
+const conversationService: any = null;
+const isDatabaseEnabled = () => false;
 
 
 export type TurnLogEntry = {
@@ -66,7 +66,7 @@ export class SessionContextManager {
     private readonly summarizationLlm: LLM,
     private readonly metrics: LatencyTracker,
   ) {
-    this.dbEnabled = isDatabaseEnabled();
+    this.dbEnabled = false;
     if (this.dbEnabled) {
       console.log('[context-manager] Database persistence ENABLED');
     } else {

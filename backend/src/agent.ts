@@ -26,8 +26,8 @@ import { logPromptBudget } from './context/context-budget.js';
 import { AvatarSession } from '@livekit/agents-plugin-lemonslice';
 import { BackchannelEngine } from './utils/backchannel-engine.js';
 import { OpenAI } from 'openai';
-import { applicationService } from './services/application-service.js';
-import { isDatabaseEnabled } from './services/database.js';
+const applicationService: any = null;
+const isDatabaseEnabled = () => false;
 
 const cerebrasClient = new OpenAI({
   apiKey: ailanaConfig.cerebrasApiKey,
