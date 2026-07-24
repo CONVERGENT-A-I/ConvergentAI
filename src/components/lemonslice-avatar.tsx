@@ -65,7 +65,9 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
   }, [room]);
 
   // Find the remote agent or avatar participant
-  const agentParticipant = participants.find((p) => !p.isLocal);
+  const agentParticipant = participants.find(
+    (p) => !p.isLocal && (p.identity.includes("avatar") || p.identity.includes("agent"))
+  ) || participants.find((p) => !p.isLocal);
 
   const videoPublication = agentParticipant?.getTrackPublication(Track.Source.Camera);
   const audioPublication = agentParticipant?.getTrackPublication(Track.Source.Microphone);
