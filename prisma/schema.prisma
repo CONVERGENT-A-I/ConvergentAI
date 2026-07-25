@@ -8,6 +8,8 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // Falls back to dummy URL if DATABASE_URL is not set (for builds)
+  // Runtime checks in database.ts prevent actual connections to dummy URL
   url      = env("DATABASE_URL")
 }
 

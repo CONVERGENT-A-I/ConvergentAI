@@ -6,7 +6,15 @@ if (process.platform === 'win32') {
 }
 
 import dotenv from 'dotenv';
-dotenv.config();
+
+// Check if DATABASE_URL was passed from parent process
+if (!process.env.DATABASE_URL) {
+  // Only load from .env if not already set
+  dotenv.config();
+}
+
+// Log DATABASE_URL status for debugging
+console.log('[agent] DATABASE_URL status:', process.env.DATABASE_URL ? '✅ PRESENT' : '❌ MISSING');
 import { type JobContext, ServerOptions, cli, voice, llm, inference, defineAgent } from '@livekit/agents';
 import { RoomEvent, TrackKind } from '@livekit/rtc-node';
 import { fileURLToPath } from 'url';
@@ -26,8 +34,8 @@ import { logPromptBudget } from './context/context-budget.js';
 import { AvatarSession } from '@livekit/agents-plugin-lemonslice';
 import { BackchannelEngine } from './utils/backchannel-engine.js';
 import { OpenAI } from 'openai';
-const applicationService: any = null;
-const isDatabaseEnabled = () => false;
+import { applicationService } from './services/application-service.js';
+import { isDatabaseEnabled } from './services/database.js';
 
 const cerebrasClient = new OpenAI({
   apiKey: ailanaConfig.cerebrasApiKey,
@@ -290,10 +298,16 @@ export default defineAgent({
     // Use room name as unique identifier to resume existing sessions.
     if (isDatabaseEnabled()) {
       try {
-        const roomName = ctx.room.name;
+        const roomName = ctx.room.name ?? `room_${Date.now()}`;
         console.log(`[agent-db]: Checking for existing application with roomName="${roomName}"...`);
         
-        let application = await applicationService.findApplicationByRoomName(roomName);
+        // TEMPORARY: Option 3 - Never resume (always create fresh sessions)
+        // TODO: Switch to Option 1 after confirming flow with team lead
+        // Option 1: Only resume IN_PROGRESS applications (production-ready)
+        // Uncomment line below to enable resume:
+        //   const application = await applicationService.findApplicationByRoomName(roomName);
+        // And comment out the next line:
+        const application = null as Awaited<ReturnType<typeof applicationService.findApplicationByRoomName>>; // Force fresh session every time
         
         if (application) {
           console.log(`[agent-db]: ✅ Found existing application (id=${application.id})`);
@@ -311,16 +325,20 @@ export default defineAgent({
             phoneNumber: null,
           });
           
-          // Create new application
-          application = await applicationService.createApplication({
-            userId: testUser.id,
-            roomName: roomName,
-            currentStage: '1',
-            status: 'IN_PROGRESS',
-          });
-          
-          console.log(`[agent-db]: ✅ Created new application (id=${application.id}) for user (id=${testUser.id})`);
-          contextManager.setApplicationId(application.id);
+          // Create new application only if testUser was created successfully
+          if (testUser) {
+            const newApplication = await applicationService.createApplication({
+              userId: testUser.id,
+              roomName: roomName,
+              currentStage: '1',
+              status: 'IN_PROGRESS',
+            });
+            
+            if (newApplication) {
+              console.log(`[agent-db]: ✅ Created new application (id=${newApplication.id}) for user (id=${testUser.id})`);
+              contextManager.setApplicationId(newApplication.id);
+            }
+          }
         }
       } catch (error) {
         console.error('[agent-db]: ❌ Failed to initialize application:', error);

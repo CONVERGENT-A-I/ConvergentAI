@@ -9,9 +9,9 @@ import type { LatencyTracker } from '../metrics/latency-tracker.js';
 import type { BorrowerProfile } from '../prompts/layer3-context.js';
 import { buildSessionPrompt } from '../prompts/ailana-system.js';
 import { extractProfileField, classifyConfirmation, extractMultipleFields, type FieldToExtract } from './llm-extractor.js';
-const applicationService: any = null;
-const conversationService: any = null;
-const isDatabaseEnabled = () => false;
+import { applicationService } from '../services/application-service.js';
+import { conversationService } from '../services/conversation-service.js';
+import { isDatabaseEnabled } from '../services/database.js';
 
 
 export type TurnLogEntry = {
@@ -66,7 +66,7 @@ export class SessionContextManager {
     private readonly summarizationLlm: LLM,
     private readonly metrics: LatencyTracker,
   ) {
-    this.dbEnabled = false;
+    this.dbEnabled = isDatabaseEnabled();
     if (this.dbEnabled) {
       console.log('[context-manager] Database persistence ENABLED');
     } else {
@@ -138,77 +138,77 @@ export class SessionContextManager {
 
       // Restore Stage 1
       if (app.stage1) {
-        this.profile.borrower_name = app.stage1.borrowerName || undefined;
+        this.profile.borrower_name = app.stage1.borrowerName ?? null;
         this.profile.borrower_name_confirmed = app.stage1.borrowerNameConfirmed;
-        this.profile.mortgage_goal = app.stage1.mortgageGoal || undefined;
+        this.profile.mortgage_goal = app.stage1.mortgageGoal ?? null;
         this.profile.mortgage_goal_confirmed = app.stage1.mortgageGoalConfirmed;
-        this.profile.occupancy = app.stage1.occupancy as any || undefined;
+        this.profile.occupancy = app.stage1.occupancy as any ?? null;
         this.profile.occupancy_confirmed = app.stage1.occupancyConfirmed;
-        this.profile.existing_relationship = app.stage1.existingRelationship as any || undefined;
+        this.profile.existing_relationship = app.stage1.existingRelationship as any ?? null;
         this.profile.existing_relationship_confirmed = app.stage1.existingRelationshipConfirmed;
-        this.profile.timeline = app.stage1.timeline || undefined;
+        this.profile.timeline = app.stage1.timeline ?? null;
         this.profile.timeline_confirmed = app.stage1.timelineConfirmed;
-        this.profile.co_borrower = app.stage1.coBorrower as any || undefined;
+        this.profile.co_borrower = app.stage1.coBorrower as any ?? null;
         this.profile.co_borrower_confirmed = app.stage1.coBorrowerConfirmed;
       }
 
       // Restore Stage 2
       if (app.stage2) {
-        this.profile.gross_annual_income = app.stage2.grossAnnualIncome?.toNumber();
+        this.profile.gross_annual_income = app.stage2.grossAnnualIncome?.toNumber() ?? null;
         this.profile.gross_annual_income_confirmed = app.stage2.grossAnnualIncomeConfirmed;
-        this.profile.monthly_debt = app.stage2.monthlyDebt?.toNumber();
+        this.profile.monthly_debt = app.stage2.monthlyDebt?.toNumber() ?? null;
         this.profile.monthly_debt_confirmed = app.stage2.monthlyDebtConfirmed;
-        this.profile.credit_range = app.stage2.creditRange || undefined;
+        this.profile.credit_range = app.stage2.creditRange ?? null;
         this.profile.credit_range_confirmed = app.stage2.creditRangeConfirmed;
-        this.profile.down_payment = app.stage2.downPayment?.toNumber();
+        this.profile.down_payment = app.stage2.downPayment?.toNumber() ?? null;
         this.profile.down_payment_confirmed = app.stage2.downPaymentConfirmed;
-        this.profile.target_price = app.stage2.targetPrice?.toNumber();
+        this.profile.target_price = app.stage2.targetPrice?.toNumber() ?? null;
         this.profile.target_price_confirmed = app.stage2.targetPriceConfirmed;
-        this.profile.rent_own = app.stage2.rentOwn as any || undefined;
+        this.profile.rent_own = app.stage2.rentOwn as any ?? null;
         this.profile.rent_own_confirmed = app.stage2.rentOwnConfirmed;
-        this.profile.realtor_status = app.stage2.realtorStatus as any || undefined;
+        this.profile.realtor_status = app.stage2.realtorStatus as any ?? null;
         this.profile.realtor_status_confirmed = app.stage2.realtorStatusConfirmed;
-        this.profile.refinance_type = app.stage2.refinanceType as any || undefined;
+        this.profile.refinance_type = app.stage2.refinanceType as any ?? null;
         this.profile.refinance_type_confirmed = app.stage2.refinanceTypeConfirmed;
-        this.profile.property_type = app.stage2.propertyType as any || undefined;
+        this.profile.property_type = app.stage2.propertyType as any ?? null;
         this.profile.property_type_confirmed = app.stage2.propertyTypeConfirmed;
-        this.profile.military_rural = app.stage2.militaryRural as any || undefined;
+        this.profile.military_rural = app.stage2.militaryRural as any ?? null;
         this.profile.military_rural_confirmed = app.stage2.militaryRuralConfirmed;
-        this.profile.job_tenure_type = app.stage2.jobTenureType || undefined;
+        this.profile.job_tenure_type = app.stage2.jobTenureType ?? null;
         this.profile.job_tenure_type_confirmed = app.stage2.jobTenureTypeConfirmed;
-        this.profile.pending_confirm_field = app.stage2.pendingConfirmField || undefined;
-        this.profile.pending_confirm_value = app.stage2.pendingConfirmValue || undefined;
-        this.profile.bridge_to_say = app.stage2.bridgeToSay as any || undefined;
+        this.profile.pending_confirm_field = app.stage2.pendingConfirmField ?? null;
+        this.profile.pending_confirm_value = app.stage2.pendingConfirmValue ?? null;
+        this.profile.bridge_to_say = app.stage2.bridgeToSay as any ?? null;
       }
 
       // Restore Stage 3 (unified)
       if (app.stage3) {
         this.profile.eligible_products = app.stage3.eligibleProducts as string[];
-        this.profile.program_comparison_interest = app.stage3.programComparisonInterest as any || undefined;
+        this.profile.program_comparison_interest = app.stage3.programComparisonInterest as any ?? null;
         this.profile.program_comparison_interest_confirmed = app.stage3.programComparisonInterestConfirmed;
-        this.profile.financial_priority = app.stage3.financialPriority as any || undefined;
+        this.profile.financial_priority = app.stage3.financialPriority as any ?? null;
         this.profile.financial_priority_confirmed = app.stage3.financialPriorityConfirmed;
-        this.profile.home_horizon = app.stage3.homeHorizon as any || undefined;
+        this.profile.home_horizon = app.stage3.homeHorizon as any ?? null;
         this.profile.home_horizon_confirmed = app.stage3.homeHorizonConfirmed;
-        this.profile.legal_name = app.stage3.legalName || undefined;
+        this.profile.legal_name = app.stage3.legalName ?? null;
         this.profile.legal_name_confirmed = app.stage3.legalNameConfirmed;
-        this.profile.physical_address = app.stage3.physicalAddress || undefined;
+        this.profile.physical_address = app.stage3.physicalAddress ?? null;
         this.profile.physical_address_confirmed = app.stage3.physicalAddressConfirmed;
-        this.profile.soft_pull_consent = app.stage3.softPullConsent as any || undefined;
-        this.profile.employer = app.stage3.employer || undefined;
+        this.profile.soft_pull_consent = app.stage3.softPullConsent as any ?? null;
+        this.profile.employer = app.stage3.employer ?? null;
         this.profile.prefilled_fields_confirmed = app.stage3.prefilledFieldsConfirmed as any;
-        this.profile.marital_status = app.stage3.maritalStatus as any || undefined;
+        this.profile.marital_status = app.stage3.maritalStatus as any ?? null;
         this.profile.marital_status_confirmed = app.stage3.maritalStatusConfirmed;
-        this.profile.dependents = app.stage3.dependents || undefined;
+        this.profile.dependents = app.stage3.dependents ?? null;
         this.profile.dependents_confirmed = app.stage3.dependentsConfirmed;
-        this.profile.employment_position = app.stage3.employmentPosition || undefined;
-        this.profile.employment_years = app.stage3.employmentYears?.toNumber();
-        this.profile.self_employed = app.stage3.selfEmployed || undefined;
+        this.profile.employment_position = app.stage3.employmentPosition ?? null;
+        this.profile.employment_years = app.stage3.employmentYears?.toNumber() ?? null;
+        this.profile.self_employed = app.stage3.selfEmployed ?? null;
         this.profile.employment_confirmed = app.stage3.employmentConfirmed;
-        this.profile.checking_savings_balance = app.stage3.checkingSavingsBalance?.toNumber();
+        this.profile.checking_savings_balance = app.stage3.checkingSavingsBalance?.toNumber() ?? null;
         this.profile.checking_savings_confirmed = app.stage3.checkingSavingsConfirmed;
-        this.profile.declarations_bankruptcy = app.stage3.declarationsBankruptcy || undefined;
-        this.profile.declarations_foreclosure = app.stage3.declarationsForeclosure || undefined;
+        this.profile.declarations_bankruptcy = app.stage3.declarationsBankruptcy ?? null;
+        this.profile.declarations_foreclosure = app.stage3.declarationsForeclosure ?? null;
         this.profile.declarations_confirmed = app.stage3.declarationsConfirmed;
         this.profile.ready_to_submit = app.stage3.readyToSubmit;
       }
