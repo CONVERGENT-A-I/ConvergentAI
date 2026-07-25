@@ -43,6 +43,8 @@ import { LoanOfficerLiveUI, LoanOfficerQueueUI } from "./loan-officer-queue";
 import { NetworkQualityBanner } from "./network-quality-banner";
 import { LogoLoader } from "./logo-loader";
 
+import { StageListener } from "./stage-listener";
+import { AffordabilityPanel } from "../affordability-panel";
 import VideoStage from "../video-stage";
 
 export default function FloatingCTA() {
@@ -62,6 +64,8 @@ export default function FloatingCTA() {
   const [complianceChecked, setComplianceChecked] = useState(false);
   // Incremented each time a brand-new session starts — forces LiveKitRoom to fully remount
   const [sessionKey, setSessionKey] = useState(0);
+  const [activeStage, setActiveStage] = useState<string>("1");
+  const [borrowerProfile, setBorrowerProfile] = useState<any>(null);
 
   const [isFallbackMode, setIsFallbackMode] = useState(false);
   const [avatarFallbackReason, setAvatarFallbackReason] = useState<"capacity" | "failed" | null>(null);
@@ -1186,6 +1190,13 @@ export default function FloatingCTA() {
                               <AvatarStatusListener
                                 onAvatarStatus={handleAvatarStatus}
                               />
+                              <StageListener
+                                onStageUpdate={(stage, profile) => {
+                                  console.log("[ui-stage]: Stage updated to", stage, profile);
+                                  setActiveStage(stage);
+                                  if (profile) setBorrowerProfile(profile);
+                                }}
+                              />
                               <MloDetector onMloStatusChange={handleMloStatusChange} />
                               <MediaGuard mode={pendingMode} />
                               <ActivityTracker />
@@ -1225,15 +1236,25 @@ export default function FloatingCTA() {
                                 }
                               >
                                 <div
-                                  className={`flex-1 flex min-h-0 p-2 md:p-3 gap-2 md:gap-3 ${pendingMode === "avatar-chat" ? "flex-col md:flex-row" : "flex-row"
-                                    }`}
+                                  className={`flex-1 flex min-h-0 p-2 md:p-3 gap-2 md:gap-3 ${
+                                    activeStage === "2.5"
+                                      ? "flex-col md:flex-row"
+                                      : pendingMode === "avatar-chat"
+                                      ? "flex-col md:flex-row"
+                                      : "flex-row"
+                                  }`}
                                 >
                                   {/* Left: Avatar Area */}
                                   <div
-                                    className={`relative rounded-2xl overflow-hidden bg-black shadow-xl ${pendingMode === "avatar-chat"
-                                      ? "h-[42%] md:h-auto md:flex-1"
-                                      : "flex-1"
-                                      }`}
+                                    className={
+                                      activeStage === "2.5"
+                                        ? "absolute z-40 top-4 right-4 w-28 h-40 rounded-xl overflow-hidden shadow-2xl border border-white/20 md:relative md:top-0 md:right-0 md:w-auto md:h-auto md:flex-[0.3] md:min-w-[280px]"
+                                        : `relative rounded-2xl overflow-hidden bg-black shadow-xl ${
+                                            pendingMode === "avatar-chat"
+                                              ? "h-[42%] md:h-auto md:flex-1"
+                                              : "flex-1"
+                                          }`
+                                    }
                                   >
                                     {/* REC badge - only when connected */}
                                     {isLkConnected && isAgentReady && (
@@ -1306,6 +1327,36 @@ export default function FloatingCTA() {
                                       />
                                     </div>
                                   </div>
+
+                                  {/* Middle: Affordability Panel (Stage 2.5) */}
+                                  {activeStage === "2.5" && (
+                                    <div className="flex-1 min-h-0 overflow-y-auto bg-[#0a0a0a] rounded-2xl border border-white/10 p-3 shadow-xl flex flex-col">
+                                      <AffordabilityPanel
+                                        initialPurchasePrice={borrowerProfile?.targetPrice ?? 500000}
+                                        initialDownPayment={borrowerProfile?.downPayment ?? 100000}
+                                        grossAnnualIncome={borrowerProfile?.grossAnnualIncome ?? 120000}
+                                        totalMonthlyDebt={borrowerProfile?.totalMonthlyDebt ?? 500}
+                                        programType={borrowerProfile?.militaryRural === 'military' ? 'va' : 'conventional'}
+                                        onSubmitSuccess={async (status) => {
+                                          console.log("[ui-stage]: AUS submitted. Result:", status);
+                                          try {
+                                            const encoder = new TextEncoder();
+                                            const payload = encoder.encode(JSON.stringify({
+                                              message: `SYSTEM_AUS_SUBMITTED:${status}`
+                                            }));
+                                            if ((window as any).lkPublishData) {
+                                              await (window as any).lkPublishData(payload, {
+                                                topic: "lk-chat",
+                                                reliable: true,
+                                              });
+                                            }
+                                          } catch (err) {
+                                            console.warn("[ui]: Failed to publish AUS submission event:", err);
+                                          }
+                                        }}
+                                      />
+                                    </div>
+                                  )}
 
                                   {/* Right: Chat Panel — always mounted so useChat() & transcripts survive channel switches.
                                      Hidden via inline style (not conditional render) so messages persist. */}

@@ -653,6 +653,29 @@ export default defineAgent({
       }
     });
 
+    let lastSentStage = contextManager.getActiveStage();
+    const sendStageUpdate = async (stage: string) => {
+      try {
+        const prof = contextManager.getProfile();
+        const payload = new TextEncoder().encode(JSON.stringify({
+          message: "SYSTEM_STAGE_UPDATE",
+          stage,
+          profile: {
+            borrowerName: prof.borrower_name,
+            grossAnnualIncome: prof.gross_annual_income,
+            totalMonthlyDebt: prof.monthly_debt,
+            targetPrice: prof.target_price,
+            downPayment: prof.down_payment,
+            militaryRural: prof.military_rural,
+          }
+        }));
+        await ctx.room.localParticipant?.publishData(payload, { reliable: true, topic: 'lk-chat' });
+        console.log(`[agent-debug]: Sent stage update to frontend: ${stage} with profile data.`);
+      } catch (e: any) {
+        console.warn(`[agent-debug]: Failed to send stage update:`, e?.message);
+      }
+    };
+
     function updateSessionInstructions() {
       try {
         const activeInstructions = contextManager.getActiveInstructions();
@@ -680,6 +703,13 @@ export default defineAgent({
           console.log(`[agent-debug]: System instruction message prepended to session.chatCtx.`);
         }
         console.log(`[agent-debug]: Instructions updated — stage=${contextManager.getActiveStage()}, pendingField=${contextManager.getPendingField()}`);
+        
+        // Broadcast stage change to frontend immediately
+        const currentStage = contextManager.getActiveStage();
+        if (currentStage !== lastSentStage) {
+          lastSentStage = currentStage;
+          sendStageUpdate(currentStage);
+        }
       } catch (err) {
         console.warn(`[agent]: Failed to update instructions mid-session:`, err);
       }
@@ -731,6 +761,23 @@ export default defineAgent({
     const handleSystemMessages = async (messageText: string, participantIdentity: string | undefined) => {
       if (isHibernating && messageText !== 'SYSTEM_RESUME_AGENT') {
         console.log(`[agent]: Ignoring message while hibernating: ${messageText}`);
+        return;
+      }
+
+      if (messageText.startsWith('SYSTEM_AUS_SUBMITTED:')) {
+        const status = messageText.split(':')[1];
+        console.log(`[agent]: SYSTEM_AUS_SUBMITTED received. Status: ${status}`);
+        contextManager.applyAusResult(status as any);
+        updateSessionInstructions();
+        
+        const triggerPrompt = `The eligibility review has returned with status: ${status}. Please deliver the findings to the borrower.`;
+        if (voiceMuted) {
+          await generateTextOnlyReply(triggerPrompt);
+        } else {
+          metrics.startTurn();
+          metrics.markGenerateReply();
+          session.generateReply({ userInput: triggerPrompt });
+        }
         return;
       }
 

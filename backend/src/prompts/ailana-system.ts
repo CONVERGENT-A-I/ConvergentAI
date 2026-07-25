@@ -51,6 +51,7 @@ PROHIBITED PHRASES (never use):
 }
 
 import { buildStage2Instructions } from './stage2-prequalification.js';
+import { buildStage25Instructions } from './stage25-affordability.js';
 import { buildStage3Instructions, buildStage3AInstructions } from './stage3-guidance.js';
 import { buildStage3BInstructions } from './stage3b-completion.js';
 import { buildStage4Instructions } from './stage4-underwriting.js';
@@ -65,6 +66,9 @@ export function buildLayer2(stage: string = '1', profile: BorrowerProfile = {}):
   }
   if (stage === '2') {
     return buildStage2Instructions(profile);
+  }
+  if (stage === '2.5') {
+    return buildStage25Instructions(profile);
   }
   if (stage === '3') {
     return buildStage3Instructions();

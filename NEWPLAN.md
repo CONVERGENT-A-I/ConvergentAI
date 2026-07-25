@@ -300,7 +300,7 @@ Any part of the system (REST API endpoint, WebSocket handler, voice-mode narrati
 
 ---
 
-### Step 2.2 — Build the AUS Submission Payload Builder & Mock Endpoint
+### ✅ [DONE] Step 2.2 — Build the AUS Submission Payload Builder & Mock Endpoint
 
 **Problem:**
 When the borrower clicks "Submit for review," the system needs to package all collected profile data into a MISMO 3.4 format payload and send it to the AUS (Fannie Mae DU / Freddie Mac LPA via Encompass Developer Connect API). There is no payload builder, no AUS client, and no endpoint for this today. The spec defines exactly which fields go in the payload (Section 3.2 of `Affordability_Panel_Mobile.md`).
@@ -346,7 +346,7 @@ The AUS submission has a clean, typed interface. When real Encompass API credent
 
 ---
 
-### Step 2.3 — Add REST API Endpoint for Panel Calculations
+### ✅ [DONE] Step 2.3 — Add REST API Endpoint for Panel Calculations
 
 **Problem:**
 The browser-rendered affordability panel needs to call the backend on every slider change to get updated PITIA and band status. Currently, there is no REST endpoint for this. Without it, the frontend either has to duplicate all the calculation logic (bad — would diverge from backend math) or it cannot update the panel in real time.
@@ -400,7 +400,7 @@ This stage wires up findings delivery (FD1/FD2) back to the conversational layer
 
 ---
 
-### Step 3.1 — AUS Findings Handling & State Transition
+### ✅ [DONE] Step 3.1 — AUS Findings Handling & State Transition
 
 **Problem:**
 After the borrower submits from the affordability panel, the AUS call is async. The state machine sets `affordability_aus_status = 'pending'` but then has no mechanism to receive the AUS result and advance the conversation. The LLM also has no instruction on what to say while AUS is processing (the spec requires the `RFD-LOADING` formulation if > 10 seconds elapse).
@@ -425,7 +425,7 @@ The AUS flow is complete: submit → loading state → result arrives → Ailana
 
 ---
 
-### Step 3.2 — Add Stage 2.5 Prompt Instructions File
+### ✅ [DONE] Step 3.2 — Add Stage 2.5 Prompt Instructions File
 
 **Problem:**
 Ailana has no instruction layer for Stage 2.5. There is no `stage2.5-affordability.ts` prompt file. Without it, the LLM will not know the mandatory formulations (`Q46`–`Q58`), will not know that it must **never** vocalize dollar figures, and will not know the difference between `FD1`, `FD1-alt`, and `FD2` findings delivery scripts. This means Ailana will either go off-script or say nothing useful when the panel is open.
@@ -528,7 +528,7 @@ This stage builds the interactive affordability panel as a React component that 
 
 ---
 
-### Step 4.1 — Create the `AffordabilityPanel` React Component
+### ✅ [DONE] Step 4.1 — Create the `AffordabilityPanel` React Component
 
 **Problem:**
 There is no affordability panel UI component anywhere in the codebase. Without it, the interactive screen panel described in the spec cannot render. The panel is the primary visual interface for Stage 2.5 — the borrower uses it to explore scenarios and submit for AUS review. Ailana's narration is meaningless without the on-screen numbers the narration refers to.
@@ -661,7 +661,7 @@ The affordability panel works correctly on every viewport and in every engagemen
 
 ## Stage 5: Audit Logging
 
-### Step 5.1 — Implement Affordability Panel Audit Log
+### ✅ [DONE] Step 5.1 — Implement Affordability Panel Audit Log
 
 **Problem:**
 Per `Section 5` of the spec and `Compliance Item` in the compliance reference, every affordability panel interaction must be written to a server-side immutable audit log for fair lending monitoring. This is required by ECOA/Regulation B. There is currently no affordability-specific audit logging anywhere in the codebase. Without it, every interaction is unaudited and the system is non-compliant.
@@ -736,7 +736,7 @@ Every affordability panel interaction has an immutable, timestamped audit trail.
 
 ## Stage 6: Pre-Qualification Letter Generation
 
-### Step 6.1 — Implement Pre-Qualification Letter Generator
+### ✅ [DONE] Step 6.1 — Implement Pre-Qualification Letter Generator
 
 **Problem:**
 When AUS returns `Approve/Eligible` (`FD1`), the spec requires that a pre-qualification letter be generated and emailed to the borrower immediately (auto-send mode) or held for MLO review (MLO-review mode). There is no letter generator, no email sender, and no letter template in the codebase. Without this, the FD1 flow is incomplete — Ailana says the letter has been emailed but nothing actually gets sent.
@@ -763,7 +763,7 @@ When AUS returns `Approve/Eligible`, a compliant pre-qualification letter is gen
 
 ## Stage 7: End-to-End Testing & Verification
 
-### Step 7.1 — Backend Unit Tests
+### ✅ [DONE] Step 7.1 — Backend Unit Tests
 
 **Problem:**
 The calculation engine, AUS payload builder, and audit logger are pure functions that can be unit-tested independently. Without tests, calculation regressions (e.g., a wrong PMI formula) could silently break payment estimates shown to every borrower.
@@ -786,7 +786,7 @@ All calculation paths are verified by automated tests. Any regression in a formu
 
 ---
 
-### Step 7.2 — Full Conversational Flow Test
+### ✅ [DONE] Step 7.2 — Full Conversational Flow Test
 
 **Problem:**
 The Stage 2.5 state machine, narration scripts, and panel integration need to be validated end-to-end with a real session to confirm that all moving parts connect correctly — state transitions, panel rendering, slider updates, AUS mock, findings delivery, and letter generation.
@@ -834,4 +834,10 @@ End-to-end validation that the entire Stage 2.5 flow — from panel render to AU
 | `src/components/affordability-panel.tsx` | **NEW** | Interactive affordability panel UI component (sliders, bands, PITIA, submit button) |
 | `src/components/live-chat-panel.tsx` | **MODIFY** | Mount `<AffordabilityPanel>` when Stage 2.5 is active; handle `stage_update` WebSocket messages |
 | `src/components/video-stage.tsx` | **MODIFY** | PiP avatar transition when Stage 2.5 opens on mobile; mount panel component |
-| `backend/src/__tests__/affordability-calculator.test.ts` | **NEW** | Unit tests for all calculation paths and band thresholds |
+| `backend/src/__tests__/stage1-foundation.test.ts` | **NEW** | Unit tests for Stage 1 config, profile fields, and state machine |
+| `backend/src/__tests__/stage2-calculation-aus.test.ts` | **NEW** | Unit tests for Stage 2 calculation engine, MI formulas, and AUS payload |
+| `backend/src/__tests__/stage3-prompts-findings.test.ts` | **NEW** | Unit tests for Stage 3 prompts, Q46-Q58 formulations, and findings delivery |
+| `backend/src/__tests__/stage4-frontend-integration.test.ts` | **NEW** | Unit tests for Stage 4 REST API contracts and raw DTI exclusion |
+| `backend/src/__tests__/stage5-audit-logging.test.ts` | **NEW** | Unit tests for Stage 5 ECOA/Regulation B audit logging |
+| `backend/src/__tests__/stage6-prequal-letter.test.ts` | **NEW** | Unit tests for Stage 6 Pre-Qualification letter generation & email dispatch |
+| `backend/src/__tests__/stage7-e2e-flow.test.ts` | **NEW** | End-to-end integration test simulating the entire Stage 2.5 flow |
