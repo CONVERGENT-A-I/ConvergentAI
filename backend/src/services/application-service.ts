@@ -217,6 +217,17 @@ export class ApplicationService {
         pendingConfirmField: profile.pending_confirm_field ?? null,
         pendingConfirmValue: profile.pending_confirm_value ?? null,
         bridgeToSay: profile.bridge_to_say ?? null,
+        // Stage 2.5 Affordability Panel Fields
+        affordabilityPanelRendered: profile.affordability_panel_rendered || false,
+        affordabilityMode: profile.affordability_mode ?? null,
+        affordabilityPurchasePrice: profile.affordability_purchase_price ?? null,
+        affordabilityDownPayment: profile.affordability_down_payment ?? null,
+        affordabilityIncomeBand: profile.affordability_income_band ?? null,
+        affordabilityDtiBand: profile.affordability_dti_band ?? null,
+        affordabilitySubmitted: profile.affordability_submitted || false,
+        affordabilityAusStatus: profile.affordability_aus_status ?? null,
+        affordabilityPrequelLetterSent: profile.affordability_prequel_letter_sent || false,
+        zipCode: profile.zip_code ?? null,
       },
       update: {
         grossAnnualIncome: profile.gross_annual_income ?? null,
@@ -244,6 +255,17 @@ export class ApplicationService {
         pendingConfirmField: profile.pending_confirm_field ?? null,
         pendingConfirmValue: profile.pending_confirm_value ?? null,
         bridgeToSay: profile.bridge_to_say ?? null,
+        // Stage 2.5 Affordability Panel Fields
+        affordabilityPanelRendered: profile.affordability_panel_rendered || false,
+        affordabilityMode: profile.affordability_mode ?? null,
+        affordabilityPurchasePrice: profile.affordability_purchase_price ?? null,
+        affordabilityDownPayment: profile.affordability_down_payment ?? null,
+        affordabilityIncomeBand: profile.affordability_income_band ?? null,
+        affordabilityDtiBand: profile.affordability_dti_band ?? null,
+        affordabilitySubmitted: profile.affordability_submitted || false,
+        affordabilityAusStatus: profile.affordability_aus_status ?? null,
+        affordabilityPrequelLetterSent: profile.affordability_prequel_letter_sent || false,
+        zipCode: profile.zip_code ?? null,
       },
     });
   }
@@ -272,6 +294,13 @@ export class ApplicationService {
         softPullConsentTimestamp: profile.soft_pull_consent === 'accepted' ? new Date() : null,
         employer: profile.employer ?? null,
         prefilledFieldsConfirmed: profile.prefilled_fields_confirmed || {},
+        // OTP Gate & Session Login Fields
+        sessionLoginComplete: profile.session_login_complete || false,
+        contactOnFile: profile.contact_on_file || false,
+        contactEmail: profile.contact_email ?? null,
+        contactMobile: profile.contact_mobile ?? null,
+        otpVerified: profile.otp_verified || false,
+        // Stage 3B Application Completion
         maritalStatus: profile.marital_status ?? null,
         maritalStatusConfirmed: profile.marital_status_confirmed || false,
         dependents: profile.dependents ?? null,
@@ -286,6 +315,12 @@ export class ApplicationService {
         declarationsForeclosure: profile.declarations_foreclosure ?? null,
         declarationsConfirmed: profile.declarations_confirmed || false,
         readyToSubmit: profile.ready_to_submit || false,
+        // Compliance & Audit Tracking
+        eligibilityReviewExplained: profile.eligibility_review_explained || false,
+        creditImpactStated: profile.credit_impact_stated || false,
+        pmiExplained: profile.pmi_explained || false,
+        transitionPitchDelivered: profile.transition_pitch_delivered || false,
+        dtiAboveHardCeiling: profile.dti_above_hard_ceiling || false,
       },
       update: {
         eligibleProducts: profile.eligible_products || [],
@@ -302,6 +337,13 @@ export class ApplicationService {
         softPullConsent: profile.soft_pull_consent ?? null,
         employer: profile.employer ?? null,
         prefilledFieldsConfirmed: profile.prefilled_fields_confirmed || {},
+        // OTP Gate & Session Login Fields
+        sessionLoginComplete: profile.session_login_complete || false,
+        contactOnFile: profile.contact_on_file || false,
+        contactEmail: profile.contact_email ?? null,
+        contactMobile: profile.contact_mobile ?? null,
+        otpVerified: profile.otp_verified || false,
+        // Stage 3B Application Completion
         maritalStatus: profile.marital_status ?? null,
         maritalStatusConfirmed: profile.marital_status_confirmed || false,
         dependents: profile.dependents ?? null,
@@ -316,6 +358,12 @@ export class ApplicationService {
         declarationsForeclosure: profile.declarations_foreclosure ?? null,
         declarationsConfirmed: profile.declarations_confirmed || false,
         readyToSubmit: profile.ready_to_submit || false,
+        // Compliance & Audit Tracking
+        eligibilityReviewExplained: profile.eligibility_review_explained || false,
+        creditImpactStated: profile.credit_impact_stated || false,
+        pmiExplained: profile.pmi_explained || false,
+        transitionPitchDelivered: profile.transition_pitch_delivered || false,
+        dtiAboveHardCeiling: profile.dti_above_hard_ceiling || false,
       },
     });
   }

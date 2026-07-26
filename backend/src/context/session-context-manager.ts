@@ -259,6 +259,13 @@ export class SessionContextManager {
   }
 
   /**
+   * Save a conversation turn to database (public method for voice turns)
+   */
+  async saveVoiceConversationTurn(role: 'user' | 'assistant', text: string): Promise<void> {
+    await this.saveConversationTurn(role, text);
+  }
+
+  /**
    * Save a conversation turn to database
    */
   private async saveConversationTurn(role: 'user' | 'assistant', text: string): Promise<void> {

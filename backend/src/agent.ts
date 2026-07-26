@@ -169,6 +169,9 @@ class AilanaVoiceAgent extends voice.Agent {
 
     // 2. Trigger the current turn's extraction asynchronously in the background
     if (userMessage?.textContent) {
+      // Save voice conversation turn to database (must be synchronous to avoid race conditions)
+      await this.contextManager.saveVoiceConversationTurn('user', userMessage.textContent);
+      
       const currentTurnNumber = this.contextManager.triggerBackgroundExtraction(userMessage.textContent);
       console.log(`[agent-hook]: Current turn background extraction triggered asynchronously (turn=${currentTurnNumber}).`);
 

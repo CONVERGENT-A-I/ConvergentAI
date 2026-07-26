@@ -196,6 +196,20 @@ model Stage2PreQualification {
 
   bridgeToSay String? @map("bridge_to_say")
 
+  // Stage 2.5 Affordability Panel Fields
+  affordabilityPanelRendered     Boolean  @default(false) @map("affordability_panel_rendered")
+  affordabilityMode              String?  @map("affordability_mode")
+  affordabilityPurchasePrice     Decimal? @map("affordability_purchase_price") @db.Decimal(12, 2)
+  affordabilityDownPayment       Decimal? @map("affordability_down_payment") @db.Decimal(12, 2)
+  affordabilityIncomeBand        String?  @map("affordability_income_band")
+  affordabilityDtiBand           String?  @map("affordability_dti_band")
+  affordabilitySubmitted         Boolean  @default(false) @map("affordability_submitted")
+  affordabilityAusStatus         String?  @map("affordability_aus_status")
+  affordabilityPrequelLetterSent Boolean  @default(false) @map("affordability_prequel_letter_sent")
+
+  // Location Data
+  zipCode String? @map("zip_code")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -234,6 +248,13 @@ model Stage3Application {
 
   prefilledFieldsConfirmed Json @default("{}") @map("prefilled_fields_confirmed")
 
+  // Stage 3A: OTP Gate & Session Login
+  sessionLoginComplete Boolean @default(false) @map("session_login_complete")
+  contactOnFile        Boolean @default(false) @map("contact_on_file")
+  contactEmail         String? @map("contact_email")
+  contactMobile        String? @map("contact_mobile")
+  otpVerified          Boolean @default(false) @map("otp_verified")
+
   // Stage 3B: Application Completion
   maritalStatus          String? @map("marital_status")
   maritalStatusConfirmed Boolean @default(false) @map("marital_status_confirmed")
@@ -254,6 +275,13 @@ model Stage3Application {
   declarationsConfirmed   Boolean  @default(false) @map("declarations_confirmed")
 
   readyToSubmit Boolean @default(false) @map("ready_to_submit")
+
+  // Compliance & Audit Tracking
+  eligibilityReviewExplained Boolean @default(false) @map("eligibility_review_explained")
+  creditImpactStated         Boolean @default(false) @map("credit_impact_stated")
+  pmiExplained               Boolean @default(false) @map("pmi_explained")
+  transitionPitchDelivered   Boolean @default(false) @map("transition_pitch_delivered")
+  dtiAboveHardCeiling        Boolean @default(false) @map("dti_above_hard_ceiling")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
