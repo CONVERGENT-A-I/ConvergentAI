@@ -30,6 +30,7 @@ export function AffordabilityModal({
   const downPayment = borrowerProfile?.down_payment ?? borrowerProfile?.downPayment ?? 70000;
   const income = borrowerProfile?.gross_annual_income ?? borrowerProfile?.grossAnnualIncome ?? 120000;
   const debt = borrowerProfile?.monthly_debt ?? borrowerProfile?.totalMonthlyDebt ?? 500;
+  const zipCode = borrowerProfile?.zip_code ?? borrowerProfile?.zipCode;
   const program = borrowerProfile?.military_rural === 'military' ? 'va' : 'conventional';
 
   return (
@@ -122,6 +123,7 @@ export function AffordabilityModal({
                 grossAnnualIncome={income}
                 totalMonthlyDebt={debt}
                 programType={program}
+                zipCode={zipCode}
                 mode={mode}
                 onUpgrade={onUpgrade}
                 onSubmitSuccess={onSubmitSuccess}

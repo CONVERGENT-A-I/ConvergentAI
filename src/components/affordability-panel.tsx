@@ -9,6 +9,7 @@ export interface AffordabilityPanelProps {
   grossAnnualIncome?: number;
   totalMonthlyDebt?: number;
   programType?: 'conventional' | 'fha' | 'va' | 'usda';
+  zipCode?: string;
   mode?: 'stated' | 'verified';
   onUpgrade?: () => void;
   onSubmitSuccess?: (status: 'approve_eligible' | 'refer') => void;
@@ -21,6 +22,7 @@ export function AffordabilityPanel({
   grossAnnualIncome = 120000,
   totalMonthlyDebt = 500,
   programType = 'conventional',
+  zipCode,
   mode = 'verified',
   onUpgrade,
   onSubmitSuccess,
@@ -59,6 +61,7 @@ export function AffordabilityPanel({
             grossAnnualIncome,
             totalMonthlyDebt,
             programType,
+            zipCode,
           }),
         });
 
@@ -75,13 +78,13 @@ export function AffordabilityPanel({
         setIsCalculating(false);
       }
     },
-    [grossAnnualIncome, totalMonthlyDebt, programType]
+    [grossAnnualIncome, totalMonthlyDebt, programType, zipCode]
   );
 
   // Debounced recalculation on slider changes
   useEffect(() => {
     fetchCalculation(purchasePrice, downPayment);
-  }, [purchasePrice, downPayment, fetchCalculation]);
+  }, [purchasePrice, downPayment, zipCode, fetchCalculation]);
 
   const handlePurchasePriceChange = (val: number) => {
     const validPrice = Math.max(0, val);

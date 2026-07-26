@@ -1081,7 +1081,7 @@ Borrowers can choose to explore anonymously in Stated-Data Mode without giving c
 
 ---
 
-### ✅ [DONE] Step 8.3 — Combined One-Time OTP Gate & Login Flow
+### Step 8.3 — Combined One-Time OTP Gate & Login Flow
 
 **Problem:**
 We need a combined identity gate (email, mobile, and 6-digit OTP verification) that fires once at the borrower's first commitment point (either credit pull or AUS submission) and never fires again.
@@ -1097,7 +1097,7 @@ The identity gate fires exactly once at the first commitment point and persists 
 
 ---
 
-### ✅ [DONE] Step 8.4 — Prompt Formulations (Q46-S, Upgrade, Q58 stated, Q52 stated)
+### Step 8.4 — Prompt Formulations (Q46-S, Upgrade, Q58 stated, Q52 stated)
 
 **Problem:**
 We must update the LLM prompt packages to include the v8.7 stated-mode formulations.
@@ -1111,7 +1111,7 @@ Ailana delivers exact v8.7 compliant response scripts depending on whether the s
 
 ---
 
-### ✅ [DONE] Step 8.5 — Frontend UI Adaptive Layout & OTP Verification
+### Step 8.5 — Frontend UI Adaptive Layout & OTP Verification
 
 **Problem:**
 The frontend `<AffordabilityPanel />` and `<FloatingCTA />` must render stated-data mode correctly (hidden credit score, `"Monthly debts (your estimate)"` label, and upgrade option) and support the OTP verification modal.
@@ -1126,7 +1126,7 @@ The panel UI seamlessly adjusts between Stated Mode and Verified Mode, and rende
 
 ---
 
-### ✅ [DONE] Step 8.6 — API Endpoint Updates
+### Step 8.6 — API Endpoint Updates
 
 **Problem:**
 The `/api/affordability/calculate` and `/api/affordability/submit` endpoints must be updated to accept zip codes and support stated mode calculations.

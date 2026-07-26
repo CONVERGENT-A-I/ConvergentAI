@@ -1443,8 +1443,8 @@ export class SessionContextManager {
         expectedType: 'string',
         additionalInstructions:
           'Extract "soft_pull" if borrower wants the soft credit review, says yes/run it/let\'s do it/soft credit/Path A or similar. ' +
-          'Extract "explore_first" if borrower wants to explore first, says no/not yet/build it now/affordability summary/explore/Path B or similar. ' +
-          'Extract "explain" if borrower asks what the credit review involves. If not sure, return null.',
+          'Extract "explore_first" if borrower wants to explore first, hesitates, says no/not yet/build it now/affordability summary/explore/Path B/don\'t know/options/didn\'t see or similar. ' +
+          'Extract "explain" if borrower asks what the credit review involves. If not sure, return "explore_first".',
       });
     }
 
@@ -1568,26 +1568,34 @@ export class SessionContextManager {
     }
 
     // Process stage2_closing_offer (v8.7 two-path routing)
-    const offerVal = results.stage2_closing_offer?.value;
-    if (field === 'stage2_closing_offer' && offerVal) {
-      if (offerVal === 'soft_pull') {
+    if (field === 'stage2_closing_offer') {
+      const offerVal = results.stage2_closing_offer?.value;
+      const lowerText = text.toLowerCase();
+      const isSoftPullIntent = offerVal === 'soft_pull' || /\b(soft|credit|yes|run|authorize|path a|agree)\b/i.test(lowerText);
+      const isExploreIntent = offerVal === 'explore_first' || /\b(explore|stated|no|not yet|don't know|dont know|option|options|see|show|skip|later)\b/i.test(lowerText);
+
+      if (isSoftPullIntent && offerVal !== 'explore_first') {
         // Path A: OTP gate → soft pull → prefill → Stage 2.5 Verified
         this.activeStage = '3A';
         this.currentPendingField = 'contact_email';
         console.log('[context-manager]: Path A chosen — Stage 2 closing offer accepted. Transitioning to STAGE 3A OTP gate (contact_email)!');
-      } else if (offerVal === 'explore_first') {
+        return;
+      } else if (isExploreIntent || offerVal === 'explore_first' || offerVal === null || offerVal === undefined) {
         // Path B: Immediate Stage 2.5 in Stated-Data mode — no contact/OTP needed
         this.activeStage = '2.5';
         this.profile.affordability_mode = 'stated';
         this.profile.affordability_panel_rendered = true;
-        this.profile.affordability_purchase_price = this.profile.target_price ?? null;
-        this.profile.affordability_down_payment = this.profile.down_payment ?? null;
+        this.profile.affordability_purchase_price = this.profile.target_price ?? 350000;
+        this.profile.affordability_down_payment = this.profile.down_payment ?? 70000;
+        if (!this.profile.target_price) this.profile.target_price = 350000;
+        if (!this.profile.down_payment) this.profile.down_payment = 70000;
         this.currentPendingField = 'affordability_panel_active';
-        console.log('[context-manager]: Path B chosen — Stated-Data Mode. Transitioning directly to Stage 2.5!');
+        console.log('[context-manager]: Path B chosen — Stated-Data Mode. Transitioning directly to Stage 2.5 (Affordability Panel)!');
+        return;
       } else if (offerVal === 'explain') {
         console.log('[context-manager]: stage2_closing_offer explanation requested.');
+        return;
       }
-      return;
     }
 
     if (anyUpdates) {
