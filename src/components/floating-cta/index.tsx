@@ -858,8 +858,8 @@ export default function FloatingCTA() {
                 <div className="absolute inset-0 flex flex-col overflow-hidden z-0">
                     {/* ── Top Header ── */}
                     <div className="flex items-center justify-between px-3 sm:px-4 md:px-6 py-2.5 md:py-4 relative z-50 shrink-0 bg-[#080c14]/95 backdrop-blur-md border-b border-white/15 gap-2">
-                      {/* Logo */}
-                      <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+                      {/* Logo (Left column with equal width matching right column for perfect centering) */}
+                      <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 w-28 sm:w-36 md:w-44">
                         <div className="relative h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-transparent">
                           <Image
                             src="/newassets/ConvergentAI_logo_package/ConvergentAI_app_icon_navy.svg"
@@ -995,34 +995,12 @@ export default function FloatingCTA() {
                         </div>
                       )}
 
-                      {/* Right: Trust indicators + Close */}
-                      <div className="flex items-center justify-end gap-2 sm:gap-3 md:gap-4 shrink-0 whitespace-nowrap">
-                        {flowPhase === "live" && isLkConnected && (
-                          <>
-                            {/* Mobile: icon-only trust badges */}
-                            <div className="flex sm:hidden items-center gap-1.5" title="Trust Badges">
-                              <div className="flex items-center gap-0.5" title="Available 24/7">
-                                <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.8)]" />
-                                <span className="text-[8px] text-emerald-400 font-bold">24/7</span>
-                              </div>
-                              <div className="flex items-center gap-0.5" title="Secure & Private">
-                                <Lock className="h-2.5 w-2.5 text-gray-400" />
-                              </div>
-                            </div>
-                            {/* sm+: text labels (single line, no wrap) */}
-                            <div className="hidden sm:flex items-center gap-1.5 text-gray-400 text-[10px] md:text-xs font-semibold whitespace-nowrap shrink-0">
-                              <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)] shrink-0" />
-                              <span>Available 24/7</span>
-                            </div>
-                            <div className="hidden md:flex items-center gap-1.5 text-gray-400 text-xs font-semibold whitespace-nowrap shrink-0">
-                              <Lock className="h-3 w-3 text-emerald-400 shrink-0" />
-                              <span>Secure & Private</span>
-                            </div>
-                          </>
-                        )}
+                      {/* Right: Close button (Right column with equal width matching left logo column) */}
+                      <div className="flex items-center justify-end shrink-0 w-28 sm:w-36 md:w-44">
                         <button
                           onClick={requestEndCall}
                           className="p-1.5 sm:p-2 rounded-full bg-white/5 text-gray-400 hover:bg-red-500 hover:text-white transition-all cursor-pointer shrink-0"
+                          title="Close Session"
                         >
                           <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                         </button>
