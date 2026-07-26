@@ -841,3 +841,88 @@ End-to-end validation that the entire Stage 2.5 flow — from panel render to AU
 | `backend/src/__tests__/stage5-audit-logging.test.ts` | **NEW** | Unit tests for Stage 5 ECOA/Regulation B audit logging |
 | `backend/src/__tests__/stage6-prequal-letter.test.ts` | **NEW** | Unit tests for Stage 6 Pre-Qualification letter generation & email dispatch |
 | `backend/src/__tests__/stage7-e2e-flow.test.ts` | **NEW** | End-to-end integration test simulating the entire Stage 2.5 flow |
+
+---
+
+## Stage 8: v8.7 Specification Updates — Two-Path Flow & One-Time OTP Gate
+
+This stage implements the v8.7 changes: Property tax zip code lookup, USDA system-side eligibility check, the two-path affordability flow (stated-mode exploration vs soft-pull), the one-time OTP login gate, upgrade flows, and the accompanying prompt/dialog scripts.
+
+---
+
+### Step 8.1 — Zip-code Area Capture (Q42), USDA determination, and Tax rate feed
+
+**Problem:**
+USDA eligibility is currently self-reported. We need the system to determine USDA eligibility based on the Q42 area zip code. Additionally, the zip code should drive property-tax estimations instead of using a static national default tax rate.
+
+**Solution:**
+1. In `session-context-manager.ts`, update `runStage2Extraction` and `runStage3AExtraction` to extract `zip_code` from Q42 (area capture).
+2. Create a utility `backend/src/utils/zip-lookup.ts` that:
+   - Evaluates USDA rural eligibility based on zip (e.g. mock check: zip codes ending in odd digits are USDA-eligible).
+   - Maps zip prefixes to estimated property tax rates (e.g., California/Texas defaults vs national average).
+3. Update the tax rate calculation in `calculateAffordability()` to use the tax rate lookup if a zip code is present.
+4. If the zip code is USDA-eligible, set `profile.military_rural = 'rural'` (or similar) and append the `Q42-USDA` conditional addendum.
+
+---
+
+### Step 8.2 — Stated-Data Mode & Two-Path Flow in Session Manager
+
+**Problem:**
+Previously, Ailana offered only a single soft-pull prefill verification path, requiring email/mobile capture upfront. We must now support a two-path choice (explore immediately in Stated-Data Mode without contact info, or run a soft credit pull).
+
+**Solution:**
+1. In `BorrowerProfile`, add:
+   - `affordability_mode?: 'stated' | 'verified' | null;`
+   - `session_login_complete?: boolean;`
+   - `contact_on_file?: boolean;`
+2. Update the Stage 2 Closing Transition extraction:
+   - If the borrower selects the soft-pull path, transition to Stage 3A contact capture & OTP verification (the one-time gate), then soft-pull consent, then set `affordability_mode = 'verified'` and transition to Stage 2.5.
+   - If the borrower selects the stated-data (explore-first) path, transition immediately to Stage 2.5 with `affordability_mode = 'stated'`, bypassing all contact capture, OTP gates, and credit authorization.
+3. In Stage 2.5 Stated-Data Mode, keep the submit action fully available. If they click submit or request an upgrade, trigger the OTP identity gate first.
+
+---
+
+### Step 8.3 — Combined One-Time OTP Gate & Login Flow
+
+**Problem:**
+We need a combined identity gate (email, mobile, and 6-digit OTP verification) that fires once at the borrower's first commitment point (either credit pull or AUS submission) and never fires again.
+
+**Solution:**
+1. In `session-context-manager.ts`, check `session_login_complete`.
+2. If `false` at the commitment point, set `currentPendingField = 'otp_verification'`.
+3. Send a mock 6-digit OTP via console log (e.g., `123456`).
+4. Once the borrower inputs/says the correct code, set `session_login_complete = true` and `contact_on_file = true`, then advance to the next step.
+
+---
+
+### Step 8.4 — Prompt Formulations (Q46-S, Upgrade, Q58 stated, Q52 stated)
+
+**Problem:**
+We must update the LLM prompt packages to include the v8.7 stated-mode formulations.
+
+**Solution:**
+1. In `backend/src/prompts/stage25-affordability.ts`, add the `Q46-S` stated-mode presentation prompt, the upgrade narration prompt, the stated-mode `Q58` extension, and the `Q52` no-contact variant.
+2. Integrate these prompts into `buildStage25Instructions()`.
+
+---
+
+### Step 8.5 — Frontend UI Adaptive Layout & OTP Verification
+
+**Problem:**
+The frontend `<AffordabilityPanel />` and `<FloatingCTA />` must render stated-data mode correctly (hidden credit score, `"Monthly debts (your estimate)"` label, and upgrade option) and support the OTP verification modal.
+
+**Solution:**
+1. Add `mode: 'stated' | 'verified'` prop to `<AffordabilityPanel />`.
+2. Render an upgrade CTA in Stated mode that triggers `upgradeToVerified()`.
+3. Implement an OTP verification input component in `<FloatingCTA />` that is displayed when `currentPendingField === 'otp_verification'`.
+
+---
+
+### Step 8.6 — API Endpoint Updates
+
+**Problem:**
+The `/api/affordability/calculate` and `/api/affordability/submit` endpoints must be updated to accept zip codes and support stated mode calculations.
+
+**Solution:**
+1. Update Next.js endpoints to extract zip codes and pass them to the calculations.
+2. Ensure stated mode submit triggers mock AUS review.

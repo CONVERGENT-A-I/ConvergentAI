@@ -1,6 +1,6 @@
-# Step-by-Step Affordability Panel Walkthrough & Testing Guide
+# Step-by-Step Affordability Panel Walkthrough & Testing Guide (v8.7 Two-Path Flow)
 
-This guide describes the complete end-to-end conversation flow to verify Stage 2.5 (the interactive Affordability Panel, sliders, status bands, compliance disclaimers, and automated underwriting findings delivery).
+This guide describes the complete end-to-end conversation flows to verify Stage 2.5 under the v8.7 specification, covering both **Path A (Soft Credit Review / Verified Mode)** and **Path B (Stated-Data Mode / Explore First)**.
 
 ---
 
@@ -49,68 +49,97 @@ Type or say these exact messages to Ailana to progress the conversation:
     * **You:** `No, I don't need any agents yet.`
 12. **Ailana:** *"Roughly what is the target purchase price range...?"*
     * **You:** `It's 350000 dollars.`
-13. **Ailana:** *"What type of property are you looking for...?"*
-    * **You:** `Single family home.`
-14. **Ailana:** *"Do you have any military service history...?"*
+13. **Ailana:** *"What type of property are you considering... and do you have a particular town or area in mind?"* (Revised Q42)
+    * **You:** `Single family home, and I am looking in San Antonio, Texas 78209.`
+    * *Verify:* The system captures property type and zip code `78209`. Ailana may deliver the `Q42-USDA` conditional addendum if the zip matches an eligible area. The zip code is passed to the engine for property tax estimation.
+14. **Ailana:** *"And have you or your co-borrower ever served in the military?"* (Revised Q43 - military only)
     * **You:** `I don't have any military background.`
 15. **Ailana:** *"...could you tell me a bit about your current job tenure and how you're paid...?"*
     * **You:** `I am salaried and working since last 6 years.`
-16. **Ailana:** *"We have covered a lot of great ground together... Would you like to move forward with the initial eligibility review?"*
-    * **You:** `Yes, I like to move forward.`
+16. **Ailana:** *"We have covered a lot of great ground together... You've got two good ways to see your affordability picture... [Path A] Run soft credit review... or [Path B] build affordability summary right now from everything you've shared. Which would you like?"* (Two-Path Closing Transition)
+
+At this point, choose either **Path A** or **Path B** below:
 
 ---
 
-### Phase 2: Credit Review Authorization & Prefill Walkthrough (Stage 3A)
-1. **Ailana:** *"...could you please tell me your full legal name?"*
-   * **You:** `It's David Beckham.`
-2. **Ailana:** *"...what is your current physical address, including city, state, and zip code?"*
-   * **You:** `123 Main Street, California, Texas, 43000.`
-3. **Ailana:** *"Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry — it will not affect your credit score in any way... Do you authorize the soft credit inquiry on that basis?"* (Verbatim Regulation B disclaimer)
+### OPTION A: Soft Credit Review (Verified Mode)
+
+If you select Path A, you will run a credit review first and launch the panel with verified data.
+
+#### Flow Steps:
+1. **You:** `Let's run the soft credit review.`
+2. **Ailana (Secure Login & One-Time OTP Gate):** *"Perfect. Before we run your review, let's set up a quick secure login... I'll just need the email and mobile number you'd like to use..."*
+   * **You:** `My email is david@example.com and mobile is 555-0199.`
+3. **Ailana:** *"I've sent a one-time code to confirm your email and mobile number... go ahead and enter/read it back."*
+   * *Verification:* Check your terminal console logs. The backend prints: `[OTP-Service]: Generated mock OTP code: 123456`.
+   * **You:** `123456`
+4. **Ailana (Soft Pull Consent):** *"Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry — it will not affect your credit score in any way... Do you authorize the soft credit inquiry on that basis?"*
    * **You:** `Yes, I authorize.`
-4. **Ailana:** *"Thank you. I've processed that soft pull... First, I have your name and address listed as David Beckham, 123 Main Street... Does that look right?"*
+5. **Ailana (Prefill Walkthrough):** *"Thank you. I've processed that soft pull... First, I have your name and address listed as David Beckham, 123 Main Street... Does that look right?"*
    * **You:** `Yes, that looks correct.`
-5. **Ailana:** *"Great. Next, I have your employer listed as Nexus Technologies LLC Corp. Does that look right?"*
+6. **Ailana:** *"Great. Next, I have your employer listed as Nexus Technologies LLC Corp. Does that look right?"*
    * **You:** `Yes, correct.`
-6. **Ailana:** *"Perfect. For your accounts summary, I see two open active credit cards... Does that look right?"*
+7. **Ailana:** *"Perfect. For your accounts summary, I see two open active credit cards... Does that look right?"*
    * **You:** `Yes, correct.`
-7. **Ailana:** *"Lastly, we retrieved your credit profile showing a category rating in the 700 range... Does that match what you expect?"*
+8. **Ailana:** *"Lastly, we retrieved your credit profile showing a category rating in the 700 range... Does that match what you expect?"*
    * **You:** `Yes, that correct.`
 
----
-
-### Phase 3: Affordability Exploration (Stage 2.5)
-Right after you confirm the credit range, Ailana will transition the session to **Stage 2.5** and speak **Q46**:
-> *"Thank you for your patience, David — your initial results are in, and I've placed your affordability summary on your screen. It brings together the income and savings targets you shared with me and the details from your credit review, and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?"*
-
-#### Visual Verification Steps:
-1. **Interactive Panel Mount:** Verify that the **Affordability Panel** has slid in next to the chat window (on mobile, the avatar will scale down into a PiP thumbnail in the corner).
-2. **Disclaimer Banner:** Verify the permanent disclaimer banner is displayed at the top:
-   `"This is an educational estimate, not a loan decision or offer of credit."`
-3. **Status Badges:** Verify both indicators are green:
-   * **INCOME BAND:** `"within typical range"`
-   * **DTI BAND:** `"within typical range"`
-
-#### Test Slider Interactions:
-* **Conventional PMI Logic:**
-  * Drag the **Down Payment** slider down to `$40,000` (less than 20% of `$350,000`).
-  * Verify **Mortgage Insurance** updates to reflect Conventional PMI (~0.85% of loan amount).
-  * Drag **Down Payment** back up to `$70,000` (exactly 20% of `$350,000`).
-  * Verify **Mortgage Insurance** falls back to `$0/mo`.
-* **Amber Band Transition (DTI Gating):**
-  * Drag the **Target Purchase Price** up to `$750,000`.
-  * Verify the **DTI BAND** badge changes to amber: `"above typical range"`.
-  * Verify the **"Submit for review"** button **remains enabled** and clickable (required by Regulation B/ECOA).
+#### Transition to Stage 2.5 (Verified Mode):
+* **The Affordability Panel slides open** next to the chat.
+* **Credit details are displayed** (credit score is shown, monthly debts are locked to bureau data).
+* Ailana speaks **Q46**:
+  > *"Thank you for your patience, David — your initial results are in, and I've placed your affordability summary on your screen..."*
+* Follow the **Phase 4 Underwriting Submission** below to complete.
 
 ---
 
-### Phase 4: Underwriting Submission & Delivery
+### OPTION B: Explore First (Stated-Data Mode)
+
+If you select Path B, you will open the panel immediately using only stated estimates, without providing contact info or running a credit pull.
+
+#### Flow Steps:
+1. **You:** `I'd like to explore first without credit review.`
+2. **Transition to Stage 2.5 (Stated-Data Mode):**
+   * **The Affordability Panel slides open immediately** next to the chat.
+   * **No contact information or OTP code is requested.**
+   * **Stated-Mode UI Presentation:**
+     * The Debts card is labeled: **"Monthly debts (your estimate)"**.
+     * **No credit score is displayed.**
+     * An **"Upgrade to Verified Mode"** button is visible.
+     * Math, bands, and permanent disclaimers remain identical.
+   * Ailana speaks **Q46-S**:
+     > *"Here it is, David — I've placed your affordability summary on your screen, built from everything you've shared with me..."*
+
+#### Test Conversational Debt Corrections (Q58 Stated Extension):
+* In Stated mode, both income and debts can be updated conversationally.
+* **You:** `Actually, my monthly debts are 400 dollars.`
+* **Verify:** The panel's Monthly debts card updates from `$500` to `$400`, recalculating PITIA/bands within 300ms. Ailana acknowledges.
+
+#### Upgrade / Submit (Triggers OTP Identity Gate):
+* When you click **"Upgrade to Verified Mode"** OR **"Submit for review"**:
+  1. **OTP Gate fires:** Ailana asks for email and mobile to set up your secure login.
+     * **You:** `My email is david@example.com and mobile is 555-0199.`
+  2. **OTP verification:** Retrieve mock code from terminal (e.g. `123456`).
+     * **You:** `123456`
+  3. **Credit pull authorization:** Ailana presents the soft-pull disclosure.
+     * **You:** `Yes, I authorize.`
+  4. **Walkthrough:** Confirm the prefilled items (name, employer, credit score).
+  5. **Upgrade Re-render:** The panel re-renders in **Verified Mode** (credit score displays, debts lock to credit bureau tradelines, and tax rate applies from zip code).
+  6. **Ailana speaks Upgrade Narration:**
+     > *"Your summary just updated, David — it now reflects your actual credit review..."*
+
+---
+
+### Phase 4: Underwriting Submission & Findings Delivery
+
+Once in **Verified Mode** (either through Option A or Option B upgrade):
 1. Make sure sliders are set to a reasonable scenario (e.g. `$350,000` Purchase Price, `$70,000` Down Payment).
 2. Click the **"Submit for review"** button.
-   * **Verify:** Spinner appears, button text changes to `"Reviewing..."`.
+   * *Verify:* Spinner appears, button text changes to `"Reviewing..."`.
 3. Wait 2–4 seconds for the mock Automated Underwriting System (AUS) to return.
 4. **Verify Findings Delivery (FD1):**
    * Ailana will deliver the **FD1 script** verbatim:
-     > *"Wonderful news, David — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built. Your estimated payment range is on your screen now. I've sent your pre-qualification letter to your email on file..."*
+     > *"Wonderful news, David — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built..."*
 5. **Verify Letter Email Dispatch:**
    * Look at your backend console output. It must print:
      `"[Email-Service]: Pre-Qualification Letter successfully delivered to..."`
