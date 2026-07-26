@@ -23,6 +23,7 @@ export interface AffordabilityInput {
   grossAnnualIncome:  number;
   totalMonthlyDebt:   number;
   programType:        'conventional' | 'fha' | 'va' | 'usda';
+  zipCode?:           string;
 }
 
 export interface AffordabilityResult {
@@ -40,7 +41,7 @@ export interface AffordabilityResult {
 }
 
 export function calculateAffordability(input: AffordabilityInput): AffordabilityResult {
-  const { purchasePrice, downPayment, grossAnnualIncome, totalMonthlyDebt, programType } = input;
+  const { purchasePrice, downPayment, grossAnnualIncome, totalMonthlyDebt, programType, zipCode } = input;
   const cfg = ailanaConfig;
 
   const safePurchasePrice = Math.max(0, purchasePrice);
@@ -48,6 +49,16 @@ export function calculateAffordability(input: AffordabilityInput): Affordability
   const loanAmount        = Math.max(0, safePurchasePrice - safeDownPayment);
   const ltv               = safePurchasePrice > 0 ? loanAmount / safePurchasePrice : 0;
   const monthlyIncome     = Math.max(0.01, grossAnnualIncome / 12);
+
+  // Dynamic property tax rate based on zip code state prefix
+  let taxRate = cfg.propertyTaxRate;
+  if (zipCode) {
+    const cleanZip = zipCode.trim();
+    if (cleanZip.startsWith('78') || cleanZip.startsWith('75') || cleanZip.includes('TX')) taxRate = 0.017;
+    else if (cleanZip.startsWith('90') || cleanZip.startsWith('94') || cleanZip.includes('CA')) taxRate = 0.0125;
+    else if (cleanZip.includes('NJ')) taxRate = 0.0249;
+    else if (cleanZip.includes('NY')) taxRate = 0.0169;
+  }
 
   // 30-Year Fixed P&I
   const monthlyRate = cfg.representativeRate / 12;
@@ -59,7 +70,7 @@ export function calculateAffordability(input: AffordabilityInput): Affordability
       (Math.pow(1 + monthlyRate, n) - 1);
   }
 
-  const monthlyTax       = (safePurchasePrice * cfg.propertyTaxRate) / 12;
+  const monthlyTax       = (safePurchasePrice * taxRate) / 12;
   const monthlyInsurance = (safePurchasePrice * cfg.homeownersInsRate) / 12;
 
   let monthlyMI = 0;

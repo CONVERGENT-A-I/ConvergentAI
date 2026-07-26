@@ -9,6 +9,8 @@ export interface AffordabilityPanelProps {
   grossAnnualIncome?: number;
   totalMonthlyDebt?: number;
   programType?: 'conventional' | 'fha' | 'va' | 'usda';
+  mode?: 'stated' | 'verified';
+  onUpgrade?: () => void;
   onSubmitSuccess?: (status: 'approve_eligible' | 'refer') => void;
   className?: string;
 }
@@ -19,6 +21,8 @@ export function AffordabilityPanel({
   grossAnnualIncome = 120000,
   totalMonthlyDebt = 500,
   programType = 'conventional',
+  mode = 'verified',
+  onUpgrade,
   onSubmitSuccess,
   className = '',
 }: AffordabilityPanelProps) {
@@ -67,10 +71,7 @@ export function AffordabilityPanel({
 
   // Debounced recalculation on slider changes
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchCalculation(purchasePrice, downPayment);
-    }, 200);
-    return () => clearTimeout(timer);
+    fetchCalculation(purchasePrice, downPayment);
   }, [purchasePrice, downPayment, fetchCalculation]);
 
   const handlePurchasePriceChange = (val: number) => {
@@ -121,12 +122,25 @@ export function AffordabilityPanel({
     <div className={`flex flex-col bg-[#0b0f19] border border-gray-800 rounded-xl p-5 text-white shadow-2xl ${className}`}>
       {/* Permanent Disclosure Banner */}
       <div className="bg-[#131b2e] border border-[#1e293b] rounded-lg px-3 py-2 text-center text-xs text-gray-400 font-medium mb-4">
-        This is an educational estimate, not a loan decision or offer of credit.
+        {mode === 'stated'
+          ? 'This is an educational estimate based on the estimates you shared, not a loan decision.'
+          : 'This is an educational estimate, not a loan decision or offer of credit.'}
       </div>
 
-      <h2 className="text-base font-semibold text-gray-200 uppercase tracking-wider mb-3">
-        Your Affordability Summary
-      </h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-base font-semibold text-gray-200 uppercase tracking-wider">
+          Your Affordability Summary
+        </h2>
+        <span
+          className={`text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full border ${
+            mode === 'stated'
+              ? 'bg-amber-950/60 text-amber-300 border-amber-500/40'
+              : 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
+          }`}
+        >
+          {mode === 'stated' ? 'Stated Mode' : 'Verified Mode'}
+        </span>
+      </div>
 
       {/* Status Bands */}
       <div className="space-y-2.5 mb-5">
@@ -144,7 +158,9 @@ export function AffordabilityPanel({
         </div>
 
         <div className="flex items-center justify-between bg-[#111827] px-4 py-2.5 rounded-lg border border-gray-800">
-          <span className="text-sm text-gray-300 font-medium">DTI (Debt-to-Income)</span>
+          <span className="text-sm text-gray-300 font-medium">
+            {mode === 'stated' ? 'Monthly Debts (your estimate)' : 'DTI (Debt-to-Income)'}
+          </span>
           <span
             className={`text-xs px-3 py-1 rounded-full font-semibold border ${
               dtiBand === 'within'
@@ -230,22 +246,35 @@ export function AffordabilityPanel({
         </div>
       </div>
 
-      {/* Submit Button — NEVER DISABLED (Regulation B Non-Discouragement) */}
-      <button
-        id="affordability-submit-btn"
-        onClick={handleSubmit}
-        disabled={false}
-        className="w-full py-3 bg-[#00b4d8] hover:bg-[#0096c7] text-black font-semibold text-sm rounded-lg transition duration-200 flex items-center justify-center gap-2 shadow-lg shadow-[#00b4d8]/20 active:scale-[0.99]"
-      >
-        {isSubmitting ? (
-          <>
-            <Loader2 className="w-4 h-4 animate-spin text-black" />
-            <span>Reviewing...</span>
-          </>
-        ) : (
-          <span>Submit for review</span>
+      {/* Buttons */}
+      <div className="flex gap-2">
+        {mode === 'stated' && onUpgrade && (
+          <button
+            type="button"
+            onClick={onUpgrade}
+            className="flex-1 py-3 bg-[#1e293b] hover:bg-[#334155] text-white font-semibold text-xs rounded-lg border border-gray-700 transition duration-200"
+          >
+            Upgrade to Verified Mode
+          </button>
         )}
-      </button>
+        <button
+          id="affordability-submit-btn"
+          onClick={handleSubmit}
+          disabled={false}
+          className={`py-3 bg-[#00b4d8] hover:bg-[#0096c7] text-black font-semibold text-sm rounded-lg transition duration-200 flex items-center justify-center gap-2 shadow-lg shadow-[#00b4d8]/20 active:scale-[0.99] ${
+            mode === 'stated' && onUpgrade ? 'flex-1' : 'w-full'
+          }`}
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin text-black" />
+              <span>Reviewing...</span>
+            </>
+          ) : (
+            <span>Submit for review</span>
+          )}
+        </button>
+      </div>
     </div>
   );
 }

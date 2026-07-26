@@ -187,10 +187,11 @@ class AilanaVoiceAgent extends voice.Agent {
       const TRANSITION_TRIGGER_FIELDS = new Set([
         'co_borrower',              // Stage 1  last field → Stage 2 bridge + income question
         'job_tenure_type',          // Stage 2  last field → Stage 2 Closing Offer (verbatim)
-        'stage2_closing_offer',     // Stage 2  YES        → Stage 3A legal name
+        'stage2_closing_offer',     // Stage 2  two-path choice → Path A: OTP gate / Path B: Stage 2.5
         'refinance_type',           // Stage 2  refinance_type → Stage 2 target_price
-        'legal_name',               // Stage 3A legal name → Stage 3A physical address
-        'physical_address',         // Stage 3A physical address → Stage 3A consent disclosure
+        'contact_email',            // Stage 3A OTP gate step 1 → send OTP
+        'contact_mobile',           // Stage 3A OTP gate step 2 → send OTP
+        'otp_verification',         // Stage 3A OTP gate step 3 → soft pull consent
         'soft_pull_authorization',  // Stage 3A consent    → Prefill walkthrough start
         'prefill_name_address',     // Prefill  step 1     → Prefill step 2 (employer)
         'prefill_employer',         // Prefill  step 2     → Prefill step 3 (accounts)

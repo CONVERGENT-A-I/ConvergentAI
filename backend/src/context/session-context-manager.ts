@@ -429,7 +429,20 @@ export class SessionContextManager {
 
   async onUserTurn(text: string): Promise<void> {
     const _perfOnUserTurnStart = performance.now();
-    const trimmed = text.trim();
+    let trimmed = text.trim();
+
+    // Pre-clean STT currency artifacts for credit score if currentPendingField is credit_range or if user input contains e.g. "$710000" / "710000"
+    if (this.currentPendingField === 'credit_range' || (!this.profile.credit_range_confirmed && this.activeStage === '2')) {
+      trimmed = trimmed.replace(/\$?(\d{3})(?:000|,000|\.00)\b/g, (match, p1) => {
+        const score = parseInt(p1, 10);
+        if (score >= 300 && score <= 850) {
+          console.log(`[context-manager]: Pre-cleaned STT credit score artifact in input: "${match}" -> "${p1}"`);
+          return p1;
+        }
+        return match;
+      });
+    }
+
     if (!trimmed || trimmed.startsWith('SYSTEM_')) return;
     if (this.lowConfidence) {
       console.log('[context-manager]: Low confidence detected. Skipping data extraction for this turn.');
@@ -649,9 +662,10 @@ export class SessionContextManager {
       );
 
       if (res.value === 'yes') {
+        // Route through v8.7 OTP gate
         this.activeStage = '3A';
-        this.currentPendingField = 'legal_name';
-        console.log('[context-manager]: stage3_closing_offer accepted! Transitioning to STAGE 3A Legal Name!');
+        this.currentPendingField = 'contact_email';
+        console.log('[context-manager]: stage3_closing_offer accepted! Transitioning to STAGE 3A OTP gate (contact_email)!');
 
       } else if (res.value === 'no') {
         this.currentPendingField = 'advisor_connection_offer';
@@ -740,6 +754,89 @@ export class SessionContextManager {
   private async runStage3AExtraction(text: string): Promise<void> {
     const lastQuestion = this.getLastAssistantUtterance();
 
+    // ── v8.7 OTP Gate: Step 1 — collect email (and mobile if given in same turn) ──
+    if (this.currentPendingField === 'contact_email') {
+      const results = await extractMultipleFields(text, lastQuestion, [
+        {
+          name: 'contact_email',
+          description: "borrower's email address for secure login",
+          expectedType: 'string',
+          additionalInstructions: 'Extract the email address mentioned (e.g. "david@example.com"). Return string or null.',
+        },
+        {
+          name: 'contact_mobile',
+          description: "borrower's mobile phone number",
+          expectedType: 'string',
+          additionalInstructions: 'Extract the mobile phone number if mentioned (e.g. "555-0199"). Return string or null.',
+        },
+      ]);
+
+      if (results.contact_email?.value) {
+        this.profile.contact_email = results.contact_email.value as string;
+        console.log(`[context-manager]: Captured contact email: ${this.profile.contact_email}`);
+      }
+      if (results.contact_mobile?.value) {
+        this.profile.contact_mobile = results.contact_mobile.value as string;
+        console.log(`[context-manager]: Captured contact mobile: ${this.profile.contact_mobile}`);
+      }
+
+      if (this.profile.contact_email) {
+        // Generate and "send" a mock OTP
+        const mockOtp = '123456';
+        (this.profile as any)._pendingOtp = mockOtp;
+        console.log(`[OTP-Service]: Generated mock OTP code: ${mockOtp}`);
+        console.log(`[OTP-Service]: OTP sent to ${this.profile.contact_email} and ${this.profile.contact_mobile || 'mobile not yet provided'}`);
+        this.advanceWorkflow();
+      }
+      return;
+    }
+
+    // ── v8.7 OTP Gate: Step 2 — collect mobile (if not already captured above) ──
+    if (this.currentPendingField === 'contact_mobile') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'contact_mobile',
+        "borrower's mobile phone number",
+        'string',
+        'Extract the mobile/phone number. Return string or null.'
+      );
+      if (res.value) {
+        this.profile.contact_mobile = res.value as string;
+        console.log(`[context-manager]: Captured contact mobile: ${this.profile.contact_mobile}`);
+        this.advanceWorkflow();
+      }
+      return;
+    }
+
+    // ── v8.7 OTP Gate: Step 3 — verify the OTP code ──
+    if (this.currentPendingField === 'otp_verification') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'otp_code',
+        'the 6-digit one-time verification code the borrower read back',
+        'string',
+        'Extract the numeric OTP code the borrower mentioned (e.g. "123456"). Return string or null.'
+      );
+
+      const enteredCode = (res.value as string | null)?.replace(/\s+/g, '') ?? null;
+      const expectedCode = (this.profile as any)._pendingOtp ?? '123456';
+
+      if (enteredCode === expectedCode) {
+        this.profile.otp_verified = true;
+        this.profile.session_login_complete = true;
+        this.profile.contact_on_file = true;
+        console.log('[OTP-Service]: OTP verified successfully. Secure login complete.');
+        this.advanceWorkflow();
+      } else if (enteredCode) {
+        console.log(`[OTP-Service]: OTP mismatch. Entered: ${enteredCode}, Expected: ${expectedCode}. Will re-prompt.`);
+        // Stay on otp_verification — LLM will re-ask
+      }
+      return;
+    }
+
+    // ── legal_name (still used for prefill display during walkthrough) ──
     if (this.currentPendingField === 'legal_name') {
       const res = await extractProfileField(
         text,
@@ -747,7 +844,7 @@ export class SessionContextManager {
         'legal_name',
         "borrower's full legal name",
         'string',
-        'Extract the full legal name of the borrower (first and last name, e.g. "John Doe"). If they say "John Doe", extract "John Doe". If not found, return null.'
+        'Extract the full legal name of the borrower (first and last name, e.g. "John Doe"). If not found, return null.'
       );
       if (res.value) {
         this.profile.legal_name = res.value as string;
@@ -764,7 +861,7 @@ export class SessionContextManager {
         'physical_address',
         "borrower's physical address",
         'string',
-        'Extract the full physical address of the borrower including city, state, or zip code if mentioned. If they say "123 Maple Street", extract "123 Maple Street". If not found, return null.'
+        'Extract the full physical address of the borrower including city, state, or zip code if mentioned. If not found, return null.'
       );
       if (res.value) {
         this.profile.physical_address = res.value as string;
@@ -847,8 +944,8 @@ export class SessionContextManager {
             console.log(`[context-manager]: Corrected physical address to ${extractionResults.address_correction.value}`);
           }
         } else if (step === 'prefill_credit_range' && extractionResults.credit_correction?.value) {
-          this.profile.credit_range = extractionResults.credit_correction.value as string;
-          console.log(`[context-manager]: Corrected credit range to ${extractionResults.credit_correction.value}`);
+          this.profile.credit_range = sanitizeCreditScore(extractionResults.credit_correction.value as string);
+          console.log(`[context-manager]: Corrected credit range to ${this.profile.credit_range}`);
         }
       }
 
@@ -1251,7 +1348,7 @@ export class SessionContextManager {
         name: 'credit_range',
         description: 'credit score number or general tier/range',
         expectedType: 'string',
-        additionalInstructions: 'Extract the credit score number (e.g. 720) or range/tier (e.g. "Excellent", "680-700"). If they decline, skip, or say they don\'t know, set "declined" to true. If not mentioned, return null.',
+        additionalInstructions: 'Extract the credit score number (e.g. 720) or range/tier (e.g. "Excellent", "680-700"). Do NOT include dollar signs or extra thousand zeroes. Credit scores are 3-digit numbers between 300 and 850. If STT transcribed "$710000" or "$710,000" or "710000", extract 710. If they decline, skip, or say they don\'t know, set "declined" to true. If not mentioned, return null.',
       });
     }
     const isRef = this.profile.mortgage_goal === 'refinance';
@@ -1320,29 +1417,33 @@ export class SessionContextManager {
       allFields.push({ name: field, description: fieldDesc, expectedType: 'number', additionalInstructions: instruction });
     }
 
-    // stage2_closing_offer (3-way classification)
+    // stage2_closing_offer (three-way classification — v8.7 two-path)
     if (field === 'stage2_closing_offer' && !allFields.some(f => f.name === 'stage2_closing_offer')) {
       allFields.push({
         name: 'stage2_closing_offer',
-        description: 'whether the user wants to proceed with the eligibility review or explore first',
+        description: 'which path the borrower has chosen: soft credit review (Path A) or explore first without credit review (Path B)',
         expectedType: 'string',
-        additionalInstructions: 'Extract "yes", "no", or "explain". If they say yes/sure/okay/go ahead, return "yes". If they say no/not yet/explore first, return "no". If they ask what it involves, return "explain". If not sure, return null.',
+        additionalInstructions:
+          'Extract "soft_pull" if borrower wants the soft credit review, says yes/run it/let\'s do it/soft credit/Path A or similar. ' +
+          'Extract "explore_first" if borrower wants to explore first, says no/not yet/build it now/affordability summary/explore/Path B or similar. ' +
+          'Extract "explain" if borrower asks what the credit review involves. If not sure, return null.',
       });
     }
 
     return { allFields, pendingIsNumeric };
   }
 
-  private applyStage2ExtractionResults(results: any, pendingIsNumeric: boolean): void {
+  private applyStage2ExtractionResults(results: any, pendingIsNumeric: boolean, text: string = ''): void {
     const field = this.currentPendingField;
     let anyUpdates = false;
 
     // Process categorical fields
     if (results.credit_range?.value && !this.profile.credit_range_confirmed) {
-      this.profile.credit_range = String(results.credit_range.value);
+      const sanitizedScore = sanitizeCreditScore(results.credit_range.value);
+      this.profile.credit_range = sanitizedScore;
       this.profile.credit_range_confirmed = true;
       anyUpdates = true;
-      console.log(`[context-manager] Stage2: credit_range=${results.credit_range.value}`);
+      console.log(`[context-manager] Stage2: credit_range=${sanitizedScore} (raw: ${results.credit_range.value})`);
     } else if (results.credit_range?.declined && !this.profile.credit_range_confirmed) {
       this.profile.credit_range = null;
       this.profile.credit_range_confirmed = true;
@@ -1378,6 +1479,18 @@ export class SessionContextManager {
       this.profile.property_type = pt;
       this.profile.property_type_confirmed = true;
       anyUpdates = true;
+
+      // Extract zip/city from Q42 response for property tax and system-side USDA eligibility check
+      const { lookupZipData } = require('../utils/zip-lookup.js');
+      const zipData = lookupZipData(text);
+      if (zipData.zip) {
+        this.profile.zip_code = zipData.zip;
+        console.log(`[context-manager] Stage2: extracted zip_code=${zipData.zip}, taxRate=${zipData.propertyTaxRate}`);
+      }
+      if (zipData.isUsdaEligible && !this.profile.military_rural) {
+        this.profile.military_rural = 'rural';
+        console.log(`[context-manager] Stage2: system-side USDA eligibility determined for area: ${zipData.zip || text}`);
+      }
       console.log(`[context-manager] Stage2: property_type=${pt}`);
     }
 
@@ -1429,18 +1542,23 @@ export class SessionContextManager {
       }
     }
 
-    // Process stage2_closing_offer
+    // Process stage2_closing_offer (v8.7 two-path routing)
     const offerVal = results.stage2_closing_offer?.value;
     if (field === 'stage2_closing_offer' && offerVal) {
-      if (offerVal === 'yes') {
+      if (offerVal === 'soft_pull') {
+        // Path A: OTP gate → soft pull → prefill → Stage 2.5 Verified
         this.activeStage = '3A';
-        this.currentPendingField = 'legal_name';
-        console.log('[context-manager]: stage2_closing_offer accepted! Transitioning to STAGE 3A Legal Name!');
-      } else if (offerVal === 'no') {
-        this.activeStage = '3';
-        this.currentPendingField = 'product_fit_walkthrough';
-        this.profile.bridge_to_say = 'stage2_to_stage3';
-        console.log('[context-manager]: stage2_closing_offer declined! Transitioning to STAGE 3 Product Guidance!');
+        this.currentPendingField = 'contact_email';
+        console.log('[context-manager]: Path A chosen — Stage 2 closing offer accepted. Transitioning to STAGE 3A OTP gate (contact_email)!');
+      } else if (offerVal === 'explore_first') {
+        // Path B: Immediate Stage 2.5 in Stated-Data mode — no contact/OTP needed
+        this.activeStage = '2.5';
+        this.profile.affordability_mode = 'stated';
+        this.profile.affordability_panel_rendered = true;
+        this.profile.affordability_purchase_price = this.profile.target_price ?? null;
+        this.profile.affordability_down_payment = this.profile.down_payment ?? null;
+        this.currentPendingField = 'affordability_panel_active';
+        console.log('[context-manager]: Path B chosen — Stated-Data Mode. Transitioning directly to Stage 2.5!');
       } else if (offerVal === 'explain') {
         console.log('[context-manager]: stage2_closing_offer explanation requested.');
       }
@@ -1462,7 +1580,7 @@ export class SessionContextManager {
 
     const lastQuestion = this.getLastAssistantUtterance();
     const results = await extractMultipleFields(text, lastQuestion, allFields);
-    this.applyStage2ExtractionResults(results, pendingIsNumeric);
+    this.applyStage2ExtractionResults(results, pendingIsNumeric, text);
   }
   private async handleStage2Confirmation(text: string): Promise<void> {
     const field = this.profile.pending_confirm_field!;
@@ -1487,14 +1605,14 @@ export class SessionContextManager {
         if (field && extractionResults[field]) {
           delete extractionResults[field];
         }
-        this.applyStage2ExtractionResults(extractionResults, false);
+        this.applyStage2ExtractionResults(extractionResults, false, text);
       }
     } else if (decision === 'no') {
       console.log(`[context-manager] Stage2: ${field} correction incoming -> resetting pending`);
       this.profile.pending_confirm_field = null;
       this.profile.pending_confirm_value = null;
       if (extractionResults) {
-        this.applyStage2ExtractionResults(extractionResults, pendingIsNumeric);
+        this.applyStage2ExtractionResults(extractionResults, pendingIsNumeric, text);
       }
     }
   }
@@ -1679,13 +1797,15 @@ export class SessionContextManager {
       }
     } else if (this.activeStage === '3A') {
       const confirmed = this.profile.prefilled_fields_confirmed || {};
-      // -- Pre-consent collection: legal name -> address -> consent disclosure --
-      if (!this.profile.legal_name_confirmed) {
-        this.currentPendingField = 'legal_name';
-      } else if (!this.profile.physical_address_confirmed) {
-        this.currentPendingField = 'physical_address';
+      // -- v8.7 OTP Gate: contact_email → contact_mobile → otp_verification → soft_pull_authorization → prefill walkthrough --
+      if (!this.profile.contact_email) {
+        this.currentPendingField = 'contact_email';
+      } else if (!this.profile.contact_mobile) {
+        this.currentPendingField = 'contact_mobile';
+      } else if (!this.profile.otp_verified) {
+        this.currentPendingField = 'otp_verification';
       } else if (!this.profile.soft_pull_consent || this.profile.soft_pull_consent === 'pending') {
-        // Both name and address collected -- now ask for soft pull authorization
+        // OTP complete — now ask for formal soft pull authorization
         this.currentPendingField = 'soft_pull_authorization';
         if (!this.profile.soft_pull_consent) {
           this.profile.soft_pull_consent = 'pending';
@@ -1703,11 +1823,12 @@ export class SessionContextManager {
         } else {
           // Finished prefilled walkthrough, transition to Stage 2.5 (Affordability Panel)
           this.activeStage = '2.5';
+          this.profile.affordability_mode = 'verified';
           this.currentPendingField = 'affordability_panel_active';
           this.profile.affordability_panel_rendered = true;
           this.profile.affordability_purchase_price = this.profile.target_price ?? null;
           this.profile.affordability_down_payment = this.profile.down_payment ?? null;
-          console.log('[context-manager]: Prefills confirmed! Transitioning to STAGE 2.5 (Affordability Panel)!');
+          console.log('[context-manager]: Prefills confirmed! Transitioning to STAGE 2.5 Verified Mode (Affordability Panel)!');
         }
       } else if (this.profile.soft_pull_consent === 'declined') {
         // Go to Stage 2.5 for manual scenario exploration
@@ -2054,7 +2175,7 @@ export class SessionContextManager {
       this.profile.monthly_debt = numVal;
       this.profile.monthly_debt_confirmed = true;
     } else if (field === 'credit_range') {
-      this.profile.credit_range = rawValue;
+      this.profile.credit_range = sanitizeCreditScore(rawValue);
       this.profile.credit_range_confirmed = true;
     } else if (field === 'down_payment') {
       this.profile.down_payment = numVal;
@@ -2247,4 +2368,30 @@ If no correction/change is found, return null.`
 
     this.advanceWorkflow();
   }
+}
+
+export function sanitizeCreditScore(input: string | number | null | undefined): string | null {
+  if (input === null || input === undefined) return null;
+  let str = String(input).trim();
+  if (!str) return null;
+
+  // 1. Remove lead dollar sign if present (e.g. "$710000" -> "710000", "$710" -> "710")
+  str = str.replace(/^\$\s*/, '').replace(/,/g, '').replace(/\.00$/, '');
+
+  // 2. Extract digits
+  const digitsOnly = str.replace(/\D/g, '');
+  if (digitsOnly.length > 0) {
+    const fullVal = parseInt(digitsOnly, 10);
+    // If number exceeds valid FICO range (850)
+    if (fullVal > 850) {
+      // Check if leading 3 digits form a valid FICO score (300 to 850)
+      const lead3 = parseInt(digitsOnly.slice(0, 3), 10);
+      if (lead3 >= 300 && lead3 <= 850) {
+        console.log(`[credit-sanitizer] STT mis-transcription sanitized: "${input}" -> "${lead3}"`);
+        return String(lead3);
+      }
+    }
+  }
+
+  return str;
 }

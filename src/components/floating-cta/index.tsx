@@ -45,6 +45,7 @@ import { LogoLoader } from "./logo-loader";
 
 import { StageListener } from "./stage-listener";
 import { AffordabilityPanel } from "../affordability-panel";
+import { AffordabilityModal } from "./affordability-modal";
 import VideoStage from "../video-stage";
 
 export default function FloatingCTA() {
@@ -66,6 +67,7 @@ export default function FloatingCTA() {
   const [sessionKey, setSessionKey] = useState(0);
   const [activeStage, setActiveStage] = useState<string>("1");
   const [borrowerProfile, setBorrowerProfile] = useState<any>(null);
+  const [isAffordabilityModalOpen, setIsAffordabilityModalOpen] = useState<boolean>(false);
 
   const [isFallbackMode, setIsFallbackMode] = useState(false);
   const [avatarFallbackReason, setAvatarFallbackReason] = useState<"capacity" | "failed" | null>(null);
@@ -1195,6 +1197,26 @@ export default function FloatingCTA() {
                                   console.log("[ui-stage]: Stage updated to", stage, profile);
                                   setActiveStage(stage);
                                   if (profile) setBorrowerProfile(profile);
+                                  if (stage === "2.5") {
+                                    setIsAffordabilityModalOpen(true);
+                                  }
+                                }}
+                              />
+                              <AffordabilityModal
+                                isOpen={isAffordabilityModalOpen}
+                                onClose={() => setIsAffordabilityModalOpen(false)}
+                                mode={borrowerProfile?.affordability_mode ?? 'verified'}
+                                borrowerProfile={borrowerProfile}
+                                onUpgrade={() => {
+                                  if ((window as any).lkPublishData) {
+                                    (window as any).lkPublishData({ message: 'SYSTEM_STAGE_UPDATE_UPGRADE' });
+                                  }
+                                }}
+                                onSubmitSuccess={(status) => {
+                                  console.log('[ui-affordability]: Submitted AUS status:', status);
+                                  if ((window as any).lkPublishData) {
+                                    (window as any).lkPublishData({ message: `SYSTEM_AUS_SUBMITTED:${status}` });
+                                  }
                                 }}
                               />
                               <MloDetector onMloStatusChange={handleMloStatusChange} />
@@ -1258,23 +1280,35 @@ export default function FloatingCTA() {
                                   >
                                     {/* REC badge - only when connected */}
                                     {isLkConnected && isAgentReady && (
-                                        <div className="absolute top-3 left-3 z-50 flex items-center gap-1.5 sm:gap-2 bg-black/50 backdrop-blur-md p-1.5 sm:px-2.5 sm:py-1 rounded-full border border-red-500/30">
-                                          <motion.div
-                                            animate={{ opacity: [1, 0.4, 1] }}
-                                            transition={{
-                                              duration: 1.5,
-                                              repeat: Infinity,
-                                              ease: "easeInOut",
-                                            }}
-                                          >
-                                            <Circle className="h-2.5 w-2.5 fill-red-500 text-red-500" />
-                                          </motion.div>
-                                          <span className="hidden sm:inline text-[9px] font-black text-white uppercase tracking-widest">
-                                            Rec
-                                          </span>
-                                          <span className="hidden sm:inline text-[9px] font-mono text-white/70">
-                                            {formatTime(recordingSeconds)}
-                                          </span>
+                                        <div className="absolute top-3 left-3 z-50 flex items-center gap-2">
+                                          <div className="flex items-center gap-1.5 sm:gap-2 bg-black/50 backdrop-blur-md p-1.5 sm:px-2.5 sm:py-1 rounded-full border border-red-500/30">
+                                            <motion.div
+                                              animate={{ opacity: [1, 0.4, 1] }}
+                                              transition={{
+                                                duration: 1.5,
+                                                repeat: Infinity,
+                                                ease: "easeInOut",
+                                              }}
+                                            >
+                                              <Circle className="h-2.5 w-2.5 fill-red-500 text-red-500" />
+                                            </motion.div>
+                                            <span className="hidden sm:inline text-[9px] font-black text-white uppercase tracking-widest">
+                                              Rec
+                                            </span>
+                                            <span className="hidden sm:inline text-[9px] font-mono text-white/70">
+                                              {formatTime(recordingSeconds)}
+                                            </span>
+                                          </div>
+
+                                          {(activeStage === "2.5" || borrowerProfile?.affordability_panel_rendered) && (
+                                            <button
+                                              type="button"
+                                              onClick={() => setIsAffordabilityModalOpen(true)}
+                                              className="flex items-center gap-1.5 bg-[#00b4d8]/20 hover:bg-[#00b4d8]/30 backdrop-blur-md px-3 py-1 rounded-full border border-[#00b4d8]/50 text-white text-[10px] font-bold tracking-wider transition active:scale-95 shadow-[0_0_15px_rgba(0,180,216,0.3)]"
+                                            >
+                                              <span>📊 Summary</span>
+                                            </button>
+                                          )}
                                         </div>
                                       )}
 

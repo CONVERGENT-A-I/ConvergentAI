@@ -1,4 +1,5 @@
 import { ailanaConfig } from '../config/ailana-config.js';
+import { lookupZipData } from './zip-lookup.js';
 
 export interface AffordabilityInput {
   purchasePrice: number;
@@ -6,6 +7,7 @@ export interface AffordabilityInput {
   grossAnnualIncome: number;
   totalMonthlyDebt: number;       // From soft pull tradeline minimums
   programType: 'conventional' | 'fha' | 'va' | 'usda';
+  zipCode?: string;
 }
 
 export interface AffordabilityResult {
@@ -27,7 +29,7 @@ export interface AffordabilityResult {
  * Sourced centrally from `ailanaConfig` representative rate and threshold constants.
  */
 export function calculateAffordability(input: AffordabilityInput): AffordabilityResult {
-  const { purchasePrice, downPayment, grossAnnualIncome, totalMonthlyDebt, programType } = input;
+  const { purchasePrice, downPayment, grossAnnualIncome, totalMonthlyDebt, programType, zipCode } = input;
   const cfg = ailanaConfig;
 
   // Safe boundary handling
@@ -45,8 +47,9 @@ export function calculateAffordability(input: AffordabilityInput): Affordability
     monthlyPI = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, n)) / (Math.pow(1 + monthlyRate, n) - 1);
   }
 
-  // Tax & Insurance estimates
-  const monthlyTax = (safePurchasePrice * cfg.propertyTaxRate) / 12;
+  // Tax & Insurance estimates (uses zip code property tax rate if provided)
+  const taxRate = zipCode ? lookupZipData(zipCode).propertyTaxRate : cfg.propertyTaxRate;
+  const monthlyTax = (safePurchasePrice * taxRate) / 12;
   const monthlyInsurance = (safePurchasePrice * cfg.homeownersInsRate) / 12;
 
   // Program-Aware Mortgage Insurance
