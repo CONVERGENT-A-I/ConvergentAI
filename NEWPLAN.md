@@ -1137,3 +1137,18 @@ The `/api/affordability/calculate` and `/api/affordability/submit` endpoints mus
 
 **Result:**
 Both Next.js calculation and submission endpoints support zip code tax lookups and stated mode submission.
+
+---
+
+### Step 8.7 — Revise Q43 & Remove Rural Prompting
+
+**Problem:**
+According to v8.7, `Q43` has been revised to focus exclusively on military service. The rural question is removed since rural classification is now handled dynamically by the zip code captured in `Q42` and the system-side USDA determination. The `BorrowerProfile` and the prompt scripts still incorrectly bundle them as `military_rural`.
+
+**Solution:**
+1. In `BorrowerProfile` (in `layer3-context.ts`), change the `military_rural` state field to just track military service (e.g., `military?: 'military' | 'none' | null;`).
+2. In `backend/src/prompts/stage2-prequalification.ts` and `layer3-context.ts`, update the `Q43` prompt formulation to only ask about military service history, removing any mention of "rural/suburban property location".
+3. Update the state machine extraction logic in `session-context-manager.ts` so it no longer attempts to extract rural status from the borrower's response to `Q43`.
+
+**Result:**
+The `Q43` prompt correctly matches the v8.7 spec (military only), and rural qualification is purely system-determined based on the `Q42` zip code.
