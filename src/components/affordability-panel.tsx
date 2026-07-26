@@ -29,6 +29,15 @@ export function AffordabilityPanel({
   const [purchasePrice, setPurchasePrice] = useState<number>(initialPurchasePrice);
   const [downPayment, setDownPayment] = useState<number>(initialDownPayment);
 
+  // Sync state if initial props change (e.g. profile loaded/updated from stage 2)
+  useEffect(() => {
+    if (initialPurchasePrice) setPurchasePrice(initialPurchasePrice);
+  }, [initialPurchasePrice]);
+
+  useEffect(() => {
+    if (initialDownPayment) setDownPayment(initialDownPayment);
+  }, [initialDownPayment]);
+
   const [totalPITIA, setTotalPITIA] = useState<number>(0);
   const [monthlyMI, setMonthlyMI] = useState<number>(0);
   const [incomeBand, setIncomeBand] = useState<'within' | 'above'>('within');
@@ -75,14 +84,16 @@ export function AffordabilityPanel({
   }, [purchasePrice, downPayment, fetchCalculation]);
 
   const handlePurchasePriceChange = (val: number) => {
-    setPurchasePrice(val);
-    if (downPayment > val) {
-      setDownPayment(val);
+    const validPrice = Math.max(0, val);
+    setPurchasePrice(validPrice);
+    if (downPayment > validPrice) {
+      setDownPayment(validPrice);
     }
   };
 
   const handleDownPaymentChange = (val: number) => {
-    setDownPayment(Math.min(val, purchasePrice));
+    const validDown = Math.max(0, Math.min(val, purchasePrice));
+    setDownPayment(validDown);
   };
 
   const handleSubmit = async () => {

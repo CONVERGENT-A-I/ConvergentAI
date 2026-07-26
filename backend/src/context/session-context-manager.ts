@@ -542,19 +542,26 @@ export class SessionContextManager {
         text,
         lastQuestion,
         'affordability_action',
-        'whether the user wants to submit for review, update profile details, request data deletion, ask a question, or pause/drop off',
+        'the specific action the user is explicitly requesting in relation to the affordability panel',
         'string',
-        'Extract "submit" if borrower says submit, continue, proceed, let\'s do it, or ready to review. ' +
-        'Extract "update_profile" if borrower wants to correct or update income, timeline, occupancy, or other details. ' +
+        'IMPORTANT: Only extract "submit" if the borrower explicitly says one of: "submit", "submit for review", "submit it", "run the review", "run the credit check", or "ready to submit". ' +
+        'Do NOT extract "submit" for general affirmations like "yes", "sure", "okay", "sounds good", "proceed", "continue", "move on", "let\'s go", "next steps" — these should return null. ' +
+        'Extract "update_profile" if borrower wants to correct or update income, debts, or other profile details. ' +
+        'Extract "upgrade" if borrower asks to upgrade to verified mode or run a soft credit review. ' +
         'Extract "delete_data" if borrower asks to delete their information or stop using data. ' +
-        'Extract "drop_off" if borrower wants to stop, pause, or think about it. null otherwise.'
+        'Extract "drop_off" if borrower explicitly says they want to stop, pause, exit, or think about it. null for everything else.'
       );
 
       if (res.value === 'submit') {
         this.profile.affordability_submitted = true;
         this.profile.affordability_aus_status = 'pending';
         this.currentPendingField = 'affordability_aus_pending';
-        console.log('[context-manager]: Affordability panel submitted for review! AUS pending.');
+        console.log('[context-manager]: Affordability panel EXPLICITLY submitted for review! AUS pending.');
+      } else if (res.value === 'upgrade') {
+        // Trigger upgrade to verified mode — set pending to OTP gate
+        this.activeStage = '3A';
+        this.currentPendingField = 'contact_email';
+        console.log('[context-manager]: Affordability panel upgrade to verified mode requested. Going to OTP gate.');
       } else if (res.value === 'update_profile') {
         this.currentPendingField = 'affordability_profile_correction';
       } else if (res.value === 'delete_data') {
@@ -562,8 +569,10 @@ export class SessionContextManager {
       } else if (res.value === 'drop_off') {
         this.currentPendingField = 'affordability_drop_off';
       }
+      // null or unknown: stay on affordability_panel_active, let Ailana continue exploring with user
       return;
     }
+
 
     if (field === 'affordability_profile_correction' || field === 'affordability_income_correction') {
       const res = await extractProfileField(
@@ -1384,6 +1393,15 @@ export class SessionContextManager {
         expectedType: 'string',
         additionalInstructions: 'Extract "single_family", "condo", "townhome", "multi_family", or "other". If not found, return null.',
       });
+      // Also extract zip_code from the same Q42 turn (combined property type + location question)
+      if (!this.profile.zip_code) {
+        allFields.push({
+          name: 'zip_code',
+          description: 'The zip code or city/state location the borrower mentioned for their property search',
+          expectedType: 'string',
+          additionalInstructions: 'Extract a 5-digit zip code if mentioned (e.g. "78209"). If they mention a city/state but no zip, extract in "city, state" format (e.g. "San Antonio, TX"). If no location is mentioned, return null.',
+        });
+      }
     }
     if (!this.profile.military_rural_confirmed) {
       allFields.push({
@@ -1492,6 +1510,13 @@ export class SessionContextManager {
         console.log(`[context-manager] Stage2: system-side USDA eligibility determined for area: ${zipData.zip || text}`);
       }
       console.log(`[context-manager] Stage2: property_type=${pt}`);
+    }
+
+    // Also apply LLM-extracted zip_code from Q42 combined question
+    const extractedZip = results.zip_code?.value;
+    if (extractedZip && !this.profile.zip_code) {
+      this.profile.zip_code = String(extractedZip);
+      console.log(`[context-manager] Stage2: LLM-extracted zip_code=${this.profile.zip_code}`);
     }
 
     const mr = results.military_rural?.value;

@@ -21,6 +21,7 @@ import {
   Clock,
   Sparkles,
   Check,
+  SlidersHorizontal,
 } from "lucide-react";
 import "@livekit/components-styles";
 
@@ -67,7 +68,7 @@ export default function FloatingCTA() {
   const [sessionKey, setSessionKey] = useState(0);
   const [activeStage, setActiveStage] = useState<string>("1");
   const [borrowerProfile, setBorrowerProfile] = useState<any>(null);
-  const [isAffordabilityModalOpen, setIsAffordabilityModalOpen] = useState<boolean>(false);
+  const [isAffordabilityPanelOpen, setIsAffordabilityPanelOpen] = useState<boolean>(false);
 
   const [isFallbackMode, setIsFallbackMode] = useState(false);
   const [avatarFallbackReason, setAvatarFallbackReason] = useState<"capacity" | "failed" | null>(null);
@@ -855,156 +856,177 @@ export default function FloatingCTA() {
                 )}
 
                 <div className="absolute inset-0 flex flex-col overflow-hidden z-0">
-                  {/* ── Top Header ── */}
-                  <div className="flex items-center justify-between px-3 sm:px-4 md:px-6 py-2.5 md:py-4 relative z-50 shrink-0 bg-[#080c14]/95 backdrop-blur-md border-b border-white/15 gap-2">
-                    {/* Logo */}
-                    <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-                      <div className="relative h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-transparent">
-                        <Image
-                          src="/newassets/ConvergentAI_logo_package/ConvergentAI_app_icon_navy.svg"
-                          alt="ConvergentAI Logo"
-                          fill
-                          sizes="32px"
-                          className="object-contain"
-                        />
+                    {/* ── Top Header ── */}
+                    <div className="flex items-center justify-between px-3 sm:px-4 md:px-6 py-2.5 md:py-4 relative z-50 shrink-0 bg-[#080c14]/95 backdrop-blur-md border-b border-white/15 gap-2">
+                      {/* Logo */}
+                      <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+                        <div className="relative h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-transparent">
+                          <Image
+                            src="/newassets/ConvergentAI_logo_package/ConvergentAI_app_icon_navy.svg"
+                            alt="ConvergentAI Logo"
+                            fill
+                            sizes="32px"
+                            className="object-contain"
+                          />
+                        </div>
+                        <span className="hidden lg:inline font-extrabold text-white text-xs sm:text-sm md:text-lg tracking-tight whitespace-nowrap">
+                          ConvergentAI
+                        </span>
                       </div>
-                      <span className="hidden lg:inline font-extrabold text-white text-xs sm:text-sm md:text-lg tracking-tight">
-                        ConvergentAI
-                      </span>
-                    </div>
 
-                    {/* Center: Mode Switcher (live phase only) */}
-                    {flowPhase === "live" && isLkConnected && isAgentReady && (
-                      <div className="flex items-center bg-white/5 rounded-full p-0.5 sm:p-1 border border-white/10 shadow-sm backdrop-blur-md">
-                        {[
-                          {
-                            m: "video" as PendingMode,
-                            icon: <Video className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />,
-                            label: "Video",
-                          },
-                          {
-                            m: "voice" as PendingMode,
-                            icon: <Phone className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />,
-                            label: "Voice",
-                          },
-                          {
-                            m: "avatar-chat" as PendingMode,
-                            icon: (
-                              <MessageCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
-                            ),
-                            label: "Chat",
-                          },
-                          {
-                            m: "loan-officer" as PendingMode,
-                            icon: <Headset className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />,
-                            label: (
-                              <>
-                                <span className="hidden lg:inline">Loan Officer</span>
-                                <span className="lg:hidden">Officer</span>
-                              </>
-                            ),
-                            disabled: false,
-                          },
-                        ].map(({ m, icon, label, disabled }) => (
-                          <div key={m} className="relative flex items-center">
-                            <button
-                              disabled={
-                                disabled ||
-                                (pendingMode === "loan-officer" && m !== "loan-officer")
-                              }
-                              onClick={() => {
-                                if (disabled) {
-                                  setShowLoanOfficerComingSoon(true);
-                                  setTimeout(
-                                    () => setShowLoanOfficerComingSoon(false),
-                                    2500
-                                  );
-                                  return;
-                                }
-                                handleAIAction(m);
-                              }}
-                              className={`flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 rounded-full text-[9px] sm:text-xs md:text-sm font-semibold transition-all whitespace-nowrap ${disabled ||
-                                (pendingMode === "loan-officer" && m !== "loan-officer")
-                                ? "opacity-25 text-gray-500 cursor-not-allowed"
-                                : pendingMode === m
-                                  ? "bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-md cursor-pointer"
-                                  : "text-gray-400 hover:bg-white/10 hover:text-white cursor-pointer"
-                                }`}
-                            >
-                              {icon}
-                              <span>{label}</span>
-                            </button>
-                            <AnimatePresence>
-                              {disabled && showLoanOfficerComingSoon && (
-                                <motion.div
-                                  initial={{ opacity: 0, y: 5, scale: 0.9 }}
-                                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                                  exit={{ opacity: 0, y: 5, scale: 0.9 }}
-                                  transition={{
-                                    type: "spring",
-                                    stiffness: 500,
-                                    damping: 30,
+                      {/* Center: Mode Switcher + Separate Affordability Circle (live phase only) */}
+                      {flowPhase === "live" && isLkConnected && isAgentReady && (
+                        <div className="flex-1 flex items-center justify-center gap-2 sm:gap-3 min-w-0">
+                          {/* 4 Mode Switcher Pill */}
+                          <div className="flex items-center bg-white/5 rounded-full p-0.5 sm:p-1 border border-white/10 shadow-sm backdrop-blur-md">
+                            {[
+                              {
+                                m: "video" as PendingMode,
+                                icon: <Video className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />,
+                                label: "Video",
+                              },
+                              {
+                                m: "voice" as PendingMode,
+                                icon: <Phone className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />,
+                                label: "Voice",
+                              },
+                              {
+                                m: "avatar-chat" as PendingMode,
+                                icon: (
+                                  <MessageCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
+                                ),
+                                label: "Chat",
+                              },
+                              {
+                                m: "loan-officer" as PendingMode,
+                                icon: <Headset className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />,
+                                label: (
+                                  <>
+                                    <span className="hidden lg:inline">Loan Officer</span>
+                                    <span className="lg:hidden">Officer</span>
+                                  </>
+                                ),
+                                disabled: false,
+                              },
+                            ].map(({ m, icon, label, disabled }) => (
+                              <div key={m} className="relative flex items-center">
+                                <button
+                                  disabled={
+                                    disabled ||
+                                    (pendingMode === "loan-officer" && m !== "loan-officer")
+                                  }
+                                  onClick={() => {
+                                    if (disabled) {
+                                      setShowLoanOfficerComingSoon(true);
+                                      setTimeout(
+                                        () => setShowLoanOfficerComingSoon(false),
+                                        2500
+                                      );
+                                      return;
+                                    }
+                                    handleAIAction(m);
                                   }}
-                                  className="absolute top-full mt-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-4 py-2.5 bg-gradient-to-b from-[#1a1a1a] to-[#0a0a0a] border border-white/20 text-white rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.8)] whitespace-nowrap pointer-events-none backdrop-blur-xl"
+                                  className={`flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 rounded-full text-[9px] sm:text-xs md:text-sm font-semibold transition-all whitespace-nowrap ${disabled ||
+                                    (pendingMode === "loan-officer" && m !== "loan-officer")
+                                    ? "opacity-25 text-gray-500 cursor-not-allowed"
+                                    : pendingMode === m
+                                      ? "bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-md cursor-pointer"
+                                      : "text-gray-400 hover:bg-white/10 hover:text-white cursor-pointer"
+                                    }`}
                                 >
-                                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-[#00b4d8]/20 text-[#00b4d8] shadow-[0_0_10px_rgba(0,180,216,0.2)]">
-                                    <Clock className="w-3.5 h-3.5" />
-                                  </div>
-                                  <span className="text-xs font-bold tracking-wide text-white">
-                                    Coming Soon
-                                  </span>
-                                  <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#1a1a1a] border-t border-l border-white/20 rotate-45 rounded-sm" />
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
+                                  {icon}
+                                  <span>{label}</span>
+                                </button>
+                                <AnimatePresence>
+                                  {disabled && showLoanOfficerComingSoon && (
+                                    <motion.div
+                                      initial={{ opacity: 0, y: 5, scale: 0.9 }}
+                                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                                      exit={{ opacity: 0, y: 5, scale: 0.9 }}
+                                      transition={{
+                                        type: "spring",
+                                        stiffness: 500,
+                                        damping: 30,
+                                      }}
+                                      className="absolute top-full mt-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-4 py-2.5 bg-gradient-to-b from-[#1a1a1a] to-[#0a0a0a] border border-white/20 text-white rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.8)] whitespace-nowrap pointer-events-none backdrop-blur-xl"
+                                    >
+                                      <div className="flex items-center justify-center w-6 h-6 rounded-full bg-[#00b4d8]/20 text-[#00b4d8] shadow-[0_0_10px_rgba(0,180,216,0.2)]">
+                                        <Clock className="w-3.5 h-3.5" />
+                                      </div>
+                                      <span className="text-xs font-bold tracking-wide text-white">
+                                        Coming Soon
+                                      </span>
+                                      <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#1a1a1a] border-t border-l border-white/20 rotate-45 rounded-sm" />
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    )}
 
-                    {/* Right: Trust indicators + Close */}
-                    <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 shrink-0">
-                      {flowPhase === "live" && isLkConnected && (
-                        <>
-                          {/* Mobile: icon-only trust badges */}
-                          <div className="flex sm:hidden items-center gap-1.5" title="Trust Badges">
-                            <div
-                              className="flex items-center gap-0.5"
-                              title="Available 24/7"
-                            >
-                              <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.8)]" />
-                              <span className="text-[8px] text-emerald-400 font-bold">
-                                24/7
-                              </span>
-                            </div>
-                            <div
-                              className="flex items-center gap-0.5"
-                              title="Secure & Private"
-                            >
-                              <Lock className="h-2.5 w-2.5 text-gray-400" />
-                            </div>
-                          </div>
-                          {/* sm+: text labels */}
-                          <div className="hidden sm:flex items-center gap-1.5 text-gray-400 text-[10px] md:text-xs font-medium">
-                            <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
-                            <span className="hidden lg:inline">Available </span>
-                            24/7
-                          </div>
-                          <div className="hidden sm:flex items-center gap-1.5 text-gray-400 text-xs font-medium">
-                            <Lock className="h-3 w-3" />
-                            <span className="hidden lg:inline">
-                              Secure & Private
-                            </span>
-                          </div>
-                        </>
+                          {/* Separate Circular Affordability Toggle Button */}
+                          {(() => {
+                            const isAffordabilityAvailable =
+                              activeStage === "2.5" ||
+                              Boolean(borrowerProfile?.affordability_panel_rendered) ||
+                              Boolean(borrowerProfile?.affordability_mode);
+                            return (
+                              <button
+                                type="button"
+                                disabled={!isAffordabilityAvailable}
+                                onClick={() => setIsAffordabilityPanelOpen((prev) => !prev)}
+                                title={
+                                  isAffordabilityAvailable
+                                    ? "Open Affordability Summary"
+                                    : "Affordability Summary (Available after Stage 2)"
+                                }
+                                className={`flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full transition-all duration-300 shadow-sm shrink-0 ${
+                                  !isAffordabilityAvailable
+                                    ? "opacity-25 text-gray-500 bg-white/5 border border-white/10 cursor-not-allowed"
+                                    : isAffordabilityPanelOpen
+                                      ? "bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white border border-[#00b4d8]/60 shadow-[0_0_15px_rgba(0,180,216,0.4)] scale-105 cursor-pointer"
+                                      : "bg-white/5 hover:bg-[#00b4d8]/20 text-[#00b4d8] border border-[#00b4d8]/40 hover:border-[#00b4d8] shadow-[0_0_10px_rgba(0,180,216,0.2)] cursor-pointer"
+                                }`}
+                              >
+                                <SlidersHorizontal className="h-3.5 w-3.5 sm:h-4 sm:w-4 md:h-4.5 md:w-4.5 shrink-0" />
+                              </button>
+                            );
+                          })()}
+                        </div>
                       )}
-                      <button
-                        onClick={requestEndCall}
-                        className="p-1.5 sm:p-2 rounded-full bg-white/5 text-gray-400 hover:bg-red-500 hover:text-white transition-all cursor-pointer shrink-0"
-                      >
-                        <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                      </button>
-                    </div>
+
+                      {/* Right: Trust indicators + Close */}
+                      <div className="flex items-center justify-end gap-2 sm:gap-3 md:gap-4 shrink-0 whitespace-nowrap">
+                        {flowPhase === "live" && isLkConnected && (
+                          <>
+                            {/* Mobile: icon-only trust badges */}
+                            <div className="flex sm:hidden items-center gap-1.5" title="Trust Badges">
+                              <div className="flex items-center gap-0.5" title="Available 24/7">
+                                <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.8)]" />
+                                <span className="text-[8px] text-emerald-400 font-bold">24/7</span>
+                              </div>
+                              <div className="flex items-center gap-0.5" title="Secure & Private">
+                                <Lock className="h-2.5 w-2.5 text-gray-400" />
+                              </div>
+                            </div>
+                            {/* sm+: text labels (single line, no wrap) */}
+                            <div className="hidden sm:flex items-center gap-1.5 text-gray-400 text-[10px] md:text-xs font-semibold whitespace-nowrap shrink-0">
+                              <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)] shrink-0" />
+                              <span>Available 24/7</span>
+                            </div>
+                            <div className="hidden md:flex items-center gap-1.5 text-gray-400 text-xs font-semibold whitespace-nowrap shrink-0">
+                              <Lock className="h-3 w-3 text-emerald-400 shrink-0" />
+                              <span>Secure & Private</span>
+                            </div>
+                          </>
+                        )}
+                        <button
+                          onClick={requestEndCall}
+                          className="p-1.5 sm:p-2 rounded-full bg-white/5 text-gray-400 hover:bg-red-500 hover:text-white transition-all cursor-pointer shrink-0"
+                        >
+                          <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                        </button>
+                      </div>
                   </div>
 
                   {/* ── Main Content ── */}
@@ -1197,14 +1219,14 @@ export default function FloatingCTA() {
                                   console.log("[ui-stage]: Stage updated to", stage, profile);
                                   setActiveStage(stage);
                                   if (profile) setBorrowerProfile(profile);
-                                  if (stage === "2.5") {
-                                    setIsAffordabilityModalOpen(true);
+                                  if (stage === "2.5" || profile?.affordability_panel_rendered) {
+                                    setIsAffordabilityPanelOpen(true);
                                   }
                                 }}
                               />
                               <AffordabilityModal
-                                isOpen={isAffordabilityModalOpen}
-                                onClose={() => setIsAffordabilityModalOpen(false)}
+                                isOpen={isAffordabilityPanelOpen}
+                                onClose={() => setIsAffordabilityPanelOpen(false)}
                                 mode={borrowerProfile?.affordability_mode ?? 'verified'}
                                 borrowerProfile={borrowerProfile}
                                 onUpgrade={() => {
@@ -1212,10 +1234,21 @@ export default function FloatingCTA() {
                                     (window as any).lkPublishData({ message: 'SYSTEM_STAGE_UPDATE_UPGRADE' });
                                   }
                                 }}
-                                onSubmitSuccess={(status) => {
+                                onSubmitSuccess={async (status) => {
                                   console.log('[ui-affordability]: Submitted AUS status:', status);
-                                  if ((window as any).lkPublishData) {
-                                    (window as any).lkPublishData({ message: `SYSTEM_AUS_SUBMITTED:${status}` });
+                                  try {
+                                    const encoder = new TextEncoder();
+                                    const payload = encoder.encode(JSON.stringify({
+                                      message: `SYSTEM_AUS_SUBMITTED:${status}`
+                                    }));
+                                    if ((window as any).lkPublishData) {
+                                      await (window as any).lkPublishData(payload, {
+                                        topic: "lk-chat",
+                                        reliable: true,
+                                      });
+                                    }
+                                  } catch (err) {
+                                    console.warn("[ui]: Failed to publish AUS submission event:", err);
                                   }
                                 }}
                               />
@@ -1249,7 +1282,7 @@ export default function FloatingCTA() {
                                 )}
                               </AnimatePresence>
 
-                              {/* ── Google Meet Split Layout (always mounted so avatar connection doesn't drop, but hidden until live) ── */}
+                              {/* ── Google Meet Split Layout ── */}
                               <div
                                 className={
                                   flowPhase === "live"
@@ -1257,60 +1290,38 @@ export default function FloatingCTA() {
                                     : "opacity-0 pointer-events-none absolute inset-0 -z-10"
                                 }
                               >
-                                <div
-                                  className={`flex-1 flex min-h-0 p-2 md:p-3 gap-2 md:gap-3 ${
-                                    activeStage === "2.5"
-                                      ? "flex-col md:flex-row"
-                                      : pendingMode === "avatar-chat"
-                                      ? "flex-col md:flex-row"
-                                      : "flex-row"
-                                  }`}
-                                >
+                                <div className="flex-1 flex min-h-0 p-2 md:p-3 gap-2 md:gap-3 flex-col md:flex-row">
                                   {/* Left: Avatar Area */}
                                   <div
-                                    className={
-                                      activeStage === "2.5"
-                                        ? "absolute z-40 top-4 right-4 w-28 h-40 rounded-xl overflow-hidden shadow-2xl border border-white/20 md:relative md:top-0 md:right-0 md:w-auto md:h-auto md:flex-[0.3] md:min-w-[280px]"
-                                        : `relative rounded-2xl overflow-hidden bg-black shadow-xl ${
-                                            pendingMode === "avatar-chat"
-                                              ? "h-[42%] md:h-auto md:flex-1"
-                                              : "flex-1"
-                                          }`
-                                    }
+                                    className={`relative rounded-2xl overflow-hidden bg-black shadow-xl ${
+                                      pendingMode === "avatar-chat"
+                                        ? "h-[42%] md:h-auto md:flex-1"
+                                        : "flex-1"
+                                    }`}
                                   >
                                     {/* REC badge - only when connected */}
                                     {isLkConnected && isAgentReady && (
-                                        <div className="absolute top-3 left-3 z-50 flex items-center gap-2">
-                                          <div className="flex items-center gap-1.5 sm:gap-2 bg-black/50 backdrop-blur-md p-1.5 sm:px-2.5 sm:py-1 rounded-full border border-red-500/30">
-                                            <motion.div
-                                              animate={{ opacity: [1, 0.4, 1] }}
-                                              transition={{
-                                                duration: 1.5,
-                                                repeat: Infinity,
-                                                ease: "easeInOut",
-                                              }}
-                                            >
-                                              <Circle className="h-2.5 w-2.5 fill-red-500 text-red-500" />
-                                            </motion.div>
-                                            <span className="hidden sm:inline text-[9px] font-black text-white uppercase tracking-widest">
-                                              Rec
-                                            </span>
-                                            <span className="hidden sm:inline text-[9px] font-mono text-white/70">
-                                              {formatTime(recordingSeconds)}
-                                            </span>
-                                          </div>
-
-                                          {(activeStage === "2.5" || borrowerProfile?.affordability_panel_rendered) && (
-                                            <button
-                                              type="button"
-                                              onClick={() => setIsAffordabilityModalOpen(true)}
-                                              className="flex items-center gap-1.5 bg-[#00b4d8]/20 hover:bg-[#00b4d8]/30 backdrop-blur-md px-3 py-1 rounded-full border border-[#00b4d8]/50 text-white text-[10px] font-bold tracking-wider transition active:scale-95 shadow-[0_0_15px_rgba(0,180,216,0.3)]"
-                                            >
-                                              <span>📊 Summary</span>
-                                            </button>
-                                          )}
+                                      <div className="absolute top-3 left-3 z-50 flex items-center gap-2">
+                                        <div className="flex items-center gap-1.5 sm:gap-2 bg-black/50 backdrop-blur-md p-1.5 sm:px-2.5 sm:py-1 rounded-full border border-red-500/30">
+                                          <motion.div
+                                            animate={{ opacity: [1, 0.4, 1] }}
+                                            transition={{
+                                              duration: 1.5,
+                                              repeat: Infinity,
+                                              ease: "easeInOut",
+                                            }}
+                                          >
+                                            <Circle className="h-2.5 w-2.5 fill-red-500 text-red-500" />
+                                          </motion.div>
+                                          <span className="hidden sm:inline text-[9px] font-black text-white uppercase tracking-widest">
+                                            Rec
+                                          </span>
+                                          <span className="hidden sm:inline text-[9px] font-mono text-white/70">
+                                            {formatTime(recordingSeconds)}
+                                          </span>
                                         </div>
-                                      )}
+                                      </div>
+                                    )}
 
                                     {/* Contextual help overlay */}
                                     {isLkConnected && isAgentReady && (
@@ -1361,36 +1372,6 @@ export default function FloatingCTA() {
                                       />
                                     </div>
                                   </div>
-
-                                  {/* Middle: Affordability Panel (Stage 2.5) */}
-                                  {activeStage === "2.5" && (
-                                    <div className="flex-1 min-h-0 overflow-y-auto bg-[#0a0a0a] rounded-2xl border border-white/10 p-3 shadow-xl flex flex-col">
-                                      <AffordabilityPanel
-                                        initialPurchasePrice={borrowerProfile?.targetPrice ?? 500000}
-                                        initialDownPayment={borrowerProfile?.downPayment ?? 100000}
-                                        grossAnnualIncome={borrowerProfile?.grossAnnualIncome ?? 120000}
-                                        totalMonthlyDebt={borrowerProfile?.totalMonthlyDebt ?? 500}
-                                        programType={borrowerProfile?.militaryRural === 'military' ? 'va' : 'conventional'}
-                                        onSubmitSuccess={async (status) => {
-                                          console.log("[ui-stage]: AUS submitted. Result:", status);
-                                          try {
-                                            const encoder = new TextEncoder();
-                                            const payload = encoder.encode(JSON.stringify({
-                                              message: `SYSTEM_AUS_SUBMITTED:${status}`
-                                            }));
-                                            if ((window as any).lkPublishData) {
-                                              await (window as any).lkPublishData(payload, {
-                                                topic: "lk-chat",
-                                                reliable: true,
-                                              });
-                                            }
-                                          } catch (err) {
-                                            console.warn("[ui]: Failed to publish AUS submission event:", err);
-                                          }
-                                        }}
-                                      />
-                                    </div>
-                                  )}
 
                                   {/* Right: Chat Panel — always mounted so useChat() & transcripts survive channel switches.
                                      Hidden via inline style (not conditional render) so messages persist. */}
