@@ -109,8 +109,10 @@ export function AffordabilityPanel({
           profile: {
             gross_annual_income: grossAnnualIncome,
             monthly_debt: totalMonthlyDebt,
+            affordability_mode: mode,
           },
           sliderValues: { purchasePrice, downPayment },
+          mode,
         }),
       });
 
@@ -126,6 +128,9 @@ export function AffordabilityPanel({
       setIsSubmitting(false);
     }
   };
+
+  const estimatedClosingCosts = Math.round(purchasePrice * 0.02);
+  const estimatedCashToClose = downPayment + estimatedClosingCosts;
 
   const miDisplay =
     programType === 'va'
@@ -187,7 +192,7 @@ export function AffordabilityPanel({
         </div>
       </div>
 
-      {/* Payment Metrics */}
+      {/* Payment & Cash-to-Close Metrics */}
       <div className="grid grid-cols-2 gap-3 mb-6 bg-[#0f172a] p-4 rounded-xl border border-slate-800">
         <div>
           <span className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
@@ -204,6 +209,14 @@ export function AffordabilityPanel({
             MORTGAGE INSURANCE
           </span>
           <span className="text-sm font-medium text-gray-300">{miDisplay}</span>
+        </div>
+
+        <div className="col-span-2 pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
+          <span className="text-xs font-medium text-gray-400">ESTIMATED CASH-TO-CLOSE</span>
+          <span className="text-sm font-bold text-emerald-400">
+            ${estimatedCashToClose.toLocaleString()}
+            <span className="text-[10px] font-normal text-gray-500 ml-1">(Down payment + ~2% closing fees)</span>
+          </span>
         </div>
       </div>
 

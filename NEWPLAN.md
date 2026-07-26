@@ -1111,7 +1111,7 @@ Ailana delivers exact v8.7 compliant response scripts depending on whether the s
 
 ---
 
-### Step 8.5 — Frontend UI Adaptive Layout & OTP Verification
+### ✅ [DONE] Step 8.5 — Frontend UI Adaptive Layout & OTP Verification
 
 **Problem:**
 The frontend `<AffordabilityPanel />` and `<FloatingCTA />` must render stated-data mode correctly (hidden credit score, `"Monthly debts (your estimate)"` label, and upgrade option) and support the OTP verification modal.
@@ -1126,7 +1126,7 @@ The panel UI seamlessly adjusts between Stated Mode and Verified Mode, and rende
 
 ---
 
-### Step 8.6 — API Endpoint Updates
+### ✅ [DONE] Step 8.6 — API Endpoint Updates
 
 **Problem:**
 The `/api/affordability/calculate` and `/api/affordability/submit` endpoints must be updated to accept zip codes and support stated mode calculations.

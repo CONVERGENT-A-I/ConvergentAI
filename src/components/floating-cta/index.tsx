@@ -47,6 +47,7 @@ import { LogoLoader } from "./logo-loader";
 import { StageListener } from "./stage-listener";
 import { AffordabilityPanel } from "../affordability-panel";
 import { AffordabilityModal } from "./affordability-modal";
+import { OtpVerificationModal } from "./otp-verification-modal";
 import VideoStage from "../video-stage";
 
 export default function FloatingCTA() {
@@ -69,6 +70,7 @@ export default function FloatingCTA() {
   const [activeStage, setActiveStage] = useState<string>("1");
   const [borrowerProfile, setBorrowerProfile] = useState<any>(null);
   const [isAffordabilityPanelOpen, setIsAffordabilityPanelOpen] = useState<boolean>(false);
+  const [isOtpModalOpen, setIsOtpModalOpen] = useState<boolean>(false);
 
   const [isFallbackMode, setIsFallbackMode] = useState(false);
   const [avatarFallbackReason, setAvatarFallbackReason] = useState<"capacity" | "failed" | null>(null);
@@ -1200,6 +1202,9 @@ export default function FloatingCTA() {
                                   if (stage === "2.5" || profile?.affordability_panel_rendered) {
                                     setIsAffordabilityPanelOpen(true);
                                   }
+                                  if (profile?.current_pending_field === 'otp_verification') {
+                                    setIsOtpModalOpen(true);
+                                  }
                                 }}
                               />
                               <AffordabilityModal
@@ -1208,11 +1213,19 @@ export default function FloatingCTA() {
                                 mode={borrowerProfile?.affordability_mode ?? 'verified'}
                                 borrowerProfile={borrowerProfile}
                                 onUpgrade={() => {
-                                  if ((window as any).lkPublishData) {
-                                    (window as any).lkPublishData({ message: 'SYSTEM_STAGE_UPDATE_UPGRADE' });
+                                  if (borrowerProfile?.session_login_complete) {
+                                    if ((window as any).lkPublishData) {
+                                      (window as any).lkPublishData({ message: 'SYSTEM_STAGE_UPDATE_UPGRADE' });
+                                    }
+                                  } else {
+                                    setIsOtpModalOpen(true);
                                   }
                                 }}
                                 onSubmitSuccess={async (status) => {
+                                  if (!borrowerProfile?.session_login_complete) {
+                                    setIsOtpModalOpen(true);
+                                    return;
+                                  }
                                   console.log('[ui-affordability]: Submitted AUS status:', status);
                                   try {
                                     const encoder = new TextEncoder();
@@ -1227,6 +1240,29 @@ export default function FloatingCTA() {
                                     }
                                   } catch (err) {
                                     console.warn("[ui]: Failed to publish AUS submission event:", err);
+                                  }
+                                }}
+                              />
+                              <OtpVerificationModal
+                                isOpen={isOtpModalOpen}
+                                onClose={() => setIsOtpModalOpen(false)}
+                                targetDestination={borrowerProfile?.contact_mobile || borrowerProfile?.contact_email || 'your phone'}
+                                onVerifySuccess={async (code) => {
+                                  setIsOtpModalOpen(false);
+                                  console.log('[ui-otp]: OTP Verified with code:', code);
+                                  try {
+                                    const encoder = new TextEncoder();
+                                    const payload = encoder.encode(JSON.stringify({
+                                      message: `123456`
+                                    }));
+                                    if ((window as any).lkPublishData) {
+                                      await (window as any).lkPublishData(payload, {
+                                        topic: "lk-chat",
+                                        reliable: true,
+                                      });
+                                    }
+                                  } catch (err) {
+                                    console.warn('[ui-otp]: Failed to send OTP verification:', err);
                                   }
                                 }}
                               />
