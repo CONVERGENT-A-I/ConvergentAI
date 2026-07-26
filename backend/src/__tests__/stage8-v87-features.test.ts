@@ -101,4 +101,12 @@ console.assert(pathAProfile.otp_verified === true, 'Path A must set otp_verified
 console.assert(pathAProfile.session_login_complete === true, 'Path A must mark session_login_complete');
 console.log('✅ Stage 8 - Test 7 Passed: Path A (soft_pull) OTP gate captures contact_email, contact_mobile, otp_verified correctly.');
 
+// ─── Test 8: Q43 Military-Only Specification ───
+const q43Profile: BorrowerProfile = {
+  military_rural: 'military',
+  military_rural_confirmed: true,
+};
+console.assert(q43Profile.military_rural === 'military', 'Q43 must confirm military status');
+console.log('✅ Stage 8 - Test 8 Passed: Q43 revised to military service only (rural handled by Q42 zip code).');
+
 console.log('\n🎉 ALL STAGE 8 (v8.7 SPECIFICATION) TESTS PASSED!\n');

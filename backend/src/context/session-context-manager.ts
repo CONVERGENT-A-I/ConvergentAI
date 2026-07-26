@@ -1420,9 +1420,9 @@ export class SessionContextManager {
     if (!this.profile.military_rural_confirmed) {
       allFields.push({
         name: 'military_rural',
-        description: 'Whether they are a current/former military service member, or buying in a rural/suburban area',
+        description: 'Whether borrower or co-borrower has military service history (active duty, veteran, Reserve/Guard, surviving spouse)',
         expectedType: 'string',
-        additionalInstructions: 'Return "military", "rural", "both", or "neither". If not found, return null.',
+        additionalInstructions: 'Return "military" if borrower confirms military service history. Return "neither" if no military service. Ignore rural property location as that is handled by zip code. If not found, return null.',
       });
     }
     if (!this.profile.job_tenure_type_confirmed) {

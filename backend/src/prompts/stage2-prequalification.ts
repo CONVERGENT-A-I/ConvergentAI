@@ -30,7 +30,7 @@ export function buildStage2Instructions(profile: BorrowerProfile = {}): string {
   4. refinance_type        — whether they want a cash-out refinance or rate and term refinance
   5. target_price          — estimated current market value of the home they wish to refinance (MV)
   6. property_type         — single-family home, condo, townhome, multi-family, or other
-  7. military_rural        — military service history or rural/suburban property location
+  7. military_rural        — military service history (active duty, veteran, Reserve/Guard, surviving spouse)
   8. job_tenure_type       — current job tenure and income type (salary, hourly, self-employed, etc.)`
     : `  1. gross_annual_income   — gross annual household income before taxes (a range is fine)
   2. monthly_debt          — all recurring monthly debt payments (car, student loans, credit cards, etc.)
@@ -40,7 +40,7 @@ export function buildStage2Instructions(profile: BorrowerProfile = {}): string {
   6. realtor_status        — whether they have connected with a real estate agent
   7. target_price          — general target purchase price range for the home
   8. property_type         — single-family home, condo, townhome, multi-family, or other
-  9. military_rural        — military service history or rural/suburban property location
+  9. military_rural        — military service history (active duty, veteran, Reserve/Guard, surviving spouse)
   10. job_tenure_type      — current job tenure and income type (salary, hourly, self-employed, etc.)`;
 
   const nonNumericFieldsList = isRefinance

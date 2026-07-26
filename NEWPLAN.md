@@ -1140,7 +1140,7 @@ Both Next.js calculation and submission endpoints support zip code tax lookups a
 
 ---
 
-### Step 8.7 — Revise Q43 & Remove Rural Prompting
+### ✅ [DONE] Step 8.7 — Revise Q43 & Remove Rural Prompting
 
 **Problem:**
 According to v8.7, `Q43` has been revised to focus exclusively on military service. The rural question is removed since rural classification is now handled dynamically by the zip code captured in `Q42` and the system-side USDA determination. The `BorrowerProfile` and the prompt scripts still incorrectly bundle them as `military_rural`.

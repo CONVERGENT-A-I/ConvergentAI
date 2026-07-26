@@ -145,7 +145,7 @@ const FIELD_LABELS: Record<string, string> = {
   realtor_status: 'real estate agent connection status',
   target_price: 'target purchase price',
   property_type: 'property type',
-  military_rural: 'military service or rural property status',
+  military_rural: 'military service history (VA loan eligibility check)',
   job_tenure_type: 'employment tenure and income type',
   marital_status: 'marital status',
   dependents: 'number of dependents',
