@@ -1081,7 +1081,7 @@ Borrowers can choose to explore anonymously in Stated-Data Mode without giving c
 
 ---
 
-### Step 8.3 — Combined One-Time OTP Gate & Login Flow
+### ✅ [DONE] Step 8.3 — Combined One-Time OTP Gate & Login Flow
 
 **Problem:**
 We need a combined identity gate (email, mobile, and 6-digit OTP verification) that fires once at the borrower's first commitment point (either credit pull or AUS submission) and never fires again.
@@ -1097,7 +1097,7 @@ The identity gate fires exactly once at the first commitment point and persists 
 
 ---
 
-### Step 8.4 — Prompt Formulations (Q46-S, Upgrade, Q58 stated, Q52 stated)
+### ✅ [DONE] Step 8.4 — Prompt Formulations (Q46-S, Upgrade, Q58 stated, Q52 stated)
 
 **Problem:**
 We must update the LLM prompt packages to include the v8.7 stated-mode formulations.

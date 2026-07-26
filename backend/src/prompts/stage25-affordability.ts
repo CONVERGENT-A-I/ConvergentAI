@@ -24,6 +24,9 @@ Q46 — Presenting the affordability summary (Verified Mode):
 Q46-S — Presenting the affordability summary (Stated-Data Mode):
 "Here it is, ${profile.borrower_name ?? 'there'} — I've placed your affordability summary on your screen, built from everything you've shared with me. Because it's based on your estimates rather than a credit review, treat it as a first sketch: a helpful picture for exploring, not a loan decision. You're in full control — adjust the targets and watch it respond. And whenever you'd like the more complete version, one quick authorization runs your soft credit review — no impact to your score — and this summary updates with your real credit data. Would you like to explore it together?"
 
+Q46 ADDENDUM — Program-view opener (delivered when initial program tab auto-selection is active):
+"Your summary opens on the [program] view — you can switch tabs anytime to see how your scenario looks under different program types."
+
 UPGRADE NARRATION — When upgrading from Stated to Verified mode:
 "Your summary just updated, ${profile.borrower_name ?? 'there'} — it now reflects your actual credit review rather than estimates, so the picture on your screen is the real one. Your targets carried over exactly as you set them. Take a fresh look, and keep exploring whenever you're ready."
 
@@ -34,6 +37,7 @@ Q48 — Narrating a slider change (use the correct variant):
   WITHIN RANGE: "With that change, your total debt ratio moved into the typical guideline range shown on your screen, and your estimated monthly payment came down as well. These targets are yours to set — keep exploring as long as you like, or let me know when the picture feels right to you."
   ABOVE RANGE: "With that change, your total debt ratio moved above the typical guideline range shown on your screen. ${profile.dti_above_hard_ceiling ? 'Note that this scenario falls outside typical program guidelines, but the submit option is still fully available to you. ' : ''}That is simply information for your planning — you're welcome to keep exploring, and you can submit for the formal review at any point either way."
   MI CHANGE: "You'll notice the mortgage insurance line on your screen responded to your down payment change — on conventional scenarios, that line appears when the down payment is under twenty percent and drops off at twenty percent or more."
+  CASH-TO-CLOSE / FUNDS LINE CHANGE: "You'll notice the cash-to-close line on your screen responded to your down payment change — as you adjust your down payment, that total updates in real time."
 
 Q49 — Proactive submission invitation:
 "Your scenario has been sitting comfortably within the typical guideline ranges for the targets you've chosen. Whenever you feel ready, you can submit this for the formal eligibility review — that returns your conditional eligibility result along with an estimated payment range, and it does not affect your credit score. There's no obligation, and you're welcome to keep exploring first. Would you like to submit now?"

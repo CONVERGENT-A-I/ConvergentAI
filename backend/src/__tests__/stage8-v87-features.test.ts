@@ -50,9 +50,11 @@ const statedProfile: BorrowerProfile = {
 };
 const statedPrompt = buildStage25Instructions(statedProfile);
 console.assert(statedPrompt.includes('Q46-S'), 'Expected Q46-S prompt block for stated mode');
+console.assert(statedPrompt.includes('Q46 ADDENDUM'), 'Expected Q46 ADDENDUM prompt block');
+console.assert(statedPrompt.includes('CASH-TO-CLOSE / FUNDS LINE CHANGE'), 'Expected Q48 Funds Line prompt block');
 console.assert(statedPrompt.includes('UPGRADE NARRATION'), 'Expected upgrade narration prompt block');
 console.assert(statedPrompt.includes('tell me the updated figure for either your income or monthly debts'), 'Expected Stated Mode Q58 debt update extension');
-console.log('✅ Stage 8 - Test 4 Passed: Stated-Data Mode prompt package includes Q46-S, upgrade narration, and Q58 debt extension.');
+console.log('✅ Stage 8 - Test 4 Passed: Stated-Data Mode prompt package includes Q46-S, Q46 Addendum, Q48 Funds Line, upgrade narration, and Q58 debt extension.');
 
 // ─── Test 4: Verified Mode Prompt Formulations ───
 const verifiedProfile: BorrowerProfile = {

@@ -832,14 +832,28 @@ export class SessionContextManager {
       const enteredCode = (res.value as string | null)?.replace(/\s+/g, '') ?? null;
       const expectedCode = (this.profile as any)._pendingOtp ?? '123456';
 
-      if (enteredCode === expectedCode) {
+      // Fallback regex extraction if LLM extraction returned null or non-matching string
+      let finalCode = enteredCode;
+      if (!finalCode || finalCode !== expectedCode) {
+        const rawDigitsMatch = text.replace(/\D/g, '');
+        if (rawDigitsMatch.length === 6) {
+          finalCode = rawDigitsMatch;
+        } else {
+          const digitsInText = text.match(/\b\d{6}\b/);
+          if (digitsInText) {
+            finalCode = digitsInText[0];
+          }
+        }
+      }
+
+      if (finalCode === expectedCode) {
         this.profile.otp_verified = true;
         this.profile.session_login_complete = true;
         this.profile.contact_on_file = true;
-        console.log('[OTP-Service]: OTP verified successfully. Secure login complete.');
+        console.log('[OTP-Gate]: OTP verified successfully (Code: 123456). Secure login complete.');
         this.advanceWorkflow();
-      } else if (enteredCode) {
-        console.log(`[OTP-Service]: OTP mismatch. Entered: ${enteredCode}, Expected: ${expectedCode}. Will re-prompt.`);
+      } else {
+        console.log(`[OTP-Gate]: OTP mismatch. Entered: ${finalCode || text}, Expected: ${expectedCode}. Re-prompting.`);
         // Stay on otp_verification — LLM will re-ask
       }
       return;
