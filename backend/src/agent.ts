@@ -683,12 +683,34 @@ export default defineAgent({
           message: "SYSTEM_STAGE_UPDATE",
           stage,
           profile: {
+            // ── Core borrower data ──────────────────────────────────
             borrowerName: prof.borrower_name,
             grossAnnualIncome: prof.gross_annual_income,
             totalMonthlyDebt: prof.monthly_debt,
             targetPrice: prof.target_price,
             downPayment: prof.down_payment,
+            creditRange: prof.credit_range,
             militaryRural: prof.military_rural,
+            zipCode: prof.zip_code,
+            propertyType: prof.property_type,
+            // ── Affordability Panel state ────────────────────────────
+            affordability_panel_rendered: prof.affordability_panel_rendered,
+            affordability_mode: prof.affordability_mode,
+            affordability_purchase_price: prof.affordability_purchase_price,
+            affordability_down_payment: prof.affordability_down_payment,
+            affordability_income_band: prof.affordability_income_band,
+            affordability_dti_band: prof.affordability_dti_band,
+            affordability_aus_status: prof.affordability_aus_status,
+            affordability_submitted: prof.affordability_submitted,
+            dti_above_hard_ceiling: prof.dti_above_hard_ceiling,
+            // ── Session login / OTP state ────────────────────────────
+            otp_verified: prof.otp_verified,
+            session_login_complete: prof.session_login_complete,
+            contact_on_file: prof.contact_on_file,
+            contact_email: prof.contact_email,
+            contact_mobile: prof.contact_mobile,
+            // ── Flow state ──────────────────────────────────────────
+            current_pending_field: contextManager.getPendingField(),
           }
         }));
         await ctx.room.localParticipant?.publishData(payload, { reliable: true, topic: 'lk-chat' });
@@ -697,6 +719,7 @@ export default defineAgent({
         console.warn(`[agent-debug]: Failed to send stage update:`, e?.message);
       }
     };
+
 
     function updateSessionInstructions() {
       try {
@@ -726,12 +749,11 @@ export default defineAgent({
         }
         console.log(`[agent-debug]: Instructions updated — stage=${contextManager.getActiveStage()}, pendingField=${contextManager.getPendingField()}`);
         
-        // Broadcast stage change to frontend immediately
+        // Broadcast stage + profile to frontend on every turn so UI always has the latest
+        // affordability flags, pending field, and login state (not just on stage changes)
         const currentStage = contextManager.getActiveStage();
-        if (currentStage !== lastSentStage) {
-          lastSentStage = currentStage;
-          sendStageUpdate(currentStage);
-        }
+        lastSentStage = currentStage;
+        sendStageUpdate(currentStage);
       } catch (err) {
         console.warn(`[agent]: Failed to update instructions mid-session:`, err);
       }

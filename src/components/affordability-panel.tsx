@@ -89,13 +89,10 @@ export function AffordabilityPanel({
   const handlePurchasePriceChange = (val: number) => {
     const validPrice = Math.max(0, val);
     setPurchasePrice(validPrice);
-    if (downPayment > validPrice) {
-      setDownPayment(validPrice);
-    }
   };
 
   const handleDownPaymentChange = (val: number) => {
-    const validDown = Math.max(0, Math.min(val, purchasePrice));
+    const validDown = Math.max(0, val);
     setDownPayment(validDown);
   };
 
@@ -264,7 +261,7 @@ export function AffordabilityPanel({
           <input
             type="range"
             min={0}
-            max={purchasePrice}
+            max={1000000}
             step={1000}
             value={downPayment}
             onChange={(e) => handleDownPaymentChange(Number(e.target.value))}

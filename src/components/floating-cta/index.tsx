@@ -979,7 +979,7 @@ export default function FloatingCTA() {
                                 onClick={() => setIsAffordabilityPanelOpen((prev) => !prev)}
                                 title={
                                   isAffordabilityAvailable
-                                    ? "Open Affordability Summary"
+                                    ? (isAffordabilityPanelOpen ? "Close Affordability Summary" : "Open Affordability Summary")
                                     : "Affordability Summary (Available after Stage 2)"
                                 }
                                 className={`flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full transition-all duration-300 shadow-sm shrink-0 ${
