@@ -438,6 +438,9 @@ export class SessionContextManager {
     const _perfOnUserTurnStart = performance.now();
     let trimmed = text.trim();
 
+    // Redact SSNs from user input to comply with TRID logging requirements
+    trimmed = trimmed.replace(/\b\d{3}[- ]?\d{2}[- ]?\d{4}\b/g, '[REDACTED_SSN]');
+
     // Pre-clean STT currency artifacts for credit score if currentPendingField is credit_range or if user input contains e.g. "$710000" / "710000"
     if (this.currentPendingField === 'credit_range' || (!this.profile.credit_range_confirmed && this.activeStage === '2')) {
       trimmed = trimmed.replace(/\$?(\d{3})(?:000|,000|\.00)\b/g, (match, p1) => {
@@ -1439,6 +1442,12 @@ export class SessionContextManager {
         expectedType: 'string',
         additionalInstructions: 'Extract a concise summary (e.g. "5 years, W2 salary" or "2 years, self-employed"). If not found, return null.',
       });
+      allFields.push({
+        name: 'employment_years',
+        description: 'number of years the borrower has been in their current job or profession',
+        expectedType: 'number',
+        additionalInstructions: 'Extract the number of years as an integer (e.g. 5 for 5 years, 0 for less than 1 year or months). Return number or null.',
+      });
     }
 
     // Add the specific numeric pending field if not already in the list
@@ -1559,15 +1568,10 @@ export class SessionContextManager {
         this.profile.self_employed = false;
       }
       // Pre-populate employment_years from job_tenure_type to avoid re-asking in Stage 3B.
-      // The LLM typically extracts summaries like "5 years, W2 salary" or "2 yrs, self-employed".
       if (this.profile.employment_years === undefined) {
-        const yearsMatch = jt.match(/(\d+)\+?\s*(?:years?|yrs?)/i);
-        if (yearsMatch) {
-          this.profile.employment_years = parseInt(yearsMatch[1]!, 10);
-          console.log(`[context-manager] Stage2: pre-populated employment_years=${this.profile.employment_years} from job_tenure_type`);
-        } else if (/less\s+than\s+(?:a|one|1)\s*year/i.test(jt) || /(\d+)\s*months?/i.test(jt)) {
-          this.profile.employment_years = 0;
-          console.log(`[context-manager] Stage2: pre-populated employment_years=0 from job_tenure_type (less than a year)`);
+        if (results.employment_years?.value !== undefined && results.employment_years?.value !== null) {
+          this.profile.employment_years = Number(results.employment_years.value);
+          console.log(`[context-manager] Stage2: pre-populated employment_years=${this.profile.employment_years} via LLM extraction`);
         }
       }
       anyUpdates = true;
@@ -1588,21 +1592,21 @@ export class SessionContextManager {
       }
     }
 
-    // Process stage2_closing_offer (v8.7 two-path routing)
+    // Process stage2_closing_offer (v8.7 two-path routing via LLM intent classification)
     if (field === 'stage2_closing_offer') {
       const offerVal = results.stage2_closing_offer?.value;
-      const lowerText = text.toLowerCase();
-      const isSoftPullIntent = offerVal === 'soft_pull' || /\b(soft|credit|yes|run|authorize|path a|agree)\b/i.test(lowerText);
-      const isExploreIntent = offerVal === 'explore_first' || /\b(explore|stated|no|not yet|don't know|dont know|option|options|see|show|skip|later)\b/i.test(lowerText);
 
-      if (isSoftPullIntent && offerVal !== 'explore_first') {
+      if (offerVal === 'soft_pull') {
         // Path A: OTP gate → soft pull → prefill → Stage 2.5 Verified
         this.activeStage = '3A';
         this.currentPendingField = 'contact_email';
-        console.log('[context-manager]: Path A chosen — Stage 2 closing offer accepted. Transitioning to STAGE 3A OTP gate (contact_email)!');
+        console.log('[context-manager]: Path A chosen via LLM — Stage 2 closing offer accepted. Transitioning to STAGE 3A OTP gate (contact_email)!');
         return;
-      } else if (isExploreIntent || offerVal === 'explore_first' || offerVal === null || offerVal === undefined) {
-        // Path B: Immediate Stage 2.5 in Stated-Data mode — no contact/OTP needed
+      } else if (offerVal === 'explain') {
+        console.log('[context-manager]: stage2_closing_offer explanation requested via LLM.');
+        return;
+      } else {
+        // Path B: Immediate Stage 2.5 in Stated-Data mode — explore_first or unpredicted responses
         this.activeStage = '2.5';
         this.profile.affordability_mode = 'stated';
         this.profile.affordability_panel_rendered = true;
@@ -1611,10 +1615,7 @@ export class SessionContextManager {
         if (!this.profile.target_price) this.profile.target_price = 350000;
         if (!this.profile.down_payment) this.profile.down_payment = 70000;
         this.currentPendingField = 'affordability_panel_active';
-        console.log('[context-manager]: Path B chosen — Stated-Data Mode. Transitioning directly to Stage 2.5 (Affordability Panel)!');
-        return;
-      } else if (offerVal === 'explain') {
-        console.log('[context-manager]: stage2_closing_offer explanation requested.');
+        console.log('[context-manager]: Path B chosen via LLM — Stated-Data Mode. Transitioning directly to Stage 2.5 (Affordability Panel)!');
         return;
       }
     }
