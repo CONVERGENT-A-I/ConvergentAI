@@ -324,7 +324,16 @@ export function buildLayer3TurnContext(
   // ── Stage 2 Closing Offer Instruction ──────────────────────────────────────
   let stage2ClosingBlock = '';
   if (pendingField === 'stage2_closing_offer') {
-    stage2ClosingBlock = `\n\nSTAGE 2 CLOSING OFFER INSTRUCTION (v8.7 TWO-PATH CHOICE):\nYou must deliver the following closing transition offer EXACTLY word-for-word:\n"Great work exploring your numbers, ${profile.borrower_name ?? 'there'}. You have got two good ways to see your affordability picture, and the choice is yours. The most complete option: with your authorization, a soft credit review — no impact to your credit score — prefills your application and builds your summary with your real credit data. Or, if you would rather not run the review just yet, I can build your affordability summary right now from everything you have shared with me, and you can add the credit review whenever you are ready. Which would you like?"\n\nIf the borrower chooses the soft credit review path (says yes, run it, let's do it, soft credit, Path A, or similar) respond EXACTLY:\n"Perfect. Before we run your review, let's set up a quick secure login so your results are safely saved and delivered to you. I will just need the email and mobile number you would like to use — I will send a one-time code to confirm it is you."\nThen collect their email and mobile number together in ONE question.\n\nIf the borrower chooses to explore first (says explore first, not yet, build it now, Path B, or similar) respond with a warm acknowledgment and tell them you are opening their affordability summary now.\n\nIf the borrower asks what the credit review involves, say EXACTLY:\n"It is a soft credit inquiry — it will not affect your credit score in any way. The system prefills your application using your real credit data, applies a current market rate, and returns your conditional eligibility result along with an estimated payment range. You will be asked for your authorization before anything proceeds."`;
+    stage2ClosingBlock = `\n\n*** CRITICAL TURN INSTRUCTION: STAGE 2 CLOSING OFFER (v8.7 TWO-PATH CHOICE) ***
+You MUST deliver the following closing transition offer EXACTLY word-for-word. Do not hallucinate or guess.
+Say EXACTLY:
+"Great work exploring your numbers, ${profile.borrower_name ?? 'there'}. You have got two good ways to see your affordability picture, and the choice is yours. The most complete option: with your authorization, a soft credit review — no impact to your credit score — prefills your application and builds your summary with your real credit data. Or, if you would rather not run the review just yet, I can build your affordability summary right now from everything you have shared with me, and you can add the credit review whenever you are ready. Which would you like?"
+
+If the borrower chooses the soft credit review path (Path A):
+Say EXACTLY: "Perfect. Before we run your review, let's set up a quick secure login so your results are safely saved and delivered to you. I will just need the email and mobile number you would like to use — I will send a one-time code to confirm it is you."
+
+If the borrower chooses to explore first (Path B):
+Respond with a warm acknowledgment and tell them you are opening their affordability summary now.`;
   }
 
   // ── Verbatim Consent Instruction ──────────────────────────────────────────
@@ -342,11 +351,20 @@ export function buildLayer3TurnContext(
   // ── OTP Gate Instruction Blocks (v8.7) ────────────────────────────────────
   let otpBlock = '';
   if (pendingField === 'contact_email') {
-    otpBlock = `\n\nOTP GATE INSTRUCTION — COLLECT EMAIL AND MOBILE:\nYou must ask for the borrower's email and mobile number together in ONE question. Say EXACTLY:\n"I'll just need the email and mobile number you'd like to use — I'll send a one-time code to confirm it's you. What are those for you?"\nDo NOT ask for anything else. Do NOT mention the soft pull until after OTP is verified.`;
+    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT EMAIL AND MOBILE ***
+You MUST ask for the borrower's email and mobile number together in ONE question.
+Say EXACTLY: "I'll just need the email and mobile number you'd like to use — I'll send a one-time code to confirm it's you. What are those for you?"
+Do NOT ask for anything else. Do NOT mention the soft pull until after OTP is verified.`;
   } else if (pendingField === 'contact_mobile') {
-    otpBlock = `\n\nOTP GATE INSTRUCTION — COLLECT MOBILE:\nThe email was captured. Now ask for their mobile number. Say EXACTLY:\n"And what mobile number should I send your verification code to?"\nDo NOT ask for anything else.`;
+    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT MOBILE ***
+The email was captured. Now ask for their mobile number.
+Say EXACTLY: "And what mobile number should I send your verification code to?"
+Do NOT ask for anything else.`;
   } else if (pendingField === 'otp_verification') {
-    otpBlock = `\n\nOTP GATE INSTRUCTION — VERIFY CODE:\nA one-time verification code has been sent to the borrower's email and mobile. Say EXACTLY:\n"I've sent a one-time code to confirm your email and mobile number — go ahead and enter or read it back when it arrives, and you're all set."\nDo NOT ask for anything else. Wait for the borrower to provide the 6-digit code.`;
+    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: VERIFY CODE VIA MODAL ***
+A one-time verification code has been sent to the borrower's email and mobile. You must instruct them to use the secure popup modal.
+Say EXACTLY: "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely on your screen when it arrives, and you're all set."
+Do NOT ask them to read the code out loud. Do NOT ask for anything else. Wait for the borrower to enter the code in the modal.`;
   }
 
 

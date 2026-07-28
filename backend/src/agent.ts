@@ -1050,6 +1050,18 @@ export default defineAgent({
           const str = new TextDecoder().decode(payload);
           try {
             const parsed = JSON.parse(str);
+            if (parsed.type === 'otp_submit') {
+              contextManager.handleOtpSubmission(parsed.code);
+              updateSessionInstructions();
+              const triggerPrompt = `The borrower has entered the OTP code ${parsed.code} into the modal. Please verify it and proceed.`;
+              if (voiceMuted) {
+                await generateTextOnlyReply(triggerPrompt);
+              } else {
+                metrics.startTurn();
+                session.generateReply({ userInput: triggerPrompt });
+              }
+              return;
+            }
             await handleSystemMessages(parsed.message ?? str, identity);
           } catch {
             await handleSystemMessages(str, identity);
@@ -1069,6 +1081,18 @@ export default defineAgent({
           if (participant?.identity !== ctx.room.localParticipant?.identity) {
             try {
               const parsed = JSON.parse(fullText);
+              if (parsed.type === 'otp_submit') {
+                contextManager.handleOtpSubmission(parsed.code);
+                updateSessionInstructions();
+                const triggerPrompt = `The borrower has entered the OTP code ${parsed.code} into the modal. Please verify it and proceed.`;
+                if (voiceMuted) {
+                  await generateTextOnlyReply(triggerPrompt);
+                } else {
+                  metrics.startTurn();
+                  session.generateReply({ userInput: triggerPrompt });
+                }
+                return;
+              }
               await handleSystemMessages(parsed.message ?? fullText, participant?.identity);
             } catch {
               await handleSystemMessages(fullText, participant?.identity);

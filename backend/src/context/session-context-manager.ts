@@ -556,10 +556,10 @@ export class SessionContextManager {
         'string',
         'IMPORTANT: Only extract "submit" if the borrower explicitly says one of: "submit", "submit for review", "submit it", "run the review", "run the credit check", or "ready to submit". ' +
         'Do NOT extract "submit" for general affirmations like "yes", "sure", "okay", "sounds good", "proceed", "continue", "move on", "let\'s go", "next steps" — these should return null. ' +
-        'Extract "update_profile" if borrower wants to correct or update income, debts, or other profile details. ' +
+        'Extract "update_profile" ONLY if borrower explicitly says they want to correct or change a specific data point (e.g. "my income is actually", "let me update that", "I want to change my"). Do NOT extract update_profile for employment descriptions, job information, tenure, or general statements about work. ' +
         'Extract "upgrade" if borrower asks to upgrade to verified mode or run a soft credit review. ' +
         'Extract "delete_data" if borrower asks to delete their information or stop using data. ' +
-        'Extract "drop_off" if borrower explicitly says they want to stop, pause, exit, or think about it. null for everything else.'
+        'Extract "drop_off" if borrower explicitly says they want to stop, pause, exit, or think about it. Return null for everything else including general conversation, job/employment answers, and statements about work.'
       );
 
       if (res.value === 'submit') {
@@ -767,9 +767,26 @@ export class SessionContextManager {
 
     if (anyUpdates) {
       this.advanceWorkflow();
+    }
   }
 
+  public handleOtpSubmission(code: string): void {
+    if (this.currentPendingField !== 'otp_verification') {
+      console.warn(`[context-manager] Received OTP submission but current field is ${this.currentPendingField}. Ignoring.`);
+      return;
     }
+
+    const expectedCode = (this.profile as any)._pendingOtp ?? '123456';
+    if (code === expectedCode) {
+      console.log('[context-manager] ✅ OTP verified via modal submission!');
+      this.profile.otp_verified = true;
+      this.advanceWorkflow();
+      this.syncToDatabase().catch(err => console.error('[context-manager] DB sync failed on OTP submit:', err));
+    } else {
+      console.log(`[context-manager] ❌ OTP modal verification failed. Expected ${expectedCode}, got ${code}`);
+    }
+  }
+
   private async runStage3AExtraction(text: string): Promise<void> {
     const lastQuestion = this.getLastAssistantUtterance();
 
@@ -1472,9 +1489,10 @@ export class SessionContextManager {
         description: 'which path the borrower has chosen: soft credit review (Path A) or explore first without credit review (Path B)',
         expectedType: 'string',
         additionalInstructions:
-          'Extract "soft_pull" if borrower wants the soft credit review, says yes/run it/let\'s do it/soft credit/Path A or similar. ' +
-          'Extract "explore_first" if borrower wants to explore first, hesitates, says no/not yet/build it now/affordability summary/explore/Path B/don\'t know/options/didn\'t see or similar. ' +
-          'Extract "explain" if borrower asks what the credit review involves. If not sure, return "explore_first".',
+          'Extract "soft_pull" ONLY if the borrower explicitly wants the soft credit review — says yes/run it/let\'s do it/soft credit/Path A. ' +
+          'Extract "explore_first" ONLY if borrower explicitly declines the review — says build it now/affordability summary/explore without review/Path B/no review/skip the review. ' +
+          'Extract "explain" if borrower asks what the credit review involves or requests more information about it. ' +
+          'Return null if the response is ambiguous, unrelated to the closing offer question, or the borrower is answering a previous question. NEVER default to explore_first.',
       });
     }
 
@@ -1605,8 +1623,8 @@ export class SessionContextManager {
       } else if (offerVal === 'explain') {
         console.log('[context-manager]: stage2_closing_offer explanation requested via LLM.');
         return;
-      } else {
-        // Path B: Immediate Stage 2.5 in Stated-Data mode — explore_first or unpredicted responses
+      } else if (offerVal === 'explore_first') {
+        // Path B: Immediate Stage 2.5 in Stated-Data mode — explicit explore_first choice
         this.activeStage = '2.5';
         this.profile.affordability_mode = 'stated';
         this.profile.affordability_panel_rendered = true;
@@ -1616,6 +1634,10 @@ export class SessionContextManager {
         if (!this.profile.down_payment) this.profile.down_payment = 70000;
         this.currentPendingField = 'affordability_panel_active';
         console.log('[context-manager]: Path B chosen via LLM — Stated-Data Mode. Transitioning directly to Stage 2.5 (Affordability Panel)!');
+        return;
+      } else {
+        // null — no clear choice extracted. Stay on stage2_closing_offer and wait for explicit response.
+        console.log('[context-manager]: stage2_closing_offer — no clear choice extracted (null). Waiting for explicit borrower choice.');
         return;
       }
     }
