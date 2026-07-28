@@ -128,7 +128,44 @@ class CerebrasLLM extends openai.LLM {
   // gemma-4-31b does not support reasoning_effort or reasoning_format parameters.
 }
 
+// Verbatim Stage 2 Closing Offer text — delivered via session.say() bypassing the LLM.
+// This guarantees the exact two-path script is spoken regardless of LLM instruction-following.
+const STAGE2_CLOSING_OFFER_SCRIPT = (name: string | null | undefined) =>
+  `Great work exploring your numbers${name ? `, ${name}` : ''}. You have got two good ways to see your affordability picture, and the choice is yours. The most complete option: with your authorization, a soft credit review — no impact to your credit score — prefills your application and builds your summary with your real credit data. Or, if you would rather not run the review just yet, I can build your affordability summary right now from everything you have shared with me, and you can add the credit review whenever you are ready. Which would you like?`;
+
+function isQuestionOrCorrection(text: string | null | undefined): boolean {
+  if (!text) return false;
+  const t = text.toLowerCase().trim();
+  if (t.includes('?')) return true;
+
+  // Check if text starts with modal or question words
+  if (/^(what|why|how|where|who|which|can|could|would|should|is|does|will|do i)\b/.test(t)) {
+    return true;
+  }
+
+  // Specific question, explanation, or correction intent phrases
+  const keywords = [
+    'explain', 'detail', 'meaning', 'difference',
+    'change my', 'update my', 'actually my', 'wrong', 'mistake', 'instead',
+    'confused', 'don\'t understand', 'not sure', 'unsure', 'tell me about'
+  ];
+  return keywords.some(k => t.includes(k));
+}
+
+function createVerbatimStream(text: string): ReadableStream<string> {
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(text);
+      controller.close();
+    },
+  });
+}
+
 class AilanaVoiceAgent extends voice.Agent {
+  public sayCallback: ((text: string) => Promise<void>) | null = null;
+  public onAgentTurnCallback: ((text: string) => Promise<void>) | null = null;
+  private _stage2ClosingOfferDelivered = false;
+
   constructor(
     options: voice.AgentOptions<any>,
     private contextManager: SessionContextManager,
@@ -143,73 +180,125 @@ class AilanaVoiceAgent extends voice.Agent {
     return super.sttNode(audio, modelSettings);
   }
 
-  override async llmNode(chatCtx: any, toolCtx: any, modelSettings: any) {
+  override async llmNode(chatCtx: any, toolCtx: any, modelSettings: any): ReturnType<typeof voice.Agent.prototype.llmNode> {
     this.metrics.markLlmStart();
-    return super.llmNode(chatCtx, toolCtx, modelSettings);
+
+    const pending = this.contextManager.getPendingField();
+    const profile = this.contextManager.getProfile();
+
+    // Check if the user's last turn was a question, correction, or explanation request
+    const lastUserMsg = [...(chatCtx?.items || [])]
+      .reverse()
+      .find((item: any) => item.role === 'user' || item.type === 'user');
+    const lastUserText = typeof lastUserMsg?.content === 'string'
+      ? lastUserMsg.content
+      : Array.isArray(lastUserMsg?.content)
+      ? lastUserMsg.content.join(' ')
+      : '';
+
+    const userAskedQuestion = isQuestionOrCorrection(lastUserText) || (profile as any).last_extracted_offer_val === 'explain';
+    if (userAskedQuestion) {
+      (profile as any).last_extracted_offer_val = null; // reset flag
+      console.log(`[agent-hook]: User turn contains question/explanation request ("${lastUserText}") — delegating to Cerebras LLM to answer dynamically.`);
+      return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+    }
+
+    // ── 1. Deterministic script routing for standard flow compliance turns ──
+    if (pending === 'stage2_closing_offer') {
+      let scriptText = '';
+      if (!this._stage2ClosingOfferDelivered) {
+        this._stage2ClosingOfferDelivered = true;
+        scriptText = STAGE2_CLOSING_OFFER_SCRIPT(profile.borrower_name);
+        console.log('[agent-hook]: Delivering initial STAGE2_CLOSING_OFFER_SCRIPT via Deterministic ReadableStream (0ms LLM)!');
+      } else {
+        scriptText = 'Which would you prefer — the soft credit review with no impact to your credit score, or building your affordability summary from the information you shared today?';
+        console.log('[agent-hook]: Delivering STAGE2_CLOSING_OFFER re-ask via Deterministic ReadableStream (0ms LLM)!');
+      }
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    if (pending === 'contact_email') {
+      const scriptText = "Perfect. Before we run your review, let's set up a quick secure login — I'll just need the email and mobile number you'd like to use for your account. What are those for you?";
+      console.log('[agent-hook]: Delivering Q45 contact_email script via Deterministic ReadableStream!');
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    if (pending === 'contact_mobile') {
+      const scriptText = "I have your email. Could you also share the mobile number you'd like to use?";
+      console.log('[agent-hook]: Delivering Q45 contact_mobile script via Deterministic ReadableStream!');
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    if (pending === 'otp_verification') {
+      const scriptText = "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely on your screen when it arrives, and you're all set.";
+      console.log('[agent-hook]: Delivering otp_verification instruction script via Deterministic ReadableStream!');
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    if (pending === 'soft_pull_authorization') {
+      const scriptText = "Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry — it will not affect your credit score in any way. You are the one authorizing it, and your data is used only to process your initial eligibility review and pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?";
+      console.log('[agent-hook]: Delivering soft_pull_authorization disclosure via Deterministic ReadableStream!');
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
   }
 
   override async ttsNode(text: any, modelSettings: any) {
     this.metrics.markTtsStart();
-    // Also arm the avatar-frame fallback timeout from here — this is called
-    // before the LiveKit SDK’s internal firstFrameFut lifecycle, so the 1500ms
-    // safety-net timeout starts even on turns where the SDK cancels firstFrameFut
-    // before the 'speaking' state is emitted (the race condition turns).
     this.metrics.markAvatarRenderStart();
     return super.ttsNode(text, modelSettings);
   }
 
   override async onUserTurnCompleted(chatCtx: any, userMessage: any): Promise<void> {
-    // ── [perf] EOU boundary timestamp ────────────────────────────────────────
     const _perfEouEnd = performance.now();
     console.log(`[agent-hook]: onUserTurnCompleted hook triggered with message: "${userMessage?.textContent}"`);
 
     this.contextManager.setLowConfidenceFlag(false);
 
-    // [gating-optimization]: Removed the 300ms previous-turn extraction gating
-    // to allow background extraction for normal turns to execute fully asynchronously.
-
-    // 2. Trigger the current turn's extraction asynchronously in the background
     if (userMessage?.textContent) {
-      // Save voice conversation turn to database (must be synchronous to avoid race conditions)
       await this.contextManager.saveVoiceConversationTurn('user', userMessage.textContent);
       
       const currentTurnNumber = this.contextManager.triggerBackgroundExtraction(userMessage.textContent);
       console.log(`[agent-hook]: Current turn background extraction triggered asynchronously (turn=${currentTurnNumber}).`);
 
       // ── Universal transition gate ─────────────────────────────────────────
-      // Each field in this Set is the LAST answer in a section. When confirmed,
-      // the background extraction advances the state to a new section/stage, and
-      // Ailana must proactively deliver mandatory speech (bridge phrase, consent
-      // disclosure, closing offer, next question, underwriting result, etc.).
-      //
-      // Without awaiting, updateInstructionsCallback() writes stale instructions —
-      // Ailana acknowledges the answer but goes silent, forcing the user to nudge.
-      //
-      // By awaiting only on these known transition points, we guarantee Ailana
-      // speaks the correct next content immediately.
-      // Cost: ~400–800ms per transition, each happening at most ONCE per session.
+      // Complete set of all Stage 1 & Stage 2 discovery & gate fields
       const TRANSITION_TRIGGER_FIELDS = new Set([
-        'co_borrower',              // Stage 1  last field → Stage 2 bridge + income question
-        'job_tenure_type',          // Stage 2  last field → Stage 2 Closing Offer (verbatim)
-        'stage2_closing_offer',     // Stage 2  two-path choice → Path A: OTP gate / Path B: Stage 2.5
-        'refinance_type',           // Stage 2  refinance_type → Stage 2 target_price
-        'contact_email',            // Stage 3A OTP gate step 1 → send OTP
-        'contact_mobile',           // Stage 3A OTP gate step 2 → send OTP
-        'otp_verification',         // Stage 3A OTP gate step 3 → soft pull consent
-        'soft_pull_authorization',  // Stage 3A consent    → Prefill walkthrough start
-        'prefill_name_address',     // Prefill  step 1     → Prefill step 2 (employer)
-        'prefill_employer',         // Prefill  step 2     → Prefill step 3 (accounts)
-        'prefill_accounts',         // Prefill  step 3     → Prefill step 4 (credit range)
-        'prefill_credit_range',     // Prefill  last step  → Stage 3B (marital status)
-        'declarations',             // Stage 3B last field → Submit confirmation speech (verbatim)
-        'submit_confirmation',      // Stage 3B YES        → Stage 4 underwriting result
+        'borrower_name',
+        'mortgage_goal',
+        'occupancy',
+        'existing_relationship',
+        'timeline',
+        'co_borrower',
+        'gross_annual_income',
+        'monthly_debt',
+        'credit_range',
+        'down_payment',
+        'rent_own',
+        'realtor_status',
+        'target_price',
+        'property_type',
+        'military_rural',
+        'job_tenure_type',
+        'stage2_closing_offer',
+        'contact_email',
+        'contact_mobile',
+        'otp_verification',
+        'soft_pull_authorization',
+        'prefill_name_address',
+        'prefill_employer',
+        'prefill_accounts',
+        'prefill_credit_range',
+        'declarations',
+        'submit_confirmation',
       ]);
 
       const currentPending = this.contextManager.getPendingField();
       if (currentPending !== null && TRANSITION_TRIGGER_FIELDS.has(currentPending)) {
         console.log(`[agent-hook]: Transition-triggering field "${currentPending}" detected — awaiting extraction for immediate state update...`);
         const waited = await this.contextManager.waitForExtraction(currentTurnNumber, 10000);
-        console.log(`[agent-hook]: Transition extraction for "${currentPending}" ${waited ? 'completed ✅' : 'timed out ⚠️ (proceeding with best-effort state)'}. Proceeding to instructions update.`);
+        console.log(`[agent-hook]: Transition extraction for "${currentPending}" ${waited ? 'completed ✅' : 'timed out ⚠️'}.`);
       }
     }
 
@@ -446,10 +535,24 @@ export default defineAgent({
       } as any,
     });
 
+    // Wire session.say() callback into vadAgent so onUserTurnCompleted can
+    // deliver verbatim scripts (e.g. stage2_closing_offer) directly, bypassing the LLM.
+    const wireAgentCallbacks = (agent: AilanaVoiceAgent) => {
+      agent.sayCallback = async (text: string) => {
+        await session.say(text, { addToChatCtx: true });
+      };
+      agent.onAgentTurnCallback = async (text: string) => {
+        await contextManager.onAgentTurn(text);
+      };
+    };
+    wireAgentCallbacks(vadAgent);
+
     const backchannelEngine = new BackchannelEngine();
 
     const createAgentForRotation = () => {
       vadAgent = createVadAgent();
+      wireAgentCallbacks(vadAgent);
+
       return vadAgent;
     };
 
@@ -501,6 +604,8 @@ export default defineAgent({
       property_type:          'I apologize for that. What type of property is this — a single-family home, condo, townhome, multi-family, or something else?',
       military_rural:         'I apologize for the interruption. Do you have any military service history, or is the property in a rural area?',
       job_tenure_type:        'I apologize for that. Could you tell me a bit about your current job tenure and the type of income you have — for example, whether you are salaried, hourly, or self-employed?',
+      // Stage 2 Closing Offer — verbatim two-path choice re-prompt
+      stage2_closing_offer:   'I apologize for the interruption. Let me repeat: you have two options for your affordability summary. The most complete option is a soft credit review — no impact to your credit score — which prefills your application with your real credit data. Or I can build your summary right now from everything you have shared, and you can add the credit review whenever you are ready. Which would you prefer?',
       // Stage 4
       checklist_acknowledgement: 'I apologize for that interruption. Do you have these documents available, or would you like to go through any of them?',
     };

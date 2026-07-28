@@ -341,12 +341,17 @@ export function buildLayer3TurnContext(
 ================================================================================
 CRITICAL OVERRIDE: STAGE 2 CLOSING OFFER (v8.7 TWO-PATH CHOICE)
 ================================================================================
-Your ONLY task for this turn is to say the following text exactly word-for-word.
-Do NOT paraphrase. Do NOT add any extra sentences. Do NOT offer to connect them with a loan officer.
-Do NOT ask for any other information.
-
-SAY EXACTLY THIS:
-"Great work exploring your numbers, ${profile.borrower_name ?? 'there'}. You have got two good ways to see your affordability picture, and the choice is yours. The most complete option: with your authorization, a soft credit review — no impact to your credit score — prefills your application and builds your summary with your real credit data. Or, if you would rather not run the review just yet, I can build your affordability summary right now from everything you have shared with me, and you can add the credit review whenever you are ready. Which would you like?"
+STOP. Do NOT generate any loan program information, estimated payments, or rate discussions.
+Do NOT say "based on your profile" or explain FHA/conventional/VA options.
+Do NOT ask for contact information or anything else.
+The two-path offer text has already been delivered to the borrower via the system.
+Your ONLY job right now is to LISTEN for which path the borrower chooses:
+  PATH A = soft credit review (they say "yes", "review", "eligibility review", etc.)
+  PATH B = explore without review (they say "no review", "explore first", etc.)
+If they ask what the review involves, explain briefly and ONLY that.
+If you absolutely must speak, say ONLY:
+"Which would you prefer — the soft credit review, or building the summary from what you shared?"
+NEVER quote payment amounts. NEVER mention loan programs. NEVER say "FHA" or "conventional".
 ================================================================================`;
   }
 

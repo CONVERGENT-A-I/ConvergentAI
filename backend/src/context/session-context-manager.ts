@@ -804,7 +804,7 @@ export class SessionContextManager {
           name: 'contact_mobile',
           description: "borrower's mobile phone number",
           expectedType: 'string',
-          additionalInstructions: 'Extract the mobile phone number if mentioned (e.g. "555-0199"). Return string or null.',
+          additionalInstructions: 'Extract the mobile or phone number if mentioned. Accept any format including spaces, dashes, dots, or country codes (e.g. "+1 234 567 8901", "555-0199", "+12345 6789", "1234567890"). Return the number as spoken/provided. Return null only if no number is mentioned.',
         },
       ]);
 
@@ -836,7 +836,7 @@ export class SessionContextManager {
         'contact_mobile',
         "borrower's mobile phone number",
         'string',
-        'Extract the mobile/phone number. Return string or null.'
+        'Extract the mobile or phone number. Accept any format including spaces, dashes, dots, or country codes (e.g. "+1 234 567 8901", "555-0199", "+12345 6789"). Return null only if no number mentioned.'
       );
       if (res.value) {
         this.profile.contact_mobile = res.value as string;
@@ -1490,10 +1490,20 @@ export class SessionContextManager {
         description: 'which path the borrower has chosen: soft credit review (Path A) or explore first without credit review (Path B)',
         expectedType: 'string',
         additionalInstructions:
-          'Extract "soft_pull" ONLY if the borrower explicitly wants the soft credit review — says yes/run it/let\'s do it/soft credit/Path A. ' +
-          'Extract "explore_first" ONLY if borrower explicitly declines the review — says build it now/affordability summary/explore without review/Path B/no review/skip the review. ' +
-          'Extract "explain" if borrower asks what the credit review involves or requests more information about it. ' +
-          'Return null if the response is ambiguous, unrelated to the closing offer question, or the borrower is answering a previous question. NEVER default to explore_first.',
+          'Classify the borrower response to a two-path affordability offer. ' +
+          'Path A = soft credit review. Path B = build summary without review. ' +
+          'Extract "soft_pull" (Path A) for: "yes", "sure", "okay", "let\'s do it", "go ahead", ' +
+          '"sounds good", "proceed", "run it", "run the review", "eligibility", "eligibility review", ' +
+          '"soft credit", "credit review", "the review", "first option", "most complete option", ' +
+          '"I authorize", "I authorized", "I consent", "I give consent", "authorized", "that one". ' +
+          'Extract "explore_first" (Path B) for: "affordability summary", "the summary", ' +
+          '"I would like the affordability summary", "build my summary", "build from what I shared", ' +
+          '"explore first", "stated mode", "second option", "without the review", "skip the review", ' +
+          '"no review", "not yet", "no", "not right now", "I would rather not". ' +
+          'Extract "explain" if borrower asks what the credit review or soft pull involves. ' +
+          'Return null if completely off-topic (wants a loan officer, asks about rates or programs). ' +
+          'KEY: "I would like the affordability summary" = explore_first. "Licensed loan officer" = null. ' +
+          'Prefer "soft_pull" over null when affirmation is ambiguous.',
       });
     }
 
@@ -1623,6 +1633,7 @@ export class SessionContextManager {
         return;
       } else if (offerVal === 'explain') {
         console.log('[context-manager]: stage2_closing_offer explanation requested via LLM.');
+        (this.profile as any).last_extracted_offer_val = 'explain';
         return;
       } else if (offerVal === 'explore_first') {
         // Path B: Immediate Stage 2.5 in Stated-Data mode — explicit explore_first choice
