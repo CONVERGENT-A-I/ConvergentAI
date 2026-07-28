@@ -1,4 +1,6 @@
 export interface BorrowerProfile {
+  current_pending_field?: string | null;
+
   // ── Stage 1 ──────────────────────────────────────────────────────────────
   borrower_name?: string | null;
   borrower_name_confirmed?: boolean;
@@ -324,16 +326,17 @@ export function buildLayer3TurnContext(
   // ── Stage 2 Closing Offer Instruction ──────────────────────────────────────
   let stage2ClosingBlock = '';
   if (pendingField === 'stage2_closing_offer') {
-    stage2ClosingBlock = `\n\n*** CRITICAL TURN INSTRUCTION: STAGE 2 CLOSING OFFER (v8.7 TWO-PATH CHOICE) ***
-You MUST deliver the following closing transition offer EXACTLY word-for-word. Do not hallucinate or guess.
-Say EXACTLY:
+    stage2ClosingBlock = `
+================================================================================
+CRITICAL OVERRIDE: STAGE 2 CLOSING OFFER (v8.7 TWO-PATH CHOICE)
+================================================================================
+Your ONLY task for this turn is to say the following text exactly word-for-word.
+Do NOT paraphrase. Do NOT add any extra sentences. Do NOT offer to connect them with a loan officer.
+Do NOT ask for any other information.
+
+SAY EXACTLY THIS:
 "Great work exploring your numbers, ${profile.borrower_name ?? 'there'}. You have got two good ways to see your affordability picture, and the choice is yours. The most complete option: with your authorization, a soft credit review — no impact to your credit score — prefills your application and builds your summary with your real credit data. Or, if you would rather not run the review just yet, I can build your affordability summary right now from everything you have shared with me, and you can add the credit review whenever you are ready. Which would you like?"
-
-If the borrower chooses the soft credit review path (Path A):
-Say EXACTLY: "Perfect. Before we run your review, let's set up a quick secure login so your results are safely saved and delivered to you. I will just need the email and mobile number you would like to use — I will send a one-time code to confirm it is you."
-
-If the borrower chooses to explore first (Path B):
-Respond with a warm acknowledgment and tell them you are opening their affordability summary now.`;
+================================================================================`;
   }
 
   // ── Verbatim Consent Instruction ──────────────────────────────────────────

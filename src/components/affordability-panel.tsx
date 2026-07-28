@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
 
 export interface AffordabilityPanelProps {
@@ -30,14 +30,20 @@ export function AffordabilityPanel({
 }: AffordabilityPanelProps) {
   const [purchasePrice, setPurchasePrice] = useState<number>(initialPurchasePrice);
   const [downPayment, setDownPayment] = useState<number>(initialDownPayment);
+  const userEdited = useRef(false);
 
-  // Sync state if initial props change (e.g. profile loaded/updated from stage 2)
+  // Sync state if initial props change (e.g. profile loaded from backend)
+  // ONLY if the user hasn't manually edited the sliders yet.
   useEffect(() => {
-    if (initialPurchasePrice) setPurchasePrice(initialPurchasePrice);
+    if (initialPurchasePrice && !userEdited.current) {
+      setPurchasePrice(initialPurchasePrice);
+    }
   }, [initialPurchasePrice]);
 
   useEffect(() => {
-    if (initialDownPayment) setDownPayment(initialDownPayment);
+    if (initialDownPayment && !userEdited.current) {
+      setDownPayment(initialDownPayment);
+    }
   }, [initialDownPayment]);
 
   const [totalPITIA, setTotalPITIA] = useState<number>(0);
@@ -87,11 +93,13 @@ export function AffordabilityPanel({
   }, [purchasePrice, downPayment, zipCode, fetchCalculation]);
 
   const handlePurchasePriceChange = (val: number) => {
+    userEdited.current = true;
     const validPrice = Math.max(0, val);
     setPurchasePrice(validPrice);
   };
 
   const handleDownPaymentChange = (val: number) => {
+    userEdited.current = true;
     const validDown = Math.max(0, val);
     setDownPayment(validDown);
   };

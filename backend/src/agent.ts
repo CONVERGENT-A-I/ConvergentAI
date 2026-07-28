@@ -34,6 +34,7 @@ import { logPromptBudget } from './context/context-budget.js';
 import { AvatarSession } from '@livekit/agents-plugin-lemonslice';
 import { BackchannelEngine } from './utils/backchannel-engine.js';
 import { OpenAI } from 'openai';
+import { sendPrequalLetterEmail } from './utils/email-sender.js';
 import { applicationService } from './services/application-service.js';
 import { isDatabaseEnabled } from './services/database.js';
 

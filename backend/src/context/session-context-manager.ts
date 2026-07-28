@@ -423,6 +423,7 @@ export class SessionContextManager {
   }
 
   getProfile(): BorrowerProfile {
+    this.profile.current_pending_field = this.currentPendingField;
     return this.profile;
   }
 

@@ -1213,12 +1213,8 @@ export default function FloatingCTA() {
                                 mode={borrowerProfile?.affordability_mode ?? 'verified'}
                                 borrowerProfile={borrowerProfile}
                                 onUpgrade={() => {
-                                  if (borrowerProfile?.session_login_complete) {
-                                    if ((window as any).lkPublishData) {
-                                      (window as any).lkPublishData({ message: 'SYSTEM_STAGE_UPDATE_UPGRADE' });
-                                    }
-                                  } else {
-                                    setIsOtpModalOpen(true);
+                                  if ((window as any).lkPublishData) {
+                                    (window as any).lkPublishData({ message: 'SYSTEM_STAGE_UPDATE_UPGRADE' });
                                   }
                                 }}
                                 onSubmitSuccess={async (status) => {
