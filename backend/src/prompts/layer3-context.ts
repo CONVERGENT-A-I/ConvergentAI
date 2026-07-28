@@ -298,20 +298,31 @@ export function buildLayer3TurnContext(
   // ── Current task line ─────────────────────────────────────────────────────
   const isRef = profile.mortgage_goal === 'refinance';
   let taskLine = '';
-  if (profile.pending_confirm_field && profile.pending_confirm_value) {
-    let label = FIELD_LABELS[profile.pending_confirm_field] ?? profile.pending_confirm_field;
-    if (isRef && profile.pending_confirm_field === 'target_price') {
-      label = 'estimated property value';
-    }
-    taskLine = `CURRENT TASK:\nConfirm the value of "${profile.pending_confirm_value}" for ${label}. Do NOT ask for the next field yet.`;
-  } else if (pendingField === 'property_type') {
-    taskLine = `CURRENT TASK:\nCollect property_type and zip_code together in ONE question.\n\nAsk EXACTLY this (adapt naturally to conversation): "What type of property are you considering — a single-family home, condo, townhome, or something else? And do you have a particular area or zip code in mind?"\nThis is Q42. You must ask for BOTH the property type AND the location/zip code in the same question. Do NOT split into two turns.`;
-  } else if (pendingField) {
-    taskLine = `CURRENT TASK:\nCollect ${pendingField}\n\nDO NOT ASK FOR ANY OTHER FIELD.`;
-  } else {
-    taskLine = 'CURRENT TASK:\nAll fields for this stage collected.';
-  }
 
+  // Only generate the generic CURRENT TASK line when there is no specific override block.
+  // If stage2_closing_offer, OTP, or consent instructions take over, skip the generic task.
+  const hasSpecificOverride =
+    pendingField === 'stage2_closing_offer' ||
+    pendingField === 'contact_email' ||
+    pendingField === 'contact_mobile' ||
+    pendingField === 'otp_verification' ||
+    profile.soft_pull_consent === 'pending';
+
+  if (!hasSpecificOverride) {
+    if (profile.pending_confirm_field && profile.pending_confirm_value) {
+      let label = FIELD_LABELS[profile.pending_confirm_field] ?? profile.pending_confirm_field;
+      if (isRef && profile.pending_confirm_field === 'target_price') {
+        label = 'estimated property value';
+      }
+      taskLine = `CURRENT TASK:\nConfirm the value of "${profile.pending_confirm_value}" for ${label}. Do NOT ask for the next field yet.`;
+    } else if (pendingField === 'property_type') {
+      taskLine = `CURRENT TASK:\nCollect property_type and zip_code together in ONE question.\n\nAsk EXACTLY this (adapt naturally to conversation): "What type of property are you considering — a single-family home, condo, townhome, or something else? And do you have a particular area or zip code in mind?"\nThis is Q42. You must ask for BOTH the property type AND the location/zip code in the same question. Do NOT split into two turns.`;
+    } else if (pendingField) {
+      taskLine = `CURRENT TASK:\nCollect ${pendingField}\n\nDO NOT ASK FOR ANY OTHER FIELD.`;
+    } else {
+      taskLine = 'CURRENT TASK:\nAll fields for this stage collected.';
+    }
+  }
 
   // ── Stage transition bridge instruction ───────────────────────────────────
   let bridgeBlock = '';

@@ -1199,11 +1199,25 @@ export default function FloatingCTA() {
                                   console.log("[ui-stage]: Stage updated to", stage, profile);
                                   setActiveStage(stage);
                                   if (profile) setBorrowerProfile(profile);
+
+                                  // Open affordability panel when backend signals it's ready
                                   if (stage === "2.5" || profile?.affordability_panel_rendered) {
                                     setIsAffordabilityPanelOpen(true);
                                   }
-                                  if (profile?.current_pending_field === 'otp_verification') {
-                                    setIsOtpModalOpen(true);
+
+                                  // Open OTP modal when:
+                                  // 1. otp_sent=true  — fires as soon as OTP is generated, even
+                                  //    if pendingField is still 'contact_mobile' (race condition fix)
+                                  // 2. current_pending_field === 'otp_verification' — fallback
+                                  // Guard: never re-open if OTP already verified
+                                  const otpAlreadyVerified = profile?.otp_verified || profile?.session_login_complete;
+                                  if (!otpAlreadyVerified) {
+                                    if (
+                                      profile?.otp_sent === true ||
+                                      profile?.current_pending_field === 'otp_verification'
+                                    ) {
+                                      setIsOtpModalOpen(true);
+                                    }
                                   }
                                 }}
                               />
@@ -1249,7 +1263,8 @@ export default function FloatingCTA() {
                                   try {
                                     const encoder = new TextEncoder();
                                     const payload = encoder.encode(JSON.stringify({
-                                      message: `123456`
+                                      type: 'otp_submit',
+                                      code: code,
                                     }));
                                     if ((window as any).lkPublishData) {
                                       await (window as any).lkPublishData(payload, {

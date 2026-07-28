@@ -710,6 +710,9 @@ export default defineAgent({
             contact_on_file: prof.contact_on_file,
             contact_email: prof.contact_email,
             contact_mobile: prof.contact_mobile,
+            // otp_sent = true when the OTP has been generated (even before field reaches 'otp_verification')
+            // This lets the frontend open the modal as soon as the OTP is dispatched.
+            otp_sent: !!(prof as any)._pendingOtp,
             // ── Flow state ──────────────────────────────────────────
             current_pending_field: contextManager.getPendingField(),
           }
