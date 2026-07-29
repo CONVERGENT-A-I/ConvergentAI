@@ -203,14 +203,40 @@ class AilanaVoiceAgent extends voice.Agent {
       return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
     }
 
-    // ── 1. Deterministic script routing for standard flow compliance turns ──
-    if (pending === 'stage2_closing_offer') {
+    // ── 0ms Parallel Fast-Path for Stage 2 Completion ──
+    const isAnsweringJobTenure = pending === 'job_tenure_type' && /\b(salaried|hourly|self-employed|years|year|months|month|working|employed|contract)\b/i.test(lastUserText);
+
+    if (pending === 'stage2_closing_offer' || isAnsweringJobTenure) {
+      if (isAnsweringJobTenure) {
+        console.log('[agent-hook]: Parallel 0ms Fast-Path — job_tenure_type answer detected. Triggering STAGE2_CLOSING_OFFER_SCRIPT!');
+        this.contextManager.setCurrentPendingField('stage2_closing_offer');
+      }
+
       let scriptText = '';
       if (!this._stage2ClosingOfferDelivered) {
         this._stage2ClosingOfferDelivered = true;
         scriptText = STAGE2_CLOSING_OFFER_SCRIPT(profile.borrower_name);
         console.log('[agent-hook]: Delivering initial STAGE2_CLOSING_OFFER_SCRIPT via Deterministic ReadableStream (0ms LLM)!');
       } else {
+        // User is answering stage2_closing_offer:
+        const isPathA = /\b(soft pull|review|eligibility|first|most complete|yes|sure|okay|go ahead|proceed|run it)\b/i.test(lastUserText);
+        const isPathB = /\b(summary|explore|stated|second|without|no review|skip)\b/i.test(lastUserText);
+
+        if (isPathA) {
+          console.log('[agent-hook]: Parallel 0ms Fast-Path — Path A chosen! Transitioning directly to STAGE 3A OTP gate (contact_email)!');
+          this.contextManager.setActiveStage('3A');
+          this.contextManager.setCurrentPendingField('contact_email');
+          const script = "Perfect. Before we run your review, let's set up a quick secure login — I'll just need the email and mobile number you'd like to use for your account. What are those for you?";
+          return createVerbatimStream(script) as any;
+        } else if (isPathB) {
+          console.log('[agent-hook]: Parallel 0ms Fast-Path — Path B chosen! Transitioning directly to Stage 2.5 Stated Mode!');
+          this.contextManager.setActiveStage('2.5');
+          profile.affordability_mode = 'stated';
+          profile.affordability_panel_rendered = true;
+          this.contextManager.setCurrentPendingField('affordability_panel_active');
+          return createVerbatimStream("Got it! I've built your affordability summary right here on your screen based on what you shared. Take a moment to review it, and when you're ready, click submit to run your review.") as any;
+        }
+
         scriptText = 'Which would you prefer — the soft credit review with no impact to your credit score, or building your affordability summary from the information you shared today?';
         console.log('[agent-hook]: Delivering STAGE2_CLOSING_OFFER re-ask via Deterministic ReadableStream (0ms LLM)!');
       }
@@ -218,18 +244,38 @@ class AilanaVoiceAgent extends voice.Agent {
     }
 
     if (pending === 'contact_email') {
-      const scriptText = "Perfect. Before we run your review, let's set up a quick secure login — I'll just need the email and mobile number you'd like to use for your account. What are those for you?";
-      console.log('[agent-hook]: Delivering Q45 contact_email script via Deterministic ReadableStream!');
+      let scriptText = '';
+      if (profile.contact_mobile) {
+        scriptText = "I have your mobile number. Could you also share the email address you'd like to use for your account?";
+        console.log('[agent-hook]: Delivering contact_email script (mobile already captured) via Deterministic ReadableStream!');
+      } else {
+        scriptText = "Perfect. Before we run your review, let's set up a quick secure login — I'll just need the email and mobile number you'd like to use for your account. What are those for you?";
+        console.log('[agent-hook]: Delivering Q45 initial contact_email script via Deterministic ReadableStream!');
+      }
       return createVerbatimStream(scriptText) as any;
     }
 
     if (pending === 'contact_mobile') {
-      const scriptText = "I have your email. Could you also share the mobile number you'd like to use?";
-      console.log('[agent-hook]: Delivering Q45 contact_mobile script via Deterministic ReadableStream!');
+      let scriptText = '';
+      if (profile.contact_email) {
+        scriptText = "I have your email. Could you also share the mobile number you'd like to use?";
+        console.log('[agent-hook]: Delivering contact_mobile script (email already captured) via Deterministic ReadableStream!');
+      } else {
+        scriptText = "I have your mobile number. Could you also share the email address you'd like to use?";
+        console.log('[agent-hook]: Delivering contact_mobile script via Deterministic ReadableStream!');
+      }
       return createVerbatimStream(scriptText) as any;
     }
 
-    if (pending === 'otp_verification') {
+    if (pending === 'military_rural') {
+      const hasCoBorrower = profile.co_borrower === 'yes';
+      const coBorrowerPhrase = hasCoBorrower ? 'you or a co-borrower' : 'you';
+      const scriptText = `Do ${coBorrowerPhrase} have any military service history — such as being on active duty, a veteran, or part of the Reserve or National Guard?`;
+      console.log(`[agent-hook]: Delivering deterministic military_rural script (hasCoBorrower=${hasCoBorrower}) via ReadableStream!`);
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    if (pending === 'otp_verification' && !profile.otp_verified) {
       const scriptText = "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely on your screen when it arrives, and you're all set.";
       console.log('[agent-hook]: Delivering otp_verification instruction script via Deterministic ReadableStream!');
       return createVerbatimStream(scriptText) as any;
@@ -238,6 +284,19 @@ class AilanaVoiceAgent extends voice.Agent {
     if (pending === 'soft_pull_authorization') {
       const scriptText = "Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry — it will not affect your credit score in any way. You are the one authorizing it, and your data is used only to process your initial eligibility review and pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?";
       console.log('[agent-hook]: Delivering soft_pull_authorization disclosure via Deterministic ReadableStream!');
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    if ((profile as any).submit_review_requested || pending === 'aus_findings_delivered') {
+      (profile as any).submit_review_requested = false;
+      console.log(`[agent-hook]: LLM-classified submission request detected — executing submission and delivering findings!`);
+      profile.affordability_panel_rendered = false;
+      (profile as any).affordability_panel_closed = true;
+      profile.aus_status = 'refer';
+      this.contextManager.setActiveStage('4');
+
+      const name = profile.borrower_name;
+      const scriptText = `Thank you for your patience${name ? `, ${name}` : ''} — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;
       return createVerbatimStream(scriptText) as any;
     }
 
@@ -807,6 +866,8 @@ export default defineAgent({
             affordability_income_band: prof.affordability_income_band,
             affordability_dti_band: prof.affordability_dti_band,
             affordability_aus_status: prof.affordability_aus_status,
+            aus_status: prof.aus_status,
+            affordability_panel_closed: (prof as any).affordability_panel_closed,
             affordability_submitted: prof.affordability_submitted,
             dti_above_hard_ceiling: prof.dti_above_hard_ceiling,
             // ── Session login / OTP state ────────────────────────────

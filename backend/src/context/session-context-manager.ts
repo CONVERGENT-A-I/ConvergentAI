@@ -431,8 +431,17 @@ export class SessionContextManager {
     return this.activeStage;
   }
 
+  setActiveStage(stage: string): void {
+    this.activeStage = stage as any;
+  }
+
   getPendingField(): string | null {
     return this.currentPendingField;
+  }
+
+  setCurrentPendingField(field: string | null): void {
+    this.currentPendingField = field;
+    this.profile.current_pending_field = field;
   }
 
   async onUserTurn(text: string): Promise<void> {
@@ -791,8 +800,8 @@ export class SessionContextManager {
   private async runStage3AExtraction(text: string): Promise<void> {
     const lastQuestion = this.getLastAssistantUtterance();
 
-    // ── v8.7 OTP Gate: Step 1 — collect email (and mobile if given in same turn) ──
-    if (this.currentPendingField === 'contact_email') {
+    // ── v8.7 OTP Gate: Step 1 & 2 — collect email and/or mobile in any order ──
+    if (this.currentPendingField === 'contact_email' || this.currentPendingField === 'contact_mobile') {
       const results = await extractMultipleFields(text, lastQuestion, [
         {
           name: 'contact_email',
@@ -817,30 +826,15 @@ export class SessionContextManager {
         console.log(`[context-manager]: Captured contact mobile: ${this.profile.contact_mobile}`);
       }
 
-      if (this.profile.contact_email) {
+      if (this.profile.contact_email && this.profile.contact_mobile) {
         // Generate and "send" a mock OTP
         const mockOtp = '123456';
         (this.profile as any)._pendingOtp = mockOtp;
         console.log(`[OTP-Service]: Generated mock OTP code: ${mockOtp}`);
-        console.log(`[OTP-Service]: OTP sent to ${this.profile.contact_email} and ${this.profile.contact_mobile || 'mobile not yet provided'}`);
-        this.advanceWorkflow();
+        console.log(`[OTP-Service]: OTP sent to ${this.profile.contact_email} and ${this.profile.contact_mobile}`);
       }
-      return;
-    }
 
-    // ── v8.7 OTP Gate: Step 2 — collect mobile (if not already captured above) ──
-    if (this.currentPendingField === 'contact_mobile') {
-      const res = await extractProfileField(
-        text,
-        lastQuestion,
-        'contact_mobile',
-        "borrower's mobile phone number",
-        'string',
-        'Extract the mobile or phone number. Accept any format including spaces, dashes, dots, or country codes (e.g. "+1 234 567 8901", "555-0199", "+12345 6789"). Return null only if no number mentioned.'
-      );
-      if (res.value) {
-        this.profile.contact_mobile = res.value as string;
-        console.log(`[context-manager]: Captured contact mobile: ${this.profile.contact_mobile}`);
+      if (results.contact_email?.value || results.contact_mobile?.value) {
         this.advanceWorkflow();
       }
       return;
@@ -1507,12 +1501,38 @@ export class SessionContextManager {
       });
     }
 
+    // Stage 2.5 submission intent classification
+    if ((this.activeStage === '2.5' || field === 'affordability_panel_active') && !allFields.some(f => f.name === 'submit_review_intent')) {
+      allFields.push({
+        name: 'submit_review_intent',
+        description: 'whether the borrower wants to submit their scenario/summary for formal eligibility review',
+        expectedType: 'string',
+        additionalInstructions:
+          'Classify if the borrower indicates readiness or intent to submit their scenario for formal review or underwriting. ' +
+          'Extract "submit" for: "submit", "submit for review", "run the review", "send it", "looks good", "submit this for me", ' +
+          '"I\'m ready", "go ahead", "let\'s move forward", "check eligibility", "proceed with review", "send my scenario". ' +
+          'Return null if the borrower is asking a general question, adjusting target numbers, or talking about something else.',
+      });
+    }
+
     return { allFields, pendingIsNumeric };
   }
 
   private applyStage2ExtractionResults(results: any, pendingIsNumeric: boolean, text: string = ''): void {
     const field = this.currentPendingField;
     let anyUpdates = false;
+
+    // Handle LLM-classified submission intent during Stage 2.5
+    if (results.submit_review_intent?.value === 'submit') {
+      console.log(`[context-manager] Stage 2.5: submit_review_intent extracted via LLM -> transitioning to Stage 4 (AUS findings)!`);
+      (this.profile as any).submit_review_requested = true;
+      this.profile.affordability_panel_rendered = false;
+      (this.profile as any).affordability_panel_closed = true;
+      this.profile.aus_status = 'refer';
+      this.activeStage = '4';
+      this.currentPendingField = 'aus_findings_delivered';
+      return;
+    }
 
     // Process categorical fields
     if (results.credit_range?.value && !this.profile.credit_range_confirmed) {

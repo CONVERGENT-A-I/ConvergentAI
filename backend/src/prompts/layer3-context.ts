@@ -316,7 +316,11 @@ export function buildLayer3TurnContext(
       }
       taskLine = `CURRENT TASK:\nConfirm the value of "${profile.pending_confirm_value}" for ${label}. Do NOT ask for the next field yet.`;
     } else if (pendingField === 'property_type') {
-      taskLine = `CURRENT TASK:\nCollect property_type and zip_code together in ONE question.\n\nAsk EXACTLY this (adapt naturally to conversation): "What type of property are you considering — a single-family home, condo, townhome, or something else? And do you have a particular area or zip code in mind?"\nThis is Q42. You must ask for BOTH the property type AND the location/zip code in the same question. Do NOT split into two turns.`;
+      taskLine = `CURRENT TASK:\nCollect property_type and zip_code\n\nAsk EXACTLY this: "What type of home are you looking for — such as a single-family home, condo, townhome, or multi-family — and what city or zip code are you looking in?"\nDO NOT ASK FOR ANY OTHER FIELD.`;
+    } else if (pendingField === 'military_rural') {
+      const hasCoBorrower = profile.co_borrower === 'yes';
+      const coBorrowerPhrase = hasCoBorrower ? 'you or a co-borrower' : 'you';
+      taskLine = `CURRENT TASK:\nCollect military_rural\n\nAsk EXACTLY this: "Now, do ${coBorrowerPhrase} have any military service history — such as being on active duty, a veteran, or in the Reserve or National Guard?"\nDO NOT ASK FOR ANY OTHER FIELD.`;
     } else if (pendingField) {
       taskLine = `CURRENT TASK:\nCollect ${pendingField}\n\nDO NOT ASK FOR ANY OTHER FIELD.`;
     } else {

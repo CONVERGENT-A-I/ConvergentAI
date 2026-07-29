@@ -111,7 +111,7 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ event, durationMs, details }),
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   // Monitor playout volume to measure turn-by-turn speech playout start/end
@@ -171,7 +171,7 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
 
       return () => {
         cancelAnimationFrame(animationId);
-        audioContext.close().catch(() => {});
+        audioContext.close().catch(() => { });
       };
     } catch (e) {
       console.warn("[LemonsliceAvatar] Failed to start playout volume monitor:", e);
@@ -223,7 +223,7 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
         playsInline
         className="absolute inset-0 w-full h-full object-contain z-10"
       />
-      
+
       {/* HTML Audio Element for playing LemonSlice audio stream */}
       <audio ref={audioRef} autoPlay />
 
