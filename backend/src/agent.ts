@@ -204,7 +204,11 @@ class AilanaVoiceAgent extends voice.Agent {
     }
 
     // ── 0ms Parallel Fast-Path for Stage 2 Completion ──
-    const isAnsweringJobTenure = pending === 'job_tenure_type' && /\b(salaried|hourly|self-employed|years|year|months|month|working|employed|contract)\b/i.test(lastUserText);
+    const isAnsweringJobTenure =
+      (pending === 'job_tenure_type' || pending === 'stage2_closing_offer') &&
+      !this._stage2ClosingOfferDelivered &&
+      (/\b(salary|salaried|hourly|self-employed|self employed|years|year|months|month|working|employed|contract|w2|1099|full-time|part-time|full time|part time)\b/i.test(lastUserText) ||
+       /\d+/.test(lastUserText));
 
     if (pending === 'stage2_closing_offer' || isAnsweringJobTenure) {
       if (isAnsweringJobTenure) {
@@ -287,6 +291,24 @@ class AilanaVoiceAgent extends voice.Agent {
       return createVerbatimStream(scriptText) as any;
     }
 
+    // ── 0ms Verbal Submit Fast-Path (Stage 2.5) ──
+    // Fires before LLM so the base Cerebras model never produces a UI-redirect deflection.
+    const ausAlreadyDone = !!(profile as any).aus_status;
+    const inAffordabilityStage = this.contextManager.getActiveStage() === '2.5' || pending === 'affordability_panel_active';
+    const verbalSubmitPattern = /\b(submit\s*(for\s*me|it|review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|do\s+it\s+for\s+me|send\s+it|yes\s+submit|let'?s\s+submit)\b/i;
+    if (!ausAlreadyDone && inAffordabilityStage && verbalSubmitPattern.test(lastUserText)) {
+      console.log(`[agent-hook]: 0ms Verbal Submit Fast-Path triggered — executing AUS findings immediately without LLM call!`);
+      profile.affordability_panel_rendered = false;
+      (profile as any).affordability_panel_closed = true;
+      profile.aus_status = 'refer';
+      this.contextManager.setActiveStage('4');
+      this.contextManager.setCurrentPendingField('aus_findings_delivered');
+
+      const name = profile.borrower_name;
+      const scriptText = `Thank you for your patience${name ? `, ${name}` : ''} — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;
+      return createVerbatimStream(scriptText) as any;
+    }
+
     if ((profile as any).submit_review_requested || pending === 'aus_findings_delivered') {
       (profile as any).submit_review_requested = false;
       console.log(`[agent-hook]: LLM-classified submission request detected — executing submission and delivering findings!`);
@@ -294,6 +316,7 @@ class AilanaVoiceAgent extends voice.Agent {
       (profile as any).affordability_panel_closed = true;
       profile.aus_status = 'refer';
       this.contextManager.setActiveStage('4');
+      this.contextManager.setCurrentPendingField('aus_findings_delivered');
 
       const name = profile.borrower_name;
       const scriptText = `Thank you for your patience${name ? `, ${name}` : ''} — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;

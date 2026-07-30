@@ -1515,8 +1515,9 @@ export class SessionContextManager {
       });
     }
 
-    // Stage 2.5 submission intent classification
-    if ((this.activeStage === '2.5' || field === 'affordability_panel_active') && !allFields.some(f => f.name === 'submit_review_intent')) {
+    // Stage 2.5 submission intent classification — skip entirely if AUS review already completed to prevent double-submission
+    const ausAlreadyCompleted = !!(this.profile as any).aus_status;
+    if (!ausAlreadyCompleted && (this.activeStage === '2.5' || field === 'affordability_panel_active') && !allFields.some(f => f.name === 'submit_review_intent')) {
       allFields.push({
         name: 'submit_review_intent',
         description: 'whether the borrower wants to submit their scenario/summary for formal eligibility review',
@@ -1524,7 +1525,9 @@ export class SessionContextManager {
         additionalInstructions:
           'Classify if the borrower indicates readiness or intent to submit their scenario for formal review or underwriting. ' +
           'Extract "submit" for: "submit", "submit for review", "run the review", "send it", "looks good", "submit this for me", ' +
-          '"I\'m ready", "go ahead", "let\'s move forward", "check eligibility", "proceed with review", "send my scenario". ' +
+          '"can you submit", "can you submit for me", "please submit", "do it for me", "submit it for me", "you can submit", ' +
+          '"submit my review", "submit the review", "go ahead and submit", "I\'m ready", "go ahead", "let\'s move forward", ' +
+          '"check eligibility", "proceed with review", "send my scenario", "submit now", "yes please submit". ' +
           'Return null if the borrower is asking a general question, adjusting target numbers, or talking about something else.',
       });
     }
@@ -1585,8 +1588,9 @@ export class SessionContextManager {
       console.log(`[context-manager] Stage2: refinance_type=${rt}`);
     }
 
-    const pt = results.property_type?.value;
-    if ((pt === 'single_family' || pt === 'condo' || pt === 'townhome' || pt === 'multi_family' || pt === 'other') && !this.profile.property_type_confirmed) {
+    const rawPt = results.property_type?.value;
+    const pt = sanitizePropertyType(rawPt);
+    if (pt && !this.profile.property_type_confirmed) {
       this.profile.property_type = pt;
       this.profile.property_type_confirmed = true;
       anyUpdates = true;
@@ -1602,7 +1606,7 @@ export class SessionContextManager {
         this.profile.military_rural = 'rural';
         console.log(`[context-manager] Stage2: system-side USDA eligibility determined for area: ${zipData.zip || text}`);
       }
-      console.log(`[context-manager] Stage2: property_type=${pt}`);
+      console.log(`[context-manager] Stage2: property_type=${pt} (raw: ${rawPt})`);
     }
 
     // Also apply LLM-extracted zip_code from Q42 combined question
@@ -1760,7 +1764,7 @@ export class SessionContextManager {
       this.profile.down_payment = declined ? null : numVal;
       this.profile.down_payment_confirmed = true;
     } else if (field === 'target_price') {
-      this.profile.target_price = declined ? null : numVal;
+      this.profile.target_price = (declined || !numVal) ? 350000 : numVal;
       this.profile.target_price_confirmed = true;
     }
 
@@ -2517,4 +2521,28 @@ export function sanitizeCreditScore(input: string | number | null | undefined): 
   }
 
   return str;
+}
+
+export function sanitizePropertyType(val: string | null | undefined): 'single_family' | 'condo' | 'townhome' | 'multi_family' | 'other' | null {
+  if (!val || typeof val !== 'string') return null;
+  const v = val.toLowerCase().trim();
+  if (!v || v === 'null' || v === 'none' || v === 'undefined') return null;
+
+  if (v.includes('multi') || v.includes('duplex') || v.includes('triplex') || v.includes('fourplex') || v.includes('2 family') || v.includes('two family') || v.includes('2-family')) {
+    return 'multi_family';
+  }
+  if (v.includes('condo') || v.includes('condominium')) {
+    return 'condo';
+  }
+  if (v.includes('town')) {
+    return 'townhome';
+  }
+  if (v.includes('single') || v.includes('house') || v.includes('detached')) {
+    return 'single_family';
+  }
+
+  // ── Universal Catch-All Safety Net ──
+  // Any non-empty property type response (e.g. "co-op", "manufactured home", "cabin", "land")
+  // automatically falls back to 'other' so property_type_confirmed is set to true and the workflow NEVER stalls!
+  return 'other';
 }

@@ -246,7 +246,7 @@ export default function FloatingCTA() {
         process.env.NEXT_PUBLIC_BACKEND_URL ||
         (process.env.NODE_ENV === "development"
           ? "http://localhost:3001"
-          : "https://be.convergentai.tech");
+          : "");//"https://be.convergentai.tech");
       const response = await fetch(`${backendUrl}/api/get-token`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

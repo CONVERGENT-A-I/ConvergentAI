@@ -106,7 +106,7 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
       process.env.NEXT_PUBLIC_BACKEND_URL ||
       (process.env.NODE_ENV === "development"
         ? "http://localhost:3001"
-        : "https://dev-be.convergentai.tech");
+        : "");// "https://dev-be.convergentai.tech");
     fetch(`${backendUrl}/api/log-telemetry`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
