@@ -1234,21 +1234,24 @@ export default function FloatingCTA() {
                                 }}
                                 mode={borrowerProfile?.affordability_mode ?? 'verified'}
                                 borrowerProfile={borrowerProfile}
-                                onUpgrade={() => {
+                                onUpgrade={async () => {
+                                  setIsAffordabilityPanelOpen(false);
+                                  setPanelClosedByUser(true);
                                   if ((window as any).lkPublishData) {
-                                    (window as any).lkPublishData({ message: 'SYSTEM_STAGE_UPDATE_UPGRADE' });
+                                    const encoder = new TextEncoder();
+                                    const payload = encoder.encode(JSON.stringify({
+                                      message: 'SYSTEM_STAGE_UPDATE_UPGRADE'
+                                    }));
+                                    await (window as any).lkPublishData(payload, {
+                                      topic: "lk-chat",
+                                      reliable: true,
+                                    });
                                   }
                                 }}
                                 onSubmitSuccess={async (status) => {
                                   // Close panel on submit click
                                   setIsAffordabilityPanelOpen(false);
                                   setPanelClosedByUser(true);
-
-                                  if (!borrowerProfile?.session_login_complete && !borrowerProfile?.otp_verified) {
-                                    isSubmittingAfterOtpRef.current = true;
-                                    setIsOtpModalOpen(true);
-                                    return;
-                                  }
 
                                   console.log('[ui-affordability]: Submitted AUS status:', status);
                                   try {

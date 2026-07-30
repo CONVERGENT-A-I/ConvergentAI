@@ -105,6 +105,10 @@ export function AffordabilityPanel({
   };
 
   const handleSubmit = async () => {
+    if (mode === 'stated' && onUpgrade) {
+      onUpgrade();
+      return;
+    }
     setIsSubmitting(true);
     try {
       const res = await fetch('/api/affordability/submit', {
@@ -280,32 +284,31 @@ export function AffordabilityPanel({
 
       {/* Buttons */}
       <div className="flex gap-2">
-        {mode === 'stated' && onUpgrade && (
+        {mode === 'stated' && onUpgrade ? (
           <button
             type="button"
             onClick={onUpgrade}
-            className="flex-1 py-3 bg-[#1e293b] hover:bg-[#334155] text-white font-semibold text-xs rounded-lg border border-gray-700 transition duration-200"
+            className="w-full py-3 bg-[#00b4d8] hover:bg-[#0096c7] text-black font-semibold text-sm rounded-lg transition duration-200 cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-[#00b4d8]/20 active:scale-[0.99]"
           >
             Upgrade to Verified Mode
           </button>
+        ) : (
+          <button
+            id="affordability-submit-btn"
+            onClick={handleSubmit}
+            disabled={false}
+            className="w-full py-3 bg-[#00b4d8] hover:bg-[#0096c7] text-black font-semibold text-sm rounded-lg transition duration-200 cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-[#00b4d8]/20 active:scale-[0.99]"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-black" />
+                <span>Reviewing...</span>
+              </>
+            ) : (
+              <span>Submit for review</span>
+            )}
+          </button>
         )}
-        <button
-          id="affordability-submit-btn"
-          onClick={handleSubmit}
-          disabled={false}
-          className={`py-3 bg-[#00b4d8] hover:bg-[#0096c7] text-black font-semibold text-sm rounded-lg transition duration-200 flex items-center justify-center gap-2 shadow-lg shadow-[#00b4d8]/20 active:scale-[0.99] ${
-            mode === 'stated' && onUpgrade ? 'flex-1' : 'w-full'
-          }`}
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin text-black" />
-              <span>Reviewing...</span>
-            </>
-          ) : (
-            <span>Submit for review</span>
-          )}
-        </button>
       </div>
     </div>
   );

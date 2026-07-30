@@ -573,15 +573,22 @@ export class SessionContextManager {
       );
 
       if (res.value === 'submit') {
-        this.profile.affordability_submitted = true;
-        this.profile.affordability_aus_status = 'pending';
-        this.currentPendingField = 'affordability_aus_pending';
-        console.log('[context-manager]: Affordability panel EXPLICITLY submitted for review! AUS pending.');
+        if (this.profile.affordability_mode === 'stated' || !this.profile.otp_verified) {
+          // Voice submit in stated mode -> triggers upgrade flow
+          this.activeStage = '3A';
+          this.currentPendingField = 'contact_email';
+          console.log('[context-manager]: Voice submit in stated mode -> triggering upgrade (Stage 3A contact_email).');
+        } else {
+          // Voice submit in verified mode -> executes AUS submission
+          this.profile.affordability_submitted = true;
+          this.applyAusResult('approve_eligible');
+          console.log('[context-manager]: Affordability panel EXPLICITLY submitted for review via voice! AUS result applied.');
+        }
       } else if (res.value === 'upgrade') {
         // Trigger upgrade to verified mode — set pending to OTP gate
         this.activeStage = '3A';
         this.currentPendingField = 'contact_email';
-        console.log('[context-manager]: Affordability panel upgrade to verified mode requested. Going to OTP gate.');
+        console.log('[context-manager]: Affordability panel upgrade to verified mode requested via voice. Going to OTP gate.');
       } else if (res.value === 'update_profile') {
         this.currentPendingField = 'affordability_profile_correction';
       } else if (res.value === 'delete_data') {
@@ -657,6 +664,13 @@ export class SessionContextManager {
     this.activeStage = '2.5';
     this.currentPendingField = result === 'approve_eligible' ? 'fd1_delivery' : 'fd2_delivery';
     console.log(`[context-manager]: Applied AUS result: ${result} -> pending field set to ${this.currentPendingField}`);
+  }
+
+  public triggerUpgradeToVerifiedMode(): void {
+    this.activeStage = '3A';
+    this.currentPendingField = 'contact_email';
+    this.profile.transition_pitch_delivered = true;
+    console.log('[context-manager]: Explicit upgrade to verified mode triggered! Active stage set to 3A, pending field set to contact_email.');
   }
 
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢

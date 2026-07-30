@@ -995,6 +995,23 @@ export default defineAgent({
         return;
       }
 
+      if (messageText === 'SYSTEM_STAGE_UPDATE_UPGRADE') {
+        console.log(`[agent]: SYSTEM_STAGE_UPDATE_UPGRADE received. Triggering upgrade to Stage 3A.`);
+        contextManager.triggerUpgradeToVerifiedMode();
+        updateSessionInstructions();
+        await sendStageUpdate(contextManager.getActiveStage());
+
+        const triggerPrompt = `The borrower clicked 'Upgrade to Verified Mode' on their screen. Transition to Stage 3A by asking for their email and mobile number to set up their secure login for the soft credit review.`;
+        if (voiceMuted) {
+          await generateTextOnlyReply(triggerPrompt);
+        } else {
+          metrics.startTurn();
+          metrics.markGenerateReply();
+          session.generateReply({ userInput: triggerPrompt });
+        }
+        return;
+      }
+
       if (messageText === 'SYSTEM_TRANSFER_MLO') {
         isHibernating = true;
         console.log(`[agent]: 🛌 Agent hibernating for MLO transfer. Shutting down audio pipeline...`);
