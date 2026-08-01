@@ -53,6 +53,8 @@ backend/.dockerignore
 
 # DevOps tools changes
 Dockerfile
+backend.Dockerfile
+frontend.Dockerfile
 docker-compose.yaml
 .dockerignore
 
