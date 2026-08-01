@@ -1359,6 +1359,13 @@ export class SessionContextManager {
       this.profile.borrower_name = extractionResults.borrower_name.value as string;
       this.profile.borrower_name_confirmed = true;
       anyUpdates = true;
+    } else if (!this.profile.borrower_name_confirmed) {
+      const match = text.match(/\b(?:my name is|i am|i'm|call me|name's)\s+([A-Z][a-z]+|[a-z]+)\b/i);
+      if (match && match[1] && !['a', 'the', 'looking', 'buying', 'interested', 'here', 'not', 'no'].includes(match[1].toLowerCase())) {
+        this.profile.borrower_name = match[1].charAt(0).toUpperCase() + match[1].slice(1);
+        this.profile.borrower_name_confirmed = true;
+        anyUpdates = true;
+      }
     }
     const mgRaw = extractionResults.mortgage_goal?.value;
     const mgVal = typeof mgRaw === 'string' ? mgRaw.toLowerCase().trim() : null;
@@ -1865,6 +1872,21 @@ export class SessionContextManager {
     }
     // Ã¢â€â‚¬Ã¢â€â‚¬ Stage 1 Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
     if (this.activeStage === '1') {
+      // Boundary guard: if all core Stage 1 fields are confirmed, auto-confirm borrower_name (defaulting to Valued Member if missing)
+      if (
+        !this.profile.borrower_name_confirmed &&
+        this.profile.mortgage_goal_confirmed &&
+        this.profile.occupancy_confirmed &&
+        this.profile.existing_relationship_confirmed &&
+        this.profile.timeline_confirmed &&
+        this.profile.co_borrower_confirmed
+      ) {
+        if (!this.profile.borrower_name) {
+          this.profile.borrower_name = 'Valued Member';
+        }
+        this.profile.borrower_name_confirmed = true;
+      }
+
       if (!this.profile.borrower_name_confirmed) {
         this.currentPendingField = 'borrower_name';
       } else if (!this.profile.mortgage_goal_confirmed) {

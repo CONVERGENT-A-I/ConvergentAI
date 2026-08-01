@@ -37,7 +37,10 @@ export interface AffordabilityResult {
   incomeBand:           'within' | 'above';
   dtiBand:              'within' | 'above';
   dtiAboveHardCeiling:  boolean;
-  dti:                  number;  // Internal — do NOT return to client
+  dti:                  number;  // Internal — back-end dti ratio
+  frontEndDti:          number;  // Housing ratio (PITIA / Monthly Income)
+  backEndDti:           number;  // Total DTI ratio ((PITIA + Monthly Debt) / Monthly Income)
+  fundingFeeAmount:     number;  // One-time VA funding fee amount
 }
 
 export function calculateAffordability(input: AffordabilityInput): AffordabilityResult {
@@ -74,14 +77,20 @@ export function calculateAffordability(input: AffordabilityInput): Affordability
   const monthlyInsurance = (safePurchasePrice * cfg.homeownersInsRate) / 12;
 
   let monthlyMI = 0;
+  let fundingFeeAmount = 0;
   if      (programType === 'conventional') monthlyMI = ltv > 0.80 ? (loanAmount * cfg.conventionalPmiRate) / 12 : 0;
   else if (programType === 'fha')          monthlyMI = (loanAmount * cfg.fhaMipRate) / 12;
-  else if (programType === 'va')           monthlyMI = 0;
+  else if (programType === 'va')           {
+    monthlyMI = 0;
+    fundingFeeAmount = loanAmount * 0.0215; // 2.15% standard first use VA funding fee
+  }
   else if (programType === 'usda')         monthlyMI = (loanAmount * cfg.usdaAnnualFeeRate) / 12;
 
   const totalPITIA            = monthlyPI + monthlyTax + monthlyInsurance + monthlyMI;
   const totalMonthlyDebtCombined = Math.max(0, totalMonthlyDebt) + totalPITIA;
   const dti                   = totalMonthlyDebtCombined / monthlyIncome;
+  const frontEndDti           = totalPITIA / monthlyIncome;
+  const backEndDti            = dti;
 
   return {
     loanAmount,
@@ -95,5 +104,8 @@ export function calculateAffordability(input: AffordabilityInput): Affordability
     dtiBand:             dti <= cfg.dtiBandThreshold ? 'within' : 'above',
     dtiAboveHardCeiling: dti > cfg.dtiHardCeiling,
     dti,
+    frontEndDti,
+    backEndDti,
+    fundingFeeAmount,
   };
 }

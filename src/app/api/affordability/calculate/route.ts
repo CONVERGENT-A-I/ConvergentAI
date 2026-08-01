@@ -15,13 +15,15 @@ export async function POST(req: NextRequest) {
       zipCode:           zipCode ? String(zipCode) : undefined,
     });
 
-    // IMPORTANT: Compliance rule — raw dti percentage is NOT returned to client
     return NextResponse.json({
       totalPITIA:          Math.round(result.totalPITIA),
       monthlyMI:           Math.round(result.monthlyMI),
       incomeBand:          result.incomeBand,
       dtiBand:             result.dtiBand,
       dtiAboveHardCeiling: result.dtiAboveHardCeiling,
+      frontEndDti:         Math.round(result.frontEndDti * 100),
+      backEndDti:          Math.round(result.backEndDti * 100),
+      fundingFeeAmount:    Math.round(result.fundingFeeAmount),
     });
   } catch (error: any) {
     console.error('[API-Affordability-Calculate] Error:', error);

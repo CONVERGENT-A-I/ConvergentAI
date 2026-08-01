@@ -15,6 +15,7 @@ export interface AffordabilityPanelProps {
   onSubmitSuccess?: (status: 'approve_eligible' | 'refer') => void;
   borrowerName?: string;
   eligiblePrograms?: ('conventional' | 'fha' | 'va' | 'usda')[];
+  isSubmitted?: boolean;
   className?: string;
 }
 
@@ -30,11 +31,13 @@ export function AffordabilityPanel({
   onSubmitSuccess,
   borrowerName,
   eligiblePrograms = ['conventional', 'fha', 'va', 'usda'],
+  isSubmitted = false,
   className = '',
 }: AffordabilityPanelProps) {
   const [purchasePrice, setPurchasePrice] = useState<number>(initialPurchasePrice);
   const [downPayment, setDownPayment] = useState<number>(initialDownPayment);
   const [activeProgram, setActiveProgram] = useState<'conventional' | 'fha' | 'va' | 'usda'>(programType);
+  const [hasSubmittedLocally, setHasSubmittedLocally] = useState<boolean>(false);
   const userEdited = useRef(false);
 
   // Sync state if initial props change (e.g. profile loaded from backend)
@@ -53,6 +56,9 @@ export function AffordabilityPanel({
 
   const [totalPITIA, setTotalPITIA] = useState<number>(0);
   const [monthlyMI, setMonthlyMI] = useState<number>(0);
+  const [frontEndDti, setFrontEndDti] = useState<number>(0);
+  const [backEndDti, setBackEndDti] = useState<number>(0);
+  const [fundingFeeAmount, setFundingFeeAmount] = useState<number>(0);
   const [incomeBand, setIncomeBand] = useState<'within' | 'above'>('within');
   const [dtiBand, setDtiBand] = useState<'within' | 'above'>('within');
   const [isCalculating, setIsCalculating] = useState<boolean>(false);
@@ -82,6 +88,9 @@ export function AffordabilityPanel({
           setMonthlyMI(data.monthlyMI);
           setIncomeBand(data.incomeBand);
           setDtiBand(data.dtiBand);
+          if (data.frontEndDti !== undefined) setFrontEndDti(data.frontEndDti);
+          if (data.backEndDti !== undefined) setBackEndDti(data.backEndDti);
+          if (data.fundingFeeAmount !== undefined) setFundingFeeAmount(data.fundingFeeAmount);
         }
       } catch (err) {
         console.error('[AffordabilityPanel] Calculation failed:', err);
@@ -133,6 +142,7 @@ export function AffordabilityPanel({
 
       if (res.ok) {
         const data = await res.json();
+        setHasSubmittedLocally(true);
         if (onSubmitSuccess) {
           onSubmitSuccess(data.ausStatus);
         }
@@ -149,8 +159,12 @@ export function AffordabilityPanel({
 
   const miDisplay =
     activeProgram === 'va'
-      ? '$0/mo — one-time funding fee applies at closing'
+      ? fundingFeeAmount > 0 
+        ? `$0/mo — $${fundingFeeAmount.toLocaleString()} VA Funding Fee (one-time)`
+        : '$0/mo — one-time funding fee applies at closing'
       : `$${monthlyMI.toLocaleString()}/mo`;
+
+  const submitDisabled = isSubmitted || hasSubmittedLocally || isSubmitting;
 
   return (
     <div className={`flex flex-col bg-[#0b0f19] border border-gray-800 rounded-xl p-5 text-white shadow-2xl ${className}`}>
@@ -215,6 +229,24 @@ export function AffordabilityPanel({
           </span>
           <span className="text-lg font-bold text-gray-200">
             ${totalMonthlyDebt.toLocaleString()}
+          </span>
+        </div>
+        <div className="bg-[#111827] p-3 rounded-xl border border-gray-800">
+          <span className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+            AVAILABLE FUNDS (STATED)
+          </span>
+          <span className="text-lg font-bold text-emerald-400">
+            ${downPayment.toLocaleString()}
+          </span>
+        </div>
+        <div className="bg-[#111827] p-3 rounded-xl border border-gray-800">
+          <span className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+            HOUSING & TOTAL DTI
+          </span>
+          <span className="text-sm font-bold text-sky-400 flex items-center gap-1 mt-1">
+            <span>Housing: {frontEndDti}%</span>
+            <span className="text-gray-500">|</span>
+            <span>Total: {backEndDti}%</span>
           </span>
         </div>
       </div>
@@ -345,14 +377,20 @@ export function AffordabilityPanel({
           <button
             id="affordability-submit-btn"
             onClick={handleSubmit}
-            disabled={false}
-            className="w-full py-3 bg-[#00b4d8] hover:bg-[#0096c7] text-black font-semibold text-sm rounded-lg transition duration-200 cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-[#00b4d8]/20 active:scale-[0.99]"
+            disabled={submitDisabled}
+            className={`w-full py-3 font-semibold text-sm rounded-lg transition duration-200 flex items-center justify-center gap-2 shadow-lg ${
+              submitDisabled
+                ? 'bg-gray-700 text-gray-400 border border-gray-600 cursor-not-allowed shadow-none'
+                : 'bg-[#00b4d8] hover:bg-[#0096c7] text-black cursor-pointer shadow-[#00b4d8]/20 active:scale-[0.99]'
+            }`}
           >
             {isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin text-black" />
                 <span>Reviewing...</span>
               </>
+            ) : submitDisabled ? (
+              <span>Review Submitted ✓</span>
             ) : (
               <span>Submit for review</span>
             )}

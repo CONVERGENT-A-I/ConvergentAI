@@ -38,6 +38,15 @@ export function AffordabilityModal({
   // Default to VA if eligible, else conventional
   const program = eligiblePrograms.includes('va') ? 'va' : 'conventional';
   const borrowerName = borrowerProfile?.borrower_name ?? borrowerProfile?.borrowerName;
+  const isSubmitted = !!(
+    borrowerProfile?.affordability_submitted ||
+    borrowerProfile?.affordability_aus_status ||
+    borrowerProfile?.aus_status ||
+    borrowerProfile?.ausStatus ||
+    borrowerProfile?.stage === '3A' ||
+    borrowerProfile?.stage === '3B' ||
+    borrowerProfile?.stage === '4'
+  );
 
   return (
     <AnimatePresence>
@@ -110,6 +119,7 @@ export function AffordabilityModal({
               onSubmitSuccess={onSubmitSuccess}
               borrowerName={borrowerName}
               eligiblePrograms={eligiblePrograms}
+              isSubmitted={isSubmitted}
             />
           </div>
         </motion.div>
