@@ -13,6 +13,8 @@ export interface AffordabilityPanelProps {
   mode?: 'stated' | 'verified';
   onUpgrade?: () => void;
   onSubmitSuccess?: (status: 'approve_eligible' | 'refer') => void;
+  borrowerName?: string;
+  eligiblePrograms?: ('conventional' | 'fha' | 'va' | 'usda')[];
   className?: string;
 }
 
@@ -26,10 +28,13 @@ export function AffordabilityPanel({
   mode = 'verified',
   onUpgrade,
   onSubmitSuccess,
+  borrowerName,
+  eligiblePrograms = ['conventional', 'fha', 'va', 'usda'],
   className = '',
 }: AffordabilityPanelProps) {
   const [purchasePrice, setPurchasePrice] = useState<number>(initialPurchasePrice);
   const [downPayment, setDownPayment] = useState<number>(initialDownPayment);
+  const [activeProgram, setActiveProgram] = useState<'conventional' | 'fha' | 'va' | 'usda'>(programType);
   const userEdited = useRef(false);
 
   // Sync state if initial props change (e.g. profile loaded from backend)
@@ -66,7 +71,7 @@ export function AffordabilityPanel({
             downPayment: down,
             grossAnnualIncome,
             totalMonthlyDebt,
-            programType,
+            programType: activeProgram,
             zipCode,
           }),
         });
@@ -84,13 +89,13 @@ export function AffordabilityPanel({
         setIsCalculating(false);
       }
     },
-    [grossAnnualIncome, totalMonthlyDebt, programType, zipCode]
+    [grossAnnualIncome, totalMonthlyDebt, activeProgram, zipCode]
   );
 
-  // Debounced recalculation on slider changes
+  // Debounced recalculation on slider changes or program change
   useEffect(() => {
     fetchCalculation(purchasePrice, downPayment);
-  }, [purchasePrice, downPayment, zipCode, fetchCalculation]);
+  }, [purchasePrice, downPayment, zipCode, activeProgram, fetchCalculation]);
 
   const handlePurchasePriceChange = (val: number) => {
     userEdited.current = true;
@@ -121,6 +126,7 @@ export function AffordabilityPanel({
             affordability_mode: mode,
           },
           sliderValues: { purchasePrice, downPayment },
+          programType: activeProgram,
           mode,
         }),
       });
@@ -142,7 +148,7 @@ export function AffordabilityPanel({
   const estimatedCashToClose = downPayment + estimatedClosingCosts;
 
   const miDisplay =
-    programType === 'va'
+    activeProgram === 'va'
       ? '$0/mo — one-time funding fee applies at closing'
       : `$${monthlyMI.toLocaleString()}/mo`;
 
@@ -155,19 +161,62 @@ export function AffordabilityPanel({
           : 'This is an educational estimate, not a loan decision or offer of credit.'}
       </div>
 
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-base font-semibold text-gray-200 uppercase tracking-wider">
-          Your Affordability Summary
-        </h2>
-        <span
-          className={`text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full border ${
-            mode === 'stated'
-              ? 'bg-amber-950/60 text-amber-300 border-amber-500/40'
-              : 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
-          }`}
-        >
-          {mode === 'stated' ? 'Stated Mode' : 'Verified Mode'}
-        </span>
+      <div className="flex flex-col mb-4">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-base font-semibold text-gray-200 uppercase tracking-wider">
+            Your Affordability Summary
+          </h2>
+          <span
+            className={`text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full border ${
+              mode === 'stated'
+                ? 'bg-amber-950/60 text-amber-300 border-amber-500/40'
+                : 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
+            }`}
+          >
+            {mode === 'stated' ? 'Stated Mode' : 'Verified Mode'}
+          </span>
+        </div>
+        <div className="text-xs text-gray-400 font-medium">
+          Sample profile{borrowerName ? ` - ${borrowerName}` : ''}
+        </div>
+      </div>
+
+      {/* Program Tabs */}
+      <div className="flex gap-2 mb-5">
+        {eligiblePrograms.map((type) => (
+          <button
+            key={type}
+            type="button"
+            onClick={() => setActiveProgram(type)}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold uppercase tracking-wider border transition-colors cursor-pointer ${
+              activeProgram === type
+                ? 'bg-[#00b4d8]/10 text-[#00b4d8] border-[#00b4d8]/30'
+                : 'bg-gray-800/30 text-gray-500 border-transparent hover:bg-gray-800/60 hover:text-gray-300'
+            }`}
+          >
+            {type === 'conventional' ? 'CONV' : type}
+          </button>
+        ))}
+      </div>
+
+      {/* Input Metric Cards */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="bg-[#111827] p-3 rounded-xl border border-gray-800">
+          <span className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+            GROSS MONTHLY INCOME
+          </span>
+          <span className="text-lg font-bold text-gray-200">
+            ${Math.round(grossAnnualIncome / 12).toLocaleString()}
+          </span>
+        </div>
+        <div className="bg-[#111827] p-3 rounded-xl border border-gray-800">
+          <span className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+            MONTHLY DEBTS (EST.)
+          </span>
+          <span className="text-lg font-bold text-gray-200">
+            ${totalMonthlyDebt.toLocaleString()}
+          </span>
+        </div>
       </div>
 
       {/* Status Bands */}

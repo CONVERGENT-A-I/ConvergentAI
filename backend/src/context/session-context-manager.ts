@@ -1362,13 +1362,15 @@ export class SessionContextManager {
     }
     const mgRaw = extractionResults.mortgage_goal?.value;
     const mgVal = typeof mgRaw === 'string' ? mgRaw.toLowerCase().trim() : null;
-    if (mgVal === 'purchase' || mgVal === 'refinance' || mgVal === 'equity') {
-      this.profile.mortgage_goal = mgVal;
+    if (mgVal && (mgVal.includes('purchase') || mgVal.includes('refinance') || mgVal.includes('equity'))) {
+      this.profile.mortgage_goal = mgVal.includes('purchase') ? 'purchase' : mgVal.includes('refinance') ? 'refinance' : 'equity';
       this.profile.mortgage_goal_confirmed = true;
       anyUpdates = true;
     }
-    if (extractionResults.occupancy && (extractionResults.occupancy.value === 'primary' || extractionResults.occupancy.value === 'secondary' || extractionResults.occupancy.value === 'investment')) {
-      this.profile.occupancy = extractionResults.occupancy.value;
+    const occRaw = extractionResults.occupancy?.value;
+    const occVal = typeof occRaw === 'string' ? occRaw.toLowerCase().trim() : null;
+    if (occVal && (occVal.includes('primary') || occVal.includes('secondary') || occVal.includes('investment'))) {
+      this.profile.occupancy = occVal.includes('primary') ? 'primary' : occVal.includes('secondary') ? 'secondary' : 'investment';
       this.profile.occupancy_confirmed = true;
       anyUpdates = true;
     }

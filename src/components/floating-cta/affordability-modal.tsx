@@ -29,7 +29,15 @@ export function AffordabilityModal({
   const income = borrowerProfile?.gross_annual_income ?? borrowerProfile?.grossAnnualIncome ?? 120000;
   const debt = borrowerProfile?.monthly_debt ?? borrowerProfile?.totalMonthlyDebt ?? 500;
   const zipCode = borrowerProfile?.zip_code ?? borrowerProfile?.zipCode;
-  const program = borrowerProfile?.military_rural === 'military' ? 'va' : 'conventional';
+  
+  const eligiblePrograms: ('conventional' | 'fha' | 'va' | 'usda')[] = ['conventional', 'fha'];
+  const mr = borrowerProfile?.military_rural;
+  if (mr === 'military' || mr === 'both') eligiblePrograms.push('va');
+  if (mr === 'rural' || mr === 'both') eligiblePrograms.push('usda');
+  
+  // Default to VA if eligible, else conventional
+  const program = eligiblePrograms.includes('va') ? 'va' : 'conventional';
+  const borrowerName = borrowerProfile?.borrower_name ?? borrowerProfile?.borrowerName;
 
   return (
     <AnimatePresence>
@@ -100,6 +108,8 @@ export function AffordabilityModal({
               mode={mode}
               onUpgrade={onUpgrade}
               onSubmitSuccess={onSubmitSuccess}
+              borrowerName={borrowerName}
+              eligiblePrograms={eligiblePrograms}
             />
           </div>
         </motion.div>

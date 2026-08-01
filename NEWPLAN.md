@@ -1151,4 +1151,4 @@ According to v8.7, `Q43` has been revised to focus exclusively on military servi
 3. Update the state machine extraction logic in `session-context-manager.ts` so it no longer attempts to extract rural status from the borrower's response to `Q43`.
 
 **Result:**
-The `Q43` prompt correctly matches the v8.7 spec (military only), and rural qualification is purely system-determined based on the `Q42` zip code.
+The `Q43` prompt correctly matches the v8wlw.7 spec (military only), and rural qualification is purely system-determined based on the `Q42` zip code.

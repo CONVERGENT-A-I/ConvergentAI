@@ -38,29 +38,30 @@ import { sendPrequalLetterEmail } from './utils/email-sender.js';
 import { applicationService } from './services/application-service.js';
 import { isDatabaseEnabled } from './services/database.js';
 
-const cerebrasClient = new OpenAI({
-  apiKey: ailanaConfig.cerebrasApiKey,
-  baseURL: ailanaConfig.cerebrasBaseUrl,
+// Self-hosted GKE+A100 vLLM (Gemma 4) is now the SOLE LLM provider for the
+// main conversational LLM. Cerebras has been removed from this path — this
+// client always points at ailanaConfig.vllmBaseUrl.
+const primaryLlmClient = new OpenAI({
+  apiKey: ailanaConfig.vllmApiKey,
+  baseURL: ailanaConfig.vllmBaseUrl,
 });
 
-const originalCerebrasCreate = cerebrasClient.chat.completions.create.bind(cerebrasClient.chat.completions);
+const originalPrimaryLlmCreate = primaryLlmClient.chat.completions.create.bind(primaryLlmClient.chat.completions);
 
-cerebrasClient.chat.completions.create = (async function (body: any, options: any) {
+primaryLlmClient.chat.completions.create = (async function (body: any, options: any) {
   let lastErr: any = null;
-  if (body && body.model === 'gpt-oss-120b' && !body.reasoning_effort) {
-    body.reasoning_effort = ailanaConfig.cerebrasReasoningEffort;
-  }
-  // Retry once with backoff for transient Cerebras errors before falling back
+  // Retry once with backoff for transient errors before failing
+  const providerTag = 'vllm-proxy';
   for (let attempt = 0; attempt < 2; attempt++) {
     const t0 = Date.now();
     try {
       if (attempt === 0) {
-        console.log(`[cerebras-proxy][${ts()}] Sending request to Cerebras: model=${body.model}`);
+        console.log(`[${providerTag}][${ts()}] Sending request to ${ailanaConfig.vllmLabel}: model=${body.model}`);
       } else {
-        console.log(`[cerebras-proxy][${ts()}] Retry #${attempt} to Cerebras: model=${body.model}`);
+        console.log(`[${providerTag}][${ts()}] Retry #${attempt} to ${ailanaConfig.vllmLabel}: model=${body.model}`);
       }
 
-      const result = await originalCerebrasCreate(body, options);
+      const result = await originalPrimaryLlmCreate(body, options);
 
       // If it's a stream, intercept it to track first token, end stream timings, and log the full response
       if (result && typeof (result as any)[Symbol.asyncIterator] === 'function') {
@@ -76,13 +77,13 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
               const nextResult = await iterator.next();
               if (nextResult.done) {
                 const totalDur = Date.now() - t0;
-                console.log(`[cerebras-proxy][${ts()}] Stream complete (Total: ${totalDur}ms, chunks: ${accumulatedChunks.length})`);
+                console.log(`[${providerTag}][${ts()}] Stream complete (Total: ${totalDur}ms, chunks: ${accumulatedChunks.length})`);
                 return nextResult;
               }
               if (isFirst) {
                 isFirst = false;
                 const ttft = Date.now() - t0;
-                console.log(`[cerebras-proxy][${ts()}] First chunk/token received (TTFT: ${ttft}ms)`);
+                console.log(`[${providerTag}][${ts()}] First chunk/token received (TTFT: ${ttft}ms)`);
               }
               if (nextResult.value) {
                 accumulatedChunks.push(nextResult.value);
@@ -96,18 +97,18 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
         };
       } else {
         const dur = Date.now() - t0;
-        console.log(`[cerebras-proxy][${ts()}] Non-streaming response received (Dur: ${dur}ms)`);
+        console.log(`[${providerTag}][${ts()}] Non-streaming response received (Dur: ${dur}ms)`);
       }
 
       return result;
     } catch (err: any) {
       lastErr = err;
       const statusCode = err?.status ?? err?.statusCode;
-      console.warn(`[cerebras-proxy][${ts()}] Cerebras API error (status: ${statusCode}, attempt: ${attempt}):`, err?.message ?? err);
+      console.warn(`[${providerTag}][${ts()}] ${ailanaConfig.vllmLabel} API error (status: ${statusCode}, attempt: ${attempt}):`, err?.message ?? err);
 
       // Log full error body for HTTP 400
       if (statusCode === 400) {
-        console.error(`[cerebras-proxy][${ts()}] HTTP 400 full error response:`, JSON.stringify(err?.error ?? err?.body ?? { message: err?.message, code: err?.code, status: statusCode }, null, 2));
+        console.error(`[${providerTag}][${ts()}] HTTP 400 full error response:`, JSON.stringify(err?.error ?? err?.body ?? { message: err?.message, code: err?.code, status: statusCode }, null, 2));
       }
 
       // On first attempt with a retryable error, wait and retry once
@@ -116,7 +117,7 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
         continue;
       }
 
-      // No Groq fallback — propagate the Cerebras error directly
+      // No Groq fallback — propagate the error directly
       throw err;
     }
   }
@@ -124,8 +125,8 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
 } as any);
 
 
-class CerebrasLLM extends openai.LLM {
-  // gemma-4-31b does not support reasoning_effort or reasoning_format parameters.
+// PrimaryLLM: thin openai.LLM subclass wrapping the self-hosted vLLM client.
+class PrimaryLLM extends openai.LLM {
 }
 
 // Verbatim Stage 2 Closing Offer text — delivered via session.say() bypassing the LLM.
@@ -199,16 +200,12 @@ class AilanaVoiceAgent extends voice.Agent {
     const userAskedQuestion = isQuestionOrCorrection(lastUserText) || (profile as any).last_extracted_offer_val === 'explain';
     if (userAskedQuestion) {
       (profile as any).last_extracted_offer_val = null; // reset flag
-      console.log(`[agent-hook]: User turn contains question/explanation request ("${lastUserText}") — delegating to Cerebras LLM to answer dynamically.`);
+      console.log(`[agent-hook]: User turn contains question/explanation request ("${lastUserText}") — delegating to ${ailanaConfig.vllmLabel} to answer dynamically.`);
       return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
     }
 
     // ── 0ms Parallel Fast-Path for Stage 2 Completion ──
-    const isAnsweringJobTenure =
-      (pending === 'job_tenure_type' || pending === 'stage2_closing_offer') &&
-      !this._stage2ClosingOfferDelivered &&
-      (/\b(salary|salaried|hourly|self-employed|self employed|years|year|months|month|working|employed|contract|w2|1099|full-time|part-time|full time|part time)\b/i.test(lastUserText) ||
-       /\d+/.test(lastUserText));
+    const isAnsweringJobTenure = pending === 'job_tenure_type' && /\b(salaried|hourly|self-employed|years|year|months|month|working|employed|contract)\b/i.test(lastUserText);
 
     if (pending === 'stage2_closing_offer' || isAnsweringJobTenure) {
       if (isAnsweringJobTenure) {
@@ -291,24 +288,6 @@ class AilanaVoiceAgent extends voice.Agent {
       return createVerbatimStream(scriptText) as any;
     }
 
-    // ── 0ms Verbal Submit Fast-Path (Stage 2.5) ──
-    // Fires before LLM so the base Cerebras model never produces a UI-redirect deflection.
-    const ausAlreadyDone = !!(profile as any).aus_status;
-    const inAffordabilityStage = this.contextManager.getActiveStage() === '2.5' || pending === 'affordability_panel_active';
-    const verbalSubmitPattern = /\b(submit\s*(for\s*me|it|review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|do\s+it\s+for\s+me|send\s+it|yes\s+submit|let'?s\s+submit)\b/i;
-    if (!ausAlreadyDone && inAffordabilityStage && verbalSubmitPattern.test(lastUserText)) {
-      console.log(`[agent-hook]: 0ms Verbal Submit Fast-Path triggered — executing AUS findings immediately without LLM call!`);
-      profile.affordability_panel_rendered = false;
-      (profile as any).affordability_panel_closed = true;
-      profile.aus_status = 'refer';
-      this.contextManager.setActiveStage('4');
-      this.contextManager.setCurrentPendingField('aus_findings_delivered');
-
-      const name = profile.borrower_name;
-      const scriptText = `Thank you for your patience${name ? `, ${name}` : ''} — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;
-      return createVerbatimStream(scriptText) as any;
-    }
-
     if ((profile as any).submit_review_requested || pending === 'aus_findings_delivered') {
       (profile as any).submit_review_requested = false;
       console.log(`[agent-hook]: LLM-classified submission request detected — executing submission and delivering findings!`);
@@ -316,7 +295,6 @@ class AilanaVoiceAgent extends voice.Agent {
       (profile as any).affordability_panel_closed = true;
       profile.aus_status = 'refer';
       this.contextManager.setActiveStage('4');
-      this.contextManager.setCurrentPendingField('aus_findings_delivered');
 
       const name = profile.borrower_name;
       const scriptText = `Thank you for your patience${name ? `, ${name}` : ''} — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;
@@ -374,7 +352,6 @@ class AilanaVoiceAgent extends voice.Agent {
         'prefill_credit_range',
         'declarations',
         'submit_confirmation',
-        'affordability_panel_active',
       ]);
 
       const currentPending = this.contextManager.getPendingField();
@@ -450,7 +427,9 @@ export default defineAgent({
     console.log(`[agent-startup]  CARTESIA_VOICE_ID    : ${ailanaConfig.cartesiaVoiceId ? '✓ ' + ailanaConfig.cartesiaVoiceId : '✗ MISSING'}`);
     console.log(`[agent-startup]  LEMONSLICE_API_KEY    : ${envCheck('LEMONSLICE_API_KEY', ailanaConfig.lemonsliceApiKey)}`);
     console.log(`[agent-startup]  LEMONSLICE_AGENT_ID   : ${ailanaConfig.lemonsliceAgentId ? '✓ ' + ailanaConfig.lemonsliceAgentId : '✗ MISSING'}`);
-    console.log(`[agent-startup]  CEREBRAS_API_KEY      : ${envCheck('CEREBRAS_API_KEY', ailanaConfig.cerebrasApiKey)}`);
+    console.log(`[agent-startup]  VLLM_BASE_URL         : ${ailanaConfig.vllmBaseUrl}`);
+    console.log(`[agent-startup]  VLLM_MODEL            : ${ailanaConfig.vllmModel}`);
+    console.log(`[agent-startup]  DATABASE_URL          : ${process.env.DATABASE_URL ? '✓ present' : '✗ MISSING (DB persistence disabled)'}`);
     console.log(`[agent-startup]  LIVEKIT_URL           : ${process.env.LIVEKIT_URL ?? '✗ MISSING'}`);
     console.log(`[agent-startup]  LIVEKIT_API_KEY       : ${process.env.LIVEKIT_API_KEY ? '✓ present' : '✗ MISSING'}`);
     console.log('[agent-startup] ════════════════════════════════');
@@ -464,9 +443,9 @@ export default defineAgent({
 
     const metrics = new LatencyTracker();
     const summarizationLlm = new openai.LLM({
-      model: 'gemma-4-31b',
-      baseURL: ailanaConfig.cerebrasBaseUrl,
-      apiKey: ailanaConfig.cerebrasApiKey,
+      model: ailanaConfig.vllmModel,
+      baseURL: ailanaConfig.vllmBaseUrl,
+      apiKey: ailanaConfig.vllmApiKey,
     });
     const contextManager = new SessionContextManager(summarizationLlm, metrics);
 
@@ -564,14 +543,14 @@ export default defineAgent({
 
 
     const createVadAgent = () => {
-      console.log('[agent]: Creating Cascaded agent (Cerebras LLM + Cartesia STT + Cartesia TTS + LemonSlice Avatar)...');
+      console.log(`[agent]: Creating Cascaded agent (${ailanaConfig.vllmLabel} + Cartesia STT + Cartesia TTS + LemonSlice Avatar)...`);
       return new AilanaVoiceAgent({
         instructions: contextManager.getActiveInstructions(),
         stt: sessionStt,
         vad: sessionVad,
-        llm: new CerebrasLLM({
-          model: 'gemma-4-31b',
-          client: cerebrasClient,
+        llm: new PrimaryLLM({
+          model: ailanaConfig.vllmModel,
+          client: primaryLlmClient,
         }),
         tts: sessionTts,
         turnHandling: {
@@ -969,9 +948,9 @@ export default defineAgent({
         const slicedHistory = historyMessages.slice(-23); // keep up to 23 recent turns
         const messages = [systemMessage, ...slicedHistory];
 
-        console.log(`[agent]: Dispatching text-only reply to Cerebras client proxy...`);
-        const completion = await cerebrasClient.chat.completions.create({
-          model: 'gemma-4-31b',
+        console.log(`[agent]: Dispatching text-only reply to ${ailanaConfig.vllmLabel} client proxy...`);
+        const completion = await primaryLlmClient.chat.completions.create({
+          model: ailanaConfig.vllmModel,
           messages: messages as any,
           max_tokens: 500,
           temperature: 0.6,
@@ -1009,23 +988,6 @@ export default defineAgent({
         updateSessionInstructions();
         
         const triggerPrompt = `The eligibility review has returned with status: ${status}. Please deliver the findings to the borrower.`;
-        if (voiceMuted) {
-          await generateTextOnlyReply(triggerPrompt);
-        } else {
-          metrics.startTurn();
-          metrics.markGenerateReply();
-          session.generateReply({ userInput: triggerPrompt });
-        }
-        return;
-      }
-
-      if (messageText === 'SYSTEM_STAGE_UPDATE_UPGRADE') {
-        console.log(`[agent]: SYSTEM_STAGE_UPDATE_UPGRADE received. Triggering upgrade to Stage 3A.`);
-        contextManager.triggerUpgradeToVerifiedMode();
-        updateSessionInstructions();
-        await sendStageUpdate(contextManager.getActiveStage());
-
-        const triggerPrompt = `The borrower clicked 'Upgrade to Verified Mode' on their screen. Transition to Stage 3A by asking for their email and mobile number to set up their secure login for the soft credit review.`;
         if (voiceMuted) {
           await generateTextOnlyReply(triggerPrompt);
         } else {
@@ -1568,31 +1530,31 @@ export default defineAgent({
       resolveAvatarReady();
     }
 
-    // Measure connection latency to Cerebras API endpoint on start
+    // Measure connection latency to the self-hosted vLLM endpoint on start.
     (async () => {
       const start = Date.now();
       try {
-        const res = await fetch(`${ailanaConfig.cerebrasBaseUrl}/chat/completions`, {
+        const res = await fetch(`${ailanaConfig.vllmBaseUrl}/chat/completions`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${ailanaConfig.cerebrasApiKey}`
+            'Authorization': `Bearer ${ailanaConfig.vllmApiKey}`
           },
           body: JSON.stringify({
-            model: 'gemma-4-31b',
+            model: ailanaConfig.vllmModel,
             messages: [{ role: 'user', content: 'ping' }],
             max_tokens: 1,
           })
         });
         const duration = Date.now() - start;
-        console.log(`[latency-check][${ts()}] Cerebras API connection roundtrip test completed in ${duration}ms (HTTP Status: ${res.status})`);
+        console.log(`[latency-check][${ts()}] ${ailanaConfig.vllmLabel} connection roundtrip test completed in ${duration}ms (HTTP Status: ${res.status})`);
       } catch (err: any) {
         const duration = Date.now() - start;
-        console.warn(`[latency-check][${ts()}] Cerebras API connection test returned error after ${duration}ms: ${err?.message || err}`);
+        console.warn(`[latency-check][${ts()}] ${ailanaConfig.vllmLabel} connection test returned error after ${duration}ms: ${err?.message || err}`);
       }
     })();
 
-    const activeModelName = 'cascade-livekit-inference (Cerebras Gemma 4 31B + Cartesia TTS + LemonSlice Avatar)';
+    const activeModelName = `cascade-livekit-inference (${ailanaConfig.vllmLabel} + Cartesia TTS + LemonSlice Avatar)`;
     console.log(
       `[agent]: Ready — model=${activeModelName}, prompt=${ailanaConfig.promptVersion}, compact@${ailanaConfig.compactEveryNTurns} turns / ${ailanaConfig.forceCompactInputTokens} tokens`,
     );
