@@ -1,5 +1,8 @@
-name: Deploy CONVERGENT-AI to GCP VM
+name: Deploy CONVERGENT-AI to GKE
 
+# - push to "dev"         -> auto build + deploy into GKE cluster dev env.
+# - push to "main"        -> Manual deploy.
+# - Prod manual deploy    -> Tab Actions -> "Run workflow" -> choose the target "production".
 on:
   push:
     branches:
@@ -20,12 +23,17 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  GH_OWNER: HasanKamal121
-  GH_REPO: ConvergentAI
+  DEVOPS_REPO_OWNER: sonphm
+  DEVOPS_REPO_NAME: convergentai-devops
+  GCP_PROJECT: ailana-488814
+  GCP_REGION: us-east1
+  ARTIFACT_REPO: convergent-ai
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Resolve target
         id: env
@@ -36,23 +44,40 @@ jobs:
           else
             TARGET="dev"
           fi
-          # git_dir = PARENT folder that holds ConvergentAI/ (and docker/)
-          if [ "$TARGET" = "production" ]; then
-            echo "branch=main"                                       >> "$GITHUB_OUTPUT"
-            echo "vm_name=convergent-ai"                             >> "$GITHUB_OUTPUT"
-            echo "git_dir=/opt/convergent-ai/convergent-prod"        >> "$GITHUB_OUTPUT"
-            echo "compose_dir=/opt/convergent-ai/convergent-prod/docker"    >> "$GITHUB_OUTPUT"
-            echo "env_name=production"                               >> "$GITHUB_OUTPUT"
-            echo "secret_prefix=prod-convergent"                     >> "$GITHUB_OUTPUT"
-          else
-            echo "branch=dev"                                           >> "$GITHUB_OUTPUT"
-            echo "vm_name=convergent-dev"                               >> "$GITHUB_OUTPUT"
-            echo "git_dir=/opt/convergent-ai/convergent-dev"            >> "$GITHUB_OUTPUT"
-            echo "compose_dir=/opt/convergent-ai/convergent-dev/docker" >> "$GITHUB_OUTPUT"
-            echo "env_name=dev"                                         >> "$GITHUB_OUTPUT"
-            echo "secret_prefix=dev-convergent"                        >> "$GITHUB_OUTPUT"
-          fi
 
+          if [ "$TARGET" = "production" ]; then
+            echo "docker_env=prod"                                    >> "$GITHUB_OUTPUT"
+            echo "values_file=values_prod.yaml"                       >> "$GITHUB_OUTPUT"
+            echo "namespace=cta-prod"                                 >> "$GITHUB_OUTPUT"
+            echo "helm_release=convergentai-prod"                     >> "$GITHUB_OUTPUT"
+            echo "secret_prefix=prod-convergent"                      >> "$GITHUB_OUTPUT"
+            echo "backend_url=https://be.convergentai.tech"           >> "$GITHUB_OUTPUT"
+            echo "env_name=production"                                >> "$GITHUB_OUTPUT"
+          else
+            echo "docker_env=dev"                                     >> "$GITHUB_OUTPUT"
+            echo "values_file=values_dev.yaml"                        >> "$GITHUB_OUTPUT"
+            echo "namespace=cta-dev"                                  >> "$GITHUB_OUTPUT"
+            echo "helm_release=convergentai-dev"                      >> "$GITHUB_OUTPUT"
+            echo "secret_prefix=dev-convergent"                       >> "$GITHUB_OUTPUT"
+            echo "backend_url=https://dev-be.convergentai.tech"       >> "$GITHUB_OUTPUT"
+            echo "env_name=dev"                                       >> "$GITHUB_OUTPUT"
+          fi
+          echo "==> Deploying target: $TARGET"
+
+      # 1. Checkout Source codes repo
+      - name: Checkout app source (ConvergentAI)
+        uses: actions/checkout@v4
+
+      # 2. Checkout DevOps repo
+      - name: Checkout devops repo (Dockerfile + Helm chart)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.DEVOPS_REPO_OWNER }}/${{ env.DEVOPS_REPO_NAME }}
+          ref: main
+          token: ${{ secrets.GH_PAT }}
+          path: devops
+
+      # 3. Google Cloud authen
       - name: Auth to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -61,96 +86,67 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      # Render the remote script LOCALLY with values already substituted.
-      # The clone URL embeds the PAT from a GitHub Secret (never hardcoded on VM).
-      - name: Render remote deploy script
-        id: script
+      - name: Configure Docker cho Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      # 4. Build & push backend image 
+      - name: Build & push backend image
         env:
-          BRANCH: ${{ steps.env.outputs.branch }}
-          GIT_DIR: ${{ steps.env.outputs.git_dir }}
-          COMPOSE_DIR: ${{ steps.env.outputs.compose_dir }}
-          SECRET_PREFIX: ${{ steps.env.outputs.secret_prefix }}
-          GH_PAT: ${{ secrets.GH_PAT }}
+          DOCKER_ENV: ${{ steps.env.outputs.docker_env }}
         run: |
           set -euo pipefail
-          CLONE_URL="https://x-access-token:${GH_PAT}@github.com/${GH_OWNER}/${GH_REPO}.git"
+          TAG="$(echo "$GITHUB_SHA" | cut -c1-7)"
+          IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.ARTIFACT_REPO }}/${DOCKER_ENV}-backend"
+          docker build \
+            -f "devops/docker/${DOCKER_ENV}/backend.Dockerfile" \
+            -t "$IMAGE:$TAG" -t "$IMAGE:latest" \
+            ./backend
+          docker push "$IMAGE:$TAG"
+          docker push "$IMAGE:latest"
+          echo "IMAGE_TAG=$TAG" >> "$GITHUB_ENV"
 
-          cat > remote_deploy.sh <<REMOTE
-          #!/usr/bin/env bash
-          set -euo pipefail
-          BRANCH="${BRANCH}"
-          GIT_DIR="${GIT_DIR}"
-          COMPOSE_DIR="${COMPOSE_DIR}"
-          SECRET_PREFIX="${SECRET_PREFIX}"
-          GCP_PROJECT="ailana-488814"
-          REPO_DIR="\${GIT_DIR}/${GH_REPO}"
-
-          echo "==> Target branch : \${BRANCH}"
-          echo "==> Git dir       : \${GIT_DIR}"
-          echo "==> Repo dir      : \${REPO_DIR}"
-          echo "==> Compose dir   : \${COMPOSE_DIR}"
-
-          mkdir -p "\${GIT_DIR}"
-
-          # ---- 1) Fresh clone every run: remove old checkout, clone branch ----
-          echo "==> Removing old checkout: \${REPO_DIR}"
-          rm -rf "\${REPO_DIR}"
-          echo "==> Cloning \${BRANCH} ..."
-          git clone --depth 1 --branch "\${BRANCH}" "${CLONE_URL}" "\${REPO_DIR}"
-          # scrub token from git config so it isn't left on disk
-          git -C "\${REPO_DIR}" remote set-url origin "https://github.com/${GH_OWNER}/${GH_REPO}.git"
-          echo "==> Checked out: \$(git -C "\${REPO_DIR}" rev-parse --short HEAD) on \${BRANCH}"
-
-          # ---- 2) Pull env files from Secret Manager (per environment) ----
-          cd "\${COMPOSE_DIR}"
-          echo "==> Fetching env from Secret Manager (\${SECRET_PREFIX}-*)"
-          gcloud secrets versions access latest \
-            --secret="\${SECRET_PREFIX}-frontend-env" --project="\${GCP_PROJECT}" > frontend.env
-          gcloud secrets versions access latest \
-            --secret="\${SECRET_PREFIX}-backend-env"  --project="\${GCP_PROJECT}" > backend.env
-          chmod 600 frontend.env backend.env
-          echo "==> env pulled: frontend.env=\$(grep -vcE '^\s*#|^\s*\$' frontend.env) vars, backend.env=\$(grep -vcE '^\s*#|^\s*\$' backend.env) vars"
-
-          # ---- 3) Locate compose file ----
-          if   [ -f docker-compose.yaml ]; then COMPOSE="-f docker-compose.yaml"
-          elif [ -f docker-compose.yml  ]; then COMPOSE="-f docker-compose.yml"
-          elif [ -f docker/docker-compose.yaml ]; then COMPOSE="-f docker/docker-compose.yaml"
-          else
-            echo "No docker-compose file under \${COMPOSE_DIR}" >&2
-            ls -la "\${COMPOSE_DIR}" >&2
-            exit 1
-          fi
-          echo "==> Compose dir: \$(pwd)  file: \${COMPOSE}"
-
-          dc() { docker compose \${COMPOSE} "\$@" || docker-compose \${COMPOSE} "\$@"; }
-
-          echo "==> Docker usage BEFORE"
-          docker system df || true
-          echo "==> Stop old containers"
-          dc down || true
-          export DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1
-          echo "==> Rebuild images (no cache)"
-          dc build --pull --no-cache
-          echo "==> Start containers"
-          dc up -d --force-recreate --remove-orphans
-          echo "==> Verify"
-          docker ps | grep convergent || true
-          echo "==> Cleanup (keep recent build cache for fast rebuilds)"
-          docker builder prune -f --filter "until=24h" || true
-          docker image prune -f || true
-          docker container prune -f || true
-          REMOTE
-
-          echo "----- rendered remote_deploy.sh (token masked) -----"
-          sed 's#x-access-token:[^@]*@#x-access-token:***@#g' remote_deploy.sh
-
-      - name: Deploy to GCP VM (${{ steps.env.outputs.env_name }})
+      # 5. Build & push frontend image
+      - name: Build & push frontend image
+        env:
+          DOCKER_ENV: ${{ steps.env.outputs.docker_env }}
+          BACKEND_URL: ${{ steps.env.outputs.backend_url }}
         run: |
           set -euo pipefail
-          echo "Deploying to VM: ${{ steps.env.outputs.vm_name }}"
-          gcloud compute ssh  ${{ steps.env.outputs.vm_name }} \
-            --zone us-east1-b \
-            --project ailana-488814 \
-            --tunnel-through-iap \
-            --quiet \
-            --command="sudo bash -s" < remote_deploy.sh           
+          IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.ARTIFACT_REPO }}/${DOCKER_ENV}-frontend"
+          docker build \
+            -f "devops/docker/${DOCKER_ENV}/frontend.Dockerfile" \
+            --build-arg NEXT_PUBLIC_BACKEND_URL="$BACKEND_URL" \
+            -t "$IMAGE:$IMAGE_TAG" -t "$IMAGE:latest" \
+            ./frontend
+          docker push "$IMAGE:$IMAGE_TAG"
+          docker push "$IMAGE:latest"
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ vars.GKE_CLUSTER }}
+          location: ${{ vars.GKE_LOCATION }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      # 6. helm deploy into Cluster
+      - name: Helm upgrade
+        env:
+          DOCKER_ENV: ${{ steps.env.outputs.docker_env }}
+          NAMESPACE: ${{ steps.env.outputs.namespace }}
+          RELEASE: ${{ steps.env.outputs.helm_release }}
+          VALUES_FILE: ${{ steps.env.outputs.values_file }}
+          OVERLAY_FILE: ${{ steps.overlay.outputs.overlay_file }}
+        run: |
+          set -euo pipefail
+          helm upgrade --install "$RELEASE" ./devops/helm \
+            -f "./devops/helm/${VALUES_FILE}" \
+            -f "./${OVERLAY_FILE}" \
+            --namespace "$NAMESPACE" \
+            --create-namespace \
+            --set "fe-${DOCKER_ENV}.image.tag=${IMAGE_TAG}" \
+            --set "be-${DOCKER_ENV}.image.tag=${IMAGE_TAG}" \
+            --atomic \
+            --timeout 5m
+          rm -f "$OVERLAY_FILE"
