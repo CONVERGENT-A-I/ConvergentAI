@@ -28,6 +28,8 @@ env:
   GCP_PROJECT: ailana-488814
   GCP_REGION: us-east1
   ARTIFACT_REPO: convergent-ai
+  GKE_CLUSTER: gke-convergent-ai-prod-7d82
+  GKE_LOCATION: us-east4
 
 jobs:
   deploy:
@@ -74,7 +76,7 @@ jobs:
         with:
           repository: ${{ env.DEVOPS_REPO_OWNER }}/${{ env.DEVOPS_REPO_NAME }}
           ref: main
-          token: ${{ secrets.GH_PAT }}
+          token: ${{ secrets.GIT_DEVOPS_TOKEN }}
           path: devops
 
       # 3. Google Cloud authen
