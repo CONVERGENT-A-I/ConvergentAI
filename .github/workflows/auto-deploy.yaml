@@ -139,7 +139,6 @@ jobs:
           NAMESPACE: ${{ steps.env.outputs.namespace }}
           RELEASE: ${{ steps.env.outputs.helm_release }}
           VALUES_FILE: ${{ steps.env.outputs.values_file }}
-          OVERLAY_FILE: ${{ steps.overlay.outputs.overlay_file }}
         run: |
           set -euo pipefail
           helm upgrade --install "$RELEASE" ./devops/helm \
@@ -150,4 +149,3 @@ jobs:
             --set "be-${DOCKER_ENV}.image.tag=${IMAGE_TAG}" \
             --atomic \
             --timeout 5m
-          rm -f "$OVERLAY_FILE"
