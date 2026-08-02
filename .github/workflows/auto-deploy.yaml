@@ -150,4 +150,3 @@ jobs:
             --set "be-${DOCKER_ENV}.image.tag=${IMAGE_TAG}" \
             --atomic \
             --timeout 5m
-          rm -f "$OVERLAY_FILE"
