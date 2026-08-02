@@ -144,7 +144,6 @@ jobs:
           set -euo pipefail
           helm upgrade --install "$RELEASE" ./devops/helm \
             -f "./devops/helm/${VALUES_FILE}" \
-            -f "./${OVERLAY_FILE}" \
             --namespace "$NAMESPACE" \
             --create-namespace \
             --set "fe-${DOCKER_ENV}.image.tag=${IMAGE_TAG}" \
