@@ -12,6 +12,7 @@ import { extractProfileField, classifyConfirmation, extractMultipleFields, type 
 import { applicationService } from '../services/application-service.js';
 import { conversationService } from '../services/conversation-service.js';
 import { isDatabaseEnabled } from '../services/database.js';
+import { callCrsSoftPull } from '../services/crs-service.js';
 
 
 export type TurnLogEntry = {
@@ -935,6 +936,22 @@ export class SessionContextManager {
       if (decision === 'yes') {
         this.profile.soft_pull_consent = 'accepted';
         this.profile.prefilled_fields_confirmed = {};
+
+        // Make real CRS API call (awaited before advanceWorkflow)
+        const crsResult = await callCrsSoftPull(this.profile);
+
+        if (crsResult) {
+            this.profile.credit_range = crsResult.creditRange;
+            (this.profile as any).crs_open_accounts = crsResult.openAccounts;
+            (this.profile as any).crs_late_payments = crsResult.latePaymentsLast24Mo;
+            if (crsResult.employer) this.profile.employer = crsResult.employer;
+            this.profile.legal_name = this.profile.borrower_name || crsResult.legalName || 'Valued Borrower';
+            if (crsResult.physicalAddress) this.profile.physical_address = crsResult.physicalAddress;
+            console.log(`[CRS]: Soft pull complete. Name: ${this.profile.legal_name}, Address: ${crsResult.physicalAddress}, Score: ${crsResult.creditScore}, Range: ${crsResult.creditRangeLabel}`);
+        } else {
+            console.log('[CRS]: Soft pull failed — using mock fallback.');
+        }
+
         this.advanceWorkflow();
       } else if (decision === 'no') {
         this.profile.soft_pull_consent = 'declined';

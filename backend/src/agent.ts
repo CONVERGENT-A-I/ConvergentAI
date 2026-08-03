@@ -291,6 +291,37 @@ class AilanaVoiceAgent extends voice.Agent {
       return createVerbatimStream(scriptText) as any;
     }
 
+    if (pending === 'prefill_name_address') {
+      const name = profile.legal_name || profile.borrower_name || 'Valued Borrower';
+      const address = profile.physical_address || (profile.zip_code ? `address on file in zip code ${profile.zip_code}` : 'address on file');
+      const scriptText = `Thank you. I've processed that soft pull. First, I have your name listed as ${name}, and your physical address as ${address}. Does that look right or is anything out of date?`;
+      console.log('[agent-hook]: Delivering prefill_name_address script via Deterministic ReadableStream!');
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    if (pending === 'prefill_employer') {
+      const employer = profile.employer || 'information on file';
+      const scriptText = `Great. Next, I have your employer listed as ${employer}. Does that look right or is anything out of date?`;
+      console.log('[agent-hook]: Delivering prefill_employer script via Deterministic ReadableStream!');
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    if (pending === 'prefill_accounts') {
+      const openAccounts = (profile as any).crs_open_accounts ?? 3;
+      const latePayments = (profile as any).crs_late_payments ?? 0;
+      const lateText = latePayments === 0 ? 'no late payments' : `${latePayments} late payment(s)`;
+      const scriptText = `Perfect. For your accounts summary, I see ${openAccounts} open account(s) and ${lateText} in the last 24 months. Does that look right or is anything out of date?`;
+      console.log('[agent-hook]: Delivering prefill_accounts script via Deterministic ReadableStream!');
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    if (pending === 'prefill_credit_range') {
+      const range = profile.credit_range || '700-749';
+      const scriptText = `Lastly, we retrieved your credit profile showing a category rating in the Good range of ${range}. Does that match what you expect or is anything out of date?`;
+      console.log('[agent-hook]: Delivering prefill_credit_range script via Deterministic ReadableStream!');
+      return createVerbatimStream(scriptText) as any;
+    }
+
     // ── 0ms Verbal Submit Fast-Path (Stage 2.5) ──
     // Fires before LLM so the base Cerebras model never produces a UI-redirect deflection.
     const ausAlreadyDone = !!(profile as any).aus_status;
