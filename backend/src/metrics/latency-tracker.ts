@@ -135,18 +135,21 @@ export class LatencyTracker {
       this._avatarFrameTimeoutHandle = undefined;
       // Only fire if this is still the same turn (render start hasn't been reset)
       if (this.t_avatar_render_start === renderStartSnapshot && !this.t_avatar_first_frame) {
-        console.warn(`[pipeline][${ts()}] ⚠️  Avatar first-frame timeout — ActiveSpeakersChanged never fired. Firing fallback estimate.`);
-        this.markAvatarFirstFrame();
+        console.warn(`[pipeline][${ts()}] ⚠️  Avatar first-frame timeout — ActiveSpeakersChanged never fired. Firing [TIMEOUT_FALLBACK] estimate. This is a LiveKit SDK event-drop, NOT real avatar lag.`);
+        this.markAvatarFirstFrame(true /* isFallback */);
       }
     }, 1500);
   }
 
 
-  /** Called when the LiveKit agent-speaking event fires — avatar first audio frame is live. */
-  markAvatarFirstFrame(): void {
+  /** Called when the LiveKit agent-speaking event fires — avatar first audio frame is live.
+   * @param isFallback  Set to true when called from the 1500ms safety-net timeout instead
+   *                    of the real ActiveSpeakersChanged event. Fallback entries are flagged
+   *                    in logs so they can be excluded from latency analytics.
+   */
+  markAvatarFirstFrame(isFallback = false): void {
     if (this.t_avatar_first_frame) return; // only record once per turn
-    if (!this.t_avatar_render_start) return; // guard: only valid after markAvatarRenderStart() — prevents
-                                              // premature recording from TrackSubscribed at session init
+    if (!this.t_avatar_render_start) return; // guard: only valid after markAvatarRenderStart()
     this.t_avatar_first_frame = Date.now();
     const sinceRenderStart = this.t_avatar_first_frame - this.t_avatar_render_start;
     const sinceTtsStart = this.t_tts_start ? this.t_avatar_first_frame - this.t_tts_start : -1;
@@ -157,14 +160,17 @@ export class LatencyTracker {
       tts_to_avatar_ms: sinceRenderStart,
       tts_start_to_avatar_ms: sinceTtsStart,
       e2e_to_avatar_ms: sinceUserTurn,
+      isFallback,
       turnNumber: this.turnNumber,
       sessionAgeMs: Date.now() - this.sessionStartAt,
     }));
+    const fallbackTag = isFallback ? ' [TIMEOUT_FALLBACK — LiveKit event drop, not real lag]' : '';
     console.log(
       `[pipeline][${ts()}] ── AVATAR LATENCY ──` +
       `  tts_to_avatar=${sinceRenderStart}ms` +
       `  tts_start_to_avatar=${sinceTtsStart}ms` +
-      `  e2e_user_to_avatar=${sinceUserTurn}ms`
+      `  e2e_user_to_avatar=${sinceUserTurn}ms` +
+      fallbackTag
     );
   }
 

@@ -50,6 +50,18 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
   if (body && body.model === 'gpt-oss-120b' && !body.reasoning_effort) {
     body.reasoning_effort = ailanaConfig.cerebrasReasoningEffort;
   }
+
+  // ── Always force streaming on the main voice pipeline calls ─────────────
+  // The LiveKit inference LLM already passes stream:true, but if the body
+  // somehow arrives without it we enforce it to guarantee chunked SSE.
+  // Exception: the text-only reply path (generateTextOnlyReply) explicitly
+  // sets stream:false because it reads completion.choices[0].message.content
+  // directly — we MUST NOT override that or it will silently get a stream object.
+  if (body.stream !== false) {
+    body.stream = true;
+    body.stream_options = { include_usage: true };
+  }
+
   // Retry once with backoff for transient Cerebras errors before falling back
   for (let attempt = 0; attempt < 2; attempt++) {
     const t0 = Date.now();
@@ -62,31 +74,36 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
 
       const result = await originalCerebrasCreate(body, options);
 
-      // If it's a stream, intercept it to track first token, end stream timings, and log the full response
+      // If it's a stream, intercept to track first token, end stream timings
       if (result && typeof (result as any)[Symbol.asyncIterator] === 'function') {
         const originalIterator = (result as any)[Symbol.asyncIterator].bind(result);
-        const accumulatedChunks: any[] = [];
 
         (result as any)[Symbol.asyncIterator] = function () {
           const iterator = originalIterator();
           let isFirst = true;
+          let chunkCount = 0;
+          let noDeltaChunks = 0;
 
           return {
             async next() {
               const nextResult = await iterator.next();
               if (nextResult.done) {
                 const totalDur = Date.now() - t0;
-                console.log(`[cerebras-proxy][${ts()}] Stream complete (Total: ${totalDur}ms, chunks: ${accumulatedChunks.length})`);
+                console.log(`[cerebras-proxy][${ts()}] Stream complete — Total: ${totalDur}ms, chunks: ${chunkCount}, empty-delta chunks: ${noDeltaChunks}`);
+                if (noDeltaChunks === chunkCount && chunkCount === 1) {
+                  console.warn(`[cerebras-proxy][${ts()}] ⚠️  BUFFERING DETECTED: Cerebras returned a single empty-delta chunk. Response was likely buffered server-side.`);
+                }
                 return nextResult;
               }
+              chunkCount++;
               if (isFirst) {
                 isFirst = false;
                 const ttft = Date.now() - t0;
-                console.log(`[cerebras-proxy][${ts()}] First chunk/token received (TTFT: ${ttft}ms)`);
+                const deltaText = nextResult.value?.choices?.[0]?.delta?.content || '';
+                console.log(`[cerebras-proxy][${ts()}] First chunk (TTFT: ${ttft}ms, delta: "${deltaText.slice(0, 40)}")`);
               }
-              if (nextResult.value) {
-                accumulatedChunks.push(nextResult.value);
-              }
+              const delta = nextResult.value?.choices?.[0]?.delta?.content;
+              if (!delta) noDeltaChunks++;
               return nextResult;
             },
             [Symbol.asyncIterator]() {
@@ -122,6 +139,7 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
   }
   throw lastErr;
 } as any);
+
 
 
 class CerebrasLLM extends openai.LLM {
@@ -371,48 +389,26 @@ class AilanaVoiceAgent extends voice.Agent {
 
     if (userMessage?.textContent) {
       await this.contextManager.saveVoiceConversationTurn('user', userMessage.textContent);
-      
+
+      const activeField = this.contextManager.getPendingField();
+      const isBoundary = this.contextManager.isStageBoundaryField(activeField);
+
       const currentTurnNumber = this.contextManager.triggerBackgroundExtraction(userMessage.textContent);
-      console.log(`[agent-hook]: Current turn background extraction triggered asynchronously (turn=${currentTurnNumber}).`);
 
-      // ── Universal transition gate ─────────────────────────────────────────
-      // Complete set of all Stage 1 & Stage 2 discovery & gate fields
-      const TRANSITION_TRIGGER_FIELDS = new Set([
-        'borrower_name',
-        'mortgage_goal',
-        'occupancy',
-        'existing_relationship',
-        'timeline',
-        'co_borrower',
-        'gross_annual_income',
-        'monthly_debt',
-        'credit_range',
-        'down_payment',
-        'rent_own',
-        'realtor_status',
-        'target_price',
-        'property_type',
-        'military_rural',
-        'job_tenure_type',
-        'stage2_closing_offer',
-        'contact_email',
-        'contact_mobile',
-        'otp_verification',
-        'soft_pull_authorization',
-        'prefill_name_address',
-        'prefill_employer',
-        'prefill_accounts',
-        'prefill_credit_range',
-        'declarations',
-        'submit_confirmation',
-        'affordability_panel_active',
-      ]);
-
-      const currentPending = this.contextManager.getPendingField();
-      if (currentPending !== null && TRANSITION_TRIGGER_FIELDS.has(currentPending)) {
-        console.log(`[agent-hook]: Transition-triggering field "${currentPending}" detected — awaiting extraction for immediate state update...`);
-        const waited = await this.contextManager.waitForExtraction(currentTurnNumber, 10000);
-        console.log(`[agent-hook]: Transition extraction for "${currentPending}" ${waited ? 'completed ✅' : 'timed out ⚠️'}.`);
+      if (isBoundary) {
+        console.log(`[agent-hook]: Field "${activeField}" is a STAGE BOUNDARY. Waiting up to 800ms for extraction to transition stage...`);
+        const completedInTime = await this.contextManager.waitForExtraction(currentTurnNumber, 800);
+        if (!completedInTime) {
+          console.warn(`[agent-hook]: Stage boundary extraction timed out (>800ms). Injecting fallback sentinel and proceeding.`);
+          this.contextManager.injectFallbackForPendingField();
+        } else {
+          console.log(`[agent-hook]: Stage boundary extraction completed in time! Stage is now: ${this.contextManager.getActiveStage()}`);
+        }
+      } else {
+        console.log(`[agent-hook]: Background extraction triggered async (turn=${currentTurnNumber}, field="${activeField}"). Pipeline proceeds immediately — 0ms wait.`);
+        // Inject placeholder so the LLM prompt shows non-boundary field is answered,
+        // preventing a re-ask while extraction is in flight.
+        this.contextManager.injectFallbackForPendingField();
       }
     }
 
@@ -1006,6 +1002,7 @@ export default defineAgent({
           messages: messages as any,
           max_tokens: 500,
           temperature: 0.6,
+          stream: false, // text-only path — must receive a plain completion object, not a stream
         } as any);
 
         const reply = completion.choices?.[0]?.message?.content?.trim();

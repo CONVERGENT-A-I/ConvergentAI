@@ -246,9 +246,17 @@ export class SessionContextManager {
     }
 
     try {
+      // Strip any __pending__ sentinel values injected by injectFallbackForPendingField()
+      // so they are never persisted to the database.
+      const profileForSync: Record<string, any> = {};
+      for (const [k, v] of Object.entries(this.profile)) {
+        if (v !== '__pending__') {
+          profileForSync[k] = v;
+        }
+      }
       await applicationService.syncAllStages(
         this.applicationId,
-        this.profile,
+        profileForSync as any,
         this.activeStage
       );
       this.lastSyncAt = Date.now();
@@ -258,6 +266,7 @@ export class SessionContextManager {
       // Don't throw - continue operating even if sync fails
     }
   }
+
 
   /**
    * Save a conversation turn to database (public method for voice turns)
@@ -308,14 +317,10 @@ export class SessionContextManager {
     const promise = (async () => {
       const t0 = performance.now();
       try {
-        // ── [perf] 50ms head-start for the main LLM pipeline ─────────────────
-        // Both this extractor and the main pipelineReply call Cerebras almost
-        // simultaneously. Without a delay, they compete for the same inference
-        // slot, adding up to ~700ms of queuing latency to the main reply on
-        // ~20-30% of turns (the 186ms→1311ms Segment A swing).
-        // A 50ms pause here ensures the main LLM call is already in-flight
-        // before the extractor fires, eliminating the contention window.
-        await new Promise<void>(r => setTimeout(r, 50));
+        // No artificial delay needed: the extractor uses CEREBRAS_EXTRACTOR_API_KEY
+        // (a separate request pool), so there is zero contention with the main LLM.
+        // Removing the 50ms pause means the real extracted value replaces __pending__
+        // as early as possible (~200-350ms after user turn ends).
         await clonedManager.onUserTurn(text);
         const duration = performance.now() - t0;
         
@@ -390,13 +395,42 @@ export class SessionContextManager {
         console.log(`[reconcile] Turn ${turnNum} was timed out/skipped. Proceeding without matching results.`);
       }
 
+      // ── Sentinel cleanup ──────────────────────────────────────────────────
+      // After reconcile, sweep for any __pending__ values the extractor didn't
+      // replace (e.g. returned null, bad JSON, or threw). Clear them back to
+      // null so the field is treated as unanswered — Ailana will re-ask on the
+      // next turn rather than being stuck with a permanent placeholder.
+      let sentinelsCleared = 0;
+      for (const key of Object.keys(this.profile) as Array<keyof BorrowerProfile>) {
+        if ((this.profile as any)[key] === '__pending__') {
+          (this.profile as any)[key] = null;
+          sentinelsCleared++;
+          console.warn(`[reconcile] ⚠️  Field "${key}" had unresolved __pending__ sentinel after extraction — cleared to null. Extractor returned no value.`);
+        }
+      }
+      if (sentinelsCleared === 0) {
+        console.log(`[reconcile] Turn ${turnNum} sentinel check: all __pending__ values resolved ✅`);
+      }
+
       this.lastAppliedTurn = turnNum;
       this.pendingExtractions.delete(turnNum);
     }
   }
 
+
   private reconcileState(snapshot: SessionContextManagerSnapshot, clone: SessionContextManager): void {
     const delta = this.getProfileDelta(snapshot.profile, clone.profile);
+
+    // Log each field that changed so we can trace __pending__ → real value replacements
+    for (const [key, newVal] of Object.entries(delta)) {
+      const liveVal = (this.profile as any)[key];
+      if (liveVal === '__pending__') {
+        console.log(`[reconcile] ✅ Field "${key}" resolved: __pending__ → "${newVal}" (extraction succeeded)`);
+      } else {
+        console.log(`[reconcile] Field "${key}" updated: "${liveVal ?? 'null'}" → "${newVal}"`);
+      }
+    }
+
     Object.assign(this.profile, delta);
 
     if (clone.activeStage !== snapshot.activeStage) {
@@ -412,6 +446,7 @@ export class SessionContextManager {
       this.fieldAttempts[field] = attempts;
     }
   }
+
 
   private getProfileDelta(original: BorrowerProfile, updated: BorrowerProfile): Partial<BorrowerProfile> {
     const delta: Partial<BorrowerProfile> = {};
@@ -445,9 +480,74 @@ export class SessionContextManager {
     this.profile.current_pending_field = field;
   }
 
+  /**
+   * Returns true if the specified field (or current pending field) is a stage boundary
+   * field whose completion triggers a workflow stage transition.
+   */
+  isStageBoundaryField(field?: string | null): boolean {
+    const target = field ?? this.currentPendingField;
+    if (!target) return false;
+    const BOUNDARY_FIELDS = new Set([
+      'co_borrower',
+      'timeline',
+      'job_tenure_type',
+      'stage2_closing_offer',
+      'home_horizon',
+      'soft_pull_authorization',
+      'prefill_credit_range',
+      'assets_details',
+    ]);
+    return BOUNDARY_FIELDS.has(target);
+  }
+
+
+  /**
+   * Immediately stamps the active pending field with a sentinel value so the
+   * conversational LLM prompt reflects that an answer was received without
+   * waiting for the background Cerebras extractor to finish.
+   *
+   * The real extracted value is applied via applyCompletedExtractions() once
+   * the background turn resolves (~200-400ms later, always before the next
+   * user turn begins).
+   *
+   * Fields that are deterministic fast-paths (stage2_closing_offer etc.) or
+   * require confirmed boolean values are excluded — they have their own
+   * in-llmNode routing logic that doesn't depend on profile state.
+   */
+  injectFallbackForPendingField(): void {
+    const field = this.currentPendingField;
+    if (!field) return;
+
+    // Fields handled deterministically in llmNode — don't inject fallback,
+    // they bypass the profile entirely.
+    const DETERMINISTIC_FIELDS = new Set([
+      'stage2_closing_offer',
+      'contact_email',
+      'contact_mobile',
+      'otp_verification',
+      'soft_pull_authorization',
+      'prefill_name_address',
+      'prefill_employer',
+      'prefill_accounts',
+      'prefill_credit_range',
+      'declarations',
+      'submit_confirmation',
+      'military_rural',
+    ]);
+    if (DETERMINISTIC_FIELDS.has(field)) return;
+
+    // Only inject if the field is currently unset — don't overwrite a real value
+    const currentValue = (this.profile as any)[field];
+    if (currentValue !== undefined && currentValue !== null && currentValue !== '') return;
+
+    (this.profile as any)[field] = '__pending__';
+    console.log(`[agent-hook][fallback] Injected sentinel "__pending__" for field "${field}" — LLM proceeds immediately, extractor will overwrite.`);
+  }
+
   async onUserTurn(text: string): Promise<void> {
     const _perfOnUserTurnStart = performance.now();
     let trimmed = text.trim();
+
 
     // Redact SSNs from user input to comply with TRID logging requirements
     trimmed = trimmed.replace(/\b\d{3}[- ]?\d{2}[- ]?\d{4}\b/g, '[REDACTED_SSN]');
