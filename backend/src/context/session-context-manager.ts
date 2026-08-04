@@ -496,6 +496,15 @@ export class SessionContextManager {
       'soft_pull_authorization',
       'prefill_credit_range',
       'assets_details',
+      // Deterministic fields must also be boundary fields because they do not
+      // use the __pending__ fallback. Without an 800ms wait, the LLM starts at
+      // 0ms and re-asks the question instantly before extraction completes.
+      'contact_email',
+      'contact_mobile',
+      'otp_verification',
+      'prefill_name_address',
+      'prefill_employer',
+      'prefill_accounts',
     ]);
     return BOUNDARY_FIELDS.has(target);
   }
@@ -1584,7 +1593,7 @@ export class SessionContextManager {
         name: 'military_rural',
         description: 'Whether borrower or co-borrower has military service history (active duty, veteran, Reserve/Guard, surviving spouse)',
         expectedType: 'string',
-        additionalInstructions: 'Return "military" if borrower confirms military service history. Return "neither" if no military service. Ignore rural property location as that is handled by zip code. If not found, return null.',
+        additionalInstructions: 'Return "military" if borrower confirms military service history. CRITICAL: If the user explicitly says "no", denies having military service, or says they have no military service of any kind, you MUST return "neither" as the value. Ignore rural property location as that is handled by zip code. If not found at all, return null.',
       });
     }
     if (!this.profile.job_tenure_type_confirmed) {
