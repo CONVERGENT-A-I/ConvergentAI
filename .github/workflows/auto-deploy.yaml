@@ -51,7 +51,7 @@ jobs:
             echo "docker_env=prod"                                    >> "$GITHUB_OUTPUT"
             echo "values_file=values_prod.yaml"                       >> "$GITHUB_OUTPUT"
             echo "namespace=cta-prod"                                 >> "$GITHUB_OUTPUT"
-            echo "helm_release=cta-prod"                     >> "$GITHUB_OUTPUT"
+            echo "helm_release=cta-prod"                              >> "$GITHUB_OUTPUT"
             echo "secret_prefix=prod-convergent"                      >> "$GITHUB_OUTPUT"
             echo "backend_url=https://be.convergentai.tech"           >> "$GITHUB_OUTPUT"
             echo "env_name=production"                                >> "$GITHUB_OUTPUT"
@@ -59,7 +59,7 @@ jobs:
             echo "docker_env=dev"                                     >> "$GITHUB_OUTPUT"
             echo "values_file=values_dev.yaml"                        >> "$GITHUB_OUTPUT"
             echo "namespace=cta-dev"                                  >> "$GITHUB_OUTPUT"
-            echo "helm_release=cta-dev"                      >> "$GITHUB_OUTPUT"
+            echo "helm_release=cta-dev"                               >> "$GITHUB_OUTPUT"
             echo "secret_prefix=dev-convergent"                       >> "$GITHUB_OUTPUT"
             echo "backend_url=https://dev-be.convergentai.tech"       >> "$GITHUB_OUTPUT"
             echo "env_name=dev"                                       >> "$GITHUB_OUTPUT"
@@ -132,7 +132,62 @@ jobs:
       - name: Set up Helm
         uses: azure/setup-helm@v4
 
-      # 6. helm deploy into Cluster
+      # 6. Create/update ConfigMaps from GitHub repository variables
+      - name: Apply application environment variables
+        shell: bash
+        env:
+          DOCKER_ENV: ${{ steps.env.outputs.docker_env }}
+          NAMESPACE: ${{ steps.env.outputs.namespace }}
+          DEV_FE: ${{ vars.DEV_FE }}
+          DEV_BE: ${{ vars.DEV_BE }}
+          PROD_FE: ${{ vars.PROD_FE }}
+          PROD_BE: ${{ vars.PROD_BE }}
+        run: |
+          set -euo pipefail
+          umask 077
+
+          if [ "$DOCKER_ENV" = "prod" ]; then
+            FE_ENV="$PROD_FE"
+            BE_ENV="$PROD_BE"
+          else
+            FE_ENV="$DEV_FE"
+            BE_ENV="$DEV_BE"
+          fi
+
+          if [ -z "$FE_ENV" ] || [ -z "$BE_ENV" ]; then
+            echo "Missing GitHub Variables for environment: $DOCKER_ENV"
+            exit 1
+          fi
+
+          FE_ENV_FILE="${RUNNER_TEMP}/${DOCKER_ENV}-frontend.env"
+          BE_ENV_FILE="${RUNNER_TEMP}/${DOCKER_ENV}-backend.env"
+          CONFIG_FILE="${RUNNER_TEMP}/${DOCKER_ENV}-configmaps.yaml"
+          trap 'rm -f "$FE_ENV_FILE" "$BE_ENV_FILE" "$CONFIG_FILE"' EXIT
+
+          printf '%s\n' "$FE_ENV" > "$FE_ENV_FILE"
+          printf '%s\n' "$BE_ENV" > "$BE_ENV_FILE"
+
+          kubectl create namespace "$NAMESPACE" \
+            --dry-run=client \
+            -o yaml | kubectl apply -f -
+
+          kubectl create configmap "cta-${DOCKER_ENV}-frontend-env" \
+            --namespace "$NAMESPACE" \
+            --from-env-file="$FE_ENV_FILE" \
+            --dry-run=client \
+            -o yaml > "$CONFIG_FILE"
+
+          echo "---" >> "$CONFIG_FILE"
+
+          kubectl create configmap "cta-${DOCKER_ENV}-backend-env" \
+            --namespace "$NAMESPACE" \
+            --from-env-file="$BE_ENV_FILE" \
+            --dry-run=client \
+            -o yaml >> "$CONFIG_FILE"
+
+          kubectl apply -f "$CONFIG_FILE" -n "$NAMESPACE"
+          
+      # 7. helm deploy into Cluster
       - name: Helm upgrade
         env:
           DOCKER_ENV: ${{ steps.env.outputs.docker_env }}
