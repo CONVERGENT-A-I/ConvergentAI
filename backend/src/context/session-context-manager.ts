@@ -494,7 +494,6 @@ export class SessionContextManager {
 
     const BOUNDARY_FIELDS = new Set([
       'co_borrower',
-      'timeline',
       'job_tenure_type',
       'stage2_closing_offer',
       'home_horizon',
