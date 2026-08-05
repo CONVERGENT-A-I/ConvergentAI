@@ -1782,9 +1782,12 @@ export class SessionContextManager {
       console.log(`[context-manager] Stage2: LLM-extracted zip_code=${this.profile.zip_code}`);
     }
 
-    let mr = results.military_rural?.value;
+    let mr = typeof results.military_rural?.value === 'string' ? results.military_rural.value.toLowerCase().trim() : results.military_rural?.value;
+    
     if (!mr && results.military_rural?.declined) {
       // If the user explicitly says "no", the extractor often marks it as declined rather than outputting "neither"
+      mr = 'neither';
+    } else if (mr === 'no' || mr === 'none' || mr === 'false') {
       mr = 'neither';
     }
     
