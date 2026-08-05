@@ -197,6 +197,104 @@ export async function extractMultipleFields(
   return results;
 }
 
+/**
+ * Classifies a user response to a legal authorization/consent question.
+ *
+ * Uses a two-tier approach:
+ * 1. Regex fast-path (0ms): catches unambiguous "yes"/"no" phrasing immediately.
+ * 2. Cerebras fallback (~500ms): handles edge cases — questions, indirect phrasing,
+ *    or anything the regex doesn't recognize.
+ *
+ * Returns 'yes', 'no', or 'needs_explanation' (user is asking for more info before deciding).
+ */
+export async function classifyAuthorization(
+  userInput: string,
+  lastAssistantUtterance: string | null,
+): Promise<'yes' | 'no' | 'needs_explanation'> {
+  const lowerText = userInput.toLowerCase().trim();
+
+  // ── Tier 1: Regex fast-path ─────────────────────────────────────────────────
+  const AUTHORIZE_PATTERNS = [
+    /\byes\b/, /\bauthorize\b/, /\bconsent\b/, /\bagree\b/, /\bapprove\b/,
+    /\bgo ahead\b/, /\bproceed\b/, /\bsure\b/, /\bfine\b/, /\bok(ay)?\b/,
+    /\ballow\b/, /\bthat('s| is) fine\b/, /\bi('m| am) ok\b/, /\bdo it\b/,
+    /\brun it\b/, /\blet('s| us) go\b/, /\bsounds good\b/, /\bno problem\b/,
+  ];
+  const DECLINE_PATTERNS = [
+    /\bno\b/, /\bdecline\b/, /\brefuse\b/, /\bdon'?t\b/, /\bdo not\b/,
+    /\bnot (now|yet|today)\b/, /\bskip\b/, /\bwithout\b/, /\bprefer not\b/,
+  ];
+  const isAuthorized = AUTHORIZE_PATTERNS.some(p => p.test(lowerText));
+  const isDeclined = DECLINE_PATTERNS.some(p => p.test(lowerText));
+
+  // If both match (e.g., "no, that's okay"), prioritize authorization unless
+  // "no" appears at the very start (e.g., "no, thank you").
+  if (isAuthorized && (!isDeclined || lowerText.search(/\bno\b/) > 5)) {
+    console.log(`[classifyAuthorization] Regex fast-path → YES`);
+    return 'yes';
+  }
+  if (isDeclined && !isAuthorized) {
+    console.log(`[classifyAuthorization] Regex fast-path → NO`);
+    return 'no';
+  }
+
+  // ── Tier 2: Cerebras fallback (handles questions, indirect phrasing) ─────────
+  console.log(`[classifyAuthorization] Regex inconclusive (auth=${isAuthorized}, dec=${isDeclined}) → falling back to Cerebras`);
+
+  const systemPrompt = `You are analyzing a user's response to a soft credit inquiry authorization request.
+The mortgage assistant asked the user to authorize a soft credit inquiry (which does NOT affect credit score).
+
+The user responded. Classify their response into one of three categories:
+- "yes": They clearly authorize, consent, agree, or want to proceed.
+- "no": They clearly decline, refuse, or don't want to proceed.  
+- "needs_explanation": They are asking a question, requesting more information, or are uncertain.
+
+Return a JSON object with a single key:
+- "decision": one of "yes", "no", or "needs_explanation"
+
+Examples:
+- "yes I authorize" → "yes"
+- "go ahead" → "yes"
+- "sounds good" → "yes"
+- "no thank you" → "no"
+- "I'd rather not" → "no"
+- "what does this involve?" → "needs_explanation"
+- "will this affect my score?" → "needs_explanation"
+- "I'm not sure, what does soft pull mean?" → "needs_explanation"
+
+You MUST reply with a JSON object only.`;
+
+  const userPrompt = `Assistant question: ${lastAssistantUtterance ?? 'Do you authorize the soft credit inquiry?'}
+User response: "${userInput}"`;
+
+  try {
+    const response = await fastClient.chat.completions.create({
+      model: EXTRACTION_MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.0,
+      max_tokens: 30,
+    });
+    const content = response.choices[0]?.message?.content || null;
+    console.log(`[classifyAuthorization] Cerebras fallback raw JSON:`, content);
+    if (content) {
+      const parsed = JSON.parse(content);
+      const d = parsed.decision;
+      if (d === 'yes' || d === 'no' || d === 'needs_explanation') {
+        return d;
+      }
+    }
+  } catch (err: any) {
+    console.error(`[classifyAuthorization] Cerebras fallback failed:`, err?.message ?? err);
+  }
+
+  // If Cerebras also fails, default to needs_explanation so the LLM re-asks gracefully
+  return 'needs_explanation';
+}
+
 export async function classifyConfirmation(
   userInput: string,
   lastAssistantUtterance: string | null,

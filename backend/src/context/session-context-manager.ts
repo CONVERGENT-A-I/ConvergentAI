@@ -8,7 +8,7 @@ import {
 import type { LatencyTracker } from '../metrics/latency-tracker.js';
 import type { BorrowerProfile } from '../prompts/layer3-context.js';
 import { buildSessionPrompt } from '../prompts/ailana-system.js';
-import { extractProfileField, classifyConfirmation, extractMultipleFields, type FieldToExtract } from './llm-extractor.js';
+import { extractProfileField, classifyConfirmation, classifyAuthorization, extractMultipleFields, type FieldToExtract } from './llm-extractor.js';
 import { applicationService } from '../services/application-service.js';
 import { conversationService } from '../services/conversation-service.js';
 import { isDatabaseEnabled } from '../services/database.js';
@@ -1061,10 +1061,22 @@ export class SessionContextManager {
     }
 
     if (this.currentPendingField === 'soft_pull_authorization') {
-      const decision = await classifyConfirmation(text, lastQuestion, 'soft_pull_consent', 'Do you authorize the soft credit inquiry on that basis?');
+      // Use classifyAuthorization: regex fast-path (0ms) + Cerebras fallback.
+      // If user asks a question ("what does soft pull mean?"), returns 'needs_explanation'
+      // and we simply let the main LLM answer it — the field stays on soft_pull_authorization.
+      const decision = await classifyAuthorization(text, lastQuestion);
+      console.log(`[soft_pull_authorization] Authorization decision=${decision}`);
+
+      if (decision === 'needs_explanation') {
+        // User is asking for more info — don't advance or re-ask, let the LLM answer naturally.
+        console.log('[soft_pull_authorization] User asked for explanation — staying on field, LLM will answer.');
+        return;
+      }
+
       if (decision === 'yes') {
         this.profile.soft_pull_consent = 'accepted';
         this.profile.prefilled_fields_confirmed = {};
+
 
         // Make real CRS API call (awaited before advanceWorkflow)
         const crsResult = await callCrsSoftPull(this.profile);
