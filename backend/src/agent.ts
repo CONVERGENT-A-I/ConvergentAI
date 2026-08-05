@@ -388,19 +388,33 @@ class AilanaVoiceAgent extends voice.Agent {
     this.contextManager.setLowConfidenceFlag(false);
 
     if (userMessage?.textContent) {
-      await this.contextManager.saveVoiceConversationTurn('user', userMessage.textContent);
-
+      // ⚠️  CRITICAL: Capture the pending field SYNCHRONOUSLY before any awaits.
+      // The reconcile for the PREVIOUS turn's background extraction can fire during
+      // an async yield (e.g. saveVoiceConversationTurn), advancing currentPendingField
+      // to a new (non-boundary) field. If we read it AFTER the await, the boundary
+      // check sees the wrong field and the 0ms path is taken instead of the wait.
       const activeField = this.contextManager.getPendingField();
       const isBoundary = this.contextManager.isStageBoundaryField(activeField);
+      const isDeterministic = this.contextManager.isDeterministicField(activeField);
+
+      await this.contextManager.saveVoiceConversationTurn('user', userMessage.textContent);
 
       const currentTurnNumber = this.contextManager.triggerBackgroundExtraction(userMessage.textContent);
 
       if (isBoundary) {
-        console.log(`[agent-hook]: Field "${activeField}" is a STAGE BOUNDARY. Waiting up to 800ms for extraction to transition stage...`);
-        const completedInTime = await this.contextManager.waitForExtraction(currentTurnNumber, 800);
+        // Deterministic fields get the user-requested 2000ms. 
+        // Regular boundaries get 4000ms because they run 6-field extractions that take ~3.7s.
+        const waitMs = isDeterministic ? 2000 : 4000;
+        console.log(`[agent-hook]: Field "${activeField}" is a STAGE BOUNDARY (deterministic=${isDeterministic}). Waiting up to ${waitMs}ms for extraction to transition stage...`);
+        
+        const completedInTime = await this.contextManager.waitForExtraction(currentTurnNumber, waitMs);
+        
         if (!completedInTime) {
-          console.warn(`[agent-hook]: Stage boundary extraction timed out (>800ms). Injecting fallback sentinel and proceeding.`);
-          this.contextManager.injectFallbackForPendingField();
+          console.warn(`[agent-hook]: Stage boundary extraction timed out (>${waitMs}ms). Proceeding WITHOUT fallback injection to force a graceful re-ask instead of stalling.`);
+          // CRITICAL: We DO NOT inject __pending__ fallback for stage boundaries if they timeout.
+          // If we inject fallback, the stage doesn't transition, and the LLM receives the current
+          // stage's instructions where all fields appear complete. It will wrap up the stage and stop
+          // speaking entirely, leaving the user in silence. By NOT injecting fallback, it simply re-asks.
         } else {
           console.log(`[agent-hook]: Stage boundary extraction completed in time! Stage is now: ${this.contextManager.getActiveStage()}`);
         }

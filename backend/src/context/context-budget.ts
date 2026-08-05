@@ -38,6 +38,7 @@ export function logContextBudget(details: {
   const overLatencyThreshold = input >= getForceCompactTokenThreshold();
   const nearHardLimit = input >= REALTIME_CONTEXT_LIMIT * 0.85;
 
+
   console.log(
     JSON.stringify({
       type: 'ailana-context-budget',

@@ -487,6 +487,11 @@ export class SessionContextManager {
   isStageBoundaryField(field?: string | null): boolean {
     const target = field ?? this.currentPendingField;
     if (!target) return false;
+    
+    // Deterministic fields MUST wait for extraction because they bypass the __pending__ fallback.
+    // If they don't wait, the LLM starts at 0ms and re-asks the question instantly.
+    if (this.isDeterministicField(target)) return true;
+
     const BOUNDARY_FIELDS = new Set([
       'co_borrower',
       'timeline',
@@ -496,6 +501,11 @@ export class SessionContextManager {
       'soft_pull_authorization',
       'prefill_credit_range',
       'assets_details',
+      // property_type MUST be a boundary field. The LLM generates a combined
+      // property_type + zip_code question. If we don't wait for extraction to
+      // confirm property_type first, the LLM immediately re-asks the combined
+      // question on 0ms, causing the double property-type question bug.
+      'property_type',
       // Deterministic fields must also be boundary fields because they do not
       // use the __pending__ fallback. Without an 800ms wait, the LLM starts at
       // 0ms and re-asks the question instantly before extraction completes.
@@ -509,6 +519,30 @@ export class SessionContextManager {
     return BOUNDARY_FIELDS.has(target);
   }
 
+
+  /**
+   * Returns true if the field is handled deterministically in llmNode.
+   * Deterministic fields bypass the __pending__ fallback entirely.
+   */
+  isDeterministicField(field?: string | null): boolean {
+    const target = field ?? this.currentPendingField;
+    if (!target) return false;
+    const DETERMINISTIC_FIELDS = new Set([
+      'stage2_closing_offer',
+      'contact_email',
+      'contact_mobile',
+      'otp_verification',
+      'soft_pull_authorization',
+      'prefill_name_address',
+      'prefill_employer',
+      'prefill_accounts',
+      'prefill_credit_range',
+      'declarations',
+      'submit_confirmation',
+      'military_rural',
+    ]);
+    return DETERMINISTIC_FIELDS.has(target);
+  }
 
   /**
    * Immediately stamps the active pending field with a sentinel value so the
@@ -529,21 +563,7 @@ export class SessionContextManager {
 
     // Fields handled deterministically in llmNode — don't inject fallback,
     // they bypass the profile entirely.
-    const DETERMINISTIC_FIELDS = new Set([
-      'stage2_closing_offer',
-      'contact_email',
-      'contact_mobile',
-      'otp_verification',
-      'soft_pull_authorization',
-      'prefill_name_address',
-      'prefill_employer',
-      'prefill_accounts',
-      'prefill_credit_range',
-      'declarations',
-      'submit_confirmation',
-      'military_rural',
-    ]);
-    if (DETERMINISTIC_FIELDS.has(field)) return;
+    if (this.isDeterministicField(field)) return;
 
     // Only inject if the field is currently unset — don't overwrite a real value
     const currentValue = (this.profile as any)[field];
@@ -1751,7 +1771,12 @@ export class SessionContextManager {
       console.log(`[context-manager] Stage2: LLM-extracted zip_code=${this.profile.zip_code}`);
     }
 
-    const mr = results.military_rural?.value;
+    let mr = results.military_rural?.value;
+    if (!mr && results.military_rural?.declined) {
+      // If the user explicitly says "no", the extractor often marks it as declined rather than outputting "neither"
+      mr = 'neither';
+    }
+    
     if ((mr === 'military' || mr === 'rural' || mr === 'both' || mr === 'neither') && !this.profile.military_rural_confirmed) {
       this.profile.military_rural = mr;
       this.profile.military_rural_confirmed = true;

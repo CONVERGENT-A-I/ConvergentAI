@@ -1,0 +1,576 @@
+[23:43:39.819] DEBUG (17020): Task.runTask: task performAudioForwarding done
+[agent]: Channel started (avatar-chat).
+[agent]: Channel started (avatar-chat).
+[agent]: Channel started (avatar-chat).
+[agent]: Channel started (video).
+[agent]: Channel started (video).
+[23:43:50.688] INFO (17020): playback finished event received
+    callerIdentity: "lemonslice-avatar-agent"
+{"type":"ailana-metrics","event":"turn","turnNumber":28,"sessionAgeMs":567737,"contextItemCount":56,"estimatedContextTokens":1565,"userTurnEndAt":1785930214999,"generateReplyAt":1785930005729}
+[agent-debug]: Agent state: speaking → listening
+[23:43:50.692] INFO (17020): playout completed without interruption
+    speech_id: "speech_39034b0d-577"
+    message: "Lastly, we retrieved your credit profile showing a category rating in the Good range of 700-749. Does that match what you expect or is anything out of date? "
+[23:43:50.696] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply done
+[agent]: Channel started (video).
+[23:43:52.707] DEBUG (17020): VAD task: START_OF_SPEECH
+[23:43:53.082] DEBUG (17020): Cartesia STT START_OF_SPEECH
+[23:43:53.913] DEBUG (17020): interim transcript
+    transcript: "Yep"
+[23:43:53.940] DEBUG (17020): interim transcript
+    transcript: "Yep, that'"
+[23:43:53.945] DEBUG (17020): interim transcript
+    transcript: "Yep, that's fine."
+[23:43:53.965] DEBUG (17020): received user preflight transcript
+    user_transcript: "Yep, that's fine."
+    language: "en"
+[23:43:53.966] DEBUG (17020): triggering preemptive generation (PREFLIGHT_TRANSCRIPT)
+    transcript: "Yep, that's fine."
+[23:43:54.022] DEBUG (17020): VAD task: END_OF_SPEECH
+[23:43:54.037] DEBUG (17020): Cartesia STT END_OF_SPEECH
+[pipeline][11:43:54.040] STT final transcript: "Yep, that's fine."
+[pipeline][11:43:54.040] STT complete (-1ms): "Yep, that's fine."
+[agent-hook]: onUserTurnCompleted hook triggered with message: "Yep, that's fine."
+[context-manager] Database persistence DISABLED (no DATABASE_URL found)
+[agent-hook]: Field "prefill_credit_range" is a STAGE BOUNDARY. Waiting up to 800ms for extraction to transition stage...     
+[perf] context-manager handleGlobalConfirmation: 0.3ms (handled=false)
+[perf] context-manager checkForGlobalCorrections: 0.1ms (corrected=false)
+[context-manager] Attempt count for "prefill_credit_range" is 1
+[perf] llm-extractor classifyConfirmation("prefill_credit_range"): START
+[perf] llm-extractor extractMultipleFields([credit_correction]): START
+[23:43:54.042] DEBUG (17020): received user transcript
+    user_transcript: "Yep, that's fine."
+    language: "en"
+[23:43:54.044] DEBUG (17020): running EOU detection on stt END_OF_SPEECH
+[23:43:54.044] DEBUG (17020): running EOU detection
+    audioTranscript: "Yep, that's fine."
+    turnDetectionMode: "stt"
+[23:43:54.045] DEBUG (17020): end of user turn
+    transcript: "Yep, that's fine."
+[23:43:54.045] DEBUG (17020): Task.runTask: task AgentActivity.userTurnCompleted started
+[23:43:54.046] DEBUG (17020): EOU detection task completed     
+[perf] llm-extractor classifyConfirmation("prefill_credit_range"): Cerebras call (attempt 1) took 575.2ms
+[llm-extractor] Classified confirmation for "prefill_credit_range" raw JSON: {
+  "decision": "yes"
+}
+[perf] llm-extractor classifyConfirmation("prefill_credit_range"): TOTAL 575.8ms (content=ok)
+[checkpoint] Turn 26 extraction timed out after 800ms.
+[agent-hook]: Stage boundary extraction timed out (>800ms). Injecting fallback sentinel and proceeding.
+[agent-debug]: System instruction message prepended to session.chatCtx.
+[agent-debug]: Instructions updated — stage=3A, pendingField=prefill_credit_range
+[perf] updateInstructions (getActiveInstructions + chatCtx write): 0.7ms
+[agent-hook]: Local mutable chatCtx system instructions updated.
+[perf] chatCtx local copy update: 0.2ms
+[perf] EOU->instructions-update gap: 805.1ms
+[23:43:54.851] INFO (17020): Creating speech handle
+    speech_id: "speech_93f43a5d-40f"
+[pipeline][11:43:54.855] LLM request sent → Cerebras
+[agent-hook]: Delivering prefill_credit_range script via Deterministic ReadableStream!
+{"type":"ailana-metrics","event":"turn","turnNumber":29,"sessionAgeMs":571904,"contextItemCount":57,"estimatedContextTokens":1569,"userTurnEndAt":1785930234041,"generateReplyAt":1785930005729}
+[agent-debug]: Agent state: listening → thinking
+[pipeline][11:43:54.862] TTS started  lag_after_first_token=-1ms
+[pipeline][11:43:54.863] AVATAR render start  lag_after_tts_start=1ms
+[cartesia-tts][11:43:54.863] Synthesize stream initialized (Timer started)
+[cartesia-tts][11:43:54.864] updateInputStream called
+[agent-debug]: Sent stage update to frontend: 3A with profile data.
+[23:43:54.852] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply started
+[23:43:54.853] DEBUG (17020): Task.runTask: task performLLMInference started
+[23:43:54.857] DEBUG (17020): Task.runTask: task AgentActivity.userTurnCompleted done
+[23:43:54.859] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply.produceSegments started
+[23:43:54.861] DEBUG (17020): Task.runTask: task performTTSInference started
+[23:43:54.865] DEBUG (17020): Task.runTask: task performToolExecutions started
+[23:43:54.866] DEBUG (17020): Using TTS aligned transcripts for transcription node input
+[23:43:54.867] DEBUG (17020): Task.runTask: task performToolExecutions done
+[23:43:54.867] DEBUG (17020): Task.runTask: task performLLMInference done
+[23:43:54.867] DEBUG (17020): Task.runTask: task performTextForwarding started
+[23:43:54.868] DEBUG (17020): Task.runTask: task performAudioForwarding started
+[23:43:54.868] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply.produceSegments done
+[cartesia-tts-debug] Frame 0: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts][11:43:56.110] FIRST AUDIO FRAME received from Cartesia (TTFT since initialization: 1247ms)
+[cartesia-tts-debug] Frame 1: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts-debug] Frame 2: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts-debug] Frame 3: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts-debug] Frame 4: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[pipeline][11:43:56.363] ⚠️  Avatar first-frame timeout — ActivveSpeakersChanged never fired. Firing [TIMEOUT_FALLBACK] estimate. This is a LiveKit SDK event-drop, NOT real avatar lag.      
+{"type":"ailana-metrics","event":"avatar_first_frame","tts_to_avatar_ms":1500,"tts_start_to_avatar_ms":1501,"e2e_to_avatar_ms":2322,"isFallback":true,"turnNumber":29,"sessionAgeMs":573409} 
+[pipeline][11:43:56.363] ── AVATAR LATENCY ──  tts_to_avatar=1500ms  tts_start_to_avatar=1501ms  e2e_user_to_avatar=2322ms [TIMEOUT_FALLBACK — LiveKit event drop, not real lag]
+[agent-debug]: Agent state: thinking → speaking
+{"type":"ailana-metrics","event":"turn","turnNumber":29,"sessionAgeMs":574091,"contextItemCount":0,"estimatedContextTokens":0,"e2eLatencyMs":3004,"agentSpeakingAt":1785930237045,"userTurnEndAt":1785930234041,"generateReplyAt":1785930005729}
+[pipeline][11:43:57.101] TTS audio complete  render_dur=2239ms
+[pipeline][11:43:57.101] ── TURN 29 SUMMARY ──  stt_done=?  llm_start=814ms  llm_first_token=?  llm_done=?  tts_start=821ms  tts_done=3060ms
+[pipeline][11:43:57.101] TTS metrics — audio_dur=-1ms
+[cartesia-tts][11:43:57.102] stream.close()
+[23:43:57.103] DEBUG (17020): Task.runTask: task performTTSInference done
+[23:43:57.134] DEBUG (17020): Task.runTask: task performTextForwarding done
+[23:43:57.144] DEBUG (17020): Task.runTask: task performAudioForwarding done
+[perf] llm-extractor extractMultipleFields([credit_correction]): Cerebras call (attempt 1) took 3674.0ms
+[llm-extractor] Extracted multi-field raw JSON: {
+  "credit_correction": {
+    "value": null,
+    "declined": false
+  }
+}
+[perf] llm-extractor extractMultipleFields([credit_correction]): TOTAL 3674.9ms (content=ok)
+[context-manager]: Prefills confirmed! Transitioning to STAGE 2.5 Verified Mode (Affordability Panel)!
+[perf] context-manager stage2.5 extraction: 3676.1ms
+[perf] context-manager onUserTurn TOTAL: 3677.5ms
+[reconcile] Turn 26 extraction finished in 3677.7ms.
+[reconcile] Merging Turn 26 background extraction results into state.
+[reconcile] Field "prefilled_fields_confirmed" updated: "[object Object]" → "[object Object]"
+[reconcile] Field "affordability_mode" updated: "null" → "verified"
+[reconcile] Field "affordability_panel_rendered" updated: "null" → "true"
+[reconcile] Field "affordability_purchase_price" updated: "null" → "2000000"
+[reconcile] Field "affordability_down_payment" updated: "null" → "15000"
+[reconcile] Transitioning activeStage: 3A -> 2.5
+[reconcile] Transitioning currentPendingField: prefill_credit_range -> affordability_panel_active
+[reconcile] Turn 26 sentinel check: all __pending__ values resolved ✅
+[23:44:06.162] INFO (17020): playback finished event received
+    callerIdentity: "lemonslice-avatar-agent"
+{"type":"ailana-metrics","event":"turn","turnNumber":29,"sessionAgeMs":583211,"contextItemCount":58,"estimatedContextTokens":1609,"userTurnEndAt":1785930234041,"generateReplyAt":1785930005729}
+[agent-debug]: Agent state: speaking → listening
+{"type":"ailana-context-budget","event":"session_context","inputTokens":0,"estimatedTextTokens":1609,"itemCount":58,"action":"compact_start","forceCompactThreshold":6000,"overLatencyThreshold":false,"nearHardLimit":false}
+[23:44:06.169] INFO (17020): playout completed without interruption
+    speech_id: "speech_93f43a5d-40f"
+    message: "Lastly, we retrieved your credit profile showing a category rating in the Good range of 700-749. Does that match what you expect or is anything out of date? "
+[23:44:06.176] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply done
+{"type":"ailana-metrics","event":"context_compaction","itemsBefore":58,"itemsAfter":10,"turnNumber":29,"sessionAgeMs":585013} 
+{"type":"ailana-metrics","event":"turn","turnNumber":29,"sessionAgeMs":585014,"contextItemCount":10,"estimatedContextTokens":360,"userTurnEndAt":1785930234041,"generateReplyAt":1785930005729}
+{"type":"ailana-context-budget","event":"session_context","inputTokens":0,"estimatedTextTokens":360,"itemCount":10,"action":"compact_done","forceCompactThreshold":6000,"overLatencyThreshold":false,"nearHardLimit":false}
+[context]: Compacted 58Ã¢â€ â€™10 items, ~1609Ã¢â€ â€™360 text tokens (last API input: 0)
+[agent]: Channel started (avatar-chat).
+[agent]: Channel started (avatar-chat).
+[agent]: Channel started (video).
+[agent]: Channel started (avatar-chat).
+[23:44:15.270] DEBUG (17020): VAD task: START_OF_SPEECH
+[agent]: Channel started (video).
+[23:44:15.647] DEBUG (17020): Cartesia STT START_OF_SPEECH
+[23:44:16.339] DEBUG (17020): interim transcript
+    transcript: "Yeah"
+[23:44:16.341] DEBUG (17020): interim transcript
+    transcript: "Yeah, that'"
+[23:44:16.353] DEBUG (17020): interim transcript
+    transcript: "Yeah, that's fine."
+[23:44:16.368] DEBUG (17020): received user preflight transcript
+    user_transcript: "Yeah, that's fine."
+    language: "en"
+[23:44:16.369] DEBUG (17020): triggering preemptive generation (PREFLIGHT_TRANSCRIPT)
+    transcript: "Yeah, that's fine."
+[23:44:16.440] DEBUG (17020): Cartesia STT END_OF_SPEECH
+[pipeline][11:44:16.442] STT final transcript: "Yeah, that's fine."
+[pipeline][11:44:16.443] STT complete (-1ms): "Yeah, that's fine."
+[23:44:16.444] DEBUG (17020): received user transcript
+    user_transcript: "Yeah, that's fine."
+    language: "en"
+[23:44:16.446] WARN (17020): stt end of speech received while vad is still in a speech segment, flushing vad
+    vadSpeechStartTime: 1785930255203.8362
+    flushed: true
+[23:44:16.446] DEBUG (17020): running EOU detection on stt END_OF_SPEECH
+[23:44:16.446] DEBUG (17020): running EOU detection
+    audioTranscript: "Yeah, that's fine."
+    turnDetectionMode: "stt"
+[23:44:16.500] DEBUG (17020): end of user turn
+    transcript: "Yeah, that's fine."
+[agent-hook]: onUserTurnCompleted hook triggered with message: "Yeah, that's fine."
+[context-manager] Database persistence DISABLED (no DATABASE_URL found)
+[agent-hook]: Background extraction triggered async (turn=27, field="affordability_panel_active"). Pipeline proceeds immediately — 0ms wait.
+[agent-hook][fallback] Injected sentinel "__pending__" for field "affordability_panel_active" — LLM proceeds immediately, extractor will overwrite.
+[agent-debug]: System instruction message prepended to session.chatCtx.
+[agent-debug]: Instructions updated — stage=2.5, pendingField=affordability_panel_active
+[perf] updateInstructions (getActiveInstructions + chatCtx write): 2.2ms
+[agent-hook]: Local mutable chatCtx system instructions updated.
+[perf] chatCtx local copy update: 0.4ms
+[perf] EOU->instructions-update gap: 5.2ms
+[perf] context-manager handleGlobalConfirmation: 3.9ms (handled=false)
+[pipeline][11:44:16.510] LLM request sent → Cerebras
+[perf] context-manager checkForGlobalCorrections: 4.2ms (corrected=false)
+[context-manager] Attempt count for "affordability_panel_active" is 1
+[perf] llm-extractor extractProfileField("affordability_action"): START (running concurrent with main LLM if race not yet resolved)
+{"type":"ailana-metrics","event":"turn","turnNumber":30,"sessionAgeMs":593561,"contextItemCount":59,"estimatedContextTokens":1613,"userTurnEndAt":1785930256443,"generateReplyAt":1785930005729}
+[agent-debug]: Agent state: listening → thinking
+[cerebras-proxy][11:44:16.523] Sending request to Cerebras: model=gemma-4-31b
+[agent-debug]: Sent stage update to frontend: 2.5 with profile data.
+[23:44:16.501] DEBUG (17020): Task.runTask: task AgentActivity.userTurnCompleted started
+[23:44:16.502] DEBUG (17020): EOU detection task completed     
+[23:44:16.508] INFO (17020): Creating speech handle
+    speech_id: "speech_98f84a83-dc7"
+[23:44:16.508] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply started
+[23:44:16.509] DEBUG (17020): Task.runTask: task performLLMInference started
+[23:44:16.514] DEBUG (17020): Task.runTask: task AgentActivity.userTurnCompleted done
+[23:44:16.516] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply.produceSegments started
+[23:44:16.522] DEBUG (17020): Task.runTask: task performToolExecutions started
+[perf] llm-extractor extractProfileField("affordability_action"): Cerebras call (attempt 1) took 466.8ms
+[llm-extractor] Extracted "affordability_action" raw JSON: {
+  "value": null,
+  "declared": false
+}
+[perf] llm-extractor extractProfileField("affordability_action"): TOTAL 467.9ms (content=ok)
+[perf] context-manager stage2.5 extraction: 469.1ms
+[perf] context-manager onUserTurn TOTAL: 478.0ms
+[reconcile] Turn 27 extraction finished in 478.2ms.
+[reconcile] Merging Turn 27 background extraction results into state.
+[reconcile] ⚠️  Field "affordability_panel_active" had unresolvved __pending__ sentinel after extraction — cleared to null. Extractor returned no value.
+[cerebras-proxy][11:44:17.113] First chunk (TTFT: 590ms, delta: "")
+[agent]: Channel started (video).
+[23:44:17.980] DEBUG (17020): Task.runTask: task performTTSInference started
+[pipeline][11:44:17.981] TTS started  lag_after_first_token=-1ms
+[pipeline][11:44:17.981] AVATAR render start  lag_after_tts_start=0ms
+[cartesia-tts][11:44:17.982] Synthesize stream initialized (Timer started)
+[cartesia-tts][11:44:17.982] updateInputStream called
+[23:44:17.984] DEBUG (17020): Using TTS aligned transcripts for transcription node input
+[23:44:17.985] DEBUG (17020): Task.runTask: task performTextForwarding started
+[23:44:17.986] DEBUG (17020): Task.runTask: task performAudioForwarding started
+[cerebras-proxy][11:44:18.045] Stream complete — Total: 1522ms, chunks: 13, empty-delta chunks: 2
+[pipeline][11:44:18.047] LLM first token received  TTFT=1537ms  ✓
+[pipeline][11:44:18.047] LLM stream complete  total=1537ms     
+{"type":"ailana-metrics","event":"turn","turnNumber":30,"sessionAgeMs":595094,"contextItemCount":0,"estimatedContextTokens":4814,"ttftMs":1469,"userTurnEndAt":1785930256443,"generateReplyAt":1785930005729}
+[pipeline][11:44:18.048] LLM metrics — TTFT=1469ms  prompt_tokens=4814  completion_tokens=117
+[23:44:18.051] DEBUG (17020): Task.runTask: task performToolExecutions done
+[23:44:18.052] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply.produceSegments done
+[23:44:18.052] DEBUG (17020): Task.runTask: task performLLMInference done
+[cartesia-tts-debug] Frame 0: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts][11:44:19.174] FIRST AUDIO FRAME received from Cartesia (TTFT since initialization: 1192ms)
+[cartesia-tts-debug] Frame 1: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts-debug] Frame 2: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts-debug] Frame 3: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts-debug] Frame 4: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[pipeline][11:44:19.488] ⚠️  Avatar first-frame timeout — ActivveSpeakersChanged never fired. Firing [TIMEOUT_FALLBACK] estimate. This is a LiveKit SDK event-drop, NOT real avatar lag.      
+{"type":"ailana-metrics","event":"avatar_first_frame","tts_to_avatar_ms":1507,"tts_start_to_avatar_ms":1507,"e2e_to_avatar_ms":3045,"isFallback":true,"turnNumber":30,"sessionAgeMs":596534} 
+[pipeline][11:44:19.489] ── AVATAR LATENCY ──  tts_to_avatar=1507ms  tts_start_to_avatar=1507ms  e2e_user_to_avatar=3045ms [TIMEOUT_FALLBACK — LiveKit event drop, not real lag]
+[23:44:19.583] WARN (17020): job process memory usage is above the warning threshold (advisory only, the process will not be terminated)
+    memoryUsageMB: 2400.7
+    memoryWarnMB: 1000
+    memoryLimitMB: 0
+    uptime: 603398.4841000001
+    hasRunningJob: true
+    baselineMemoryMB: 2217.7
+    growthMemoryMB: 183
+[agent-debug]: Agent state: thinking → speaking
+{"type":"ailana-metrics","event":"turn","turnNumber":30,"sessionAgeMs":597163,"contextItemCount":0,"estimatedContextTokens":0,"e2eLatencyMs":3674,"agentSpeakingAt":1785930260117,"userTurnEndAt":1785930256443,"generateReplyAt":1785930005729}
+[pipeline][11:44:22.495] TTS audio complete  render_dur=4514ms
+[pipeline][11:44:22.496] ── TURN 30 SUMMARY ──  stt_done=?  llm_start=67ms  llm_first_token=1604ms  llm_done=1604ms  tts_start=1538ms  tts_done=6052ms
+[pipeline][11:44:22.496] TTS metrics — audio_dur=-1ms
+[cartesia-tts][11:44:22.498] stream.close()
+[23:44:22.500] DEBUG (17020): Task.runTask: task performTTSInference done
+[23:44:22.505] DEBUG (17020): Task.runTask: task performTextForwarding done
+[23:44:22.516] DEBUG (17020): Task.runTask: task performAudioForwarding done
+[agent]: SYSTEM_AUS_SUBMITTED received. Status: refer
+[context-manager]: Applied AUS result: refer -> pending field set to fd2_delivery
+[agent-debug]: System instruction message prepended to session.chatCtx.
+[agent-debug]: Instructions updated — stage=2.5, pendingField=fd2_delivery
+[23:44:23.362] INFO (17020): Creating speech handle
+    speech_id: "speech_48ec37fb-961"
+[pipeline][11:44:23.366] LLM request sent → Cerebras
+{"type":"ailana-metrics","event":"turn","turnNumber":31,"sessionAgeMs":600414,"contextItemCount":60,"estimatedContextTokens":1638,"userTurnEndAt":1785930256443,"generateReplyAt":1785930263360}
+[agent-debug]: Agent state: speaking → thinking
+[agent-debug]: Sent stage update to frontend: 2.5 with profile data.
+[cerebras-proxy][11:44:23.386] Sending request to Cerebras: model=gemma-4-31b
+[23:44:23.363] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply started
+[23:44:23.364] DEBUG (17020): Task.runTask: task performLLMInference started
+[23:44:23.371] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply.produceSegments started
+[cerebras-proxy][11:44:23.814] First chunk (TTFT: 428ms, delta: "")
+[23:44:24.038] DEBUG (17020): Task.runTask: task performTTSInference started
+[pipeline][11:44:24.038] TTS started  lag_after_first_token=-1ms
+[pipeline][11:44:24.038] AVATAR render start  lag_after_tts_start=0ms
+[cartesia-tts][11:44:24.039] Synthesize stream initialized (Timer started)
+[cartesia-tts][11:44:24.039] updateInputStream called
+[cerebras-proxy][11:44:24.115] Stream complete — Total: 729ms, chunks: 19, empty-delta chunks: 2
+[pipeline][11:44:24.115] LLM first token received  TTFT=749ms  ✓
+[pipeline][11:44:24.116] LLM stream complete  total=750ms      
+{"type":"ailana-metrics","event":"turn","turnNumber":31,"sessionAgeMs":601162,"contextItemCount":0,"estimatedContextTokens":4837,"ttftMs":669,"userTurnEndAt":1785930256443,"generateReplyAt":1785930263360}
+[pipeline][11:44:24.116] LLM metrics — TTFT=669ms  prompt_tokens=4837  completion_tokens=78
+[23:44:24.117] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply.produceSegments done
+[23:44:24.117] DEBUG (17020): Task.runTask: task performLLMInference done
+[cartesia-tts-debug] Frame 0: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts][11:44:25.281] FIRST AUDIO FRAME received from Cartesia (TTFT since initialization: 1242ms)
+[cartesia-tts-debug] Frame 1: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts-debug] Frame 2: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts-debug] Frame 3: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts-debug] Frame 4: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[pipeline][11:44:25.539] ⚠️  Avatar first-frame timeout — ActivveSpeakersChanged never fired. Firing [TIMEOUT_FALLBACK] estimate. This is a LiveKit SDK event-drop, NOT real avatar lag.      
+{"type":"ailana-metrics","event":"avatar_first_frame","tts_to_avatar_ms":1501,"tts_start_to_avatar_ms":1501,"e2e_to_avatar_ms":9096,"isFallback":true,"turnNumber":31,"sessionAgeMs":602585} 
+[pipeline][11:44:25.539] ── AVATAR LATENCY ──  tts_to_avatar=1501ms  tts_start_to_avatar=1501ms  e2e_user_to_avatar=9096ms [TIMEOUT_FALLBACK — LiveKit event drop, not real lag]
+[pipeline][11:44:27.560] TTS audio complete  render_dur=3522ms
+[pipeline][11:44:27.561] ── TURN 31 SUMMARY ──  stt_done=?  llm_start=6923ms  llm_first_token=7672ms  llm_done=7673ms  tts_start=7595ms  tts_done=11117ms
+[pipeline][11:44:27.561] TTS metrics — audio_dur=-1ms
+[cartesia-tts][11:44:27.563] stream.close()
+[23:44:27.564] DEBUG (17020): Task.runTask: task performTTSInference done
+[23:44:48.361] INFO (17020): playback finished event received
+    callerIdentity: "lemonslice-avatar-agent"
+{"type":"ailana-metrics","event":"turn","turnNumber":31,"sessionAgeMs":625410,"contextItemCount":61,"estimatedContextTokens":1785,"userTurnEndAt":1785930256443,"generateReplyAt":1785930263360}
+[23:44:48.367] INFO (17020): playout completed without interruption
+    speech_id: "speech_98f84a83-dc7"
+    message: "Thank you for your patience, Muhammad ÔÇö your initial results are in, and I've placed your affordability summary on your screen. It brings together the income and savings targets you shared with me and the details from your credit review, and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore ÔÇö it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together? "
+[23:44:48.368] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply done
+[23:44:48.369] DEBUG (17020): Task.runTask: task performToolExecutions started
+[23:44:48.369] DEBUG (17020): Task.runTask: task performToolExecutions done
+[23:44:48.370] DEBUG (17020): Using TTS aligned transcripts for transcription node input
+[23:44:48.370] DEBUG (17020): Task.runTask: task performTextForwarding started
+[23:44:48.371] DEBUG (17020): Task.runTask: task performAudioForwarding started
+[23:44:48.454] DEBUG (17020): Task.runTask: task performTextForwarding done
+[23:44:48.538] DEBUG (17020): firstFrameFut cancelled before first frame
+[23:44:48.539] DEBUG (17020): Task.runTask: task performAudioForwarding done
+[23:44:49.987] DEBUG (17020): VAD task: START_OF_SPEECH
+[23:44:50.355] DEBUG (17020): Cartesia STT START_OF_SPEECH
+[23:44:50.595] DEBUG (17020): VAD task: END_OF_SPEECH
+[23:44:50.693] DEBUG (17020): interim transcript
+    transcript: "Yep"
+[23:44:50.706] DEBUG (17020): interim transcript
+    transcript: "Yep."
+[23:44:50.709] INFO (17020): speech interrupted by audio activity
+    speech id: "speech_48ec37fb-961"
+[23:44:50.715] DEBUG (17020): received user preflight transcript
+    user_transcript: "Yep."
+    language: "en"
+[23:44:50.716] DEBUG (17020): triggering preemptive generation (PREFLIGHT_TRANSCRIPT)
+    transcript: "Yep."
+[23:44:50.853] DEBUG (17020): Cartesia STT END_OF_SPEECH
+[pipeline][11:44:50.856] STT final transcript: "Yep."
+[pipeline][11:44:50.856] STT complete (-1ms): "Yep."
+[agent-hook]: onUserTurnCompleted hook triggered with message: "Yep."
+[context-manager] Database persistence DISABLED (no DATABASE_URL found)
+[agent-hook]: Background extraction triggered async (turn=28, field="fd2_delivery"). Pipeline proceeds immediately — 0ms wait.
+[agent-hook][fallback] Injected sentinel "__pending__" for field "fd2_delivery" — LLM proceeds immediately, extractor will overwrite.
+[agent-debug]: System instruction message prepended to session.chatCtx.
+[agent-debug]: Instructions updated — stage=2.5, pendingField=fd2_delivery
+[perf] updateInstructions (getActiveInstructions + chatCtx write): 1.4ms
+[agent-hook]: Local mutable chatCtx system instructions updated.
+[perf] chatCtx local copy update: 0.7ms
+[perf] EOU->instructions-update gap: 4.4ms
+[perf] context-manager handleGlobalConfirmation: 3.0ms (handled=false)
+[pipeline][11:44:50.868] LLM request sent → Cerebras
+[perf] context-manager checkForGlobalCorrections: 5.3ms (corrected=false)
+[context-manager] Attempt count for "fd2_delivery" is 1        
+[perf] context-manager stage2.5 extraction: 0.1ms
+[perf] context-manager onUserTurn TOTAL: 9.4ms
+[reconcile] Turn 28 extraction finished in 9.9ms.
+[reconcile] Merging Turn 28 background extraction results into state.
+[reconcile] ⚠️  Field "fd2_delivery" had unresolved __pending___ sentinel after extraction — cleared to null. Extractor returned no value.
+{"type":"ailana-metrics","event":"turn","turnNumber":32,"sessionAgeMs":627918,"contextItemCount":62,"estimatedContextTokens":1786,"userTurnEndAt":1785930290856,"generateReplyAt":1785930263360}
+[cerebras-proxy][11:44:50.877] Sending request to Cerebras: model=gemma-4-31b
+[23:44:50.857] DEBUG (17020): received user transcript
+    user_transcript: "Yep."
+    language: "en"
+[23:44:50.858] DEBUG (17020): running EOU detection on stt END_OF_SPEECH
+[23:44:50.859] DEBUG (17020): running EOU detection
+    audioTranscript: "Yep."
+    turnDetectionMode: "stt"
+[23:44:50.859] DEBUG (17020): end of user turn
+    transcript: "Yep."
+[23:44:50.859] DEBUG (17020): Task.runTask: task AgentActivity.userTurnCompleted started
+[23:44:50.860] DEBUG (17020): EOU detection task completed     
+[23:44:50.865] INFO (17020): Creating speech handle
+    speech_id: "speech_a1aa4fb2-527"
+[23:44:50.866] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply started
+[23:44:50.867] DEBUG (17020): Task.runTask: task performLLMInference started
+[23:44:50.871] DEBUG (17020): Task.runTask: task AgentActivity.userTurnCompleted done
+[23:44:50.874] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply.produceSegments started
+[23:44:50.875] DEBUG (17020): Task.runTask: task performToolExecutions started
+[agent-debug]: Sent stage update to frontend: 2.5 with profile data.
+[23:44:51.097] INFO (17020): playback finished event received
+    callerIdentity: "lemonslice-avatar-agent"
+[23:44:51.099] DEBUG (17020): Aborting all pipeline reply tasks due to interruption
+    speech_id: "speech_48ec37fb-961"
+[23:44:51.100] INFO (17020): playout completed with interrupt  
+    speech_id: "speech_48ec37fb-961"
+    message: ""
+[23:44:51.100] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply done
+[cerebras-proxy][11:44:51.360] First chunk (TTFT: 483ms, delta: "")
+[23:44:51.363] DEBUG (17020): Task.runTask: task performTTSInference started
+[pipeline][11:44:51.364] TTS started  lag_after_first_token=-1ms
+[pipeline][11:44:51.364] AVATAR render start  lag_after_tts_start=0ms
+[cartesia-tts][11:44:51.365] Synthesize stream initialized (Timer started)
+[cartesia-tts][11:44:51.365] updateInputStream called
+[23:44:51.365] DEBUG (17020): Using TTS aligned transcripts for transcription node input
+[23:44:51.366] DEBUG (17020): Task.runTask: task performTextForwarding started
+[23:44:51.366] DEBUG (17020): Task.runTask: task performAudioForwarding started
+[cerebras-proxy][11:44:51.428] Stream complete — Total: 551ms, chunks: 17, empty-delta chunks: 3
+[pipeline][11:44:51.428] LLM first token received  TTFT=560ms  ✓
+[pipeline][11:44:51.429] LLM stream complete  total=560ms      
+{"type":"ailana-metrics","event":"turn","turnNumber":32,"sessionAgeMs":628475,"contextItemCount":0,"estimatedContextTokens":4960,"ttftMs":493,"userTurnEndAt":1785930290856,"generateReplyAt":1785930263360}
+[pipeline][11:44:51.429] LLM metrics — TTFT=493ms  prompt_tokens=4960  completion_tokens=78
+[23:44:51.432] DEBUG (17020): Task.runTask: task performToolExecutions done
+[23:44:51.433] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply.produceSegments done
+[23:44:51.433] DEBUG (17020): Task.runTask: task performLLMInference done
+[cartesia-tts-debug] Frame 0: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts][11:44:52.747] FIRST AUDIO FRAME received from Cartesia (TTFT since initialization: 1382ms)
+[cartesia-tts-debug] Frame 1: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts-debug] Frame 2: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts-debug] Frame 3: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[pipeline][11:44:52.910] ⚠️  Avatar first-frame timeout — ActivveSpeakersChanged never fired. Firing [TIMEOUT_FALLBACK] estimate. This is a LiveKit SDK event-drop, NOT real avatar lag.      
+{"type":"ailana-metrics","event":"avatar_first_frame","tts_to_avatar_ms":1547,"tts_start_to_avatar_ms":1547,"e2e_to_avatar_ms":2055,"isFallback":true,"turnNumber":32,"sessionAgeMs":629957} 
+[pipeline][11:44:52.911] ── AVATAR LATENCY ──  tts_to_avatar=1547ms  tts_start_to_avatar=1547ms  e2e_user_to_avatar=2055ms [TIMEOUT_FALLBACK — LiveKit event drop, not real lag]
+[cartesia-tts-debug] Frame 4: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[agent-debug]: Agent state: thinking → speaking
+{"type":"ailana-metrics","event":"turn","turnNumber":32,"sessionAgeMs":630852,"contextItemCount":0,"estimatedContextTokens":0,"e2eLatencyMs":2950,"agentSpeakingAt":1785930293806,"userTurnEndAt":1785930290856,"generateReplyAt":1785930263360}
+[pipeline][11:44:55.006] TTS audio complete  render_dur=3642ms
+[pipeline][11:44:55.006] ── TURN 32 SUMMARY ──  stt_done=?  llm_start=12ms  llm_first_token=572ms  llm_done=572ms  tts_start=508ms  tts_done=4150ms
+[pipeline][11:44:55.007] TTS metrics — audio_dur=-1ms
+[cartesia-tts][11:44:55.009] stream.close()
+[23:44:55.014] DEBUG (17020): Task.runTask: task performTextForwarding done
+[23:44:55.015] DEBUG (17020): Task.runTask: task performTTSInference done
+[23:44:55.024] DEBUG (17020): Task.runTask: task performAudioForwarding done
+[agent]: Channel started (avatar-chat).
+[agent]: Channel started (avatar-chat).
+[agent]: Channel started (avatar-chat).
+[agent]: Channel started (video).
+[agent]: Channel started (video).
+[agent]: Channel started (video).
+[23:45:13.492] INFO (17020): playback finished event received
+    callerIdentity: "lemonslice-avatar-agent"
+{"type":"ailana-metrics","event":"turn","turnNumber":32,"sessionAgeMs":650540,"contextItemCount":63,"estimatedContextTokens":1878,"userTurnEndAt":1785930290856,"generateReplyAt":1785930263360}
+[agent-debug]: Agent state: speaking → listening
+[23:45:13.496] INFO (17020): playout completed without interruption
+    speech_id: "speech_a1aa4fb2-527"
+    message: "Thank you for your patience, Muhammad ÔÇö your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path ÔÇö they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback? "
+[23:45:13.500] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply done
+[agent]: Creating Cascaded agent (Cerebras LLM + Cartesia STT + Cartesia TTS + LemonSlice Avatar)...
+[23:45:14.017] DEBUG (17020): Task.runTask: task AgentSession_updateActivityTask started
+{"type":"ailana-metrics","event":"session_rotation","reason":"scheduled","turnNumber":32,"sessionAgeMs":651064}
+{"type":"ailana-context-budget","event":"session_context","inputTokens":0,"estimatedTextTokens":null,"itemCount":63,"action":"rotation_done","forceCompactThreshold":6000,"overLatencyThreshold":false,"nearHardLimit":false}
+[context]: Session rotated (static instructions, summary in chat ctx only)
+{"type":"ailana-metrics","event":"turn","turnNumber":32,"sessionAgeMs":651271,"contextItemCount":64,"estimatedContextTokens":1878,"userTurnEndAt":1785930290856,"generateReplyAt":1785930263360}
+[23:45:14.023] DEBUG (17020): Task.runTask: task AgentActivity_onExit started
+[23:45:14.024] DEBUG (17020): Task.runTask: task AgentActivity_onExit done
+[23:45:14.024] INFO (17020): mainTask: scheduling paused and no more speech tasks to wait
+[23:45:14.024] INFO (17020): AgentActivity mainTask: exiting   
+[23:45:14.223] DEBUG (17020): VAD task closed
+[23:45:14.227] DEBUG (17020): Agent handoff inserted into chat context
+    previousAgentId: "ailana_voice_agent"
+    newAgentId: "ailana_voice_agent"
+[23:45:14.237] DEBUG (17020): Task.runTask: task AgentActivity_onEnter started
+[23:45:14.240] DEBUG (17020): Task.runTask: task AgentActivity_onEnter done
+[23:45:14.241] DEBUG (17020): Task.runTask: task AgentSession_updateActivityTask done
+[23:45:14.245] DEBUG (17020): Connecting to Cartesia STT: wss://api.cartesia.ai/stt/turns/websocket?model=ink-2&sample_rate=16000&encoding=pcm_s16le
+[agent]: Channel started (avatar-chat).
+[agent]: Channel started (avatar-chat).
+[agent]: Channel started (avatar-chat).
+[agent]: Generating reply for: "call back"
+[perf] context-manager handleGlobalConfirmation: 0.0ms (handled=false)
+[perf] context-manager checkForGlobalCorrections: 0.1ms (corrected=false)
+[context-manager] Attempt count for "fd2_delivery" is 2        
+[perf] context-manager stage2.5 extraction: 0.0ms
+[perf] context-manager onUserTurn TOTAL: 1.1ms
+[agent-debug]: System instruction message prepended to session.chatCtx.
+[agent-debug]: Instructions updated — stage=2.5, pendingField=fd2_delivery
+[23:45:29.650] INFO (17020): Creating speech handle
+    speech_id: "speech_0f3ad185-f86"
+[pipeline][11:45:29.656] LLM request sent → Cerebras
+{"type":"ailana-metrics","event":"turn","turnNumber":33,"sessionAgeMs":666703,"contextItemCount":66,"estimatedContextTokens":1880,"userTurnEndAt":1785930290856,"generateReplyAt":1785930329646}
+[agent-debug]: Agent state: listening → thinking
+[agent-debug]: Sent stage update to frontend: 2.5 with profile data.
+[cerebras-proxy][11:45:29.676] Sending request to Cerebras: model=gemma-4-31b
+[23:45:29.652] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply started
+[23:45:29.654] DEBUG (17020): Task.runTask: task performLLMInference started
+[23:45:29.659] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply.produceSegments started
+[23:45:29.661] DEBUG (17020): Task.runTask: task performToolExecutions started
+[cerebras-proxy][11:45:30.243] First chunk (TTFT: 567ms, delta: "")
+[23:45:30.244] DEBUG (17020): Task.runTask: task performTTSInference started
+[pipeline][11:45:30.245] TTS started  lag_after_first_token=-1ms
+[pipeline][11:45:30.245] AVATAR render start  lag_after_tts_start=0ms
+[cartesia-tts][11:45:30.246] Synthesize stream initialized (Timer started)
+[cartesia-tts][11:45:30.246] updateInputStream called
+[23:45:30.247] DEBUG (17020): Using TTS aligned transcripts for transcription node input
+[23:45:30.247] DEBUG (17020): Task.runTask: task performTextForwarding started
+[23:45:30.247] DEBUG (17020): Task.runTask: task performAudioForwarding started
+[cerebras-proxy][11:45:30.290] Stream complete — Total: 614ms, chunks: 9, empty-delta chunks: 3
+[pipeline][11:45:30.291] LLM first token received  TTFT=635ms  ✓
+[pipeline][11:45:30.291] LLM stream complete  total=635ms      
+{"type":"ailana-metrics","event":"turn","turnNumber":33,"sessionAgeMs":667337,"contextItemCount":0,"estimatedContextTokens":4842,"ttftMs":587,"userTurnEndAt":1785930290856,"generateReplyAt":1785930329646}
+[pipeline][11:45:30.291] LLM metrics — TTFT=587ms  prompt_tokens=4842  completion_tokens=26
+[23:45:30.295] DEBUG (17020): Task.runTask: task performToolExecutions done
+[23:45:30.295] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply.produceSegments done
+[23:45:30.296] DEBUG (17020): Task.runTask: task performLLMInference done
+[cartesia-tts-debug] Frame 0: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts][11:45:31.448] FIRST AUDIO FRAME received from Cartesia (TTFT since initialization: 1202ms)
+[cartesia-tts-debug] Frame 1: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts-debug] Frame 2: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts-debug] Frame 3: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts-debug] Frame 4: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[pipeline][11:45:31.754] ⚠️  Avatar first-frame timeout — ActivveSpeakersChanged never fired. Firing [TIMEOUT_FALLBACK] estimate. This is a LiveKit SDK event-drop, NOT real avatar lag.      
+{"type":"ailana-metrics","event":"avatar_first_frame","tts_to_avatar_ms":1510,"tts_start_to_avatar_ms":1510,"e2e_to_avatar_ms":40899,"isFallback":true,"turnNumber":33,"sessionAgeMs":668801}
+[pipeline][11:45:31.755] ── AVATAR LATENCY ──  tts_to_avatar=1510ms  tts_start_to_avatar=1510ms  e2e_user_to_avatar=40899ms [TIMEOUT_FALLBACK — LiveKit event drop, not real lag]
+[pipeline][11:45:32.044] TTS audio complete  render_dur=1799ms
+[pipeline][11:45:32.044] ── TURN 33 SUMMARY ──  stt_done=?  llm_start=38800ms  llm_first_token=39435ms  llm_done=39435ms  tts_start=39389ms  tts_done=41188ms
+[pipeline][11:45:32.045] TTS metrics — audio_dur=-1ms
+[cartesia-tts][11:45:32.048] stream.close()
+[23:45:32.051] DEBUG (17020): Task.runTask: task performTextForwarding done
+[23:45:32.051] DEBUG (17020): Task.runTask: task performTTSInference done
+[23:45:32.060] DEBUG (17020): firstFrameFut cancelled before first frame
+[23:45:32.060] DEBUG (17020): Task.runTask: task performAudioForwarding done
+[23:45:38.271] INFO (17020): playback finished event received
+    callerIdentity: "lemonslice-avatar-agent"
+{"type":"ailana-metrics","event":"turn","turnNumber":33,"sessionAgeMs":675320,"contextItemCount":67,"estimatedContextTokens":1910,"userTurnEndAt":1785930290856,"generateReplyAt":1785930329646}
+[agent-debug]: Agent state: thinking → listening
+[23:45:38.276] INFO (17020): playout completed without interruption
+    speech_id: "speech_0f3ad185-f86"
+    message: "I can certainly get that scheduled for you. What day and time would work best for a licensed loan officer to reach out? "
+[23:45:38.280] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply done
+[agent]: Generating reply for: "tomoroow"
+[perf] context-manager handleGlobalConfirmation: 0.0ms (handled=false)
+[perf] context-manager checkForGlobalCorrections: 0.0ms (corrected=false)
+[context-manager] Attempt count for "fd2_delivery" is 3        
+[context-manager] Max attempts reached for "fd2_delivery". Declining field.
+[perf] context-manager onUserTurn TOTAL: 0.7ms
+[agent-debug]: System instruction message prepended to session.chatCtx.
+[agent-debug]: Instructions updated — stage=2.5, pendingField=fd2_delivery
+[23:45:43.270] INFO (17020): Creating speech handle
+    speech_id: "speech_327f1df9-80f"
+[pipeline][11:45:43.273] LLM request sent → Cerebras
+{"type":"ailana-metrics","event":"turn","turnNumber":34,"sessionAgeMs":680321,"contextItemCount":67,"estimatedContextTokens":1912,"userTurnEndAt":1785930290856,"generateReplyAt":1785930343268}
+[agent-debug]: Agent state: listening → thinking
+[agent-debug]: Sent stage update to frontend: 2.5 with profile data.
+[cerebras-proxy][11:45:43.289] Sending request to Cerebras: model=gemma-4-31b
+[23:45:43.270] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply started
+[23:45:43.271] DEBUG (17020): Task.runTask: task performLLMInference started
+[23:45:43.277] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply.produceSegments started
+[23:45:43.278] DEBUG (17020): Task.runTask: task performToolExecutions started
+[cerebras-proxy][11:45:43.676] First chunk (TTFT: 387ms, delta: "")
+[23:45:43.723] DEBUG (17020): Task.runTask: task performTTSInference started
+[pipeline][11:45:43.725] TTS started  lag_after_first_token=-1ms
+[pipeline][11:45:43.725] AVATAR render start  lag_after_tts_start=0ms
+[cartesia-tts][11:45:43.726] Synthesize stream initialized (Timer started)
+[cartesia-tts][11:45:43.726] updateInputStream called
+[cerebras-proxy][11:45:43.731] Stream complete — Total: 442ms, chunks: 8, empty-delta chunks: 3
+[pipeline][11:45:43.732] LLM first token received  TTFT=459ms  ✓
+[pipeline][11:45:43.732] LLM stream complete  total=459ms      
+{"type":"ailana-metrics","event":"turn","turnNumber":34,"sessionAgeMs":680779,"contextItemCount":0,"estimatedContextTokens":4880,"ttftMs":448,"userTurnEndAt":1785930290856,"generateReplyAt":1785930343268}
+[pipeline][11:45:43.733] LLM metrics — TTFT=448ms  prompt_tokens=4880  completion_tokens=20
+[23:45:43.727] DEBUG (17020): Using TTS aligned transcripts for transcription node input
+[23:45:43.727] DEBUG (17020): Task.runTask: task performTextForwarding started
+[23:45:43.727] DEBUG (17020): Task.runTask: task performAudioForwarding started
+[23:45:43.736] DEBUG (17020): Task.runTask: task performToolExecutions done
+[23:45:43.736] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply.produceSegments done
+[23:45:43.736] DEBUG (17020): Task.runTask: task performLLMInference done
+[cartesia-tts-debug] Frame 0: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts][11:45:44.970] FIRST AUDIO FRAME received from Cartesia (TTFT since initialization: 1244ms)
+[cartesia-tts-debug] Frame 1: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts-debug] Frame 2: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts-debug] Frame 3: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[cartesia-tts-debug] Frame 4: sampleRate=16000, channels=1, samples=1600, bytes=1600
+[pipeline][11:45:45.232] ⚠️  Avatar first-frame timeout — ActivveSpeakersChanged never fired. Firing [TIMEOUT_FALLBACK] estimate. This is a LiveKit SDK event-drop, NOT real avatar lag.      
+{"type":"ailana-metrics","event":"avatar_first_frame","tts_to_avatar_ms":1507,"tts_start_to_avatar_ms":1507,"e2e_to_avatar_ms":54376,"isFallback":true,"turnNumber":34,"sessionAgeMs":682278}
+[pipeline][11:45:45.232] ── AVATAR LATENCY ──  tts_to_avatar=1507ms  tts_start_to_avatar=1507ms  e2e_user_to_avatar=54376ms [TIMEOUT_FALLBACK — LiveKit event drop, not real lag]
+[pipeline][11:45:45.402] TTS audio complete  render_dur=1677ms
+[pipeline][11:45:45.402] ── TURN 34 SUMMARY ──  stt_done=?  llm_start=52417ms  llm_first_token=52876ms  llm_done=52876ms  tts_start=52869ms  tts_done=54546ms
+[pipeline][11:45:45.402] TTS metrics — audio_dur=-1ms
+[cartesia-tts][11:45:45.404] stream.close()
+[23:45:45.405] DEBUG (17020): Task.runTask: task performTTSInference done
+[23:45:45.415] DEBUG (17020): Task.runTask: task performTextForwarding done
+[23:45:45.430] DEBUG (17020): firstFrameFut cancelled before first frame
+[23:45:45.431] DEBUG (17020): Task.runTask: task performAudioForwarding done
+[23:45:49.883] INFO (17020): playback finished event received
+    callerIdentity: "lemonslice-avatar-agent"
+{"type":"ailana-metrics","event":"turn","turnNumber":34,"sessionAgeMs":686931,"contextItemCount":68,"estimatedContextTokens":1932,"userTurnEndAt":1785930290856,"generateReplyAt":1785930343268}
+[agent-debug]: Agent state: thinking → listening
+[23:45:49.887] INFO (17020): playout completed without interruption
+    speech_id: "speech_327f1df9-80f"
+    message: "I didn't quite catch the time ÔÇö what time tomorrow would work best for your call? "
+[23:45:49.890] DEBUG (17020): Task.runTask: task AgentActivity.pipelineReply done
+[23:46:24.579] WARN (17020): job process memory usage is above the warning threshold (advisory only, the process will not be terminated)
+    memoryUsageMB: 2206.2
+    memoryWarnMB: 1000
+    memoryLimitMB: 0
+    uptime: 728394.7868
+    hasRunningJob: true
+    baselineMemoryMB: 2217.7
+    growthMemoryMB: -11.4

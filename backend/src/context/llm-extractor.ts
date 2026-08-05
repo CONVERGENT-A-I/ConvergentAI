@@ -156,128 +156,46 @@ export async function extractMultipleFields(
     return {};
   }
 
-  const fieldsDesc = fields.map(f => {
-    return `- "${f.name}": (Expected Type: ${f.expectedType}) ${f.description}.${f.additionalInstructions ? ` Instructions: ${f.additionalInstructions}` : ''}`;
-  }).join('\n');
-
-  const systemPrompt = `You are a precise data extraction agent for a mortgage prequalification assistant.
-Your task is to extract values for multiple fields from the user's latest input.
-We also provide the assistant's last question/utterance to help resolve context or relative references.
-
-Here are the fields to extract:
-${fieldsDesc}
-
-Rules:
-1. Return a JSON object where each key is a field name from the list above.
-2. The value for each key must be a JSON object with:
-   - "value": The extracted value matching the expected type, or null if it cannot be found or extracted.
-   - "declined": A boolean indicating if the user explicitly declined, skipped, said they don't know, are not sure, or don't want to answer this specific field.
-3. For numbers: return only an integer (e.g. 8500, not "8500" or "$8,500"). If the user mentions multiple numbers that need to be summed (especially for monthly debts), calculate the total and return the sum. If the user specifies a range, calculate the midpoint of the range and return it as the single integer.
-4. For strings: return a clean string or null.
-5. If a field's value is not present at all in the user's input, set "value" to null and "declined" to false.
-
-You MUST reply with a JSON object only.`;
-
-  const userPrompt = `Assistant last question: ${lastAssistantUtterance ?? 'None'}
-User input: "${userInput}"`;
-
-  let content: string | null = null;
-
-  // [perf] extractMultipleFields runs inside onUserTurn which is raced against
-  // a 400ms timeout. Log start so we can confirm it is on a separate async tick.
   const _fieldNames = fields.map(f => f.name).join(', ');
   const _perfExtractMulti_start = performance.now();
-  console.log(`[perf] llm-extractor extractMultipleFields([${_fieldNames}]): START`);
-
-  try {
-    // Retry once for transient Cerebras errors
-    let cerebrasErr: any = null;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const _perfCerebrasCallStart = performance.now();
-        const response = await fastClient.chat.completions.create({
-          model: EXTRACTION_MODEL,
-          reasoning_effort: (ailanaConfig.cerebrasReasoningEffort as any) ?? 'low',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          response_format: { type: 'json_object' },
-          temperature: 0.0,
-          // Multi-field extraction: response is {"field1": {"value": ..., "declined": false}, ...}
-          // Up to 6 fields × ~35 tokens per field + JSON overhead = 250 tokens.
-          max_tokens: 250,
-        });
-        const _perfCerebrasCallMs = (performance.now() - _perfCerebrasCallStart).toFixed(1);
-        console.log(`[perf] llm-extractor extractMultipleFields([${_fieldNames}]): Cerebras call (attempt ${attempt + 1}) took ${_perfCerebrasCallMs}ms`);
-        content = response.choices[0]?.message?.content || null;
-        console.log(`[llm-extractor] Extracted multi-field raw JSON:`, content);
-        cerebrasErr = null;
-        break;
-      } catch (error: any) {
-        cerebrasErr = error;
-        const statusCode = error?.status ?? error?.statusCode;
-        if (attempt === 0 && (statusCode === 500 || statusCode === 502 || statusCode === 503)) {
-          // Brief pause only for transient server errors
-          console.log(`[perf] llm-extractor extractMultipleFields([${_fieldNames}]): retry backoff 200ms (status=${statusCode})`);
-          await new Promise(resolve => setTimeout(resolve, 200));
-          continue;
-        }
-        break;
-      }
-    }
-    if (cerebrasErr) {
-      throw cerebrasErr;
-    }
-  } catch (error: any) {
-    const statusCode = error?.status ?? error?.statusCode;
-    console.error(`[llm-extractor] Cerebras failed for multi-field extraction [${fields.map(f => f.name).join(', ')}] (status: ${statusCode}):`, error?.message ?? error);
-    if (statusCode === 400) {
-      console.error(`[llm-extractor] HTTP 400 full error response for multi-field extraction:`, JSON.stringify(error?.error ?? error?.body ?? { message: error?.message, code: error?.code, status: statusCode }, null, 2));
-    }
-    // content stays null; caller receives empty results
-  }
-
-  const _perfExtractMulti_ms = (performance.now() - _perfExtractMulti_start).toFixed(1);
-  console.log(`[perf] llm-extractor extractMultipleFields([${_fieldNames}]): TOTAL ${_perfExtractMulti_ms}ms (content=${content ? 'ok' : 'null'})`);
+  console.log(`[perf] llm-extractor extractMultipleFields([${_fieldNames}]): START (Concurrent Promises)`);
 
   const results: Record<string, ExtractionResult> = {};
+  
+  // Initialize with fallback nulls just in case a promise fails silently
   for (const f of fields) {
     results[f.name] = { value: null, declined: false };
   }
 
-  if (!content) {
-    return results;
-  }
-
   try {
-    const parsed = JSON.parse(content);
-    for (const f of fields) {
-      if (parsed[f.name]) {
-        let value = parsed[f.name].value;
-        const declined = !!parsed[f.name].declined;
-
-        if (f.expectedType === 'number' && value !== null) {
-          if (typeof value === 'string') {
-            const cleaned = value.replace(/[^\d.]/g, '');
-            const parsedNum = parseFloat(cleaned);
-            value = isNaN(parsedNum) ? null : Math.round(parsedNum);
-          } else if (typeof value === 'number') {
-            value = Math.round(value);
-          } else {
-            value = null;
-          }
-        }
-        results[f.name] = { value, declined };
+    // Map over fields and fire extractProfileField concurrently
+    const promises = fields.map(async (f) => {
+      try {
+        const res = await extractProfileField(
+          userInput,
+          lastAssistantUtterance,
+          f.name,
+          f.description,
+          f.expectedType,
+          f.additionalInstructions
+        );
+        results[f.name] = res;
+      } catch (err) {
+        console.error(`[llm-extractor] Concurrent extraction failed for field "${f.name}":`, err);
+        // On failure, it retains the initialized null/false value
       }
-    }
-  } catch (parseError) {
-    console.error(`[llm-extractor] Failed to parse content for multiple fields:`, parseError);
+    });
+
+    await Promise.all(promises);
+  } catch (error: any) {
+    console.error(`[llm-extractor] Fatal error during concurrent extraction [${_fieldNames}]:`, error);
   }
+
+  const _perfExtractMulti_ms = (performance.now() - _perfExtractMulti_start).toFixed(1);
+  console.log(`[perf] llm-extractor extractMultipleFields([${_fieldNames}]): TOTAL ${_perfExtractMulti_ms}ms (Concurrent)`);
 
   return results;
 }
-
 
 export async function classifyConfirmation(
   userInput: string,
