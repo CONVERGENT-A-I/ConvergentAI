@@ -1475,17 +1475,18 @@ export default defineAgent({
               agentId: lsAgentId,
               apiKey: lsApiKey,
               // agentPrompt controls expressions WHILE SPEAKING
-              // Use short affect keywords — LemonSlice's DiT model responds better to
-              // evocative descriptors than long behavioral instructions. Removing rigid
-              // gaze-locking ("always looking directly at the camera") allows natural
-              // saccades and blinks, preventing the "bionic stare" effect.
-              agentPrompt: 'a friendly, relaxed professional speaking naturally with gentle hand gestures and a warm smile',
+              // STRICT GAZE DIRECTIVE: Ailana must always look straight at the camera.
+              // Use strong positive gaze-anchoring keywords + composed mouth descriptors.
+              // "direct eye contact, looking straight at camera" locks the gaze forward.
+              // "composed, closed-mouth smile" suppresses the overly-expressive open-mouth
+              // articulation that LemonSlice's DiT model defaults to during speech.
+              agentPrompt: 'confident professional, direct eye contact, looking straight at camera, composed closed-mouth smile, calm measured speaking, poised and steady head position',
               // agent_idle_prompt controls expressions WHILE LISTENING/IDLE
-              // LemonSlice default is "a serious person" — overriding with short positive
-              // affect keywords. Negative constraints ("never looking down") are poorly
-              // handled by diffusion models and can cause the opposite of intended behavior.
+              // Same strict forward-facing gaze anchor. "Steady gaze at camera" prevents
+              // any downward or lateral drift. "Serene closed-mouth" keeps the mouth
+              // composed and not hanging open between utterances.
               extraPayload: {
-                agent_idle_prompt: 'attentive, warmly curious, softly smiling, eye contact with the viewer',
+                agent_idle_prompt: 'attentive, steady gaze directly at camera, looking straight ahead, serene closed-mouth smile, poised, calm, still head position',
                 model: 'flash',
               },
             });
