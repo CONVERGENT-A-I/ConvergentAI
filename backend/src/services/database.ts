@@ -4,6 +4,7 @@ const IS_REAL_DATABASE = !!DATABASE_URL && !DATABASE_URL.includes('dummy');
 
 let PrismaClientClass: any = null;
 
+
 if (IS_REAL_DATABASE) {
   try {
     // @ts-ignore - Optional dynamic import when generated Prisma client is missing
