@@ -301,6 +301,19 @@ export async function classifyConfirmation(
   fieldName: string,
   pendingValue: string,
 ): Promise<'yes' | 'no' | 'ambiguous'> {
+  const _perfClassify_start = performance.now();
+  console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): START`);
+
+  const lowerInput = userInput.toLowerCase().trim();
+  // FAST PATH: Regex check for common confirmation phrases
+  const confirmRegex = /^(yes|yeah|yep|yup|correct|that is correct|that's correct|looks good|yes it is|it is|sure|okay|ok)(\s*(it is|thanks|thank you|that's right|that is right))?[.!]?$/i;
+  
+  if (confirmRegex.test(lowerInput) || lowerInput === "that is correct" || lowerInput === "matches" || lowerInput === "yes that is correct" || lowerInput === "yeah that's correct" || lowerInput === "that's right") {
+    console.log(`[llm-extractor] Fast-path regex matched 'yes' for confirmation of "${fieldName}"`);
+    console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): TOTAL ${(performance.now() - _perfClassify_start).toFixed(1)}ms (content=fast-path)`);
+    return 'yes';
+  }
+
   const systemPrompt = `You are analyzing a user response to a confirmation question.
 The assistant asked if the value "${pendingValue}" is correct for their "${fieldName}".
 Determine if the user confirms this value, rejects/corrects it, or if it is ambiguous.
@@ -312,9 +325,6 @@ Return a JSON object with:
 User response: "${userInput}"`;
 
   let content: string | null = null;
-
-  const _perfClassify_start = performance.now();
-  console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): START`);
 
   try {
     // Retry once for transient Cerebras errors

@@ -310,6 +310,7 @@ class AilanaVoiceAgent extends voice.Agent {
     }
 
     if (pending === 'prefill_name_address') {
+      if ((profile as any).needs_prefill_correction) return null;
       const name = profile.legal_name || profile.borrower_name || 'Valued Borrower';
       const address = profile.physical_address || (profile.zip_code ? `address on file in zip code ${profile.zip_code}` : 'address on file');
       const scriptText = `Thank you. I've processed that soft pull. First, I have your name listed as ${name}, and your physical address as ${address}. Does that look right or is anything out of date?`;
@@ -318,6 +319,7 @@ class AilanaVoiceAgent extends voice.Agent {
     }
 
     if (pending === 'prefill_employer') {
+      if ((profile as any).needs_prefill_correction) return null;
       const employer = profile.employer || 'information on file';
       const scriptText = `Great. Next, I have your employer listed as ${employer}. Does that look right or is anything out of date?`;
       console.log('[agent-hook]: Delivering prefill_employer script via Deterministic ReadableStream!');
@@ -325,6 +327,7 @@ class AilanaVoiceAgent extends voice.Agent {
     }
 
     if (pending === 'prefill_accounts') {
+      if ((profile as any).needs_prefill_correction) return null;
       const openAccounts = (profile as any).crs_open_accounts ?? 3;
       const latePayments = (profile as any).crs_late_payments ?? 0;
       const lateText = latePayments === 0 ? 'no late payments' : `${latePayments} late payment(s)`;
@@ -334,6 +337,7 @@ class AilanaVoiceAgent extends voice.Agent {
     }
 
     if (pending === 'prefill_credit_range') {
+      if ((profile as any).needs_prefill_correction) return null;
       const range = profile.credit_range || '700-749';
       const scriptText = `Lastly, we retrieved your credit profile showing a category rating in the Good range of ${range}. Does that match what you expect or is anything out of date?`;
       console.log('[agent-hook]: Delivering prefill_credit_range script via Deterministic ReadableStream!');
@@ -402,9 +406,9 @@ class AilanaVoiceAgent extends voice.Agent {
       const currentTurnNumber = this.contextManager.triggerBackgroundExtraction(userMessage.textContent);
 
       if (isBoundary) {
-        // Deterministic fields get the user-requested 2000ms. 
+        // Deterministic fields get the user-requested 2500ms. 
         // Regular boundaries get 4000ms because they run 6-field extractions that take ~3.7s.
-        const waitMs = isDeterministic ? 2000 : 4000;
+        const waitMs = isDeterministic ? 2500 : 4000;
         console.log(`[agent-hook]: Field "${activeField}" is a STAGE BOUNDARY (deterministic=${isDeterministic}). Waiting up to ${waitMs}ms for extraction to transition stage...`);
         
         const completedInTime = await this.contextManager.waitForExtraction(currentTurnNumber, waitMs);

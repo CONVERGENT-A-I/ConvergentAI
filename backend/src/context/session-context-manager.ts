@@ -1135,35 +1135,63 @@ export class SessionContextManager {
         });
       }
 
-      // 2. Parallel LLM execution: run decision classification and correction extraction concurrently!
-      const decisionPromise = classifyConfirmation(text, lastQuestion, step, 'Does that look right or is anything out of date?');
-      const extractionPromise = correctionFields.length > 0
-        ? extractMultipleFields(text, lastQuestion, correctionFields)
-        : Promise.resolve(null);
+      const isCorrectionMode = (this.profile as any).needs_prefill_correction;
+      let decision: string;
+      let extractionResults: any = null;
+      
+      if (isCorrectionMode) {
+        console.log(`[context-manager]: In correction mode for ${step}, bypassing classification and extracting directly.`);
+        decision = 'no';
+        if (correctionFields.length > 0) {
+          extractionResults = await extractMultipleFields(text, lastQuestion, correctionFields);
+        }
+      } else {
+        decision = await classifyConfirmation(text, lastQuestion, step, 'Does that look right or is anything out of date?');
+        if (decision === 'no' && correctionFields.length > 0) {
+          extractionResults = await extractMultipleFields(text, lastQuestion, correctionFields);
+        }
+      }
 
-      const [decision, extractionResults] = await Promise.all([decisionPromise, extractionPromise]);
-
-      const confirmed = this.profile.prefilled_fields_confirmed || {};
-
+      let hasCorrection = false;
       if (decision === 'no' && extractionResults) {
         if (step === 'prefill_employer' && extractionResults.employer_correction?.value) {
           this.profile.employer = extractionResults.employer_correction.value as string;
           console.log(`[context-manager]: Corrected employer to ${extractionResults.employer_correction.value}`);
+          hasCorrection = true;
         } else if (step === 'prefill_name_address') {
           if (extractionResults.name_correction?.value) {
             this.profile.borrower_name = extractionResults.name_correction.value as string;
             this.profile.legal_name = extractionResults.name_correction.value as string;
             console.log(`[context-manager]: Corrected borrower name to ${extractionResults.name_correction.value}`);
+            hasCorrection = true;
           }
           if (extractionResults.address_correction?.value) {
             this.profile.physical_address = extractionResults.address_correction.value as string;
             console.log(`[context-manager]: Corrected physical address to ${extractionResults.address_correction.value}`);
+            hasCorrection = true;
           }
         } else if (step === 'prefill_credit_range' && extractionResults.credit_correction?.value) {
           this.profile.credit_range = sanitizeCreditScore(extractionResults.credit_correction.value as string);
           console.log(`[context-manager]: Corrected credit range to ${this.profile.credit_range}`);
+          hasCorrection = true;
         }
       }
+
+      if (decision === 'ambiguous') {
+        console.log(`[context-manager]: User response to ${step} was ambiguous. Pausing for LLM clarification.`);
+        (this.profile as any).needs_prefill_correction = true;
+        return; // Do NOT confirm and advance, wait for LLM to clarify
+      }
+
+      if (decision === 'no' && !hasCorrection) {
+        console.log(`[context-manager]: User said no to ${step} but provided no correction. Pausing for LLM clarification.`);
+        (this.profile as any).needs_prefill_correction = true;
+        return; // Do NOT confirm and advance, wait for user correction
+      } else {
+        (this.profile as any).needs_prefill_correction = false;
+      }
+
+      const confirmed = this.profile.prefilled_fields_confirmed || {};
 
       if (step === 'prefill_name_address') {
         confirmed.name_address = true;
