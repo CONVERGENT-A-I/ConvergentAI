@@ -33,13 +33,13 @@ export interface BorrowerProfile {
   down_payment?: number | null;
   down_payment_confirmed?: boolean;
 
-  rent_own?: 'rent' | 'own' | 'own_selling' | null;
+  rent_own?: 'rent' | 'own' | 'own_selling' | 'other' | null;
   rent_own_confirmed?: boolean;
 
-  realtor_status?: 'yes' | 'no' | null;
+  realtor_status?: 'yes' | 'no' | 'other' | null;
   realtor_status_confirmed?: boolean;
 
-  refinance_type?: 'cash_out' | 'rate_term' | null;
+  refinance_type?: 'cash_out' | 'rate_term' | 'other' | null;
   refinance_type_confirmed?: boolean;
 
   target_price?: number | null;

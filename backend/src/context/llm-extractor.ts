@@ -213,6 +213,14 @@ export async function classifyAuthorization(
 ): Promise<'yes' | 'no' | 'needs_explanation'> {
   const lowerText = userInput.toLowerCase().trim();
 
+  // ── Tier 0: Leftover Audio Guard ──────────────────────────────────────────
+  // Guard against legacy audio from the OTP modal entry bleeding into this step.
+  // Common phrases spoken while typing/entering the code: "done", "submitted", "okay", "entered", "all set", "finished"
+  if (/\b(done|entered|submitted|typed|sent|got it|ok(ay)?|all set|finished|completed|that'?s it)\b/i.test(lowerText) && !/\b(yes|authorize|consent|agree|proceed|pull|review|go ahead)\b/i.test(lowerText)) {
+    console.log(`[classifyAuthorization] Intercepted likely OTP leftover text ("${userInput}"). Ignoring.`);
+    return 'needs_explanation';
+  }
+
   // ── Tier 1: Regex fast-path ─────────────────────────────────────────────────
   const AUTHORIZE_PATTERNS = [
     /\byes\b/, /\bauthorize\b/, /\bconsent\b/, /\bagree\b/, /\bapprove\b/,
@@ -304,11 +312,13 @@ export async function classifyConfirmation(
   const _perfClassify_start = performance.now();
   console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): START`);
 
-  const lowerInput = userInput.toLowerCase().trim();
-  // FAST PATH: Regex check for common confirmation phrases
-  const confirmRegex = /^(yes|yeah|yep|yup|correct|that is correct|that's correct|looks good|yes it is|it is|sure|okay|ok)(\s*(it is|thanks|thank you|that's right|that is right))?[.!]?$/i;
+  // Remove punctuation (commas, periods, exclamation points, question marks) to simplify regex
+  const cleanInput = userInput.toLowerCase().trim().replace(/[,.!\?]/g, '');
   
-  if (confirmRegex.test(lowerInput) || lowerInput === "that is correct" || lowerInput === "matches" || lowerInput === "yes that is correct" || lowerInput === "yeah that's correct" || lowerInput === "that's right") {
+  // FAST PATH: Regex check for common confirmation phrases
+  const confirmRegex = /^(yes|yeah|yep|yup|correct|that is correct|that's correct|looks good|yes it is|it is|sure|okay|ok)(\s*(it is|thanks|thank you|that's right|that is right|it is correct|that is correct))?$/i;
+  
+  if (confirmRegex.test(cleanInput) || cleanInput === "matches" || cleanInput === "yeah that's correct") {
     console.log(`[llm-extractor] Fast-path regex matched 'yes' for confirmation of "${fieldName}"`);
     console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): TOTAL ${(performance.now() - _perfClassify_start).toFixed(1)}ms (content=fast-path)`);
     return 'yes';

@@ -1133,27 +1133,31 @@ export class SessionContextManager {
           expectedType: 'string',
           additionalInstructions: 'Extract the corrected credit score or range. If not found, return null.'
         });
+      } else if (step === 'prefill_accounts') {
+        correctionFields.push({
+          name: 'open_accounts_correction',
+          description: 'corrected number of open accounts',
+          expectedType: 'number',
+          additionalInstructions: 'Extract the corrected number of open accounts mentioned by the user (e.g. 4 for "4 accounts"). Return an integer or null if not mentioned.'
+        }, {
+          name: 'late_payments_correction',
+          description: 'corrected number of late payments in past 24 months',
+          expectedType: 'number',
+          additionalInstructions: 'Extract the corrected number of late payments mentioned by the user (e.g. 0 for "no late payments", 1 for "1 late payment"). Return an integer or null if not mentioned.'
+        });
       }
 
-      const isCorrectionMode = (this.profile as any).needs_prefill_correction;
-      let decision: string;
+      let decision = await classifyConfirmation(text, lastQuestion, step, 'Does that look right or is anything out of date?');
       let extractionResults: any = null;
-      
-      if (isCorrectionMode) {
-        console.log(`[context-manager]: In correction mode for ${step}, bypassing classification and extracting directly.`);
-        decision = 'no';
+
+      if (decision === 'no' || (decision === 'ambiguous' && (this.profile as any).needs_prefill_correction) || (this.profile as any).needs_prefill_correction) {
         if (correctionFields.length > 0) {
-          extractionResults = await extractMultipleFields(text, lastQuestion, correctionFields);
-        }
-      } else {
-        decision = await classifyConfirmation(text, lastQuestion, step, 'Does that look right or is anything out of date?');
-        if (decision === 'no' && correctionFields.length > 0) {
           extractionResults = await extractMultipleFields(text, lastQuestion, correctionFields);
         }
       }
 
       let hasCorrection = false;
-      if (decision === 'no' && extractionResults) {
+      if (extractionResults) {
         if (step === 'prefill_employer' && extractionResults.employer_correction?.value) {
           this.profile.employer = extractionResults.employer_correction.value as string;
           console.log(`[context-manager]: Corrected employer to ${extractionResults.employer_correction.value}`);
@@ -1174,10 +1178,31 @@ export class SessionContextManager {
           this.profile.credit_range = sanitizeCreditScore(extractionResults.credit_correction.value as string);
           console.log(`[context-manager]: Corrected credit range to ${this.profile.credit_range}`);
           hasCorrection = true;
+        } else if (step === 'prefill_accounts') {
+          if (extractionResults.open_accounts_correction?.value !== undefined && extractionResults.open_accounts_correction?.value !== null) {
+            const val = Number(extractionResults.open_accounts_correction.value);
+            if (!isNaN(val)) {
+              (this.profile as any).crs_open_accounts = val;
+              console.log(`[context-manager]: Corrected open accounts to ${val}`);
+              hasCorrection = true;
+            }
+          }
+          if (extractionResults.late_payments_correction?.value !== undefined && extractionResults.late_payments_correction?.value !== null) {
+            const val = Number(extractionResults.late_payments_correction.value);
+            if (!isNaN(val)) {
+              (this.profile as any).crs_late_payments = val;
+              console.log(`[context-manager]: Corrected late payments to ${val}`);
+              hasCorrection = true;
+            }
+          }
         }
       }
 
-      if (decision === 'ambiguous') {
+      if (hasCorrection) {
+        decision = 'no';
+      }
+
+      if (decision === 'ambiguous' && !hasCorrection) {
         console.log(`[context-manager]: User response to ${step} was ambiguous. Pausing for LLM clarification.`);
         (this.profile as any).needs_prefill_correction = true;
         return; // Do NOT confirm and advance, wait for LLM to clarify
@@ -1611,7 +1636,7 @@ export class SessionContextManager {
         name: 'rent_own',
         description: 'Whether they rent, own, or own and plan to sell their current home',
         expectedType: 'string',
-        additionalInstructions: 'Extract "rent", "own", or "own_selling". If they own and plan to sell, return "own_selling". If they own but do not mention selling, return "own". If they rent, return "rent". If not found, return null.',
+        additionalInstructions: 'Extract "rent", "own", or "own_selling". If they own and plan to sell, return "own_selling". If they own but do not mention selling, return "own". If they rent, return "rent". If their response is ambiguous or does not fit these choices, return "other". If not found, return null.',
       });
     }
     if (!isRef && !this.profile.realtor_status_confirmed) {
@@ -1619,7 +1644,7 @@ export class SessionContextManager {
         name: 'realtor_status',
         description: 'Whether they have connected with a real estate agent',
         expectedType: 'string',
-        additionalInstructions: 'Extract "yes" or "no". If they have an agent/realtor, return "yes". If not, return "no". If not found, return null.',
+        additionalInstructions: 'Extract "yes" or "no". If they have an agent/realtor, return "yes". If not, return "no". If their response is ambiguous or does not fit these choices, return "other". If not found, return null.',
       });
     }
     if (isRef && !this.profile.refinance_type_confirmed) {
@@ -1627,7 +1652,7 @@ export class SessionContextManager {
         name: 'refinance_type',
         description: 'Whether they want a cash-out refinance or rate and term refinance',
         expectedType: 'string',
-        additionalInstructions: 'Extract "cash_out" or "rate_term". If they say cash out, equity draw, take cash out, return "cash_out". If they say rate and term, lower monthly payment, reduce rate, change terms, return "rate_term". If not found, return null.',
+        additionalInstructions: 'Extract "cash_out" or "rate_term". If they say cash out, equity draw, take cash out, return "cash_out". If they say rate and term, lower monthly payment, reduce rate, change terms, return "rate_term". If their response is ambiguous or does not fit these choices, return "other". If not found, return null.',
       });
     }
     if (!this.profile.property_type_confirmed) {
@@ -1758,24 +1783,43 @@ export class SessionContextManager {
       anyUpdates = true;
     }
 
-    const rown = results.rent_own?.value;
-    if ((rown === 'rent' || rown === 'own' || rown === 'own_selling') && !this.profile.rent_own_confirmed) {
+    let rown = results.rent_own?.value;
+    if (typeof rown === 'string') {
+      rown = rown.toLowerCase().trim();
+      if (rown.includes('rent')) rown = 'rent';
+      else if (rown.includes('sell') && rown.includes('own')) rown = 'own_selling';
+      else if (rown.includes('own')) rown = 'own';
+      else rown = 'other';
+    }
+    if ((rown === 'rent' || rown === 'own' || rown === 'own_selling' || rown === 'other') && !this.profile.rent_own_confirmed) {
       this.profile.rent_own = rown;
       this.profile.rent_own_confirmed = true;
       anyUpdates = true;
       console.log(`[context-manager] Stage2: rent_own=${rown}`);
     }
 
-    const rs = results.realtor_status?.value;
-    if ((rs === 'yes' || rs === 'no') && !this.profile.realtor_status_confirmed) {
+    let rs = results.realtor_status?.value;
+    if (typeof rs === 'string') {
+      rs = rs.toLowerCase().trim();
+      if (rs.includes('yes') || rs === 'true') rs = 'yes';
+      else if (rs.includes('no') || rs === 'false') rs = 'no';
+      else if (rs !== 'yes' && rs !== 'no') rs = 'other';
+    }
+    if ((rs === 'yes' || rs === 'no' || rs === 'other') && !this.profile.realtor_status_confirmed) {
       this.profile.realtor_status = rs;
       this.profile.realtor_status_confirmed = true;
       anyUpdates = true;
       console.log(`[context-manager] Stage2: realtor_status=${rs}`);
     }
 
-    const rt = results.refinance_type?.value;
-    if ((rt === 'cash_out' || rt === 'rate_term') && !this.profile.refinance_type_confirmed) {
+    let rt = results.refinance_type?.value;
+    if (typeof rt === 'string') {
+      rt = rt.toLowerCase().trim();
+      if (rt.includes('cash')) rt = 'cash_out';
+      else if (rt.includes('rate') || rt.includes('term')) rt = 'rate_term';
+      else if (rt !== 'cash_out' && rt !== 'rate_term') rt = 'other';
+    }
+    if ((rt === 'cash_out' || rt === 'rate_term' || rt === 'other') && !this.profile.refinance_type_confirmed) {
       this.profile.refinance_type = rt;
       this.profile.refinance_type_confirmed = true;
       anyUpdates = true;

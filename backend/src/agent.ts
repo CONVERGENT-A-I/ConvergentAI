@@ -215,6 +215,28 @@ class AilanaVoiceAgent extends voice.Agent {
       : '';
 
     const userAskedQuestion = isQuestionOrCorrection(lastUserText) || (profile as any).last_extracted_offer_val === 'explain';
+    
+    // ── 0ms Verbal Submit Fast-Path (Stage 2.5) ──
+    // Fires before LLM so the base Cerebras model never produces a UI-redirect deflection.
+    // We check this BEFORE the question/correction block so that phrases like "Can you submit this?"
+    // trigger the submission rather than being delegated to the LLM for explanation.
+    const ausAlreadyDone = !!(profile as any).aus_status;
+    const inAffordabilityStage = this.contextManager.getActiveStage() === '2.5' || pending === 'affordability_panel_active';
+    const verbalSubmitPattern = /\b(submit\s*(for\s*me|it|review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|do\s+it\s+for\s+me|send\s+it|yes\s+submit|let'?s\s+submit)\b/i;
+    
+    if (!ausAlreadyDone && inAffordabilityStage && verbalSubmitPattern.test(lastUserText)) {
+      console.log(`[agent-hook]: 0ms Verbal Submit Fast-Path triggered — executing AUS findings immediately without LLM call!`);
+      profile.affordability_panel_rendered = false;
+      (profile as any).affordability_panel_closed = true;
+      profile.aus_status = 'refer';
+      this.contextManager.setActiveStage('4');
+      this.contextManager.setCurrentPendingField('aus_findings_delivered');
+
+      const name = profile.borrower_name;
+      const scriptText = `Thank you for your patience${name ? `, ${name}` : ''} — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;
+      return createVerbatimStream(scriptText) as any;
+    }
+
     if (userAskedQuestion) {
       (profile as any).last_extracted_offer_val = null; // reset flag
       console.log(`[agent-hook]: User turn contains question/explanation request ("${lastUserText}") — delegating to Cerebras LLM to answer dynamically.`);
@@ -310,7 +332,7 @@ class AilanaVoiceAgent extends voice.Agent {
     }
 
     if (pending === 'prefill_name_address') {
-      if ((profile as any).needs_prefill_correction) return null;
+      if ((profile as any).needs_prefill_correction) return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
       const name = profile.legal_name || profile.borrower_name || 'Valued Borrower';
       const address = profile.physical_address || (profile.zip_code ? `address on file in zip code ${profile.zip_code}` : 'address on file');
       const scriptText = `Thank you. I've processed that soft pull. First, I have your name listed as ${name}, and your physical address as ${address}. Does that look right or is anything out of date?`;
@@ -319,7 +341,7 @@ class AilanaVoiceAgent extends voice.Agent {
     }
 
     if (pending === 'prefill_employer') {
-      if ((profile as any).needs_prefill_correction) return null;
+      if ((profile as any).needs_prefill_correction) return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
       const employer = profile.employer || 'information on file';
       const scriptText = `Great. Next, I have your employer listed as ${employer}. Does that look right or is anything out of date?`;
       console.log('[agent-hook]: Delivering prefill_employer script via Deterministic ReadableStream!');
@@ -327,7 +349,7 @@ class AilanaVoiceAgent extends voice.Agent {
     }
 
     if (pending === 'prefill_accounts') {
-      if ((profile as any).needs_prefill_correction) return null;
+      if ((profile as any).needs_prefill_correction) return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
       const openAccounts = (profile as any).crs_open_accounts ?? 3;
       const latePayments = (profile as any).crs_late_payments ?? 0;
       const lateText = latePayments === 0 ? 'no late payments' : `${latePayments} late payment(s)`;
@@ -337,30 +359,14 @@ class AilanaVoiceAgent extends voice.Agent {
     }
 
     if (pending === 'prefill_credit_range') {
-      if ((profile as any).needs_prefill_correction) return null;
+      if ((profile as any).needs_prefill_correction) return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
       const range = profile.credit_range || '700-749';
       const scriptText = `Lastly, we retrieved your credit profile showing a category rating in the Good range of ${range}. Does that match what you expect or is anything out of date?`;
       console.log('[agent-hook]: Delivering prefill_credit_range script via Deterministic ReadableStream!');
       return createVerbatimStream(scriptText) as any;
     }
 
-    // ── 0ms Verbal Submit Fast-Path (Stage 2.5) ──
-    // Fires before LLM so the base Cerebras model never produces a UI-redirect deflection.
-    const ausAlreadyDone = !!(profile as any).aus_status;
-    const inAffordabilityStage = this.contextManager.getActiveStage() === '2.5' || pending === 'affordability_panel_active';
-    const verbalSubmitPattern = /\b(submit\s*(for\s*me|it|review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|do\s+it\s+for\s+me|send\s+it|yes\s+submit|let'?s\s+submit)\b/i;
-    if (!ausAlreadyDone && inAffordabilityStage && verbalSubmitPattern.test(lastUserText)) {
-      console.log(`[agent-hook]: 0ms Verbal Submit Fast-Path triggered — executing AUS findings immediately without LLM call!`);
-      profile.affordability_panel_rendered = false;
-      (profile as any).affordability_panel_closed = true;
-      profile.aus_status = 'refer';
-      this.contextManager.setActiveStage('4');
-      this.contextManager.setCurrentPendingField('aus_findings_delivered');
-
-      const name = profile.borrower_name;
-      const scriptText = `Thank you for your patience${name ? `, ${name}` : ''} — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;
-      return createVerbatimStream(scriptText) as any;
-    }
+    // (0ms Verbal Submit Fast-Path moved to top of method)
 
     if ((profile as any).submit_review_requested || pending === 'aus_findings_delivered') {
       (profile as any).submit_review_requested = false;
