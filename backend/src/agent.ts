@@ -188,7 +188,8 @@ class AilanaVoiceAgent extends voice.Agent {
     options: voice.AgentOptions<any>,
     private contextManager: SessionContextManager,
     private updateInstructionsCallback: () => void,
-    private metrics: LatencyTracker
+    private metrics: LatencyTracker,
+    public sendStageUpdate?: (stage: string) => Promise<void>
   ) {
     super(options);
   }
@@ -226,11 +227,28 @@ class AilanaVoiceAgent extends voice.Agent {
     
     if (!ausAlreadyDone && inAffordabilityStage && verbalSubmitPattern.test(lastUserText)) {
       console.log(`[agent-hook]: 0ms Verbal Submit Fast-Path triggered — executing AUS findings immediately without LLM call!`);
-      profile.affordability_panel_rendered = false;
-      (profile as any).affordability_panel_closed = true;
-      profile.aus_status = 'refer';
-      this.contextManager.setActiveStage('4');
-      this.contextManager.setCurrentPendingField('aus_findings_delivered');
+      
+      // 1. Instantly update the UI to show the button as "Review Submitted ✓"
+      profile.affordability_submitted = true;
+      profile.affordability_panel_rendered = true;
+      (profile as any).affordability_panel_closed = false;
+      if (this.sendStageUpdate) {
+        this.sendStageUpdate('2.5').catch(err => console.warn(err));
+      }
+
+      // 2. Delay the backend state transition by 3 seconds so the user can visually see the button state change
+      // before the panel closes.
+      setTimeout(() => {
+        (profile as any).affordability_aus_status = 'refer';
+        profile.aus_status = 'refer';
+        profile.affordability_panel_rendered = false;
+        (profile as any).affordability_panel_closed = true;
+        this.contextManager.setActiveStage('4');
+        this.contextManager.setCurrentPendingField('aus_findings_delivered');
+        if (this.sendStageUpdate) {
+          this.sendStageUpdate('4').catch(err => console.warn(err));
+        }
+      }, 3000);
 
       const name = profile.borrower_name;
       const scriptText = `Thank you for your patience${name ? `, ${name}` : ''} — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;
@@ -639,7 +657,7 @@ export default defineAgent({
             enabled: false,
           },
         } as any,
-      }, contextManager, updateSessionInstructions, metrics);
+      }, contextManager, updateSessionInstructions, metrics, sendStageUpdate);
     };
 
     let vadAgent = createVadAgent();

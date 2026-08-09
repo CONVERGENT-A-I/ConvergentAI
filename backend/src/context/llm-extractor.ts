@@ -315,11 +315,25 @@ export async function classifyConfirmation(
   // Remove punctuation (commas, periods, exclamation points, question marks) to simplify regex
   const cleanInput = userInput.toLowerCase().trim().replace(/[,.!\?]/g, '');
   
-  // FAST PATH: Regex check for common confirmation phrases
-  const confirmRegex = /^(yes|yeah|yep|yup|correct|that is correct|that's correct|looks good|yes it is|it is|sure|okay|ok)(\s*(it is|thanks|thank you|that's right|that is right|it is correct|that is correct))?$/i;
-  
-  if (confirmRegex.test(cleanInput) || cleanInput === "matches" || cleanInput === "yeah that's correct") {
-    console.log(`[llm-extractor] Fast-path regex matched 'yes' for confirmation of "${fieldName}"`);
+  // FAST PATH: Inclusion-based affirmation check + correction guard
+  const hasAffirmation = /\b(yes|yeah|yep|yup|correct|sure|okay|ok|perfect|exactly|spot on|expect|sounds right|sounds good)\b/i.test(cleanInput);
+  const hasCorrection = /\b(but|actually|no|incorrect|wrong|change|instead|not)\b/i.test(cleanInput);
+
+  const broadAffirmations = [
+    "nothing is out of date",
+    "everything is spot on",
+    "that also looks correct",
+    "that also looks right",
+    "that matches",
+    "matches what i expect",
+    "spot on",
+    "everything is correct",
+    "matches"
+  ];
+  const isBroadAffirmation = broadAffirmations.some(a => cleanInput.includes(a));
+
+  if ((hasAffirmation && !hasCorrection) || isBroadAffirmation) {
+    console.log(`[llm-extractor] Fast-path matched 'yes' for confirmation of "${fieldName}" (hasAffirmation=${hasAffirmation}, hasCorrection=${hasCorrection}, isBroad=${isBroadAffirmation})`);
     console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): TOTAL ${(performance.now() - _perfClassify_start).toFixed(1)}ms (content=fast-path)`);
     return 'yes';
   }
