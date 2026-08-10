@@ -657,7 +657,7 @@ export default defineAgent({
             enabled: false,
           },
         } as any,
-      }, contextManager, updateSessionInstructions, metrics, sendStageUpdate);
+      }, contextManager, updateSessionInstructions, metrics, (stage: string) => sendStageUpdate(stage));
     };
 
     let vadAgent = createVadAgent();
