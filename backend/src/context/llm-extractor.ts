@@ -118,6 +118,9 @@ User input: "${userInput}"`;
 
   try {
     const parsed = JSON.parse(content);
+    if (parsed === null) {
+      return { value: null, declined: false };
+    }
     let value = parsed.value;
     const declined = !!parsed.declined;
 

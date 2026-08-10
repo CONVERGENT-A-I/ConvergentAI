@@ -110,11 +110,12 @@ export function AffordabilityPanel({
     userEdited.current = true;
     const validPrice = Math.max(0, val);
     setPurchasePrice(validPrice);
+    setDownPayment((prevDown) => Math.min(prevDown, validPrice));
   };
 
   const handleDownPaymentChange = (val: number) => {
     userEdited.current = true;
-    const validDown = Math.max(0, val);
+    const validDown = Math.min(purchasePrice, Math.max(0, val));
     setDownPayment(validDown);
   };
 
@@ -313,7 +314,7 @@ export function AffordabilityPanel({
           </div>
           <input
             type="range"
-            min={100000}
+            min={0}
             max={2000000}
             step={5000}
             value={purchasePrice}
@@ -339,7 +340,7 @@ export function AffordabilityPanel({
           <input
             type="range"
             min={0}
-            max={1000000}
+            max={purchasePrice}
             step={1000}
             value={downPayment}
             onChange={(e) => handleDownPaymentChange(Number(e.target.value))}

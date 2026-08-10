@@ -37,6 +37,8 @@ import { OpenAI } from 'openai';
 import { sendPrequalLetterEmail } from './utils/email-sender.js';
 import { applicationService } from './services/application-service.js';
 import { isDatabaseEnabled } from './services/database.js';
+import { callCrsSoftPull } from './services/crs-service.js';
+import { classifyAuthorization } from './context/llm-extractor.js';
 
 const cerebrasClient = new OpenAI({
   apiKey: ailanaConfig.cerebrasApiKey,
@@ -330,6 +332,19 @@ class AilanaVoiceAgent extends voice.Agent {
     }
 
     if (pending === 'military_rural') {
+      const lower = lastUserText.toLowerCase().trim();
+      const isAnsweringMilitary = /\b(yes|no|never|none|n\/a|not really|veteran|active|guard|reserve|duty|spouse)\b/i.test(lower);
+
+      if (isAnsweringMilitary) {
+        console.log(`[agent-hook]: Synchronous military_rural answer detected ("${lastUserText}"). Advancing to job_tenure_type.`);
+        profile.military_rural = /\b(yes|veteran|active|guard|reserve|duty|spouse)\b/i.test(lower) ? 'military' : 'neither';
+        profile.military_rural_confirmed = true;
+        this.contextManager.advanceWorkflow();
+
+        const scriptText = "Got it, thank you. Could you tell me a bit about your current job tenure and how you're paid — for example, whether you are salaried, hourly, or self-employed?";
+        return createVerbatimStream(scriptText) as any;
+      }
+
       const hasCoBorrower = profile.co_borrower === 'yes';
       const coBorrowerPhrase = hasCoBorrower ? 'you or a co-borrower' : 'you';
       const scriptText = `Do ${coBorrowerPhrase} have any military service history — such as being on active duty, a veteran, or part of the Reserve or National Guard?`;
@@ -344,9 +359,55 @@ class AilanaVoiceAgent extends voice.Agent {
     }
 
     if (pending === 'soft_pull_authorization') {
-      const scriptText = "Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry — it will not affect your credit score in any way. You are the one authorizing it, and your data is used only to process your initial eligibility review and pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?";
-      console.log('[agent-hook]: Delivering soft_pull_authorization disclosure via Deterministic ReadableStream!');
-      return createVerbatimStream(scriptText) as any;
+      const decision = await classifyAuthorization(lastUserText, null);
+      console.log(`[agent-hook]: soft_pull_authorization classification decision="${decision}" (userText="${lastUserText}")`);
+
+      if (decision === 'yes') {
+        profile.soft_pull_consent = 'accepted';
+        profile.prefilled_fields_confirmed = {};
+
+        console.log(`[agent-hook]: Soft pull accepted! Executing CRS soft pull...`);
+        const crsResult = await callCrsSoftPull(profile);
+        if (crsResult) {
+          profile.credit_range = crsResult.creditRange;
+          (profile as any).crs_open_accounts = crsResult.openAccounts;
+          (profile as any).crs_late_payments = crsResult.latePaymentsLast24Mo;
+          if (crsResult.employer) profile.employer = crsResult.employer;
+          profile.legal_name = profile.borrower_name || crsResult.legalName || 'Valued Borrower';
+          if (crsResult.physicalAddress) profile.physical_address = crsResult.physicalAddress;
+          console.log(`[agent-hook]: CRS soft pull complete. Name: ${profile.legal_name}, Address: ${crsResult.physicalAddress}`);
+        } else {
+          console.log(`[agent-hook]: CRS soft pull fallback.`);
+        }
+
+        this.contextManager.advanceWorkflow();
+
+        const name = profile.legal_name || profile.borrower_name || 'Valued Borrower';
+        const address = profile.physical_address || (profile.zip_code ? `address on file in zip code ${profile.zip_code}` : 'address on file');
+        const scriptText = `Thank you. I've processed that soft pull. First, I have your name listed as ${name}, and your physical address as ${address}. Does that look right or is anything out of date?`;
+        console.log('[agent-hook]: Delivering prefill_name_address script directly after soft pull consent!');
+        return createVerbatimStream(scriptText) as any;
+      }
+
+      if (decision === 'no') {
+        profile.soft_pull_consent = 'declined';
+        this.contextManager.advanceWorkflow();
+        console.log('[agent-hook]: Soft pull declined — transitioning to Stage 2.5 Stated Mode.');
+        return createVerbatimStream("Absolutely — we can explore your affordability summary using the information you've already shared.") as any;
+      }
+
+      // If leftover text from OTP entry, deliver the initial disclosure disclosure
+      const lower = lastUserText.toLowerCase().trim();
+      const isOtpTurn = /\b(done|entered|submitted|typed|sent|got it|ok(ay)?|all set|finished|completed|that'?s it|\d{6})\b/i.test(lower) || !lastUserText;
+      if (isOtpTurn) {
+        const scriptText = "Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry — it will not affect your credit score in any way. You are the one authorizing it, and your data is used only to process your initial eligibility review and pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?";
+        console.log('[agent-hook]: Delivering initial soft_pull_authorization disclosure via Deterministic ReadableStream!');
+        return createVerbatimStream(scriptText) as any;
+      }
+
+      // Otherwise user asked a question — delegate to LLM to answer naturally
+      console.log('[agent-hook]: User asked a question about soft pull — delegating to Cerebras LLM.');
+      return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
     }
 
     if (pending === 'prefill_name_address') {
@@ -1455,8 +1516,13 @@ export default defineAgent({
         for (const p of ctx.room.remoteParticipants.values()) {
           console.log(`[avatar][${ts()}] Found remote participant: identity=${p.identity}`);
           if (p.identity.startsWith('lemonslice') || p.identity.includes('avatar')) {
-            markReady();
-            return true;
+            const hasVideo = Array.from(p.trackPublications.values()).some((pub: any) => pub.kind === TrackKind.KIND_VIDEO && pub.isSubscribed);
+            if (hasVideo) {
+              markReady();
+              return true;
+            } else {
+              console.log(`[avatar][${ts()}] Participant found but video track not subscribed yet. Waiting for TrackSubscribed event.`);
+            }
           }
         }
         return false;
@@ -1464,9 +1530,8 @@ export default defineAgent({
 
       ctx.room.on(RoomEvent.ParticipantConnected, (participant: any) => {
         console.log(`[avatar][${ts()}] Participant Connected: identity=${participant?.identity}`);
-        if (participant?.identity?.startsWith('lemonslice') || participant?.identity?.includes('avatar')) {
-          markReady();
-        }
+        // Do NOT call markReady() here. WebRTC tracks are not subscribed yet.
+        // Wait for TrackSubscribed event so the first audio/video frames are not lost.
       });
 
       // Listen for subscription events
