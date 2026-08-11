@@ -439,8 +439,19 @@ class AilanaVoiceAgent extends voice.Agent {
 
     if (pending === 'prefill_credit_range') {
       if ((profile as any).needs_prefill_correction) return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
-      const range = profile.credit_range || '700-749';
-      const scriptText = `Lastly, we retrieved your credit profile showing a category rating in the Good range of ${range}. Does that match what you expect or is anything out of date?`;
+      // Derive the human-readable category label only — never expose the raw numeric score.
+      // This matches stage3-guidance rule: "NEVER read the exact numeric credit score. Only the range category label."
+      let creditScoreNum = 700;
+      if (profile.credit_range) {
+        const m = profile.credit_range.match(/\d+/);
+        if (m) creditScoreNum = parseInt(m[0], 10);
+      }
+      let creditCategory = 'Good';
+      if (creditScoreNum >= 740) creditCategory = 'Excellent';
+      else if (creditScoreNum >= 670) creditCategory = 'Good';
+      else if (creditScoreNum >= 580) creditCategory = 'Fair';
+      else creditCategory = 'Poor';
+      const scriptText = `Lastly, we retrieved your credit profile showing a category rating in the ${creditCategory} range. Does that match what you expect or is anything out of date?`;
       console.log('[agent-hook]: Delivering prefill_credit_range script via Deterministic ReadableStream!');
       return createVerbatimStream(scriptText) as any;
     }
@@ -810,7 +821,7 @@ export default defineAgent({
       monthly_debt:           'I apologize for the interruption. What are your total monthly recurring debt payments — things like car loans, student loans, or credit card minimums?',
       credit_range:           'I apologize for that. How would you describe your current credit score — either as a specific number or a general range?',
       refinance_type:         'I apologize for the interruption. Are you considering a cash-out refinance, or are you wanting to reduce your monthly payment through a rate and term refinance?',
-      target_price:           'I apologize for that. What is the estimated market value of the home you wish to refinance?',
+      target_price:           'I apologize for that. What is your target purchase price for the home you are looking to buy?',
       down_payment:           'I apologize for the interruption. How much do you have available for a down payment?',
       rent_own:               'I apologize for that. Do you currently rent, or do you own your home?',
       realtor_status:         'I apologize for the interruption. Have you connected with a real estate agent yet?',

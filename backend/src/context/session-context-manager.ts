@@ -323,7 +323,7 @@ export class SessionContextManager {
         // as early as possible (~200-350ms after user turn ends).
         await clonedManager.onUserTurn(text);
         const duration = performance.now() - t0;
-
+        
         const pending = this.pendingExtractions.get(turnNumber);
         if (pending) {
           pending.status = 'completed';
@@ -383,7 +383,7 @@ export class SessionContextManager {
     while (this.pendingExtractions.has(this.lastAppliedTurn + 1)) {
       const turnNum = this.lastAppliedTurn + 1;
       const extraction = this.pendingExtractions.get(turnNum)!;
-
+      
       if (extraction.status === 'pending') {
         break;
       }
@@ -487,7 +487,7 @@ export class SessionContextManager {
   isStageBoundaryField(field?: string | null): boolean {
     const target = field ?? this.currentPendingField;
     if (!target) return false;
-
+    
     // Deterministic fields MUST wait for extraction because they bypass the __pending__ fallback.
     // If they don't wait, the LLM starts at 0ms and re-asks the question instantly.
     if (this.isDeterministicField(target)) return true;
@@ -672,7 +672,7 @@ export class SessionContextManager {
     }
     console.log(`[perf] context-manager stage${this.activeStage} extraction: ${(performance.now() - _tExtract).toFixed(1)}ms`);
     console.log(`[perf] context-manager onUserTurn TOTAL: ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
-
+    
     // ── DATABASE PERSISTENCE ────────────────────────────────────────────────
     // Save user turn to database and sync profile state
     await this.saveConversationTurn('user', trimmed);
@@ -950,13 +950,13 @@ export class SessionContextManager {
           name: 'contact_email',
           description: "borrower's email address for secure login",
           expectedType: 'string',
-          additionalInstructions: 'Extract the email address mentioned. Fix STT formatting (replace "at" with "@", "dot" with ".", remove spaces). Example: "david at example.com" or "david at the rate example dot com" -> "david@example.com". Return string or null.',
+          additionalInstructions: 'Critically extract the email address. ALWAYS fix phonetic speech-to-text formatting. Replace "at the rate", "at the rate of", or "at" with "@". Replace "dot" with ".". Remove ALL spaces. Example: "david at the rate gmail dot com" -> "david@gmail.com". Ensure the final output is a properly formatted email string. Return null ONLY if no email is mentioned.',
         },
         {
           name: 'contact_mobile',
           description: "borrower's mobile phone number",
           expectedType: 'string',
-          additionalInstructions: 'Extract the mobile or phone number if mentioned. Accept any format including spaces, dashes, dots, or country codes (e.g. "+1 234 567 8901", "555-0199", "+12345 6789", "1234567890"). Return the number as spoken/provided. Return null only if no number is mentioned.',
+          additionalInstructions: 'Critically extract the mobile or phone number. Handle phonetic spelling of numbers (e.g., "zero", "one", "dash"). Strip all non-numeric characters except for a leading "+" if provided. Example: "five five five dash one two three four" -> "5551234". Return null ONLY if no phone number is mentioned.',
         },
       ]);
 
@@ -1081,15 +1081,15 @@ export class SessionContextManager {
         const crsResult = await callCrsSoftPull(this.profile);
 
         if (crsResult) {
-          this.profile.credit_range = crsResult.creditRange;
-          (this.profile as any).crs_open_accounts = crsResult.openAccounts;
-          (this.profile as any).crs_late_payments = crsResult.latePaymentsLast24Mo;
-          if (crsResult.employer) this.profile.employer = crsResult.employer;
-          this.profile.legal_name = this.profile.borrower_name || crsResult.legalName || 'Valued Borrower';
-          if (crsResult.physicalAddress) this.profile.physical_address = crsResult.physicalAddress;
-          console.log(`[CRS]: Soft pull complete. Name: ${this.profile.legal_name}, Address: ${crsResult.physicalAddress}, Score: ${crsResult.creditScore}, Range: ${crsResult.creditRangeLabel}`);
+            this.profile.credit_range = crsResult.creditRange;
+            (this.profile as any).crs_open_accounts = crsResult.openAccounts;
+            (this.profile as any).crs_late_payments = crsResult.latePaymentsLast24Mo;
+            if (crsResult.employer) this.profile.employer = crsResult.employer;
+            this.profile.legal_name = this.profile.borrower_name || crsResult.legalName || 'Valued Borrower';
+            if (crsResult.physicalAddress) this.profile.physical_address = crsResult.physicalAddress;
+            console.log(`[CRS]: Soft pull complete. Name: ${this.profile.legal_name}, Address: ${crsResult.physicalAddress}, Score: ${crsResult.creditScore}, Range: ${crsResult.creditRangeLabel}`);
         } else {
-          console.log('[CRS]: Soft pull failed — using mock fallback.');
+            console.log('[CRS]: Soft pull failed — using mock fallback.');
         }
 
         this.advanceWorkflow();
@@ -1495,7 +1495,7 @@ export class SessionContextManager {
     this.turnLog.push({ role: 'assistant', text: trimmed, timestamp: Date.now() });
     this.profile.bridge_to_say = null;
     this.lastProcessedInput = null;
-
+    
     // ── DATABASE PERSISTENCE ────────────────────────────────────────────────
     // Save assistant turn to database
     await this.saveConversationTurn('assistant', trimmed);
@@ -1700,9 +1700,9 @@ export class SessionContextManager {
     const pendingIsNumeric = field !== null && numericFields.includes(field);
     if (pendingIsNumeric && field && !allFields.some(f => f.name === field)) {
       const fieldDesc = field === 'gross_annual_income' ? 'gross annual household income'
-        : field === 'monthly_debt' ? 'total monthly recurring debt obligations (sum all debts)'
-          : field === 'down_payment' ? 'down payment savings amount'
-            : 'target purchase price';
+                      : field === 'monthly_debt' ? 'total monthly recurring debt obligations (sum all debts)'
+                      : field === 'down_payment' ? 'down payment savings amount'
+                      : 'target purchase price';
       let instruction = 'Extract the dollar amount as a plain integer (e.g. 80000). If the user declines, skips, or says they don\'t know, set "declined" to true. If not mentioned, return null.';
       if (field === 'down_payment' && this.profile.target_price) {
         instruction += ` If the user specifies a percentage, calculate it against the target price ($${this.profile.target_price}) and return the integer dollar amount.`;
@@ -1855,14 +1855,14 @@ export class SessionContextManager {
     }
 
     let mr = typeof results.military_rural?.value === 'string' ? results.military_rural.value.toLowerCase().trim() : results.military_rural?.value;
-
+    
     if (!mr && results.military_rural?.declined) {
       // If the user explicitly says "no", the extractor often marks it as declined rather than outputting "neither"
       mr = 'neither';
     } else if (mr === 'no' || mr === 'none' || mr === 'false') {
       mr = 'neither';
     }
-
+    
     if ((mr === 'military' || mr === 'rural' || mr === 'both' || mr === 'neither') && !this.profile.military_rural_confirmed) {
       this.profile.military_rural = mr;
       this.profile.military_rural_confirmed = true;
@@ -2198,7 +2198,7 @@ export class SessionContextManager {
         if (!this.profile.soft_pull_consent) {
           this.profile.soft_pull_consent = 'pending';
         }
-        // -- Post-consent: prefill walkthrough or skip to 3B --
+      // -- Post-consent: prefill walkthrough or skip to 3B --
       } else if (this.profile.soft_pull_consent === 'accepted') {
         if (!confirmed.name_address) {
           this.currentPendingField = 'prefill_name_address';
@@ -2484,7 +2484,7 @@ export class SessionContextManager {
         session.updateAgent(newAgent);
         if ((session as any)._chatCtx) {
           (session as any)._chatCtx.items = (session as any)._chatCtx.items.filter(
-            (item: any) => item.type !== 'agent_handoff'
+              (item: any) => item.type !== 'agent_handoff'
           );
         }
         await newAgent.updateChatCtx(summarized.copy({ excludeHandoff: true }));
@@ -2492,7 +2492,7 @@ export class SessionContextManager {
         session.updateAgent(createAgent());
         if ((session as any)._chatCtx) {
           (session as any)._chatCtx.items = (session as any)._chatCtx.items.filter(
-            (item: any) => item.type !== 'agent_handoff'
+              (item: any) => item.type !== 'agent_handoff'
           );
         }
       }
