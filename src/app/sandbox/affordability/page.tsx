@@ -19,7 +19,7 @@ export default function AffordabilitySandboxPage() {
     monthly_debt: 800,
     zip_code: "78209",
     borrower_name: "David",
-    military_rural: "none"
+    military_rural: "military"
   };
 
   // Same logic as AffordabilityModal

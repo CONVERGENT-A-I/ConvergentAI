@@ -59,6 +59,7 @@ export function AffordabilityPanel({
   const [frontEndDti, setFrontEndDti] = useState<number>(0);
   const [backEndDti, setBackEndDti] = useState<number>(0);
   const [fundingFeeAmount, setFundingFeeAmount] = useState<number>(0);
+  const [amountFinanced, setAmountFinanced] = useState<number>(0);
   const [incomeBand, setIncomeBand] = useState<'within' | 'above'>('within');
   const [dtiBand, setDtiBand] = useState<'within' | 'above'>('within');
   const [isCalculating, setIsCalculating] = useState<boolean>(false);
@@ -91,6 +92,7 @@ export function AffordabilityPanel({
           if (data.frontEndDti !== undefined) setFrontEndDti(data.frontEndDti);
           if (data.backEndDti !== undefined) setBackEndDti(data.backEndDti);
           if (data.fundingFeeAmount !== undefined) setFundingFeeAmount(data.fundingFeeAmount);
+          if (data.amountFinanced !== undefined) setAmountFinanced(data.amountFinanced);
         }
       } catch (err) {
         console.error('[AffordabilityPanel] Calculation failed:', err);
@@ -346,6 +348,31 @@ export function AffordabilityPanel({
             onChange={(e) => handleDownPaymentChange(Number(e.target.value))}
             className="w-full accent-[#00b4d8] cursor-pointer h-1.5 bg-gray-800 rounded-lg"
           />
+        </div>
+      </div>
+
+      {/* Summary Section */}
+      <div className="mb-4 bg-[#0f172a] p-3 rounded-xl border border-slate-800">
+        <h4 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2 border-b border-slate-700 pb-1">
+          Scenario Summary
+        </h4>
+        <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs">
+          <div className="flex justify-between">
+            <span className="text-gray-400">Purchase Price</span>
+            <span className="font-semibold text-gray-200">${purchasePrice.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">Down Payment</span>
+            <span className="font-semibold text-gray-200">${downPayment.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">Amount Financed</span>
+            <span className="font-semibold text-emerald-400">${amountFinanced.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">Term</span>
+            <span className="font-semibold text-gray-200">30-Year Fixed</span>
+          </div>
         </div>
       </div>
 

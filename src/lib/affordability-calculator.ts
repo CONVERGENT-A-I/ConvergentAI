@@ -53,6 +53,12 @@ export function calculateAffordability(input: AffordabilityInput): Affordability
   const ltv               = safePurchasePrice > 0 ? loanAmount / safePurchasePrice : 0;
   const monthlyIncome     = Math.max(0.01, grossAnnualIncome / 12);
 
+  let fundingFeeAmount = 0;
+  if (programType === 'va') {
+    fundingFeeAmount = loanAmount * 0.0215; // 2.15% standard first use VA funding fee
+  }
+  const totalLoanAmount = loanAmount + fundingFeeAmount;
+
   // Dynamic property tax rate based on zip code state prefix
   let taxRate = cfg.propertyTaxRate;
   if (zipCode) {
@@ -67,9 +73,9 @@ export function calculateAffordability(input: AffordabilityInput): Affordability
   const monthlyRate = cfg.representativeRate / 12;
   const n = 360;
   let monthlyPI = 0;
-  if (loanAmount > 0 && monthlyRate > 0) {
+  if (totalLoanAmount > 0 && monthlyRate > 0) {
     monthlyPI =
-      (loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, n))) /
+      (totalLoanAmount * (monthlyRate * Math.pow(1 + monthlyRate, n))) /
       (Math.pow(1 + monthlyRate, n) - 1);
   }
 
@@ -77,12 +83,10 @@ export function calculateAffordability(input: AffordabilityInput): Affordability
   const monthlyInsurance = (safePurchasePrice * cfg.homeownersInsRate) / 12;
 
   let monthlyMI = 0;
-  let fundingFeeAmount = 0;
   if      (programType === 'conventional') monthlyMI = ltv > 0.80 ? (loanAmount * cfg.conventionalPmiRate) / 12 : 0;
   else if (programType === 'fha')          monthlyMI = (loanAmount * cfg.fhaMipRate) / 12;
   else if (programType === 'va')           {
     monthlyMI = 0;
-    fundingFeeAmount = loanAmount * 0.0215; // 2.15% standard first use VA funding fee
   }
   else if (programType === 'usda')         monthlyMI = (loanAmount * cfg.usdaAnnualFeeRate) / 12;
 
@@ -93,7 +97,7 @@ export function calculateAffordability(input: AffordabilityInput): Affordability
   const backEndDti            = dti;
 
   return {
-    loanAmount,
+    loanAmount: totalLoanAmount,
     ltv,
     monthlyPI,
     monthlyTax,

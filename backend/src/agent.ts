@@ -151,7 +151,13 @@ class CerebrasLLM extends openai.LLM {
 // Verbatim Stage 2 Closing Offer text — delivered via session.say() bypassing the LLM.
 // This guarantees the exact two-path script is spoken regardless of LLM instruction-following.
 const STAGE2_CLOSING_OFFER_SCRIPT = (name: string | null | undefined) =>
-  `Great work exploring your numbers${name ? `, ${name}` : ''}. You have got two good ways to see your affordability picture, and the choice is yours. The most complete option: with your authorization, a soft credit review — no impact to your credit score — prefills your application and builds your summary with your real credit data. Or, if you would rather not run the review just yet, I can build your affordability summary right now from everything you have shared with me, and you can add the credit review whenever you are ready. Which would you like?`;
+  `Great work exploring your numbers${name ? `, ${name}` : ''}. You have two good ways to see your affordability picture.
+
+First, with your authorization, I can perform a soft credit review to pre-populate your application with your actual credit data—saving you time and ensuring accurate information, all with no impact to your credit score.
+
+Alternatively, I can build your affordability summary right now using just the details you've already shared, and you can add the credit review whenever you're ready.
+
+Which path would you prefer?`;
 
 function isQuestionOrCorrection(text: string | null | undefined): boolean {
   if (!text) return false;
@@ -1579,17 +1585,10 @@ export default defineAgent({
               agentId: lsAgentId,
               apiKey: lsApiKey,
               // agentPrompt controls expressions WHILE SPEAKING
-              // STRICT GAZE DIRECTIVE: Ailana must always look straight at the camera.
-              // STRICT MOUTH DIRECTIVE: Suppress exaggerated open-mouth articulation.
-              // The DiT model defaults to overly wide mouth opening during speech which
-              // looks fake/uncanny. We use aggressive restraint language to force
-              // minimal, natural mouth movement — lips barely part, jaw stays mostly closed.
-              agentPrompt: 'confident professional, direct eye contact, looking straight at camera, minimal mouth movement, subtle lip articulation only, lips barely parted when speaking, jaw stays relaxed and mostly closed, never wide open mouth, natural understated speech movements, calm measured speaking, poised and steady head position, no exaggerated facial expressions',
+              agentPrompt: 'You are Ailana, a professional AI mortgage advisor in her mid-30s. You are warm, composed, and confident — the kind of person a member trusts with one of the biggest financial decisions of their life. You represent a credit union, so your manner is approachable but polished, never salesy or performative. Facial expression and movement: stay subtle and controlled at all times. Rest with a calm, closed or barely-parted mouth between utterances. When speaking, use small, measured mouth movements rather than wide or exaggerated openings — this applies especially to the very first word of any sentence, including greetings like "Hi" or "Hello." Avoid theatrical or cartoonish expressions; think understated warmth, not enthusiasm. Head movement is gentle and occasional, eye contact is soft and steady, eyebrow movement is minimal. Your overall demeanor is that of a trusted advisor sitting across a desk from someone — calm, attentive, unhurried.',
               // agent_idle_prompt controls expressions WHILE LISTENING/IDLE
-              // Same strict forward-facing gaze anchor. Mouth must stay completely
-              // closed and still between utterances — no hanging open, no movement.
               extraPayload: {
-                agent_idle_prompt: 'attentive, steady gaze directly at camera, looking straight ahead, mouth completely closed, lips together and still, no mouth movement at all, serene neutral expression, poised, calm, still head position, no exaggerated expressions',
+                agent_idle_prompt: 'You are Ailana, a professional AI mortgage advisor in her mid-30s. You are warm, composed, and confident — the kind of person a member trusts with one of the biggest financial decisions of their life. You represent a credit union, so your manner is approachable but polished, never salesy or performative. Facial expression and movement: stay subtle and controlled at all times. Rest with a calm, closed or barely-parted mouth between utterances. When speaking, use small, measured mouth movements rather than wide or exaggerated openings — this applies especially to the very first word of any sentence, including greetings like "Hi" or "Hello." Avoid theatrical or cartoonish expressions; think understated warmth, not enthusiasm. Head movement is gentle and occasional, eye contact is soft and steady, eyebrow movement is minimal. Your overall demeanor is that of a trusted advisor sitting across a desk from someone — calm, attentive, unhurried.',
                 model: 'flash',
               },
             });

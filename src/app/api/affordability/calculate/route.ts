@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
       frontEndDti:         Math.round(result.frontEndDti * 100),
       backEndDti:          Math.round(result.backEndDti * 100),
       fundingFeeAmount:    Math.round(result.fundingFeeAmount),
+      amountFinanced:      Math.round(result.loanAmount),
     });
   } catch (error: any) {
     console.error('[API-Affordability-Calculate] Error:', error);

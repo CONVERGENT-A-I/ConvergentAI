@@ -22,6 +22,7 @@ export interface AffordabilityResult {
   dtiBand: 'within' | 'above';
   dtiAboveHardCeiling: boolean;   // True if back-end DTI > 50% (FHLMC hard ceiling)
   dti: number;                    // Internal audit log use — NOT displayed to borrower
+  fundingFeeAmount: number;       // One-time VA funding fee amount
 }
 
 /**
@@ -39,12 +40,19 @@ export function calculateAffordability(input: AffordabilityInput): Affordability
   const ltv = safePurchasePrice > 0 ? loanAmount / safePurchasePrice : 0;
   const monthlyIncome = Math.max(0.01, grossAnnualIncome / 12); // Guard against divide-by-zero
 
+  // Calculate VA Funding Fee
+  let fundingFeeAmount = 0;
+  if (programType === 'va') {
+    fundingFeeAmount = loanAmount * 0.0215; // 2.15% standard first use VA funding fee
+  }
+  const totalLoanAmount = loanAmount + fundingFeeAmount;
+
   // 30-Year Fixed P&I Amortization
   const monthlyRate = cfg.representativeRate / 12;
   const n = 360;
   let monthlyPI = 0;
-  if (loanAmount > 0 && monthlyRate > 0) {
-    monthlyPI = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, n)) / (Math.pow(1 + monthlyRate, n) - 1);
+  if (totalLoanAmount > 0 && monthlyRate > 0) {
+    monthlyPI = totalLoanAmount * (monthlyRate * Math.pow(1 + monthlyRate, n)) / (Math.pow(1 + monthlyRate, n) - 1);
   }
 
   // Tax & Insurance estimates (uses zip code property tax rate if provided)
@@ -69,7 +77,7 @@ export function calculateAffordability(input: AffordabilityInput): Affordability
   const dti = totalMonthlyDebtCombined / monthlyIncome;
 
   return {
-    loanAmount,
+    loanAmount: totalLoanAmount,
     ltv,
     monthlyPI,
     monthlyTax,
@@ -80,5 +88,6 @@ export function calculateAffordability(input: AffordabilityInput): Affordability
     dtiBand: dti <= cfg.dtiBandThreshold ? 'within' : 'above',
     dtiAboveHardCeiling: dti > cfg.dtiHardCeiling,
     dti,
+    fundingFeeAmount,
   };
 }

@@ -950,7 +950,7 @@ export class SessionContextManager {
           name: 'contact_email',
           description: "borrower's email address for secure login",
           expectedType: 'string',
-          additionalInstructions: 'Critically extract the email address. ALWAYS fix phonetic speech-to-text formatting. Replace "at the rate", "at the rate of", or "at" with "@". Replace "dot" with ".". Remove ALL spaces. Example: "david at the rate gmail dot com" -> "david@gmail.com". Ensure the final output is a properly formatted email string. Return null ONLY if no email is mentioned.',
+          additionalInstructions: 'Critically extract the email address. ALWAYS fix phonetic speech-to-text formatting. Replace "at the rate", "at the rate of", or "at" with "@". Replace "dot" with ".". STRIP OUT ALL SPACES and convert to lowercase. Even if the transcription includes spaces or weird capitalization (e.g. "Joshua. L. PAC @ gmail . com"), you MUST aggressively remove all spaces to form a valid email string. Return null ONLY if no email is mentioned.',
         },
         {
           name: 'contact_mobile',

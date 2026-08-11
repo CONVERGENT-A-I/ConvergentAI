@@ -318,6 +318,14 @@ export async function classifyConfirmation(
   // Remove punctuation (commas, periods, exclamation points, question marks) to simplify regex
   const cleanInput = userInput.toLowerCase().trim().replace(/[,.!\?]/g, '');
   
+  // ── Tier 0: Leftover Audio Guard ──────────────────────────────────────────
+  // Guard against legacy audio from the soft_pull_authorization step bleeding into prefill_name_address.
+  if (fieldName === 'prefill_name_address' && /\b(authorize|consent|proceed|run it)\b/i.test(cleanInput)) {
+    console.log(`[classifyConfirmation] Leftover authorization audio detected ("${cleanInput}") for ${fieldName} → ignoring (ambiguous)`);
+    return 'ambiguous';
+  }
+
+  
   // FAST PATH: Inclusion-based affirmation check + correction guard
   const hasAffirmation = /\b(yes|yeah|yep|yup|correct|sure|okay|ok|perfect|exactly|spot on|expect|sounds right|sounds good)\b/i.test(cleanInput);
   const hasCorrection = /\b(but|actually|no|incorrect|wrong|change|instead|not)\b/i.test(cleanInput);
