@@ -38,9 +38,10 @@ export function buildAusPayload(
   const totalMonthlyDebt  = profile.monthly_debt ?? 500;
 
   let programType: 'conventional' | 'fha' | 'va' | 'usda' = 'conventional';
-  if (profile.military_rural === 'military' || profile.military_rural === 'both') {
+  const mr = profile.military_rural ?? profile.militaryRural;
+  if (mr === 'military' || mr === 'both') {
     programType = 'va';
-  } else if (profile.military_rural === 'rural') {
+  } else if (mr === 'rural') {
     programType = 'usda';
   } else if (typeof profile.credit_range === 'string' && profile.credit_range.includes('580')) {
     programType = 'fha';

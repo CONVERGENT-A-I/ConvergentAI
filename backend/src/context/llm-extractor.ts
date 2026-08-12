@@ -116,8 +116,36 @@ User input: "${userInput}"`;
     return { value: null, declined: false };
   }
 
+  // ── JSON Repair & Extraction Fallback ──────────────────────────────────
   try {
-    const parsed = JSON.parse(content);
+    let repaired = content.trimEnd();
+    if (!repaired.endsWith('}')) {
+      repaired += '\n}';
+    }
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(repaired);
+    } catch (firstErr) {
+      console.warn(`[llm-extractor] JSON repair fallback triggered for "${fieldName}". Raw content: "${content}"`);
+      const valMatch = content.match(/"value"\s*:\s*("(.*?)"|(\d+)|true|false|null)/i);
+      const decMatch = content.match(/"declined"\s*:\s*(true|false)/i);
+
+      if (valMatch || decMatch) {
+        let extractedVal: any = null;
+        if (valMatch) {
+          if (valMatch[2] !== undefined) extractedVal = valMatch[2];
+          else if (valMatch[3] !== undefined) extractedVal = Number(valMatch[3]);
+          else if (valMatch[1] === 'null') extractedVal = null;
+        }
+        const extractedDeclined = decMatch?.[1] ? decMatch[1].toLowerCase() === 'true' : false;
+        parsed = { value: extractedVal, declined: extractedDeclined };
+        console.warn(`[llm-extractor] Regex scraped parsed object for "${fieldName}":`, parsed);
+      } else {
+        throw firstErr;
+      }
+    }
+
     if (parsed === null) {
       return { value: null, declined: false };
     }
@@ -327,21 +355,44 @@ export async function classifyConfirmation(
 
   
   // FAST PATH: Inclusion-based affirmation check + correction guard
-  const hasAffirmation = /\b(yes|yeah|yep|yup|correct|sure|okay|ok|perfect|exactly|spot on|expect|sounds right|sounds good)\b/i.test(cleanInput);
-  const hasCorrection = /\b(but|actually|no|incorrect|wrong|change|instead|not)\b/i.test(cleanInput);
+  // 1. Strip leading conversational speech fillers (uh, um, well, oh, so, etc.)
+  const withoutFillers = cleanInput.replace(/^(uh+|um+|well|oh|so|yeah|right|hmm+)\s*,?\s*/i, '').trim();
+  // 2. Strip conversational starter "no" if immediately followed by an affirmation phrase
+  //    (e.g. "no, it seems right", "no, that's fine", "no, it's correct", "no that is exactly what I want")
+  const sanitizedInput = withoutFillers
+    .replace(/^no\s+(it|that)('?s|\s+is|\s+seems|\s+looks|\s+sounds)?\s*(right|fine|good|correct|accurate|spot on|matches)\b/i, '$1 $2 $3')
+    .replace(/^no\s+that\s+is\s+(exactly|precisely|just)\s+(what|how)\s+i\s*(want|need|expect|said|meant)\b/i, 'that is $1 $2 i $3')
+    .replace(/^no\s+that\s+is\s+(correct|accurate|right|fine|good|perfect|great|exactly right)\b/i, 'that is $1');
+
+  const hasAffirmation = /\b(yes|yeah|yep|yup|correct|sure|okay|ok|perfect|exactly|spot on|expect|want|need|sounds right|sounds good|seems right|looks right|looks fine|looks good|seems fine|fine|thats fine|that's fine)\b/i.test(sanitizedInput);
+  const hasCorrection = /\b(but|actually|no|incorrect|wrong|change|instead|not)\b/i.test(sanitizedInput);
 
   const broadAffirmations = [
     "nothing is out of date",
     "everything is spot on",
     "that also looks correct",
     "that also looks right",
+    "that also matches",
     "that matches",
     "matches what i expect",
     "spot on",
     "everything is correct",
-    "matches"
+    "matches",
+    "that is exactly what i want",
+    "that is exactly what i expect",
+    "that is exactly what i need",
+    "that is what i want",
+    "that is what i expect",
+    "exactly what i want",
+    "exactly what i expect",
+    "exactly right",
+    "that is correct",
+    "that is right",
+    "that is fine",
+    "that is perfect",
+    "that is great",
   ];
-  const isBroadAffirmation = broadAffirmations.some(a => cleanInput.includes(a));
+  const isBroadAffirmation = broadAffirmations.some(a => sanitizedInput.includes(a));
 
   if ((hasAffirmation && !hasCorrection) || isBroadAffirmation) {
     console.log(`[llm-extractor] Fast-path matched 'yes' for confirmation of "${fieldName}" (hasAffirmation=${hasAffirmation}, hasCorrection=${hasCorrection}, isBroad=${isBroadAffirmation})`);

@@ -40,6 +40,15 @@ import { isDatabaseEnabled } from './services/database.js';
 import { callCrsSoftPull } from './services/crs-service.js';
 import { classifyAuthorization } from './context/llm-extractor.js';
 
+// Global error guard to catch LiveKit SDK RPC connection timeouts gracefully without crashing/stalling the agent loop
+process.on('unhandledRejection', (reason: any) => {
+  if (reason?.type === '_RpcError' || reason?.message?.includes('Connection timeout') || reason?.code === 1501) {
+    console.warn('[agent-warning] Caught LiveKit RPC Connection Timeout gracefully:', reason?.message ?? reason);
+    return;
+  }
+  console.error('[agent-error] Unhandled Promise Rejection:', reason);
+});
+
 const cerebrasClient = new OpenAI({
   apiKey: ailanaConfig.cerebrasApiKey,
   baseURL: ailanaConfig.cerebrasBaseUrl,
@@ -273,8 +282,8 @@ class AilanaVoiceAgent extends voice.Agent {
     const isAnsweringJobTenure =
       (pending === 'job_tenure_type' || pending === 'stage2_closing_offer') &&
       !this._stage2ClosingOfferDelivered &&
-      (/\b(salary|salaried|hourly|self-employed|self employed|years|year|months|month|working|employed|contract|w2|1099|full-time|part-time|full time|part time)\b/i.test(lastUserText) ||
-       /\d+/.test(lastUserText));
+      (/\b(salary|salaried|hourly|self-employed|self employed|working|employed|contract|w2|1099|full-time|part-time|full time|part time)\b/i.test(lastUserText) ||
+       /(\d+|\b(one|two|three|four|five|six|seven|eight|nine|ten)\b)\s*(years?|months?)\b/i.test(lastUserText));
 
     if (pending === 'stage2_closing_offer' || isAnsweringJobTenure) {
       if (isAnsweringJobTenure) {
@@ -339,11 +348,11 @@ class AilanaVoiceAgent extends voice.Agent {
 
     if (pending === 'military_rural') {
       const lower = lastUserText.toLowerCase().trim();
-      const isAnsweringMilitary = /\b(yes|no|never|none|n\/a|not really|veteran|active|guard|reserve|duty|spouse)\b/i.test(lower);
+      const isAnsweringMilitary = /\b(yes|yeah|yep|yup|sure|no|never|none|n\/a|not really|veteran|active|guard|reserve|duty|spouse|military|served|army|navy|air force|marines|coast guard|space force)\b/i.test(lower);
 
       if (isAnsweringMilitary) {
         console.log(`[agent-hook]: Synchronous military_rural answer detected ("${lastUserText}"). Advancing to job_tenure_type.`);
-        profile.military_rural = /\b(yes|veteran|active|guard|reserve|duty|spouse)\b/i.test(lower) ? 'military' : 'neither';
+        profile.military_rural = /\b(yes|yeah|yep|yup|sure|veteran|active|guard|reserve|duty|spouse|military|served|army|navy|air force|marines|coast guard|space force)\b/i.test(lower) ? 'military' : 'neither';
         profile.military_rural_confirmed = true;
         this.contextManager.advanceWorkflow();
 
@@ -1026,6 +1035,7 @@ export default defineAgent({
             targetPrice: prof.target_price,
             downPayment: prof.down_payment,
             creditRange: prof.credit_range,
+            military_rural: prof.military_rural,
             militaryRural: prof.military_rural,
             zipCode: prof.zip_code,
             propertyType: prof.property_type,

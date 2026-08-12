@@ -31,7 +31,7 @@ export function AffordabilityModal({
   const zipCode = borrowerProfile?.zip_code ?? borrowerProfile?.zipCode;
   
   const eligiblePrograms: ('conventional' | 'fha' | 'va' | 'usda')[] = ['conventional', 'fha'];
-  const mr = borrowerProfile?.military_rural;
+  const mr = borrowerProfile?.military_rural ?? borrowerProfile?.militaryRural;
   if (mr === 'military' || mr === 'both') eligiblePrograms.push('va');
   if (mr === 'rural' || mr === 'both') eligiblePrograms.push('usda');
   

@@ -13,6 +13,7 @@ import { applicationService } from '../services/application-service.js';
 import { conversationService } from '../services/conversation-service.js';
 import { isDatabaseEnabled } from '../services/database.js';
 import { callCrsSoftPull } from '../services/crs-service.js';
+import { lookupZipData } from '../utils/zip-lookup.js';
 
 
 export type TurnLogEntry = {
@@ -1161,14 +1162,14 @@ export class SessionContextManager {
         });
       }
 
-      let decision = await classifyConfirmation(text, lastQuestion, step, 'Does that look right or is anything out of date?');
-      let extractionResults: any = null;
-
-      if (decision === 'no' || (decision === 'ambiguous' && (this.profile as any).needs_prefill_correction) || (this.profile as any).needs_prefill_correction) {
-        if (correctionFields.length > 0) {
-          extractionResults = await extractMultipleFields(text, lastQuestion, correctionFields);
-        }
-      }
+      const [classifyRes, extractRes] = await Promise.all([
+        classifyConfirmation(text, lastQuestion, step, 'Does that look right or is anything out of date?'),
+        correctionFields.length > 0
+          ? extractMultipleFields(text, lastQuestion, correctionFields)
+          : Promise.resolve(null),
+      ]);
+      let decision = classifyRes;
+      let extractionResults: any = extractRes;
 
       let hasCorrection = false;
       if (extractionResults) {
@@ -1853,7 +1854,6 @@ export class SessionContextManager {
       anyUpdates = true;
 
       // Extract zip/city from Q42 response for property tax and system-side USDA eligibility check
-      const { lookupZipData } = require('../utils/zip-lookup.js');
       const zipData = lookupZipData(text);
       if (zipData.zip) {
         this.profile.zip_code = zipData.zip;
@@ -1876,8 +1876,11 @@ export class SessionContextManager {
     let mr = typeof results.military_rural?.value === 'string' ? results.military_rural.value.toLowerCase().trim() : results.military_rural?.value;
     
     if (!mr && results.military_rural?.declined) {
-      // If the user explicitly says "no", the extractor often marks it as declined rather than outputting "neither"
-      mr = 'neither';
+      // If the user explicitly says "no", the extractor often marks it as declined rather than outputting "neither".
+      // Guard against background LLM hallucination: only mark as 'neither' if military_rural was the pending field or user gave explicit negation.
+      if (this.currentPendingField === 'military_rural' || /\b(no|never|none|n\/a|not really|don't|do not|no military)\b/i.test(text)) {
+        mr = 'neither';
+      }
     } else if (mr === 'no' || mr === 'none' || mr === 'false') {
       mr = 'neither';
     }
