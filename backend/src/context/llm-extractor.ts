@@ -311,7 +311,7 @@ export async function classifyConfirmation(
   lastAssistantUtterance: string | null,
   fieldName: string,
   pendingValue: string,
-): Promise<'yes' | 'no' | 'ambiguous'> {
+): Promise<'yes' | 'no' | 'ambiguous' | 'no_content'> {
   const _perfClassify_start = performance.now();
   console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): START`);
 
@@ -406,22 +406,45 @@ User response: "${userInput}"`;
     if (statusCode === 400) {
       console.error(`[llm-extractor] HTTP 400 full error response for classifyConfirmation "${fieldName}":`, JSON.stringify(error?.error ?? error?.body ?? { message: error?.message, code: error?.code, status: statusCode }, null, 2));
     }
-    // content stays null; caller returns 'ambiguous'
+    // content stays null; caller receives 'no_content'
   }
 
   const _perfClassify_ms = (performance.now() - _perfClassify_start).toFixed(1);
   console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): TOTAL ${_perfClassify_ms}ms (content=${content ? 'ok' : 'null'})`);
 
-  if (content) {
-    try {
-      const parsed = JSON.parse(content);
-      if (parsed.decision === 'yes' || parsed.decision === 'no' || parsed.decision === 'ambiguous') {
-        return parsed.decision;
-      }
-    } catch (parseError) {
-      console.error('[llm-extractor] Failed to parse confirmation decision:', parseError);
-    }
+  if (!content) {
+    console.warn(`[llm-extractor] classifyConfirmation("${fieldName}"): Cerebras returned null content -> 'no_content'`);
+    return 'no_content';
   }
-  return 'ambiguous';
+
+  // ── JSON Repair & Extraction Fallback ──────────────────────────────────
+  try {
+    let repaired = content.trimEnd();
+    if (!repaired.endsWith('}')) {
+      repaired += '\n}';
+    }
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(repaired);
+    } catch (firstErr) {
+      // Attempt 2: regex scrape decision value directly from raw output
+      const match = content.match(/"decision"\s*:\s*"(yes|no|ambiguous)"/i);
+      if (match && match[1]) {
+        const scraped = match[1].toLowerCase() as 'yes' | 'no' | 'ambiguous';
+        console.warn(`[llm-extractor] JSON repair fallback: scraped decision="${scraped}" from malformed content.`);
+        return scraped;
+      }
+      throw firstErr;
+    }
+
+    if (parsed.decision === 'yes' || parsed.decision === 'no' || parsed.decision === 'ambiguous') {
+      return parsed.decision;
+    }
+  } catch (parseError) {
+    console.error('[llm-extractor] Failed to parse confirmation decision:', parseError);
+  }
+
+  return 'no_content';
 }
 

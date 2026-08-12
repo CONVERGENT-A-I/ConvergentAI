@@ -28,6 +28,14 @@ interface SessionContextManagerSnapshot {
   fieldAttempts: Record<string, number>;
 }
 
+function isLikelyQuestion(text: string): boolean {
+  const t = text.toLowerCase().trim();
+  if (t.includes('?')) return true;
+  if (/^(what|why|how|where|who|which|can|could|would|should|is|does|will|do i)\b/.test(t)) return true;
+  const keywords = ['explain', 'detail', 'meaning', 'difference', 'tell me', 'what does', 'what is'];
+  return keywords.some(k => t.includes(k));
+}
+
 export class SessionContextManager {
   private turnLog: TurnLogEntry[] = [];
   private turnCount = 0;
@@ -634,14 +642,20 @@ export class SessionContextManager {
 
     // 3. Track attempts for the current pending field
     if (this.currentPendingField) {
-      const attempts = (this.fieldAttempts[this.currentPendingField] || 0) + 1;
-      this.fieldAttempts[this.currentPendingField] = attempts;
-      console.log(`[context-manager] Attempt count for "${this.currentPendingField}" is ${attempts}`);
-      if (attempts >= 3) {
-        console.log(`[context-manager] Max attempts reached for "${this.currentPendingField}". Declining field.`);
-        this.declineCurrentField();
-        console.log(`[perf] context-manager onUserTurn TOTAL: ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
-        return;
+      const userIsAsking = isLikelyQuestion(trimmed);
+
+      if (userIsAsking) {
+        console.log(`[context-manager]: Q&A turn detected for "${this.currentPendingField}" — not counting against attempt limit.`);
+      } else {
+        const attempts = (this.fieldAttempts[this.currentPendingField] || 0) + 1;
+        this.fieldAttempts[this.currentPendingField] = attempts;
+        console.log(`[context-manager] Attempt count for "${this.currentPendingField}" is ${attempts}`);
+        if (attempts >= 3) {
+          console.log(`[context-manager] Max attempts reached for "${this.currentPendingField}". Declining field.`);
+          this.declineCurrentField();
+          console.log(`[perf] context-manager onUserTurn TOTAL: ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
+          return;
+        }
       }
     }
 
@@ -1200,6 +1214,11 @@ export class SessionContextManager {
 
       if (hasCorrection) {
         decision = 'no';
+      }
+
+      if ((decision as string) === 'no_content' && !hasCorrection) {
+        console.warn(`[context-manager]: classifyConfirmation returned no_content for ${step} — Cerebras null response. Re-delivering script without marking needs_prefill_correction.`);
+        return; // Stay on the field, agent.ts deterministic script will re-ask correctly
       }
 
       if (decision === 'ambiguous' && !hasCorrection) {
