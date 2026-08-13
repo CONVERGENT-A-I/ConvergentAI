@@ -393,7 +393,7 @@ export class ApplicationService {
   /**
    * Sync all stages from BorrowerProfile to database
    */
-  async syncAllStages(applicationId: string, profile: BorrowerProfile, currentStage: string) {
+  async syncAllStages(applicationId: string, profile: BorrowerProfile, currentStage: string): Promise<void | null> {
     if (!prisma) return null;
     const syncs: Promise<any>[] = [];
 
