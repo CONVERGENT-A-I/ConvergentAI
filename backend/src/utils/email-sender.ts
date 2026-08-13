@@ -12,3 +12,4 @@ export async function sendPrequalLetterEmail(
   console.log(`[Email-Service]: Pre-Qualification Letter successfully delivered to ${recipientEmail}`);
   return true;
 }
+
