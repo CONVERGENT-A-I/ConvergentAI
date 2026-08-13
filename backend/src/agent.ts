@@ -725,14 +725,17 @@ export default defineAgent({
         }),
         tts: sessionTts,
         turnHandling: {
-          turnDetection: 'stt' as const,
+          turnDetection: new inference.TurnDetector(),
           endpointing: {
-            minDelay: ailanaConfig.vadEndpointMinDelayMs,
+            mode: 'dynamic' as const,
+            minDelay: 150,
+            maxDelay: 2000,
           },
           interruption: {
+            mode: 'adaptive' as const,
             minDuration: ailanaConfig.vadInterruptMinDurationMs,
             minWords: ailanaConfig.vadInterruptMinWords,
-            mode: 'vad' as const,
+            resumeFalseInterruption: true,
           },
           preemptiveGeneration: {
             enabled: false,
