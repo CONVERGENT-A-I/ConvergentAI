@@ -128,7 +128,7 @@ User input: "${userInput}"`;
       parsed = JSON.parse(repaired);
     } catch (firstErr) {
       console.warn(`[llm-extractor] JSON repair fallback triggered for "${fieldName}". Raw content: "${content}"`);
-      const valMatch = content.match(/"value"\s*:\s*("(.*?)"|(\d+)|true|false|null)/i);
+      const valMatch = content.match(/"value"\s*:\s*("(.*?)"|(\d+)|true|false|null)/is);
       const decMatch = content.match(/"declined"\s*:\s*(true|false)/i);
 
       if (valMatch || decMatch) {

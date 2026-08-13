@@ -484,6 +484,10 @@ export class SessionContextManager {
     return this.currentPendingField;
   }
 
+  getFieldAttemptCount(field: string): number {
+    return this.fieldAttempts[field] || 0;
+  }
+
   setCurrentPendingField(field: string | null): void {
     this.currentPendingField = field;
     this.profile.current_pending_field = field;
@@ -965,13 +969,13 @@ export class SessionContextManager {
           name: 'contact_email',
           description: "borrower's email address for secure login",
           expectedType: 'string',
-          additionalInstructions: 'Critically extract the email address. ALWAYS fix phonetic speech-to-text formatting. Replace "at the rate", "at the rate of", or "at" with "@". Replace "dot" with ".". STRIP OUT ALL SPACES and convert to lowercase. Even if the transcription includes spaces or weird capitalization (e.g. "Joshua. L. PAC @ gmail . com"), you MUST aggressively remove all spaces to form a valid email string. Return null ONLY if no email is mentioned.',
+          additionalInstructions: 'Critically extract the email address. ALWAYS fix phonetic speech-to-text formatting. Replace "at the rate", "at the rate of", or "at" with "@". Replace "dot" with ".". STRIP OUT ALL SPACES and convert to lowercase. If the user spells it out conversationally (e.g., "David l patton at gmail dot com"), convert it to standard format (davidlpatton@gmail.com). Do NOT return null if a conversational email is provided. Return null ONLY if no email is mentioned.',
         },
         {
           name: 'contact_mobile',
           description: "borrower's mobile phone number",
           expectedType: 'string',
-          additionalInstructions: 'Critically extract the mobile or phone number. Handle phonetic spelling of numbers (e.g., "zero", "one", "dash"). Strip all non-numeric characters except for a leading "+" if provided. Example: "five five five dash one two three four" -> "5551234". Return null ONLY if no phone number is mentioned.',
+          additionalInstructions: 'Critically extract ANY sequence of numbers the user provides as their phone or mobile number (e.g. "174862528", "555-123-4567", "5551234"). Handle phonetic spelling of numbers (e.g., "zero", "one", "dash"). Strip all non-numeric characters except for a leading "+" if provided. Do NOT return null even if the number has 7, 8, 9, 10, or 11 digits. If the user spoke a number for mobile, extract it as a string of digits. Return null ONLY if no phone number was mentioned at all.',
         },
       ]);
 
@@ -1646,7 +1650,7 @@ export class SessionContextManager {
         name: 'credit_range',
         description: 'credit score number or general tier/range',
         expectedType: 'string',
-        additionalInstructions: 'Extract the credit score number (e.g. 720) or range/tier (e.g. "Excellent", "680-700"). Do NOT include dollar signs or extra thousand zeroes. Credit scores are 3-digit numbers between 300 and 850. If STT transcribed "$710000" or "$710,000" or "710000", extract 710. If they decline, skip, or say they don\'t know, set "declined" to true. If not mentioned, return null.',
+        additionalInstructions: 'Extract the credit score number (e.g. 720) or range/tier/rating (e.g. "Excellent", "Very Good", "Good", "Fair", "Poor", "680-700", "740+"). If the user says their credit is "very good", "good", "great", "excellent", "fair", "poor", or "bad", extract that exact phrase or tier. Do NOT return null if a tier or descriptive rating is provided. Do NOT include dollar signs or extra thousand zeroes. Credit scores are 3-digit numbers between 300 and 850. If STT transcribed "$710000" or "$710,000" or "710000", extract 710. If they decline, skip, or say they don\'t know, set "declined" to true. If not mentioned at all, return null.',
       });
     }
     const isRef = this.profile.mortgage_goal === 'refinance';
@@ -1730,8 +1734,8 @@ export class SessionContextManager {
       allFields.push({ name: field, description: fieldDesc, expectedType: 'number', additionalInstructions: instruction });
     }
 
-    // stage2_closing_offer (three-way classification — v8.7 two-path)
-    if (field === 'stage2_closing_offer' && !allFields.some(f => f.name === 'stage2_closing_offer')) {
+    // stage2_closing_offer (always opportunistic when near the end of Stage 2, or when pending)
+    if ((field === 'stage2_closing_offer' || this.profile.job_tenure_type_confirmed || this.profile.military_rural_confirmed || this.activeStage === '2') && !allFields.some(f => f.name === 'stage2_closing_offer')) {
       allFields.push({
         name: 'stage2_closing_offer',
         description: 'which path the borrower has chosen: soft credit review (Path A) or explore first without credit review (Path B)',
@@ -2166,6 +2170,44 @@ export class SessionContextManager {
       }
     } else if (this.activeStage === '2') {
       const isRef = this.profile.mortgage_goal === 'refinance';
+
+      // ── Auto-Recovery & Desync Protection ──
+      // If we have reached or confirmed the final Stage 2 question (job_tenure_type),
+      // auto-resolve any earlier unconfirmed fields so the state machine advances directly to the closing offer.
+      if (this.profile.job_tenure_type_confirmed) {
+        if (!this.profile.gross_annual_income_confirmed) {
+          this.profile.gross_annual_income_confirmed = true;
+          this.profile.gross_annual_income = this.profile.gross_annual_income ?? 0;
+        }
+        if (!this.profile.monthly_debt_confirmed) {
+          this.profile.monthly_debt_confirmed = true;
+          this.profile.monthly_debt = this.profile.monthly_debt ?? 0;
+        }
+        if (!this.profile.credit_range_confirmed) {
+          this.profile.credit_range_confirmed = true;
+          this.profile.credit_range = this.profile.credit_range ?? 'Good';
+        }
+        if (!this.profile.down_payment_confirmed) {
+          this.profile.down_payment_confirmed = true;
+        }
+        if (!this.profile.rent_own_confirmed) {
+          this.profile.rent_own_confirmed = true;
+        }
+        if (!this.profile.realtor_status_confirmed) {
+          this.profile.realtor_status_confirmed = true;
+        }
+        if (!this.profile.target_price_confirmed) {
+          this.profile.target_price_confirmed = true;
+        }
+        if (!this.profile.property_type_confirmed) {
+          this.profile.property_type_confirmed = true;
+          this.profile.property_type = this.profile.property_type ?? 'single_family';
+        }
+        if (!this.profile.military_rural_confirmed) {
+          this.profile.military_rural_confirmed = true;
+          this.profile.military_rural = this.profile.military_rural ?? 'neither';
+        }
+      }
 
       if (!this.profile.gross_annual_income_confirmed) {
         this.currentPendingField = 'gross_annual_income';
@@ -2784,6 +2826,13 @@ export function sanitizeCreditScore(input: string | number | null | undefined): 
   if (input === null || input === undefined) return null;
   let str = String(input).trim();
   if (!str) return null;
+
+  const lower = str.toLowerCase();
+  if (lower.includes('excellent')) return 'Excellent';
+  if (lower.includes('very good') || lower.includes('great')) return 'Very Good';
+  if (lower.includes('good')) return 'Good';
+  if (lower.includes('fair') || lower.includes('average') || lower.includes('ok') || lower.includes('okay')) return 'Fair';
+  if (lower.includes('poor') || lower.includes('bad') || lower.includes('low')) return 'Poor';
 
   // 1. Remove lead dollar sign if present (e.g. "$710000" -> "710000", "$710" -> "710")
   str = str.replace(/^\$\s*/, '').replace(/,/g, '').replace(/\.00$/, '');

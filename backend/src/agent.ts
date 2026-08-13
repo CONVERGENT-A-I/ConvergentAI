@@ -180,7 +180,10 @@ function isQuestionOrCorrection(text: string | null | undefined): boolean {
   const keywords = [
     'explain', 'detail', 'meaning', 'difference',
     'change my', 'update my', 'actually my', 'wrong', 'mistake', 'instead',
-    'confused', 'don\'t understand', 'not sure', 'unsure', 'tell me about'
+    'confused', 'don\'t understand', 'not sure', 'unsure', 'tell me about',
+    'already told you', 'gave it to you', 'gave you', 'just said', 'just shared',
+    'already shared', 'shared that', 'shared it', 'just gave', 'already gave',
+    'already told', 'just told', 'already said', 'i shared', 'i gave'
   ];
   return keywords.some(k => t.includes(k));
 }
@@ -321,24 +324,30 @@ class AilanaVoiceAgent extends voice.Agent {
     }
 
     if (pending === 'contact_email') {
+      const attempts = this.contextManager.getFieldAttemptCount('contact_email');
+      const apology = attempts >= 1 ? "I'm sorry, I didn't quite catch that. " : "";
+      
       let scriptText = '';
       if (profile.contact_mobile) {
-        scriptText = "I have your mobile number. Could you also share the email address you'd like to use for your account?";
+        scriptText = `${apology}I have your mobile number. Could you also share the email address you'd like to use for your account?`;
         console.log('[agent-hook]: Delivering contact_email script (mobile already captured) via Deterministic ReadableStream!');
       } else {
-        scriptText = "Perfect. Before we run your review, let's set up a quick secure login — I'll just need the email and mobile number you'd like to use for your account. What are those for you?";
+        scriptText = `${apology}Perfect. Before we run your review, let's set up a quick secure login — I'll just need the email and mobile number you'd like to use for your account. What are those for you?`;
         console.log('[agent-hook]: Delivering Q45 initial contact_email script via Deterministic ReadableStream!');
       }
       return createVerbatimStream(scriptText) as any;
     }
 
     if (pending === 'contact_mobile') {
+      const attempts = this.contextManager.getFieldAttemptCount('contact_mobile');
+      const apology = attempts >= 1 ? "I'm sorry, I didn't quite catch that. " : "";
+
       let scriptText = '';
       if (profile.contact_email) {
-        scriptText = "I have your email. Could you also share the mobile number you'd like to use?";
+        scriptText = `${apology}I have your email. Could you also share the mobile number you'd like to use?`;
         console.log('[agent-hook]: Delivering contact_mobile script (email already captured) via Deterministic ReadableStream!');
       } else {
-        scriptText = "I have your mobile number. Could you also share the email address you'd like to use?";
+        scriptText = `${apology}I have your mobile number. Could you also share the email address you'd like to use?`;
         console.log('[agent-hook]: Delivering contact_mobile script via Deterministic ReadableStream!');
       }
       return createVerbatimStream(scriptText) as any;
@@ -687,13 +696,12 @@ export default defineAgent({
       prefixPaddingDuration: 200,
     });
 
-    // ── STT: Deepgram nova-3 via LiveKit Inference ────────────────────────────
-    // Routes through LiveKit's agent-gateway (agent-gateway.livekit.cloud) instead
-    // of calling Deepgram directly. This is the correct LiveKit Inference pattern:
-    // auth is done with your LIVEKIT_API_KEY/SECRET, not a Deepgram key.
-    console.log(`[agent]: Loading Deepgram STT via LiveKit Inference (nova-3)...`);
+    // ── STT: Cartesia ink-2 via LiveKit Inference ────────────────────────────
+    // Routes through LiveKit's agent-gateway (agent-gateway.livekit.cloud).
+    console.log(`[agent]: Loading Cartesia STT via LiveKit Inference (ink-2)...`);
     const sessionStt = new inference.STT({
-      model: 'deepgram/nova-3',
+      model: 'cartesia/ink-2',
+      language: 'en',
     });
 
     // ── TTS: Cartesia sonic-3.5 via LiveKit Inference ─────────────────────────
