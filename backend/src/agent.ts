@@ -158,13 +158,7 @@ class CerebrasLLM extends openai.LLM {
 // Verbatim Stage 2 Closing Offer text — delivered via session.say() bypassing the LLM.
 // This guarantees the exact two-path script is spoken regardless of LLM instruction-following.
 const STAGE2_CLOSING_OFFER_SCRIPT = (name: string | null | undefined) =>
-  `Great work exploring your numbers${name ? `, ${name}` : ''}. You have two good ways to see your affordability picture.
-
-First, with your authorization, I can perform a soft credit review to pre-populate your application with your actual credit data—saving you time and ensuring accurate information, all with no impact to your credit score.
-
-Alternatively, I can build your affordability summary right now using just the details you've already shared, and you can add the credit review whenever you're ready.
-
-Which path would you prefer?`;
+  `Great work exploring your numbers${name ? `, ${name}` : ''}. You have two good ways to see your affordability picture. First, with your authorization, I can perform a soft credit review to pre-populate your application with your actual credit data, saving you time and ensuring accurate information, all with no impact to your credit score. Alternatively, I can build your affordability summary right now using just the details you've already shared, and you can add the credit review whenever you're ready. Which path would you prefer?`;
 
 function isQuestionOrCorrection(text: string | null | undefined): boolean {
   if (!text) return false;
@@ -189,9 +183,10 @@ function isQuestionOrCorrection(text: string | null | undefined): boolean {
 }
 
 function createVerbatimStream(text: string): ReadableStream<string> {
+  const sanitized = text.replace(/\s*\n+\s*/g, ' ').replace(/—/g, ', ').trim();
   return new ReadableStream({
     start(controller) {
-      controller.enqueue(text);
+      controller.enqueue(sanitized);
       controller.close();
     },
   });
