@@ -80,7 +80,7 @@ export class LatencyTracker {
 
   markLlmStart(): void {
     this.t_llm_start = Date.now();
-    console.log(`[pipeline][${ts()}] LLM request sent → Cerebras`);
+    console.log(`[pipeline][${ts()}] LLM request sent → LiveKit Inference`);
   }
 
   markLlmFirstToken(): void {

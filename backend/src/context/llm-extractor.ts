@@ -1,24 +1,18 @@
-import { OpenAI } from 'openai';
-import { ailanaConfig } from '../config/ailana-config.js';
+import { inference, llm } from '@livekit/agents';
+// import { OpenAI } from 'openai';
+// import { ailanaConfig } from '../config/ailana-config.js';
 
-// ── Extractor client ─────────────────────────────────────────────────
-// Uses the cerebrasExtractorApiKey, which reads CEREBRAS_EXTRACTOR_API_KEY
-// from the environment (falls back to CEREBRAS_API_KEY if not set).
-// Setting a separate API key routes extractor requests through a different
-// Cerebras account — completely separate request pool, zero queue contention
-// with the main LLM. With a single account key, both share the same pool.
-const fastClient = new OpenAI({
-  apiKey: ailanaConfig.cerebrasExtractorApiKey,
-  baseURL: ailanaConfig.cerebrasBaseUrl,
+// ── Cerebras Extractor Client (DISABLED / COMMENTED OUT) ─────────────────
+// const fastClient = new OpenAI({
+//   apiKey: ailanaConfig.cerebrasExtractorApiKey,
+//   baseURL: ailanaConfig.cerebrasBaseUrl,
+// });
+// const EXTRACTION_MODEL = 'gpt-oss-120b';
+
+// ── LiveKit Inference Extractor LLM ──────────────────────────────────────
+const extractorLlm = new inference.LLM({
+  model: 'google/gemma-4-31b-it',
 });
-
-// gpt-oss-120b with reasoning_effort: 'low': extremely fast (~3000 tps) with minimal reasoning overhead.
-// Uses cerebrasExtractorApiKey — set CEREBRAS_EXTRACTOR_API_KEY to a second
-// Cerebras account key to route extractor requests to a separate request pool,
-// eliminating any queue contention with the main LLM.
-const EXTRACTION_MODEL = 'gpt-oss-120b';
-
-
 
 export interface ExtractionResult {
   value: string | number | null;
@@ -61,51 +55,21 @@ User input: "${userInput}"`;
   console.log(`[perf] llm-extractor extractProfileField("${fieldName}"): START (running concurrent with main LLM if race not yet resolved)`);
 
   try {
-    // Retry once for transient Cerebras errors
-    let cerebrasErr: any = null;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const _perfCerebrasCallStart = performance.now();
-        const response = await fastClient.chat.completions.create({
-          model: EXTRACTION_MODEL,
-          reasoning_effort: (ailanaConfig.cerebrasReasoningEffort as any) ?? 'low',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          response_format: { type: 'json_object' },
-          temperature: 0.0,
-          // Single-field extraction: response is always {"value": "...", "declined": false}
-          // 100 tokens covers any field value (incl. long strings like addresses) + JSON overhead.
-          max_tokens: 100,
-        });
-        const _perfCerebrasCallMs = (performance.now() - _perfCerebrasCallStart).toFixed(1);
-        console.log(`[perf] llm-extractor extractProfileField("${fieldName}"): Cerebras call (attempt ${attempt + 1}) took ${_perfCerebrasCallMs}ms`);
-        content = response.choices[0]?.message?.content || null;
-        console.log(`[llm-extractor] Extracted "${fieldName}" raw JSON:`, content);
-        cerebrasErr = null;
-        break;
-      } catch (error: any) {
-        cerebrasErr = error;
-        const statusCode = error?.status ?? error?.statusCode;
-        if (attempt === 0 && (statusCode === 500 || statusCode === 502 || statusCode === 503)) {
-          // Brief pause only for transient server errors
-          console.log(`[perf] llm-extractor extractProfileField("${fieldName}"): retry backoff 200ms (status=${statusCode})`);
-          await new Promise(resolve => setTimeout(resolve, 200));
-          continue;
-        }
-        break;
-      }
-    }
-    if (cerebrasErr) {
-      throw cerebrasErr;
-    }
+    const _perfCallStart = performance.now();
+    const chatCtx = new llm.ChatContext();
+    chatCtx.addMessage({ role: 'system', content: systemPrompt });
+    chatCtx.addMessage({ role: 'user', content: userPrompt });
+
+    const stream = extractorLlm.chat({ chatCtx });
+    const collected = await stream.collect();
+    content = collected.text || null;
+
+    const _perfCallMs = (performance.now() - _perfCallStart).toFixed(1);
+    console.log(`[perf] llm-extractor extractProfileField("${fieldName}"): LiveKit Inference call took ${_perfCallMs}ms`);
+    console.log(`[llm-extractor] Extracted "${fieldName}" raw JSON:`, content);
   } catch (error: any) {
     const statusCode = error?.status ?? error?.statusCode;
-    console.error(`[llm-extractor] Cerebras failed for "${fieldName}" (status: ${statusCode}):`, error?.message ?? error);
-    if (statusCode === 400) {
-      console.error(`[llm-extractor] HTTP 400 full error response for "${fieldName}":`, JSON.stringify(error?.error ?? error?.body ?? { message: error?.message, code: error?.code, status: statusCode }, null, 2));
-    }
+    console.error(`[llm-extractor] LiveKit Inference failed for "${fieldName}" (status: ${statusCode}):`, error?.message ?? error);
     // content stays null; caller receives { value: null, declined: false }
   }
 
@@ -119,6 +83,8 @@ User input: "${userInput}"`;
   // ── JSON Repair & Extraction Fallback ──────────────────────────────────
   try {
     let repaired = content.trimEnd();
+    // Strip markdown code fences if returned by model
+    repaired = repaired.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
     if (!repaired.endsWith('}')) {
       repaired += '\n}';
     }
@@ -233,7 +199,7 @@ export async function extractMultipleFields(
  *
  * Uses a two-tier approach:
  * 1. Regex fast-path (0ms): catches unambiguous "yes"/"no" phrasing immediately.
- * 2. Cerebras fallback (~500ms): handles edge cases — questions, indirect phrasing,
+ * 2. LiveKit Inference fallback: handles edge cases — questions, indirect phrasing,
  *    or anything the regex doesn't recognize.
  *
  * Returns 'yes', 'no', or 'needs_explanation' (user is asking for more info before deciding).
@@ -277,8 +243,8 @@ export async function classifyAuthorization(
     return 'no';
   }
 
-  // ── Tier 2: Cerebras fallback (handles questions, indirect phrasing) ─────────
-  console.log(`[classifyAuthorization] Regex inconclusive (auth=${isAuthorized}, dec=${isDeclined}) → falling back to Cerebras`);
+  // ── Tier 2: LiveKit Inference fallback (handles questions, indirect phrasing) ─────────
+  console.log(`[classifyAuthorization] Regex inconclusive (auth=${isAuthorized}, dec=${isDeclined}) → falling back to LiveKit Inference`);
 
   const systemPrompt = `You are analyzing a user's response to a soft credit inquiry authorization request.
 The mortgage assistant asked the user to authorize a soft credit inquiry (which does NOT affect credit score).
@@ -307,30 +273,28 @@ You MUST reply with a JSON object only.`;
 User response: "${userInput}"`;
 
   try {
-    const response = await fastClient.chat.completions.create({
-      model: EXTRACTION_MODEL,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.0,
-      max_tokens: 30,
-    });
-    const content = response.choices[0]?.message?.content || null;
-    console.log(`[classifyAuthorization] Cerebras fallback raw JSON:`, content);
+    const chatCtx = new llm.ChatContext();
+    chatCtx.addMessage({ role: 'system', content: systemPrompt });
+    chatCtx.addMessage({ role: 'user', content: userPrompt });
+
+    const stream = extractorLlm.chat({ chatCtx });
+    const collected = await stream.collect();
+    const content = collected.text || null;
+
+    console.log(`[classifyAuthorization] LiveKit Inference fallback raw JSON:`, content);
     if (content) {
-      const parsed = JSON.parse(content);
+      const cleanJson = content.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+      const parsed = JSON.parse(cleanJson);
       const d = parsed.decision;
       if (d === 'yes' || d === 'no' || d === 'needs_explanation') {
         return d;
       }
     }
   } catch (err: any) {
-    console.error(`[classifyAuthorization] Cerebras fallback failed:`, err?.message ?? err);
+    console.error(`[classifyAuthorization] LiveKit Inference fallback failed:`, err?.message ?? err);
   }
 
-  // If Cerebras also fails, default to needs_explanation so the LLM re-asks gracefully
+  // If fallback also fails, default to needs_explanation so the LLM re-asks gracefully
   return 'needs_explanation';
 }
 
@@ -413,50 +377,21 @@ User response: "${userInput}"`;
   let content: string | null = null;
 
   try {
-    // Retry once for transient Cerebras errors
-    let cerebrasErr: any = null;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const _perfCerebrasCallStart = performance.now();
-        const response = await fastClient.chat.completions.create({
-          model: EXTRACTION_MODEL,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          response_format: { type: 'json_object' },
-          temperature: 0.0,
-          // Confirmation: response is only {"decision": "yes|no|ambiguous"}
-          // 50 tokens to accommodate any model preamble + the JSON object.
-          max_tokens: 50,
-        });
-        const _perfCerebrasCallMs = (performance.now() - _perfCerebrasCallStart).toFixed(1);
-        console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): Cerebras call (attempt ${attempt + 1}) took ${_perfCerebrasCallMs}ms`);
-        content = response.choices[0]?.message?.content || null;
-        console.log(`[llm-extractor] Classified confirmation for "${fieldName}" raw JSON:`, content);
-        cerebrasErr = null;
-        break;
-      } catch (error: any) {
-        cerebrasErr = error;
-        const statusCode = error?.status ?? error?.statusCode;
-        if (attempt === 0 && (statusCode === 500 || statusCode === 502 || statusCode === 503)) {
-          // Brief pause only for transient server errors
-          console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): retry backoff 200ms (status=${statusCode})`);
-          await new Promise(resolve => setTimeout(resolve, 200));
-          continue;
-        }
-        break;
-      }
-    }
-    if (cerebrasErr) {
-      throw cerebrasErr;
-    }
+    const _perfCallStart = performance.now();
+    const chatCtx = new llm.ChatContext();
+    chatCtx.addMessage({ role: 'system', content: systemPrompt });
+    chatCtx.addMessage({ role: 'user', content: userPrompt });
+
+    const stream = extractorLlm.chat({ chatCtx });
+    const collected = await stream.collect();
+    content = collected.text || null;
+
+    const _perfCallMs = (performance.now() - _perfCallStart).toFixed(1);
+    console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): LiveKit Inference call took ${_perfCallMs}ms`);
+    console.log(`[llm-extractor] Classified confirmation for "${fieldName}" raw JSON:`, content);
   } catch (error: any) {
     const statusCode = error?.status ?? error?.statusCode;
-    console.error(`[llm-extractor] Cerebras classify failed for "${fieldName}" (status: ${statusCode}):`, error?.message ?? error);
-    if (statusCode === 400) {
-      console.error(`[llm-extractor] HTTP 400 full error response for classifyConfirmation "${fieldName}":`, JSON.stringify(error?.error ?? error?.body ?? { message: error?.message, code: error?.code, status: statusCode }, null, 2));
-    }
+    console.error(`[llm-extractor] LiveKit Inference classify failed for "${fieldName}" (status: ${statusCode}):`, error?.message ?? error);
     // content stays null; caller receives 'no_content'
   }
 
@@ -464,13 +399,14 @@ User response: "${userInput}"`;
   console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): TOTAL ${_perfClassify_ms}ms (content=${content ? 'ok' : 'null'})`);
 
   if (!content) {
-    console.warn(`[llm-extractor] classifyConfirmation("${fieldName}"): Cerebras returned null content -> 'no_content'`);
+    console.warn(`[llm-extractor] classifyConfirmation("${fieldName}"): LiveKit Inference returned null content -> 'no_content'`);
     return 'no_content';
   }
 
   // ── JSON Repair & Extraction Fallback ──────────────────────────────────
   try {
     let repaired = content.trimEnd();
+    repaired = repaired.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
     if (!repaired.endsWith('}')) {
       repaired += '\n}';
     }
@@ -498,4 +434,3 @@ User response: "${userInput}"`;
 
   return 'no_content';
 }
-

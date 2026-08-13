@@ -1,5 +1,4 @@
 import { llm, type voice } from '@livekit/agents';
-import type { LLM } from '@livekit/agents-plugin-openai';
 import { ailanaConfig } from '../config/ailana-config.js';
 import {
   getForceCompactTokenThreshold,
@@ -73,7 +72,7 @@ export class SessionContextManager {
   private readonly dbEnabled: boolean;
 
   constructor(
-    private readonly summarizationLlm: LLM,
+    private readonly summarizationLlm: llm.LLM,
     private readonly metrics: LatencyTracker,
   ) {
     this.dbEnabled = isDatabaseEnabled();

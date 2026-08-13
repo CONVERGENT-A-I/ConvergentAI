@@ -47,6 +47,8 @@ process.on('unhandledRejection', (reason: any) => {
   console.error('[agent-error] Unhandled Promise Rejection:', reason);
 });
 
+// ── Cerebras Client & Wrapper (DISABLED / COMMENTED OUT) ─────────────────
+/*
 const cerebrasClient = new OpenAI({
   apiKey: ailanaConfig.cerebrasApiKey,
   baseURL: ailanaConfig.cerebrasBaseUrl,
@@ -60,18 +62,11 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
     body.reasoning_effort = ailanaConfig.cerebrasReasoningEffort;
   }
 
-  // ── Always force streaming on the main voice pipeline calls ─────────────
-  // The LiveKit inference LLM already passes stream:true, but if the body
-  // somehow arrives without it we enforce it to guarantee chunked SSE.
-  // Exception: the text-only reply path (generateTextOnlyReply) explicitly
-  // sets stream:false because it reads completion.choices[0].message.content
-  // directly — we MUST NOT override that or it will silently get a stream object.
   if (body.stream !== false) {
     body.stream = true;
     body.stream_options = { include_usage: true };
   }
 
-  // Retry once with backoff for transient Cerebras errors before falling back
   for (let attempt = 0; attempt < 2; attempt++) {
     const t0 = Date.now();
     try {
@@ -83,7 +78,6 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
 
       const result = await originalCerebrasCreate(body, options);
 
-      // If it's a stream, intercept to track first token, end stream timings
       if (result && typeof (result as any)[Symbol.asyncIterator] === 'function') {
         const originalIterator = (result as any)[Symbol.asyncIterator].bind(result);
 
@@ -131,29 +125,24 @@ cerebrasClient.chat.completions.create = (async function (body: any, options: an
       const statusCode = err?.status ?? err?.statusCode;
       console.warn(`[cerebras-proxy][${ts()}] Cerebras API error (status: ${statusCode}, attempt: ${attempt}):`, err?.message ?? err);
 
-      // Log full error body for HTTP 400
       if (statusCode === 400) {
         console.error(`[cerebras-proxy][${ts()}] HTTP 400 full error response:`, JSON.stringify(err?.error ?? err?.body ?? { message: err?.message, code: err?.code, status: statusCode }, null, 2));
       }
 
-      // On first attempt with a retryable error, wait and retry once
       if (attempt === 0 && (statusCode === 400 || statusCode === 500 || statusCode === 502 || statusCode === 503)) {
         await new Promise(resolve => setTimeout(resolve, 500));
         continue;
       }
 
-      // No Groq fallback — propagate the Cerebras error directly
       throw err;
     }
   }
   throw lastErr;
 } as any);
 
-
-
 class CerebrasLLM extends openai.LLM {
-  // gemma-4-31b does not support reasoning_effort or reasoning_format parameters.
 }
+*/
 
 // Verbatim Stage 2 Closing Offer text — delivered via session.say() bypassing the LLM.
 // This guarantees the exact two-path script is spoken regardless of LLM instruction-following.
@@ -621,10 +610,8 @@ export default defineAgent({
     let isAvatarInitDone = false;
 
     const metrics = new LatencyTracker();
-    const summarizationLlm = new openai.LLM({
-      model: 'gemma-4-31b',
-      baseURL: ailanaConfig.cerebrasBaseUrl,
-      apiKey: ailanaConfig.cerebrasApiKey,
+    const summarizationLlm = new inference.LLM({
+      model: 'google/gemma-4-31b-it',
     });
     const contextManager = new SessionContextManager(summarizationLlm, metrics);
 
@@ -684,58 +671,39 @@ export default defineAgent({
     }
     // ─────────────────────────────────────────────────────────────────────────
 
-    console.log(`[agent]: Loading VAD (minSilence=${ailanaConfig.vadMinSilenceMs}ms)...`);
-    const sessionVad = new inference.VAD({
-      model: 'silero',
-      minSilenceDuration: ailanaConfig.vadMinSilenceMs,
-      prefixPaddingDuration: 200,
-    });
-
-    // ── STT: Cartesia ink-2 via LiveKit Inference ────────────────────────────
-    // Routes through LiveKit's agent-gateway (agent-gateway.livekit.cloud).
-    console.log(`[agent]: Loading Cartesia STT via LiveKit Inference (ink-2)...`);
+    // ── STT: Deepgram flux-general-en via LiveKit Inference ──────────────────
+    console.log(`[agent]: Loading Deepgram STT via LiveKit Inference (flux-general-en)...`);
     const sessionStt = new inference.STT({
-      model: 'cartesia/ink-2',
+      model: 'deepgram/flux-general-en',
       language: 'en',
     });
 
-    // ── TTS: Cartesia sonic-3.5 via LiveKit Inference ─────────────────────────
-    // Routes through LiveKit's agent-gateway instead of calling Cartesia directly.
-    // Model string format for inference TTS: "provider/model-name:voice-id"
-    console.log(`[agent]: Loading Cartesia TTS via LiveKit Inference (sonic-3.5, voiceId=${ailanaConfig.cartesiaVoiceId || 'MISSING'})...`);
-    if (!ailanaConfig.cartesiaVoiceId) {
-      console.warn('[agent-startup] WARNING: CARTESIA_VOICE_ID is not set — using default voice ID.');
-    }
+    // ── TTS: Cartesia sonic-3 via LiveKit Inference ──────────────────────────
+    console.log(`[agent]: Loading Cartesia TTS via LiveKit Inference (sonic-3)...`);
     const sessionTts = new inference.TTS({
-      model: `cartesia/sonic-3.5:${ailanaConfig.cartesiaVoiceId}`,
+      model: 'cartesia/sonic-3',
+      voice: ailanaConfig.cartesiaVoiceId || 'a167e0f3-df7e-4d52-a9c3-f949145efdab',
       sampleRate: 16000,
     });
 
-
-
     const createVadAgent = () => {
-      console.log('[agent]: Creating Cascaded agent (Cerebras LLM + Deepgram STT [LK Inference] + Cartesia TTS [LK Inference] + LemonSlice Avatar)...');
+      console.log('[agent]: Creating LiveKit Inference agent (Gemma 4 31B LLM + Deepgram STT + Cartesia TTS + TurnDetector)...');
       return new AilanaVoiceAgent({
         instructions: contextManager.getActiveInstructions(),
         stt: sessionStt,
-        vad: sessionVad,
-        llm: new CerebrasLLM({
-          model: 'gemma-4-31b',
-          client: cerebrasClient,
+        llm: new inference.LLM({
+          model: 'google/gemma-4-31b-it',
         }),
         tts: sessionTts,
         turnHandling: {
           turnDetection: new inference.TurnDetector(),
-          endpointing: {
-            mode: 'dynamic' as const,
-            minDelay: 150,
-            maxDelay: 2000,
-          },
           interruption: {
             mode: 'adaptive' as const,
-            minDuration: ailanaConfig.vadInterruptMinDurationMs,
-            minWords: ailanaConfig.vadInterruptMinWords,
-            resumeFalseInterruption: true,
+          },
+          endpointing: {
+            mode: 'dynamic' as const,
+            minDelay: 100,
+            maxDelay: 2000,
           },
           preemptiveGeneration: {
             enabled: false,
@@ -756,14 +724,14 @@ export default defineAgent({
     const session = new voice.AgentSession({
       userAwayTimeout: null,
       turnHandling: {
-        turnDetection: 'stt' as const,
+        turnDetection: new inference.TurnDetector(),
         endpointing: {
-          minDelay: ailanaConfig.vadEndpointMinDelayMs,
+          mode: 'dynamic' as const,
+          minDelay: 100,
+          maxDelay: 2000,
         },
         interruption: {
-          minDuration: ailanaConfig.vadInterruptMinDurationMs,
-          minWords: ailanaConfig.vadInterruptMinWords,
-          mode: 'vad' as const,
+          mode: 'adaptive' as const,
         },
         preemptiveGeneration: {
           enabled: false,
@@ -1123,16 +1091,19 @@ export default defineAgent({
         const slicedHistory = historyMessages.slice(-23); // keep up to 23 recent turns
         const messages = [systemMessage, ...slicedHistory];
 
-        console.log(`[agent]: Dispatching text-only reply to Cerebras client proxy...`);
-        const completion = await cerebrasClient.chat.completions.create({
-          model: 'gemma-4-31b',
-          messages: messages as any,
-          max_tokens: 500,
-          temperature: 0.6,
-          stream: false, // text-only path — must receive a plain completion object, not a stream
-        } as any);
-
-        const reply = completion.choices?.[0]?.message?.content?.trim();
+        console.log(`[agent]: Dispatching text-only reply to LiveKit Inference LLM...`);
+        const textChatCtx = new llm.ChatContext();
+        for (const msg of messages) {
+          if (msg) {
+            textChatCtx.addMessage({
+              role: (msg.role as any) || 'user',
+              content: msg.content || '',
+            });
+          }
+        }
+        const textStream = summarizationLlm.chat({ chatCtx: textChatCtx });
+        const textCollected = await textStream.collect();
+        const reply = textCollected.text?.trim();
 
         if (reply) {
           contextManager.onAgentTurn(reply).catch(err => 
@@ -1720,7 +1691,8 @@ export default defineAgent({
       resolveAvatarReady();
     }
 
-    // Measure connection latency to Cerebras API endpoint on start
+    // Cerebras latency test disabled / commented out
+    /*
     (async () => {
       const start = Date.now();
       try {
@@ -1743,8 +1715,9 @@ export default defineAgent({
         console.warn(`[latency-check][${ts()}] Cerebras API connection test returned error after ${duration}ms: ${err?.message || err}`);
       }
     })();
+    */
 
-    const activeModelName = 'cascade-livekit-inference (Cerebras Gemma 4 31B + Deepgram STT [LK Inference] + Cartesia TTS [LK Inference] + LemonSlice Avatar)';
+    const activeModelName = 'LiveKit Inference (google/gemma-4-31b-it + deepgram/flux-general-en + cartesia/sonic-3 + LemonSlice Avatar)';
     console.log(
       `[agent]: Ready — model=${activeModelName}, prompt=${ailanaConfig.promptVersion}, compact@${ailanaConfig.compactEveryNTurns} turns / ${ailanaConfig.forceCompactInputTokens} tokens`,
     );
