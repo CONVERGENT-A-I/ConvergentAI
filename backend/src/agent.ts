@@ -19,8 +19,6 @@ import { type JobContext, ServerOptions, cli, voice, llm, inference, defineAgent
 import { RoomEvent, TrackKind } from '@livekit/rtc-node';
 import { fileURLToPath } from 'url';
 import * as openai from '@livekit/agents-plugin-openai';
-import * as cartesia from '@livekit/agents-plugin-cartesia';
-import { LoggedCartesiaTTS } from './metrics/logged-cartesia-tts.js';
 import { ailanaConfig } from './config/ailana-config.js';
 import { SessionContextManager } from './context/session-context-manager.js';
 import { LatencyTracker, ts } from './metrics/latency-tracker.js';
@@ -689,38 +687,31 @@ export default defineAgent({
       prefixPaddingDuration: 200,
     });
 
-    // ── Cartesia STT ──────────────────────────────────────────────────────────
-    console.log(`[agent]: Loading Cartesia STT (ink-2)...`);
-    if (!ailanaConfig.cartesiaKey) {
-      console.error('[agent-startup] FATAL: CARTESIA_KEY is not set — STT will fail!');
-    }
-    const sessionStt = new cartesia.STT({
-      apiKey: ailanaConfig.cartesiaKey,
-      model: 'ink-2',
+    // ── STT: Deepgram nova-3 via LiveKit Inference ────────────────────────────
+    // Routes through LiveKit's agent-gateway (agent-gateway.livekit.cloud) instead
+    // of calling Deepgram directly. This is the correct LiveKit Inference pattern:
+    // auth is done with your LIVEKIT_API_KEY/SECRET, not a Deepgram key.
+    console.log(`[agent]: Loading Deepgram STT via LiveKit Inference (nova-3)...`);
+    const sessionStt = new inference.STT({
+      model: 'deepgram/nova-3',
     });
 
-    // ── Cartesia TTS ─────────────────────────────────────────────────────────
-    console.log(`[agent]: Loading Cartesia TTS (sonic-3.5, voiceId=${ailanaConfig.cartesiaVoiceId || 'MISSING'})...`);
-    if (!ailanaConfig.cartesiaKey) {
-      console.error('[agent-startup] FATAL: CARTESIA_KEY is not set — TTS will fail!');
-    }
+    // ── TTS: Cartesia sonic-3.5 via LiveKit Inference ─────────────────────────
+    // Routes through LiveKit's agent-gateway instead of calling Cartesia directly.
+    // Model string format for inference TTS: "provider/model-name:voice-id"
+    console.log(`[agent]: Loading Cartesia TTS via LiveKit Inference (sonic-3.5, voiceId=${ailanaConfig.cartesiaVoiceId || 'MISSING'})...`);
     if (!ailanaConfig.cartesiaVoiceId) {
       console.warn('[agent-startup] WARNING: CARTESIA_VOICE_ID is not set — using default voice ID.');
     }
-
-    const sessionTts = new LoggedCartesiaTTS({
-      apiKey: ailanaConfig.cartesiaKey,
-      voice: ailanaConfig.cartesiaVoiceId,
-      model: 'sonic-3.5',
+    const sessionTts = new inference.TTS({
+      model: `cartesia/sonic-3.5:${ailanaConfig.cartesiaVoiceId}`,
       sampleRate: 16000,
-      volume: 0.8,
-      speed: 1.1,
     });
 
 
 
     const createVadAgent = () => {
-      console.log('[agent]: Creating Cascaded agent (Cerebras LLM + Cartesia STT + Cartesia TTS + LemonSlice Avatar)...');
+      console.log('[agent]: Creating Cascaded agent (Cerebras LLM + Deepgram STT [LK Inference] + Cartesia TTS [LK Inference] + LemonSlice Avatar)...');
       return new AilanaVoiceAgent({
         instructions: contextManager.getActiveInstructions(),
         stt: sessionStt,
@@ -1747,7 +1738,7 @@ export default defineAgent({
       }
     })();
 
-    const activeModelName = 'cascade-livekit-inference (Cerebras Gemma 4 31B + Cartesia TTS + LemonSlice Avatar)';
+    const activeModelName = 'cascade-livekit-inference (Cerebras Gemma 4 31B + Deepgram STT [LK Inference] + Cartesia TTS [LK Inference] + LemonSlice Avatar)';
     console.log(
       `[agent]: Ready — model=${activeModelName}, prompt=${ailanaConfig.promptVersion}, compact@${ailanaConfig.compactEveryNTurns} turns / ${ailanaConfig.forceCompactInputTokens} tokens`,
     );

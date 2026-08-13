@@ -26,6 +26,7 @@ export class LatencyTracker {
   // Per-turn pipeline stage timestamps
   private t_stt_start: number | undefined;
   private t_stt_complete: number | undefined;
+  private t_stt_duration_ms: number | undefined; // persisted before startTurn() wipes t_stt_start
   private t_llm_start: number | undefined;
   private t_llm_first_token: number | undefined;
   private t_llm_complete: number | undefined;
@@ -40,6 +41,11 @@ export class LatencyTracker {
       this._avatarFrameTimeoutHandle = undefined;
     }
     // Reset pipeline timestamps for new turn
+    // NOTE: t_stt_duration_ms is intentionally NOT cleared here.
+    // markSttComplete() sets it just before startTurn() is called (in the
+    // UserInputTranscribed handler). Clearing it here would wipe the value
+    // before logPipelineReport() can use it. It is overwritten naturally
+    // on the next markSttComplete() call.
     this.t_stt_start = undefined;
     this.t_stt_complete = undefined;
     this.t_llm_start = undefined;
@@ -64,7 +70,12 @@ export class LatencyTracker {
   markSttComplete(transcript: string): void {
     this.t_stt_complete = Date.now();
     const dur = this.t_stt_start ? this.t_stt_complete - this.t_stt_start : -1;
-    console.log(`[pipeline][${ts()}] STT complete (${dur}ms): "${transcript}"`);
+    // ── Persist the computed duration so it survives startTurn() resetting t_stt_start ──
+    // inference.STT fires UserInputTranscribed which calls markSttComplete() then startTurn().
+    // startTurn() clears t_stt_start, leaving stt_done=? in the pipeline report.
+    // Storing the duration here means logPipelineReport() can always show it.
+    this.t_stt_duration_ms = dur >= 0 ? dur : undefined;
+    console.log(`[pipeline][${ts()}] STT complete (${dur >= 0 ? dur + 'ms' : '?'}): "${transcript}"`);
   }
 
   markLlmStart(): void {
@@ -215,9 +226,15 @@ export class LatencyTracker {
     const ref = this.t_stt_start ?? this.pendingUserTurnEnd;
     if (!ref) return;
     const fmt = (t?: number) => t ? `${t - ref}ms` : '?';
+    // stt_done: use persisted duration if raw timestamps were wiped by startTurn()
+    const sttDone = this.t_stt_complete
+      ? `${this.t_stt_complete - ref}ms`
+      : this.t_stt_duration_ms !== undefined
+      ? `${this.t_stt_duration_ms}ms (dur)`
+      : '?';
     console.log(
       `[pipeline][${ts()}] ── TURN ${this.turnNumber} SUMMARY ──` +
-      `  stt_done=${fmt(this.t_stt_complete)}` +
+      `  stt_done=${sttDone}` +
       `  llm_start=${fmt(this.t_llm_start)}` +
       `  llm_first_token=${fmt(this.t_llm_first_token)}` +
       `  llm_done=${fmt(this.t_llm_complete)}` +
