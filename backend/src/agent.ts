@@ -25,6 +25,7 @@ import { LatencyTracker, ts } from './metrics/latency-tracker.js';
 import {
   buildBaseInstructions,
   buildVoiceInstructions,
+  GREETING_TEXT,
   GREETING_USER_INPUT,
   RESUME_USER_INPUT,
 } from './prompts/index.js';
@@ -1281,7 +1282,7 @@ export default defineAgent({
 
         greetingGenerated = true;
         pendingGreeting = false;
-        const greetingText = "Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?";
+        const greetingText = GREETING_TEXT;
 
         try {
           if (!(session as any)._started) {
@@ -1394,7 +1395,7 @@ export default defineAgent({
         console.log(`[agent]: Sent SYSTEM_AGENT_READY signal.`);
 
         // If the channel start signal already arrived while we were waiting, say greeting now
-        const greetingText = "Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?";
+        const greetingText = GREETING_TEXT;
         if (pendingGreeting && !greetingGenerated) {
           greetingGenerated = true;
           pendingGreeting = false;

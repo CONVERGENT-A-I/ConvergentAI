@@ -5,6 +5,7 @@ export {
   buildSessionPrompt,
   buildLayer1,
   buildLayer2,
+  GREETING_TEXT,
   GREETING_USER_INPUT,
   RESUME_USER_INPUT,
 } from './ailana-system.js';
