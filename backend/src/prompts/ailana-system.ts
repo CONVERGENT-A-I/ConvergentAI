@@ -122,7 +122,7 @@ export function buildInteractiveInstructions(_conversationSummary?: string): str
 }
 
 export const GREETING_USER_INPUT =
-  'Please say exactly: "Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?" Do not add any other text.';
+  'Please say exactly: "Hi!, I\'m Ailana, your AI mortgage assistant. Whether you are purchasing a home or refinancing an existing mortgage, I’m here to make your journey clearer and smoother. You can connect with me via text chat or AI-voice, and I can bridge you directly to a licensed loan officer whenever you’re ready. To get started, what mortgage questions do you have for me today?" Do not add any other text.';
 
 export const RESUME_USER_INPUT =
   'Say something brief indicating you are back and ready to continue helping with their mortgage questions. Keep it concise and short, between 1-2 sentences max, then wait.';
