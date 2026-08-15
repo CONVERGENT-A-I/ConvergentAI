@@ -37,7 +37,7 @@ Users often mutter "done" or "okay" while typing their OTP code. This audio shou
 
 ## 🛡️ 2. Resilience Edge Cases
 
-### A. Network Loss & Auto-Recovery
+### A. Network Loss & Auto-Recovery ✅ COMPLETED
 - **Test:** Open Chrome DevTools (F12) -> Network Tab -> Change throttling to **"Offline"**.
 - **Expected Result:** A red *"Internet connection lost"* banner appears. Switch back to **"No throttling"** and the LiveKit room should auto-restart and reconnect cleanly.
 
@@ -45,11 +45,17 @@ Users often mutter "done" or "okay" while typing their OTP code. This audio shou
 - **Test:** Stop moving your mouse, typing, or speaking for exactly **60 seconds**.
 - **Expected Result:** A popup appears warning the call will close, showing a 10-second countdown. Let it expire to verify the call gracefully terminates to save resources.
 
-### C. Avatar Server Capacity / Failure
-- **Test:** Temporarily mock a failure in `src/components/floating-cta/index.tsx` by adding `handleAvatarStatus("capacity");` after the token is fetched.
-- **Expected Result:** The 3D avatar video feed drops, a warning banner appears, and the call seamlessly continues in voice-only mode using the LiveKit audio track.
+### C. Avatar Server Capacity / Failure ✅ COMPLETED
+- **Test:** Temporarily mock a failure in `src/components/floating-cta/index.tsx` by adding this right after `setToken(data.token);`:
+  ```javascript
+  setTimeout(() => {
+    handleAvatarStatus("capacity");
+    setPendingMode("voice");
+  }, 3000);
+  ```
+- **Expected Result:** After 3 seconds, the 3D avatar video feed drops, a warning banner appears, and the call seamlessly continues in voice-only mode using the LiveKit audio track.
 
-### D. Connection Timeout Guard
+### D. Connection Timeout Guard ✅ COMPLETED
 - **Test:** Stop your backend node server (`npm run dev`) and click the CTA to connect.
 - **Expected Result:** It will say "Connecting..." for exactly 15 seconds, then abort gracefully with *"Connection timed out. Please try again."*
 

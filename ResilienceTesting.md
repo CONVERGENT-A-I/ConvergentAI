@@ -10,7 +10,7 @@ To ensure the Ailana Floating CTA handles edge cases gracefully, follow these st
   3. **Expected Result:** A popup will appear warning that the call will close automatically, displaying a 10-second countdown. 
   4. Click "Continue Session" to abort the countdown, or wait 10 seconds to watch the call gracefully end.
 
-### 2. Network Loss & Auto-Recovery
+### 2. Network Loss & Auto-Recovery ✅ COMPLETED
 - **Goal:** Verify the UI handles dropped internet connections seamlessly.
 - **Steps:**
   1. Start a live session with Ailana.
@@ -19,15 +19,21 @@ To ensure the Ailana Floating CTA handles edge cases gracefully, follow these st
   4. Change the throttling back to **"No throttling"**.
   5. **Expected Result:** A banner reading *"Connection restored. Restarting session…"* appears, and the LiveKit room automatically re-connects.
 
-### 3. Avatar Server Capacity / Failure Fallback
+### 3. Avatar Server Capacity / Failure Fallback ✅ COMPLETED
 - **Goal:** Verify the system falls back to voice-only mode if the 3D avatar (LemonSlice) fails to boot.
 - **Steps:**
   1. *Note: Since this relies on a real backend failure, the easiest way to test this locally is a quick code mock.*
-  2. In `src/components/floating-cta/index.tsx`, locate the `fetchToken` success block (around line 280), and temporarily add: `handleAvatarStatus("capacity");` right after `setToken(data.token);`.
+  2. In `src/components/floating-cta/index.tsx`, locate the `fetchToken` success block (around line 280), and temporarily add this mock right after `setToken(data.token);`:
+     ```javascript
+     setTimeout(() => {
+       handleAvatarStatus("capacity");
+       setPendingMode("voice");
+     }, 3000);
+     ```
   3. Connect to a session.
-  4. **Expected Result:** The UI will display a banner *"Avatar at capacity — using voice mode"*, hide the 3D avatar video feed, and keep the voice channel active. (Remove the mock code when done).
+  4. **Expected Result:** After 3 seconds, the UI will display a banner *"Avatar at capacity — using voice mode"*, the 3D avatar video feed will collapse, and it will keep the voice channel active. (Remove the mock code when done).
 
-### 4. Connection Timeout Guard
+### 4. Connection Timeout Guard ✅ COMPLETED
 - **Goal:** Verify that a hanging backend doesn't freeze the frontend infinitely.
 - **Steps:**
   1. Open your terminal and **stop your backend server** (Ctrl+C on the `backend` terminal).
