@@ -31,6 +31,7 @@ export class LatencyTracker {
   private t_llm_first_token: number | undefined;
   private t_llm_complete: number | undefined;
   private t_tts_start: number | undefined;
+  private t_tts_first_byte: number | undefined;
   private t_tts_complete: number | undefined;
 
   startTurn(): number {
@@ -52,6 +53,7 @@ export class LatencyTracker {
     this.t_llm_first_token = undefined;
     this.t_llm_complete = undefined;
     this.t_tts_start = undefined;
+    this.t_tts_first_byte = undefined;
     this.t_tts_complete = undefined;
     this.t_avatar_render_start = undefined;
     this.t_avatar_first_frame = undefined;
@@ -80,14 +82,19 @@ export class LatencyTracker {
 
   markLlmStart(): void {
     this.t_llm_start = Date.now();
-    console.log(`[pipeline][${ts()}] LLM request sent → Cerebras`);
+    console.log(`[pipeline][${ts()}] LLM request sent → LiveKit Inference`);
   }
 
-  markLlmFirstToken(): void {
+  markLlmFirstToken(ttftMs?: number): void {
     if (this.t_llm_first_token) return; // only record first
-    this.t_llm_first_token = Date.now();
-    const ttft = this.t_llm_start ? this.t_llm_first_token - this.t_llm_start : -1;
-    console.log(`[pipeline][${ts()}] LLM first token received  TTFT=${ttft}ms${ttft > 60000 ? '  ⚠️  INFRA ISSUE (>60s)' : ttft > 5000 ? '  ⚠️  HIGH' : '  ✓'}`);
+    if (ttftMs !== undefined && ttftMs >= 0 && this.t_llm_start) {
+      this.t_llm_first_token = this.t_llm_start + ttftMs;
+    } else {
+      this.t_llm_first_token = Date.now();
+    }
+    const ttft = this.t_llm_start ? this.t_llm_first_token - this.t_llm_start : (ttftMs ?? -1);
+    const tokenTimeStr = new Date(this.t_llm_first_token).toISOString().slice(11, 23);
+    console.log(`[pipeline][${tokenTimeStr}] LLM first token received  TTFT=${ttft}ms${ttft > 60000 ? '  ⚠️  INFRA ISSUE (>60s)' : ttft > 5000 ? '  ⚠️  HIGH' : '  ✓'}`);
   }
 
   markLlmComplete(): void {
@@ -99,13 +106,30 @@ export class LatencyTracker {
   markTtsStart(): void {
     this.t_tts_start = Date.now();
     const lag = this.t_llm_first_token ? this.t_tts_start - this.t_llm_first_token : -1;
-    console.log(`[pipeline][${ts()}] TTS started  lag_after_first_token=${lag}ms`);
+    console.log(`[pipeline][${ts()}] TTS started  lag_after_first_token=${lag >= 0 ? lag + 'ms' : '?'}`);
   }
 
-  markTtsComplete(): void {
+  markTtsFirstByte(ttfbMs?: number): void {
+    if (this.t_tts_first_byte) return;
+    if (ttfbMs !== undefined && ttfbMs >= 0 && this.t_tts_start) {
+      this.t_tts_first_byte = this.t_tts_start + ttfbMs;
+    } else {
+      this.t_tts_first_byte = Date.now();
+    }
+    const ttfb = this.t_tts_start ? this.t_tts_first_byte - this.t_tts_start : (ttfbMs ?? -1);
+    const byteTimeStr = new Date(this.t_tts_first_byte).toISOString().slice(11, 23);
+    console.log(`[pipeline][${byteTimeStr}] TTS first audio chunk received (streaming started)  TTFB=${ttfb}ms`);
+  }
+
+  markTtsComplete(ttfbMs?: number, synthesisDurMs?: number, audioDurMs?: number): void {
     this.t_tts_complete = Date.now();
+    if (ttfbMs !== undefined && ttfbMs >= 0) {
+      this.markTtsFirstByte(ttfbMs);
+    }
     const dur = this.t_tts_start ? this.t_tts_complete - this.t_tts_start : -1;
-    console.log(`[pipeline][${ts()}] TTS audio complete  render_dur=${dur}ms`);
+    const synthDur = synthesisDurMs !== undefined && synthesisDurMs >= 0 ? synthesisDurMs : dur;
+    const audioDurStr = audioDurMs !== undefined && audioDurMs >= 0 ? `  audio_dur=${audioDurMs}ms` : '';
+    console.log(`[pipeline][${ts()}] TTS stream complete  synthesis_dur=${synthDur}ms${audioDurStr}`);
     this.logPipelineReport();
   }
 
@@ -239,6 +263,7 @@ export class LatencyTracker {
       `  llm_first_token=${fmt(this.t_llm_first_token)}` +
       `  llm_done=${fmt(this.t_llm_complete)}` +
       `  tts_start=${fmt(this.t_tts_start)}` +
+      `  tts_first_byte=${fmt(this.t_tts_first_byte)}` +
       `  tts_done=${fmt(this.t_tts_complete)}`
     );
   }

@@ -1,5 +1,4 @@
 import { llm, type voice } from '@livekit/agents';
-import type { LLM } from '@livekit/agents-plugin-openai';
 import { ailanaConfig } from '../config/ailana-config.js';
 import {
   getForceCompactTokenThreshold,
@@ -7,7 +6,7 @@ import {
 } from './context-budget.js';
 import type { LatencyTracker } from '../metrics/latency-tracker.js';
 import type { BorrowerProfile } from '../prompts/layer3-context.js';
-import { buildSessionPrompt } from '../prompts/ailana-system.js';
+import { buildSessionPrompt, buildStaticInstructions, buildDynamicContext } from '../prompts/ailana-system.js';
 import { extractProfileField, classifyConfirmation, classifyAuthorization, extractMultipleFields, type FieldToExtract } from './llm-extractor.js';
 import { applicationService } from '../services/application-service.js';
 import { conversationService } from '../services/conversation-service.js';
@@ -73,7 +72,7 @@ export class SessionContextManager {
   private readonly dbEnabled: boolean;
 
   constructor(
-    private readonly summarizationLlm: LLM,
+    private readonly summarizationLlm: llm.LLM,
     private readonly metrics: LatencyTracker,
   ) {
     this.dbEnabled = isDatabaseEnabled();
@@ -506,21 +505,10 @@ export class SessionContextManager {
     if (this.isDeterministicField(target)) return true;
 
     const BOUNDARY_FIELDS = new Set([
-      'co_borrower',
-      'job_tenure_type',
-      'stage2_closing_offer',
       'home_horizon',
       'soft_pull_authorization',
-      'prefill_credit_range',
       'assets_details',
-      // property_type MUST be a boundary field. The LLM generates a combined
-      // property_type + zip_code question. If we don't wait for extraction to
-      // confirm property_type first, the LLM immediately re-asks the combined
-      // question on 0ms, causing the double property-type question bug.
-      'property_type',
-      // Deterministic fields must also be boundary fields because they do not
-      // use the __pending__ fallback. Without an 800ms wait, the LLM starts at
-      // 0ms and re-asks the question instantly before extraction completes.
+      // Deterministic fields with async operations (like OTP modal / CRS API pull)
       'contact_email',
       'contact_mobile',
       'otp_verification',
@@ -557,17 +545,12 @@ export class SessionContextManager {
   }
 
   /**
-   * Immediately stamps the active pending field with a sentinel value so the
+   * Immediately stamps the active pending field with a sentinel or optimistic value so the
    * conversational LLM prompt reflects that an answer was received without
-   * waiting for the background Cerebras extractor to finish.
+   * waiting for the background extractor to finish.
    *
-   * The real extracted value is applied via applyCompletedExtractions() once
-   * the background turn resolves (~200-400ms later, always before the next
-   * user turn begins).
-   *
-   * Fields that are deterministic fast-paths (stage2_closing_offer etc.) or
-   * require confirmed boolean values are excluded — they have their own
-   * in-llmNode routing logic that doesn't depend on profile state.
+   * The real extracted value is applied via applyCompletedExtractions() / reconcile once
+   * the background turn resolves (~1.2s later, before the next user turn begins).
    */
   injectFallbackForPendingField(): void {
     const field = this.currentPendingField;
@@ -580,6 +563,37 @@ export class SessionContextManager {
     // Only inject if the field is currently unset — don't overwrite a real value
     const currentValue = (this.profile as any)[field];
     if (currentValue !== undefined && currentValue !== null && currentValue !== '') return;
+
+    // ── Optimistic Boundary Transitions (0ms Fast-Path with Average/Default Values) ──
+    const lastQuestion = this.getLastAssistantUtterance()?.toLowerCase() || '';
+    const wasAskedCoBorrower = lastQuestion.includes('co-borrower') || lastQuestion.includes('co borrower') || lastQuestion.includes('applying on your own') || lastQuestion.includes('joining you on the loan');
+
+    if (field === 'co_borrower' && wasAskedCoBorrower) {
+      this.profile.co_borrower = 'no'; // Default fallback value
+      this.profile.co_borrower_confirmed = true;
+      (this.profile as any)._optimistic_co_borrower = true;
+      this.activeStage = '2';
+      this.currentPendingField = 'gross_annual_income';
+      this.profile.bridge_to_say = 'stage1_to_stage2';
+      console.log(`[agent-hook][fallback] Optimistically advanced Stage 1 -> Stage 2 for field "co_borrower" (default="no"). LLM transitions immediately with bridge!`);
+      return;
+    }
+
+    if (field === 'military_rural') {
+      this.profile.military_rural = 'neither'; // Default fallback value
+      this.profile.military_rural_confirmed = true;
+      this.currentPendingField = 'job_tenure_type';
+      console.log(`[agent-hook][fallback] Optimistically advanced field "military_rural" -> "job_tenure_type" (default="neither").`);
+      return;
+    }
+
+    if (field === 'job_tenure_type') {
+      this.profile.job_tenure_type = 'salaried'; // Default fallback value
+      this.profile.job_tenure_type_confirmed = true;
+      this.currentPendingField = 'stage2_closing_offer';
+      console.log(`[agent-hook][fallback] Optimistically advanced field "job_tenure_type" -> "stage2_closing_offer" (default="salaried").`);
+      return;
+    }
 
     (this.profile as any)[field] = '__pending__';
     console.log(`[agent-hook][fallback] Injected sentinel "__pending__" for field "${field}" — LLM proceeds immediately, extractor will overwrite.`);
@@ -1519,6 +1533,22 @@ export class SessionContextManager {
     this.turnLog.push({ role: 'assistant', text: trimmed, timestamp: Date.now() });
     this.profile.bridge_to_say = null;
     this.lastProcessedInput = null;
+
+    // Synchronize currentPendingField with what Ailana ACTUALLY asked in Stage 1
+    if (this.activeStage === '1') {
+      const lower = trimmed.toLowerCase();
+      if (lower.includes('co-borrower') || lower.includes('co borrower') || lower.includes('applying on your own') || lower.includes('joining you on the loan')) {
+        this.currentPendingField = 'co_borrower';
+      } else if (lower.includes('existing account') || lower.includes('existing relationship') || lower.includes('new customer') || lower.includes('lending institution')) {
+        this.currentPendingField = 'existing_relationship';
+      } else if (lower.includes('timeline') || lower.includes('moved in') || lower.includes('next few months') || lower.includes('when are you hoping')) {
+        this.currentPendingField = 'timeline';
+      } else if (lower.includes('primary residence') || lower.includes('investment property') || lower.includes('second home')) {
+        this.currentPendingField = 'occupancy';
+      } else if (lower.includes('primary goal') || lower.includes('purchase') || lower.includes('refinance') || lower.includes('buying a home') || lower.includes('mortgage goal')) {
+        this.currentPendingField = 'mortgage_goal';
+      }
+    }
     
     // ── DATABASE PERSISTENCE ────────────────────────────────────────────────
     // Save assistant turn to database
@@ -1628,7 +1658,17 @@ export class SessionContextManager {
     if (extractionResults.co_borrower && (extractionResults.co_borrower.value === 'yes' || extractionResults.co_borrower.value === 'no')) {
       this.profile.co_borrower = extractionResults.co_borrower.value;
       this.profile.co_borrower_confirmed = true;
+      delete (this.profile as any)._optimistic_co_borrower;
       anyUpdates = true;
+    } else if ((this.profile as any)._optimistic_co_borrower && (!extractionResults.co_borrower || !extractionResults.co_borrower.value)) {
+      // Borrower did not answer co_borrower (e.g. asked a question or spoke off-topic)
+      console.log('[reconcile]: Borrower did not answer co_borrower (asked question/off-topic) -> Rolling back to Stage 1 co_borrower.');
+      this.profile.co_borrower = null;
+      this.profile.co_borrower_confirmed = false;
+      delete (this.profile as any)._optimistic_co_borrower;
+      this.activeStage = '1';
+      this.currentPendingField = 'co_borrower';
+      this.profile.bridge_to_say = null;
     }
 
     if (anyUpdates) {
@@ -2340,6 +2380,14 @@ export class SessionContextManager {
     }
   }
 
+  getStaticInstructions(): string {
+    return buildStaticInstructions(this.activeStage, this.profile);
+  }
+
+  getDynamicContext(): string {
+    return buildDynamicContext(this.profile, this.currentPendingField, this.activeStage, this.lowConfidence);
+  }
+
   getActiveInstructions(): string {
     return buildSessionPrompt(this.profile, this.currentPendingField, this.activeStage, this.lowConfidence);
   }
@@ -2371,9 +2419,10 @@ export class SessionContextManager {
     return this.lastInputTokens;
   }
 
-  buildTextMessages(systemPrompt: string): Array<{ role: string; content: string }> {
+  buildTextMessages(systemPrompt?: string): Array<{ role: string; content: string }> {
+    const staticPrompt = systemPrompt ?? this.getStaticInstructions();
     const messages: Array<{ role: string; content: string }> = [
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: staticPrompt },
     ];
 
     if (this.conversationSummary) {
@@ -2386,6 +2435,15 @@ export class SessionContextManager {
     const recent = this.turnLog.slice(-(ailanaConfig.keepRecentTurns * 2));
     for (const entry of recent) {
       messages.push({ role: entry.role, content: entry.text });
+    }
+
+    // Append dynamic state context at the end to anchor static prefix cache
+    const dynamicContext = this.getDynamicContext();
+    if (dynamicContext) {
+      messages.push({
+        role: 'system',
+        content: dynamicContext,
+      });
     }
 
     return messages;

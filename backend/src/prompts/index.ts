@@ -3,6 +3,8 @@ export {
   buildVoiceInstructions,
   buildInteractiveInstructions,
   buildSessionPrompt,
+  buildStaticInstructions,
+  buildDynamicContext,
   buildLayer1,
   buildLayer2,
   GREETING_TEXT,

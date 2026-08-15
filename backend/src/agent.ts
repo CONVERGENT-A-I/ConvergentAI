@@ -48,113 +48,7 @@ process.on('unhandledRejection', (reason: any) => {
   console.error('[agent-error] Unhandled Promise Rejection:', reason);
 });
 
-const cerebrasClient = new OpenAI({
-  apiKey: ailanaConfig.cerebrasApiKey,
-  baseURL: ailanaConfig.cerebrasBaseUrl,
-});
 
-const originalCerebrasCreate = cerebrasClient.chat.completions.create.bind(cerebrasClient.chat.completions);
-
-cerebrasClient.chat.completions.create = (async function (body: any, options: any) {
-  let lastErr: any = null;
-  if (body && body.model === 'gpt-oss-120b' && !body.reasoning_effort) {
-    body.reasoning_effort = ailanaConfig.cerebrasReasoningEffort;
-  }
-
-  // ── Always force streaming on the main voice pipeline calls ─────────────
-  // The LiveKit inference LLM already passes stream:true, but if the body
-  // somehow arrives without it we enforce it to guarantee chunked SSE.
-  // Exception: the text-only reply path (generateTextOnlyReply) explicitly
-  // sets stream:false because it reads completion.choices[0].message.content
-  // directly — we MUST NOT override that or it will silently get a stream object.
-  if (body.stream !== false) {
-    body.stream = true;
-    body.stream_options = { include_usage: true };
-  }
-
-  // Retry once with backoff for transient Cerebras errors before falling back
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const t0 = Date.now();
-    try {
-      if (attempt === 0) {
-        console.log(`[cerebras-proxy][${ts()}] Sending request to Cerebras: model=${body.model}`);
-      } else {
-        console.log(`[cerebras-proxy][${ts()}] Retry #${attempt} to Cerebras: model=${body.model}`);
-      }
-
-      const result = await originalCerebrasCreate(body, options);
-
-      // If it's a stream, intercept to track first token, end stream timings
-      if (result && typeof (result as any)[Symbol.asyncIterator] === 'function') {
-        const originalIterator = (result as any)[Symbol.asyncIterator].bind(result);
-
-        (result as any)[Symbol.asyncIterator] = function () {
-          const iterator = originalIterator();
-          let isFirst = true;
-          let chunkCount = 0;
-          let noDeltaChunks = 0;
-
-          return {
-            async next() {
-              const nextResult = await iterator.next();
-              if (nextResult.done) {
-                const totalDur = Date.now() - t0;
-                console.log(`[cerebras-proxy][${ts()}] Stream complete — Total: ${totalDur}ms, chunks: ${chunkCount}, empty-delta chunks: ${noDeltaChunks}`);
-                if (noDeltaChunks === chunkCount && chunkCount === 1) {
-                  console.warn(`[cerebras-proxy][${ts()}] ⚠️  BUFFERING DETECTED: Cerebras returned a single empty-delta chunk. Response was likely buffered server-side.`);
-                }
-                return nextResult;
-              }
-              chunkCount++;
-              if (isFirst) {
-                isFirst = false;
-                const ttft = Date.now() - t0;
-                const deltaText = nextResult.value?.choices?.[0]?.delta?.content || '';
-                console.log(`[cerebras-proxy][${ts()}] First chunk (TTFT: ${ttft}ms, delta: "${deltaText.slice(0, 40)}")`);
-              }
-              const delta = nextResult.value?.choices?.[0]?.delta?.content;
-              if (!delta) noDeltaChunks++;
-              return nextResult;
-            },
-            [Symbol.asyncIterator]() {
-              return this;
-            }
-          };
-        };
-      } else {
-        const dur = Date.now() - t0;
-        console.log(`[cerebras-proxy][${ts()}] Non-streaming response received (Dur: ${dur}ms)`);
-      }
-
-      return result;
-    } catch (err: any) {
-      lastErr = err;
-      const statusCode = err?.status ?? err?.statusCode;
-      console.warn(`[cerebras-proxy][${ts()}] Cerebras API error (status: ${statusCode}, attempt: ${attempt}):`, err?.message ?? err);
-
-      // Log full error body for HTTP 400
-      if (statusCode === 400) {
-        console.error(`[cerebras-proxy][${ts()}] HTTP 400 full error response:`, JSON.stringify(err?.error ?? err?.body ?? { message: err?.message, code: err?.code, status: statusCode }, null, 2));
-      }
-
-      // On first attempt with a retryable error, wait and retry once
-      if (attempt === 0 && (statusCode === 400 || statusCode === 500 || statusCode === 502 || statusCode === 503)) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        continue;
-      }
-
-      // No Groq fallback — propagate the Cerebras error directly
-      throw err;
-    }
-  }
-  throw lastErr;
-} as any);
-
-
-
-class CerebrasLLM extends openai.LLM {
-  // gemma-4-31b does not support reasoning_effort or reasoning_format parameters.
-}
 
 // Verbatim Stage 2 Closing Offer text — delivered via session.say() bypassing the LLM.
 // This guarantees the exact two-path script is spoken regardless of LLM instruction-following.
@@ -519,66 +413,75 @@ class AilanaVoiceAgent extends voice.Agent {
 
       const currentTurnNumber = this.contextManager.triggerBackgroundExtraction(userMessage.textContent);
 
-      if (isBoundary) {
-        // Deterministic fields get the user-requested 2500ms. 
-        // Regular boundaries get 4000ms because they run 6-field extractions that take ~3.7s.
+      const text = userMessage.textContent.trim();
+      const isQuestionOrHesitation = 
+        /\?$/.test(text) || 
+        /\b(what|why|how|can i|could i|does|is it|explain|tell me|wait|hold on|what if|who|meaning|clarify)\b/i.test(text);
+
+      if (isQuestionOrHesitation) {
+        console.log(`[agent-hook]: Question/hesitation detected on field "${activeField}". Staying on current field to answer user question.`);
+        // User asked a question — do NOT advance stage or inject fallback. Let LLM answer and re-prompt the pending field.
+      } else if (isBoundary) {
+        // Deterministic fields (like OTP modal / CRS pull) get their required await
         const waitMs = isDeterministic ? 2500 : 4000;
         console.log(`[agent-hook]: Field "${activeField}" is a STAGE BOUNDARY (deterministic=${isDeterministic}). Waiting up to ${waitMs}ms for extraction to transition stage...`);
         
         const completedInTime = await this.contextManager.waitForExtraction(currentTurnNumber, waitMs);
         
         if (!completedInTime) {
-          console.warn(`[agent-hook]: Stage boundary extraction timed out (>${waitMs}ms). Proceeding WITHOUT fallback injection to force a graceful re-ask instead of stalling.`);
-          // CRITICAL: We DO NOT inject __pending__ fallback for stage boundaries if they timeout.
-          // If we inject fallback, the stage doesn't transition, and the LLM receives the current
-          // stage's instructions where all fields appear complete. It will wrap up the stage and stop
-          // speaking entirely, leaving the user in silence. By NOT injecting fallback, it simply re-asks.
+          console.warn(`[agent-hook]: Stage boundary extraction timed out (>${waitMs}ms). Proceeding without stalling.`);
         } else {
           console.log(`[agent-hook]: Stage boundary extraction completed in time! Stage is now: ${this.contextManager.getActiveStage()}`);
         }
       } else {
         console.log(`[agent-hook]: Background extraction triggered async (turn=${currentTurnNumber}, field="${activeField}"). Pipeline proceeds immediately — 0ms wait.`);
-        // Inject placeholder so the LLM prompt shows non-boundary field is answered,
-        // preventing a re-ask while extraction is in flight.
+        // Inject placeholder / optimistic advance so the LLM proceeds immediately @ 0ms
         this.contextManager.injectFallbackForPendingField();
       }
     }
 
-    // ── [perf] Instructions update ───────────────────────────────────────────
-    const _perfInstructionsStart = performance.now();
-    // Update original instructions in the session
+    // ── Instructions update ───────────────────────────────────────────
     this.updateInstructionsCallback();
-    const _perfInstructionsMs = (performance.now() - _perfInstructionsStart).toFixed(1);
-    console.log(`[perf] updateInstructions (getActiveInstructions + chatCtx write): ${_perfInstructionsMs}ms`);
 
     // Update local mutable chatCtx copy to align the LLM prompt for the current generation
-    const _perfCtxUpdateStart = performance.now();
-    const activeInstructions = this.contextManager.getActiveInstructions();
+    const staticInstructions = this.contextManager.getStaticInstructions();
     const systemItem = (chatCtx.items.find(
       (item: any) => item.type === 'message' && item.id === 'lk.agent_task.instructions'
     ) || chatCtx.items.find(
       (item: any) => item.type === 'message' && item.role === 'system'
     )) as llm.ChatMessage | undefined;
     if (systemItem) {
-      systemItem.content = [activeInstructions];
+      if (systemItem.content?.[0] !== staticInstructions) {
+        systemItem.content = [staticInstructions];
+      }
       if ((systemItem as any).id !== 'lk.agent_task.instructions') {
         (systemItem as any).id = 'lk.agent_task.instructions';
       }
-      console.log(`[agent-hook]: Local mutable chatCtx system instructions updated.`);
     } else {
       chatCtx.items.unshift(new llm.ChatMessage({
         id: 'lk.agent_task.instructions',
         role: 'system',
-        content: activeInstructions
+        content: staticInstructions
       }));
-      console.log(`[agent-hook]: Local mutable chatCtx system instructions prepended.`);
     }
-    const _perfCtxUpdateMs = (performance.now() - _perfCtxUpdateStart).toFixed(1);
-    console.log(`[perf] chatCtx local copy update: ${_perfCtxUpdateMs}ms`);
 
-    // ── [perf] Total EOU→instructions gap ────────────────────────────────────
-    const _perfTotalMs = (performance.now() - _perfEouEnd).toFixed(1);
-    console.log(`[perf] EOU->instructions-update gap: ${_perfTotalMs}ms`);
+    // Clean previous dynamic state message if present to keep history prefix pristine
+    const dynamicMsgIndex = chatCtx.items.findIndex(
+      (item: any) => item.type === 'message' && item.id === 'lk.agent_dynamic_state'
+    );
+    if (dynamicMsgIndex !== -1) {
+      chatCtx.items.splice(dynamicMsgIndex, 1);
+    }
+
+    // Append dynamic turn context at the tail to anchor static prefix cache
+    const dynamicContext = this.contextManager.getDynamicContext();
+    if (dynamicContext) {
+      chatCtx.items.push(new llm.ChatMessage({
+        id: 'lk.agent_dynamic_state',
+        role: 'system',
+        content: dynamicContext,
+      }));
+    }
   }
 }
 
@@ -622,10 +525,8 @@ export default defineAgent({
     let isAvatarInitDone = false;
 
     const metrics = new LatencyTracker();
-    const summarizationLlm = new openai.LLM({
-      model: 'gemma-4-31b',
-      baseURL: ailanaConfig.cerebrasBaseUrl,
-      apiKey: ailanaConfig.cerebrasApiKey,
+    const summarizationLlm = new inference.LLM({
+      model: 'google/gemma-4-31b-it',
     });
     const contextManager = new SessionContextManager(summarizationLlm, metrics);
 
@@ -685,58 +586,39 @@ export default defineAgent({
     }
     // ─────────────────────────────────────────────────────────────────────────
 
-    console.log(`[agent]: Loading VAD (minSilence=${ailanaConfig.vadMinSilenceMs}ms)...`);
-    const sessionVad = new inference.VAD({
-      model: 'silero',
-      minSilenceDuration: ailanaConfig.vadMinSilenceMs,
-      prefixPaddingDuration: 200,
-    });
-
     // ── STT: Cartesia ink-2 via LiveKit Inference ────────────────────────────
-    // Routes through LiveKit's agent-gateway (agent-gateway.livekit.cloud).
     console.log(`[agent]: Loading Cartesia STT via LiveKit Inference (ink-2)...`);
     const sessionStt = new inference.STT({
       model: 'cartesia/ink-2',
       language: 'en',
     });
 
-    // ── TTS: Cartesia sonic-3.5 via LiveKit Inference ─────────────────────────
-    // Routes through LiveKit's agent-gateway instead of calling Cartesia directly.
-    // Model string format for inference TTS: "provider/model-name:voice-id"
-    console.log(`[agent]: Loading Cartesia TTS via LiveKit Inference (sonic-3.5, voiceId=${ailanaConfig.cartesiaVoiceId || 'MISSING'})...`);
-    if (!ailanaConfig.cartesiaVoiceId) {
-      console.warn('[agent-startup] WARNING: CARTESIA_VOICE_ID is not set — using default voice ID.');
-    }
+    // ── TTS: Cartesia sonic-3.5 via LiveKit Inference ────────────────────────
+    console.log(`[agent]: Loading Cartesia TTS via LiveKit Inference (sonic-3.5)...`);
     const sessionTts = new inference.TTS({
-      model: `cartesia/sonic-3.5:${ailanaConfig.cartesiaVoiceId}`,
+      model: 'cartesia/sonic-3.5',
+      voice: ailanaConfig.cartesiaVoiceId || 'a167e0f3-df7e-4d52-a9c3-f949145efdab',
       sampleRate: 16000,
     });
 
-
-
     const createVadAgent = () => {
-      console.log('[agent]: Creating Cascaded agent (Cerebras LLM + Deepgram STT [LK Inference] + Cartesia TTS [LK Inference] + LemonSlice Avatar)...');
+      console.log('[agent]: Creating LiveKit Inference agent (Gemma 4 31B LLM + Cartesia Ink-2 STT + Cartesia Sonic-3.5 TTS + TurnDetector)...');
       return new AilanaVoiceAgent({
-        instructions: contextManager.getActiveInstructions(),
+        instructions: contextManager.getStaticInstructions(),
         stt: sessionStt,
-        vad: sessionVad,
-        llm: new CerebrasLLM({
-          model: 'gemma-4-31b',
-          client: cerebrasClient,
+        llm: new inference.LLM({
+          model: 'google/gemma-4-31b-it',
         }),
         tts: sessionTts,
         turnHandling: {
           turnDetection: new inference.TurnDetector(),
-          endpointing: {
-            mode: 'dynamic' as const,
-            minDelay: 150,
-            maxDelay: 2000,
-          },
           interruption: {
             mode: 'adaptive' as const,
-            minDuration: ailanaConfig.vadInterruptMinDurationMs,
-            minWords: ailanaConfig.vadInterruptMinWords,
-            resumeFalseInterruption: true,
+          },
+          endpointing: {
+            mode: 'dynamic' as const,
+            minDelay: 100,
+            maxDelay: 500, // Aggressively tightened to 500ms max trailing silence
           },
           preemptiveGeneration: {
             enabled: false,
@@ -757,14 +639,14 @@ export default defineAgent({
     const session = new voice.AgentSession({
       userAwayTimeout: null,
       turnHandling: {
-        turnDetection: 'stt' as const,
+        turnDetection: new inference.TurnDetector(),
         endpointing: {
-          minDelay: ailanaConfig.vadEndpointMinDelayMs,
+          mode: 'dynamic' as const,
+          minDelay: 100,
+          maxDelay: 2000,
         },
         interruption: {
-          minDuration: ailanaConfig.vadInterruptMinDurationMs,
-          minWords: ailanaConfig.vadInterruptMinWords,
-          mode: 'vad' as const,
+          mode: 'adaptive' as const,
         },
         preemptiveGeneration: {
           enabled: false,
@@ -1005,14 +887,17 @@ export default defineAgent({
       if (m?.type === 'llm_metrics') {
         const ttft = m.ttftMs ?? -1;
         const tokens = m.promptTokens ?? 0;
-        metrics.markLlmFirstToken();       // idempotent — only records once
+        const cachedTokens = m.promptCachedTokens ?? m.cachedTokens ?? m.inputCachedTokens ?? m.prompt_cached_tokens ?? 0;
+        metrics.markLlmFirstToken(ttft);       // idempotent — calculates exact arrival timestamp
         metrics.markLlmComplete();
         metrics.recordRealtimeMetrics(ttft, tokens);
-        console.log(`[pipeline][${ts()}] LLM metrics — TTFT=${ttft}ms  prompt_tokens=${tokens}  completion_tokens=${m.completionTokens ?? '?'}`);
+        const cacheTag = cachedTokens > 0 ? ` [CACHE HIT: ${cachedTokens} tokens]` : ' [CACHE MISS/COLD]';
+        console.log(`[pipeline][${ts()}] LLM metrics — TTFT=${ttft}ms  prompt_tokens=${tokens}  cached_tokens=${cachedTokens}${cacheTag}  completion_tokens=${m.completionTokens ?? '?'}`);
       } else if (m?.type === 'tts_metrics') {
-        const dur = m.duration ?? -1;
-        metrics.markTtsComplete();
-        console.log(`[pipeline][${ts()}] TTS metrics — audio_dur=${dur}ms`);
+        const ttfb = m.ttfbMs ?? -1;
+        const dur = m.durationMs ?? m.duration ?? -1;
+        const audioDur = m.audioDurationMs ?? -1;
+        metrics.markTtsComplete(ttfb, dur, audioDur);
       } else if (m?.type === 'realtime_model_metrics') {
         metrics.recordRealtimeMetrics(m.ttftMs ?? -1, m.inputTokens ?? 0);
       }
@@ -1072,8 +957,8 @@ export default defineAgent({
 
     function updateSessionInstructions() {
       try {
-        const activeInstructions = contextManager.getActiveInstructions();
-        (vadAgent as any)._instructions = activeInstructions;
+        const staticInstructions = contextManager.getStaticInstructions();
+        (vadAgent as any)._instructions = staticInstructions;
 
         const chatCtx = session.chatCtx;
         const systemItem = (chatCtx.items.find(
@@ -1082,19 +967,21 @@ export default defineAgent({
           (item) => item.type === 'message' && (item as llm.ChatMessage).role === 'system'
         )) as llm.ChatMessage | undefined;
         if (systemItem) {
-          systemItem.content = [activeInstructions];
+          if (systemItem.content?.[0] !== staticInstructions) {
+            systemItem.content = [staticInstructions];
+            console.log(`[agent-debug]: Static system instructions in session.chatCtx updated (stage change).`);
+          }
           // Ensure it has the correct ID so the LiveKit SDK updates it correctly
           if ((systemItem as any).id !== 'lk.agent_task.instructions') {
             (systemItem as any).id = 'lk.agent_task.instructions';
           }
-          console.log(`[agent-debug]: System instruction message in session.chatCtx updated.`);
         } else {
           chatCtx.items.unshift(new llm.ChatMessage({
             id: 'lk.agent_task.instructions',
             role: 'system',
-            content: activeInstructions
+            content: staticInstructions
           }));
-          console.log(`[agent-debug]: System instruction message prepended to session.chatCtx.`);
+          console.log(`[agent-debug]: Static system instructions prepended to session.chatCtx.`);
         }
         console.log(`[agent-debug]: Instructions updated — stage=${contextManager.getActiveStage()}, pendingField=${contextManager.getPendingField()}`);
         
@@ -1115,25 +1002,28 @@ export default defineAgent({
       console.log(`[agent]: Text-only reply for "${userMessage}"...`);
 
       try {
-        const systemPrompt = contextManager.getActiveInstructions();
-        const chatMessages = contextManager.buildTextMessages(systemPrompt);
+        const chatMessages = contextManager.buildTextMessages();
 
-        // Ensure system prompt is always at index 0 and conversation history is sliced safely
+        // Ensure static system prompt is at index 0, history in middle, dynamic context at end
         const systemMessage = chatMessages[0];
-        const historyMessages = chatMessages.slice(1);
-        const slicedHistory = historyMessages.slice(-23); // keep up to 23 recent turns
-        const messages = [systemMessage, ...slicedHistory];
+        const dynamicMessage = chatMessages[chatMessages.length - 1];
+        const historyMessages = chatMessages.slice(1, -1);
+        const slicedHistory = historyMessages.slice(-22); // keep up to 22 recent turns
+        const messages = [systemMessage, ...slicedHistory, dynamicMessage];
 
-        console.log(`[agent]: Dispatching text-only reply to Cerebras client proxy...`);
-        const completion = await cerebrasClient.chat.completions.create({
-          model: 'gemma-4-31b',
-          messages: messages as any,
-          max_tokens: 500,
-          temperature: 0.6,
-          stream: false, // text-only path — must receive a plain completion object, not a stream
-        } as any);
-
-        const reply = completion.choices?.[0]?.message?.content?.trim();
+        console.log(`[agent]: Dispatching text-only reply to LiveKit Inference LLM (prefix cached)...`);
+        const textChatCtx = new llm.ChatContext();
+        for (const msg of messages) {
+          if (msg) {
+            textChatCtx.addMessage({
+              role: (msg.role as any) || 'user',
+              content: msg.content || '',
+            });
+          }
+        }
+        const textStream = summarizationLlm.chat({ chatCtx: textChatCtx });
+        const textCollected = await textStream.collect();
+        const reply = textCollected.text?.trim();
 
         if (reply) {
           contextManager.onAgentTurn(reply).catch(err => 
@@ -1721,31 +1611,9 @@ export default defineAgent({
       resolveAvatarReady();
     }
 
-    // Measure connection latency to Cerebras API endpoint on start
-    (async () => {
-      const start = Date.now();
-      try {
-        const res = await fetch(`${ailanaConfig.cerebrasBaseUrl}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${ailanaConfig.cerebrasApiKey}`
-          },
-          body: JSON.stringify({
-            model: 'gemma-4-31b',
-            messages: [{ role: 'user', content: 'ping' }],
-            max_tokens: 1,
-          })
-        });
-        const duration = Date.now() - start;
-        console.log(`[latency-check][${ts()}] Cerebras API connection roundtrip test completed in ${duration}ms (HTTP Status: ${res.status})`);
-      } catch (err: any) {
-        const duration = Date.now() - start;
-        console.warn(`[latency-check][${ts()}] Cerebras API connection test returned error after ${duration}ms: ${err?.message || err}`);
-      }
-    })();
 
-    const activeModelName = 'cascade-livekit-inference (Cerebras Gemma 4 31B + Deepgram STT [LK Inference] + Cartesia TTS [LK Inference] + LemonSlice Avatar)';
+
+    const activeModelName = 'LiveKit Inference (google/gemma-4-31b-it + cartesia/ink-2 + cartesia/sonic-3.5 + LemonSlice Avatar)';
     console.log(
       `[agent]: Ready — model=${activeModelName}, prompt=${ailanaConfig.promptVersion}, compact@${ailanaConfig.compactEveryNTurns} turns / ${ailanaConfig.forceCompactInputTokens} tokens`,
     );

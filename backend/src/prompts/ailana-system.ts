@@ -95,13 +95,35 @@ export function buildLayer2(stage: string = '1', profile: BorrowerProfile = {}):
 
 
 /**
- * Assemble prompt: Layer 1 + Layer 2 + Layer 3
+ * Static Instructions: Layer 1 (Base persona/voice/compliance) + Layer 2 (Stage-specific guidelines)
+ * This block remains stable throughout each stage, anchoring the prefix cache.
  */
-export function buildSessionPrompt(profile: BorrowerProfile, pendingField: string | null, stage: string = '1', isLowConfidence: boolean = false): string {
+export function buildStaticInstructions(stage: string = '1', profile: BorrowerProfile = {}): string {
   const L1 = buildLayer1();
   const L2 = buildLayer2(stage, profile);
-  const L3 = buildLayer3TurnContext(profile, pendingField, stage, isLowConfidence);
-  return `${L1}\n\n${L2}\n\n${L3}`.trim();
+  return `${L1}\n\n${L2}`.trim();
+}
+
+/**
+ * Dynamic Turn Context: Layer 3 (Borrower profile state, current task, pending field, affordability flags)
+ * Injected at the end of the context to avoid breaking the static prefix cache.
+ */
+export function buildDynamicContext(
+  profile: BorrowerProfile,
+  pendingField: string | null,
+  stage: string = '1',
+  isLowConfidence: boolean = false
+): string {
+  return buildLayer3TurnContext(profile, pendingField, stage, isLowConfidence);
+}
+
+/**
+ * Assemble prompt: Layer 1 + Layer 2 + Layer 3 (Full composite fallback)
+ */
+export function buildSessionPrompt(profile: BorrowerProfile, pendingField: string | null, stage: string = '1', isLowConfidence: boolean = false): string {
+  const staticInstructions = buildStaticInstructions(stage, profile);
+  const dynamicContext = buildDynamicContext(profile, pendingField, stage, isLowConfidence);
+  return `${staticInstructions}\n\n${dynamicContext}`.trim();
 }
 
 /** Legacy aliases/wrappers mapped to the new Stage 1 three-layer system */
