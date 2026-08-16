@@ -47,9 +47,9 @@ export default function RootLayout({
         {children}
         <ConditionalUI>
           <Suspense fallback={null}>
-            {/* <ErrorBoundary>
+            <ErrorBoundary>
               <FloatingCTA />
-            </ErrorBoundary> */}
+            </ErrorBoundary>
           </Suspense>
           <Footer />
         </ConditionalUI>
