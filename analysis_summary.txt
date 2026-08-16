@@ -1,0 +1,998 @@
+
+--- Turn 1 ---
+Time: 2026-08-15T17:52:13.421Z
+User: "I'm a first time home buyer and I'm not sure what mortgage program would be best for me or even if I could uh be eligible for a mortgage. Can you help me?"
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 2 ---
+Time: 2026-08-15T17:52:13.980Z
+User: "I'm a first time home buyer and I'm not sure what mortgage program would be best for me or even if I could uh be eligible for a mortgage. Can you help me?"
+Metrics:
+  [pipeline][17:52:14.532] LLM first token received  TTFT=369ms  ✓
+  [pipeline][17:52:14.796] LLM metrics — TTFT=369ms  prompt_tokens=2391  cached_tokens=0 [CACHE MISS/COLD]  completion_tokens=50
+  [pipeline][17:52:14.746] TTS first audio chunk received (streaming started)  TTFB=212ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=1, pendingField=borrower_name
+  [reconcile] Turn 1 extraction finished in 477.3ms.
+  [reconcile] Merging Turn 1 background extraction results into state.
+  [reconcile] Field "mortgage_goal" updated: "null" → "purchase"
+  [reconcile] Field "mortgage_goal_confirmed" updated: "null" → "true"
+  [reconcile] Field "occupancy" updated: "null" → "primary"
+  [reconcile] Field "occupancy_confirmed" updated: "null" → "true"
+  [reconcile] Field "existing_relationship" updated: "null" → "no"
+  [reconcile] Field "existing_relationship_confirmed" updated: "null" → "true"
+  [reconcile] Turn 1 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  
+
+
+--- Turn 3 ---
+Time: 2026-08-15T17:52:29.441Z
+User: "My name is David."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 4 ---
+Time: 2026-08-15T17:52:29.808Z
+User: "My name is David."
+Metrics:
+  [pipeline][17:52:30.078] LLM first token received  TTFT=255ms  ✓
+  [pipeline][17:52:30.414] LLM metrics — TTFT=255ms  prompt_tokens=2449  cached_tokens=1920 [CACHE HIT: 1920 tokens]  completion_tokens=57
+  [pipeline][17:52:30.281] TTS first audio chunk received (streaming started)  TTFB=201ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=1, pendingField=borrower_name
+  [reconcile] Turn 2 extraction finished in 303.9ms.
+  [reconcile] Merging Turn 2 background extraction results into state.
+  [reconcile] ✅ Field "borrower_name" resolved: __pending__ → "David" (extraction succeeded)
+  [reconcile] Field "borrower_name_confirmed" updated: "null" → "true"
+  [reconcile] Transitioning currentPendingField: borrower_name -> timeline
+  [reconcile] Turn 2 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  [agent-hook][fallback] Injected sentinel "__pending__" for field "borrower_name" — LLM proceeds immediately, extractor will overwrite.
+
+
+--- Turn 5 ---
+Time: 2026-08-15T17:52:45.213Z
+User: "Yes, it is."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 6 ---
+Time: 2026-08-15T17:52:45.408Z
+User: "Yes, it is."
+Metrics:
+  [pipeline][17:52:45.674] LLM first token received  TTFT=253ms  ✓
+  [pipeline][17:52:45.849] LLM metrics — TTFT=253ms  prompt_tokens=2518  cached_tokens=1984 [CACHE HIT: 1984 tokens]  completion_tokens=26
+  [pipeline][17:52:46.043] TTS first audio chunk received (streaming started)  TTFB=367ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=1, pendingField=mortgage_goal
+  [reconcile] Turn 3 extraction finished in 375.0ms.
+  [reconcile] Merging Turn 3 background extraction results into state.
+  [reconcile] Transitioning currentPendingField: mortgage_goal -> timeline
+  [reconcile] Turn 3 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  [pipeline][17:52:47.176] ⚠️  Avatar first-frame timeout — ActiveSpeakersChanged never fired. Firing [TIMEOUT_FALLBACK] estimate. This is a LiveKit SDK event-drop, NOT real avatar lag.
+
+
+--- Turn 7 ---
+Time: 2026-08-15T17:52:55.019Z
+User: "Yes, I plan on living in it."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 8 ---
+Time: 2026-08-15T17:52:55.035Z
+User: "Yes, I plan on living in it."
+Metrics:
+  [pipeline][17:52:55.253] LLM first token received  TTFT=207ms  ✓
+  [pipeline][17:52:55.442] LLM metrics — TTFT=207ms  prompt_tokens=2560  cached_tokens=2048 [CACHE HIT: 2048 tokens]  completion_tokens=20
+  [pipeline][17:52:55.619] TTS first audio chunk received (streaming started)  TTFB=364ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=1, pendingField=occupancy
+  [reconcile] Turn 4 extraction finished in 358.0ms.
+  [reconcile] Merging Turn 4 background extraction results into state.
+  [reconcile] Transitioning currentPendingField: occupancy -> timeline
+  [reconcile] Turn 4 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  
+
+
+--- Turn 9 ---
+Time: 2026-08-15T17:53:03.032Z
+User: "Yes, I do."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 10 ---
+Time: 2026-08-15T17:53:03.203Z
+User: "Yes, I do."
+Metrics:
+  [pipeline][17:53:03.716] LLM first token received  TTFT=223ms  ✓
+  [pipeline][17:53:03.838] LLM metrics — TTFT=223ms  prompt_tokens=2596  cached_tokens=2048 [CACHE HIT: 2048 tokens]  completion_tokens=21
+  [pipeline][17:53:03.922] TTS first audio chunk received (streaming started)  TTFB=205ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=1, pendingField=existing_relationship
+  [reconcile] Turn 5 extraction finished in 307.2ms.
+  [reconcile] Merging Turn 5 background extraction results into state.
+  [reconcile] Field "existing_relationship" updated: "no" → "yes"
+  [reconcile] Transitioning currentPendingField: existing_relationship -> timeline
+  [reconcile] Turn 5 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  [pipeline][17:53:05.217] ⚠️  Avatar first-frame timeout — ActiveSpeakersChanged never fired. Firing [TIMEOUT_FALLBACK] estimate. This is a LiveKit SDK event-drop, NOT real avatar lag.
+
+
+--- Turn 11 ---
+Time: 2026-08-15T17:53:11.438Z
+User: "Can you repeat that?"
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 12 ---
+Time: 2026-08-15T17:53:11.598Z
+User: "Can you repeat that?"
+Metrics:
+  [pipeline][17:53:11.819] LLM first token received  TTFT=209ms  ✓
+  [pipeline][17:53:12.145] LLM metrics — TTFT=209ms  prompt_tokens=2629  cached_tokens=2112 [CACHE HIT: 2112 tokens]  completion_tokens=21
+  [pipeline][17:53:12.121] TTS first audio chunk received (streaming started)  TTFB=301ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=1, pendingField=timeline
+  [reconcile] Turn 6 extraction finished in 532.3ms.
+  [reconcile] Merging Turn 6 background extraction results into state.
+  [reconcile] Turn 6 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  [pipeline][17:53:13.320] ⚠️  Avatar first-frame timeout — ActiveSpeakersChanged never fired. Firing [TIMEOUT_FALLBACK] estimate. This is a LiveKit SDK event-drop, NOT real avatar lag.
+
+
+--- Turn 13 ---
+Time: 2026-08-15T17:53:24.439Z
+User: "In 30 to 45 days."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 14 ---
+Time: 2026-08-15T17:53:24.599Z
+User: "In 30 to 45 days."
+Metrics:
+  [pipeline][17:53:24.824] LLM first token received  TTFT=210ms  ✓
+  [pipeline][17:53:24.974] LLM metrics — TTFT=210ms  prompt_tokens=2662  cached_tokens=2176 [CACHE HIT: 2176 tokens]  completion_tokens=34
+  [pipeline][17:53:25.090] TTS first audio chunk received (streaming started)  TTFB=264ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=1, pendingField=timeline
+  [reconcile] Turn 7 extraction finished in 300.3ms.
+  [reconcile] Merging Turn 7 background extraction results into state.
+  [reconcile] ✅ Field "timeline" resolved: __pending__ → "30 to 45 days" (extraction succeeded)
+  [reconcile] Field "timeline_confirmed" updated: "null" → "true"
+  [reconcile] Transitioning currentPendingField: timeline -> co_borrower
+  [reconcile] Turn 7 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  [agent-hook][fallback] Injected sentinel "__pending__" for field "timeline" — LLM proceeds immediately, extractor will overwrite.
+
+
+--- Turn 15 ---
+Time: 2026-08-15T17:53:34.995Z
+User: "It'll be just myself."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 16 ---
+Time: 2026-08-15T17:53:35.009Z
+User: "It'll be just myself."
+Metrics:
+  [pipeline][17:53:35.670] LLM first token received  TTFT=273ms  ✓
+  [pipeline][17:53:36.026] LLM metrics — TTFT=273ms  prompt_tokens=4043  cached_tokens=1408 [CACHE HIT: 1408 tokens]  completion_tokens=81
+  [pipeline][17:53:35.900] TTS first audio chunk received (streaming started)  TTFB=229ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=2, pendingField=gross_annual_income
+  [reconcile] Turn 8 extraction finished in 400.5ms.
+  [reconcile] Merging Turn 8 background extraction results into state.
+  [reconcile] Field "bridge_to_say" updated: "stage1_to_stage2" → "stage1_to_stage2"
+  [reconcile] Field "co_borrower" updated: "no" → "no"
+  [reconcile] Field "co_borrower_confirmed" updated: "true" → "true"
+  [reconcile] Transitioning activeStage: 2 -> 2
+  [reconcile] Transitioning currentPendingField: gross_annual_income -> gross_annual_income
+  [reconcile] Turn 8 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  [agent-hook][fallback] Optimistically advanced Stage 1 -> Stage 2 for field "co_borrower" (default="no"). LLM transitions immediately with bridge!
+
+
+--- Turn 17 ---
+Time: 2026-08-15T17:54:00.435Z
+User: "84000 a year."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 18 ---
+Time: 2026-08-15T17:54:00.587Z
+User: "84000 a year."
+Metrics:
+  [pipeline][17:54:00.977] LLM first token received  TTFT=374ms  ✓
+  [pipeline][17:54:01.158] LLM metrics — TTFT=374ms  prompt_tokens=3978  cached_tokens=3200 [CACHE HIT: 3200 tokens]  completion_tokens=37
+  [pipeline][17:54:01.305] TTS first audio chunk received (streaming started)  TTFB=327ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=2, pendingField=gross_annual_income
+  [reconcile] Turn 9 extraction finished in 514.5ms.
+  [reconcile] Merging Turn 9 background extraction results into state.
+  [reconcile] Field "pending_confirm_field" updated: "null" → "null"
+  [reconcile] Field "pending_confirm_value" updated: "null" → "null"
+  [reconcile] ✅ Field "gross_annual_income" resolved: __pending__ → "84000" (extraction succeeded)
+  [reconcile] Field "gross_annual_income_confirmed" updated: "null" → "true"
+  [reconcile] Transitioning currentPendingField: gross_annual_income -> monthly_debt
+  [reconcile] Turn 9 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  [agent-hook][fallback] Injected sentinel "__pending__" for field "gross_annual_income" — LLM proceeds immediately, extractor will overwrite.
+
+
+--- Turn 19 ---
+Time: 2026-08-15T17:54:14.854Z
+User: "Current debt is 1250 a month."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 20 ---
+Time: 2026-08-15T17:54:14.998Z
+User: "Current debt is 1250 a month."
+Metrics:
+  [pipeline][17:54:15.287] LLM first token received  TTFT=272ms  ✓
+  [pipeline][17:54:15.544] LLM metrics — TTFT=272ms  prompt_tokens=4037  cached_tokens=3328 [CACHE HIT: 3328 tokens]  completion_tokens=34
+  [pipeline][17:54:15.511] TTS first audio chunk received (streaming started)  TTFB=223ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=2, pendingField=monthly_debt
+  [reconcile] Turn 10 extraction finished in 441.9ms.
+  [reconcile] Merging Turn 10 background extraction results into state.
+  [reconcile] ✅ Field "monthly_debt" resolved: __pending__ → "1250" (extraction succeeded)
+  [reconcile] Field "monthly_debt_confirmed" updated: "null" → "true"
+  [reconcile] Transitioning currentPendingField: monthly_debt -> credit_range
+  [reconcile] Turn 10 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  [agent-hook][fallback] Injected sentinel "__pending__" for field "monthly_debt" — LLM proceeds immediately, extractor will overwrite.
+
+
+--- Turn 21 ---
+Time: 2026-08-15T17:54:27.409Z
+User: "I checked a couple months ago, it was 710."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 22 ---
+Time: 2026-08-15T17:54:27.607Z
+User: "I checked a couple months ago, it was 710."
+Metrics:
+  [pipeline][17:54:27.802] LLM first token received  TTFT=184ms  ✓
+  [pipeline][17:54:27.991] LLM metrics — TTFT=184ms  prompt_tokens=4096  cached_tokens=3392 [CACHE HIT: 3392 tokens]  completion_tokens=27
+  [pipeline][17:54:28.021] TTS first audio chunk received (streaming started)  TTFB=217ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=2, pendingField=credit_range
+  [reconcile] Turn 11 extraction finished in 378.7ms.
+  [reconcile] Merging Turn 11 background extraction results into state.
+  [reconcile] ✅ Field "credit_range" resolved: __pending__ → "710" (extraction succeeded)
+  [reconcile] Field "credit_range_confirmed" updated: "null" → "true"
+  [reconcile] Transitioning currentPendingField: credit_range -> down_payment
+  [reconcile] Turn 11 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  [agent-hook][fallback] Injected sentinel "__pending__" for field "credit_range" — LLM proceeds immediately, extractor will overwrite.
+  [pipeline][17:54:29.304] ⚠️  Avatar first-frame timeout — ActiveSpeakersChanged never fired. Firing [TIMEOUT_FALLBACK] estimate. This is a LiveKit SDK event-drop, NOT real avatar lag.
+
+
+--- Turn 23 ---
+Time: 2026-08-15T17:54:44.993Z
+User: "For my savings, I'd like to invest 15000, maybe 20 for both the saving or for the down payment and also the closing cost."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 24 ---
+Time: 2026-08-15T17:54:45.206Z
+User: "For my savings, I'd like to invest 15000, maybe 20 for both the saving or for the down payment and also the closing cost."
+Metrics:
+  [pipeline][17:54:45.516] LLM first token received  TTFT=266ms  ✓
+  [pipeline][17:54:45.706] LLM metrics — TTFT=266ms  prompt_tokens=4169  cached_tokens=3456 [CACHE HIT: 3456 tokens]  completion_tokens=36
+  [pipeline][17:54:45.796] TTS first audio chunk received (streaming started)  TTFB=279ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=2, pendingField=down_payment
+  [reconcile] Turn 12 extraction finished in 352.8ms.
+  [reconcile] Merging Turn 12 background extraction results into state.
+  [reconcile] ✅ Field "down_payment" resolved: __pending__ → "20000" (extraction succeeded)
+  [reconcile] Field "down_payment_confirmed" updated: "null" → "true"
+  [reconcile] Transitioning currentPendingField: down_payment -> rent_own
+  [reconcile] Turn 12 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  [agent-hook][fallback] Injected sentinel "__pending__" for field "down_payment" — LLM proceeds immediately, extractor will overwrite.
+
+
+--- Turn 25 ---
+Time: 2026-08-15T17:55:01.416Z
+User: "Well, I'm a first time home buyer, so I don't own any other houses, so this would be my first house."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 26 ---
+Time: 2026-08-15T17:55:01.430Z
+User: "Well, I'm a first time home buyer, so I don't own any other houses, so this would be my first house."
+Metrics:
+  [pipeline][17:55:01.663] LLM first token received  TTFT=220ms  ✓
+  [pipeline][17:55:01.878] LLM metrics — TTFT=220ms  prompt_tokens=3789  cached_tokens=2752 [CACHE HIT: 2752 tokens]  completion_tokens=36
+  [pipeline][17:55:01.930] TTS first audio chunk received (streaming started)  TTFB=266ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=2, pendingField=rent_own
+  [reconcile] Turn 13 extraction finished in 371.0ms.
+  [reconcile] Merging Turn 13 background extraction results into state.
+  [reconcile] ✅ Field "rent_own" resolved: __pending__ → "rent" (extraction succeeded)
+  [reconcile] Field "rent_own_confirmed" updated: "null" → "true"
+  [reconcile] Transitioning currentPendingField: rent_own -> realtor_status
+  [reconcile] Turn 13 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  [agent-hook][fallback] Injected sentinel "__pending__" for field "rent_own" — LLM proceeds immediately, extractor will overwrite.
+
+
+--- Turn 27 ---
+Time: 2026-08-15T17:55:18.240Z
+User: "Still looking for one. I didn't want to contact an agent until I was sure that I was eligible for a mortgage."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 28 ---
+Time: 2026-08-15T17:55:18.407Z
+User: "Still looking for one. I didn't want to contact an agent until I was sure that I was eligible for a mortgage."
+Metrics:
+  [pipeline][17:55:18.719] LLM first token received  TTFT=297ms  ✓
+  [pipeline][17:55:19.043] LLM metrics — TTFT=297ms  prompt_tokens=3858  cached_tokens=3136 [CACHE HIT: 3136 tokens]  completion_tokens=52
+  [pipeline][17:55:18.947] TTS first audio chunk received (streaming started)  TTFB=226ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=2, pendingField=realtor_status
+  [reconcile] Turn 14 extraction finished in 487.7ms.
+  [reconcile] Merging Turn 14 background extraction results into state.
+  [reconcile] ✅ Field "realtor_status" resolved: __pending__ → "no" (extraction succeeded)
+  [reconcile] Field "realtor_status_confirmed" updated: "null" → "true"
+  [reconcile] Transitioning currentPendingField: realtor_status -> target_price
+  [reconcile] Turn 14 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  [agent-hook][fallback] Injected sentinel "__pending__" for field "realtor_status" — LLM proceeds immediately, extractor will overwrite.
+
+
+--- Turn 29 ---
+Time: 2026-08-15T17:55:40.042Z
+User: "I really don't. I think it depends on what I would be eligible for, but I'm thinking somewhere between 250 and 300."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 30 ---
+Time: 2026-08-15T17:55:40.206Z
+User: "I really don't. I think it depends on what I would be eligible for, but I'm thinking somewhere between 250 and 300."
+Metrics:
+  [pipeline][17:55:40.405] LLM first token received  TTFT=188ms  ✓
+  [pipeline][17:55:40.915] LLM metrics — TTFT=188ms  prompt_tokens=3952  cached_tokens=3200 [CACHE HIT: 3200 tokens]  completion_tokens=60
+  [pipeline][17:55:40.818] TTS first audio chunk received (streaming started)  TTFB=412ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=2, pendingField=target_price
+  [reconcile] Turn 15 extraction finished in 500.0ms.
+  [reconcile] Merging Turn 15 background extraction results into state.
+  [reconcile] Field "target_price" updated: "null" → "275000"
+  [reconcile] Field "target_price_confirmed" updated: "null" → "true"
+  [reconcile] Transitioning currentPendingField: target_price -> property_type
+  [reconcile] Turn 15 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  
+
+
+--- Turn 31 ---
+Time: 2026-08-15T17:55:59.825Z
+User: "A single family home would be ideal."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 32 ---
+Time: 2026-08-15T17:55:59.840Z
+User: "A single family home would be ideal."
+Metrics:
+  [pipeline][17:56:00.303] LLM first token received  TTFT=451ms  ✓
+  [pipeline][17:56:00.529] LLM metrics — TTFT=451ms  prompt_tokens=4083  cached_tokens=3328 [CACHE HIT: 3328 tokens]  completion_tokens=39
+  [pipeline][17:56:00.531] TTS first audio chunk received (streaming started)  TTFB=226ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=2, pendingField=property_type
+  [reconcile] Turn 16 extraction finished in 561.4ms.
+  [reconcile] Merging Turn 16 background extraction results into state.
+  [reconcile] ✅ Field "property_type" resolved: __pending__ → "single_family" (extraction succeeded)
+  [reconcile] Field "property_type_confirmed" updated: "null" → "true"
+  [reconcile] Transitioning currentPendingField: property_type -> military_rural
+  [reconcile] Turn 16 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  [agent-hook][fallback] Injected sentinel "__pending__" for field "property_type" — LLM proceeds immediately, extractor will overwrite.
+
+
+--- Turn 33 ---
+Time: 2026-08-15T17:56:14.204Z
+User: "No military service."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 34 ---
+Time: 2026-08-15T17:56:14.218Z
+User: "No military service."
+Metrics:
+  [pipeline][17:56:14.619] LLM first token received  TTFT=103ms  ✓
+  [pipeline][17:56:14.784] LLM metrics — TTFT=103ms  prompt_tokens=4087  cached_tokens=3392 [CACHE HIT: 3392 tokens]  completion_tokens=43
+  [pipeline][17:56:14.828] TTS first audio chunk received (streaming started)  TTFB=207ms
+Reconcile & State:
+  [reconcile] Turn 17 extraction finished in 286.4ms.
+  [reconcile] Merging Turn 17 background extraction results into state.
+  [reconcile] Field "military_rural" updated: "null" → "neither"
+  [reconcile] Field "military_rural_confirmed" updated: "null" → "true"
+  [reconcile] Transitioning currentPendingField: military_rural -> job_tenure_type
+  [reconcile] Turn 17 sentinel check: all __pending__ values resolved ✅
+  [agent-hook]: Stage boundary extraction completed in time! Stage is now: 2
+  [agent-debug]: Instructions updated — stage=2, pendingField=job_tenure_type
+Warnings/Errors:
+  
+
+
+--- Turn 35 ---
+Time: 2026-08-15T17:56:31.441Z
+User: "I've been at my present employer for 2 years and I'm salaried."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 36 ---
+Time: 2026-08-15T17:56:31.587Z
+User: "I've been at my present employer for 2 years and I'm salaried."
+Metrics:
+  [pipeline][17:56:31.797] TTS first audio chunk received (streaming started)  TTFB=194ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=2, pendingField=stage2_closing_offer
+  [reconcile] Turn 18 extraction finished in 396.6ms.
+  [reconcile] Merging Turn 18 background extraction results into state.
+  [reconcile] Field "job_tenure_type" updated: "salaried" → "2 years, salaried"
+  [reconcile] Field "job_tenure_type_confirmed" updated: "true" → "true"
+  [reconcile] Field "employment_years" updated: "null" → "2"
+  [reconcile] Field "eligible_products" updated: "null" → "Conventional Fixed Rate (Reliable, popular option with standard requirements),FHA Loan (Great for buyers with lower credit or smaller down payments)"
+  [reconcile] Transitioning currentPendingField: stage2_closing_offer -> stage2_closing_offer
+  [reconcile] Turn 18 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  [agent-hook][fallback] Optimistically advanced field "job_tenure_type" -> "stage2_closing_offer" (default="salaried").
+
+
+--- Turn 37 ---
+Time: 2026-08-15T17:57:06.613Z
+User: "I think the uh first option were a soft pull is performed would be ideal."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 38 ---
+Time: 2026-08-15T17:57:06.978Z
+User: "I think the uh first option were a soft pull is performed would be ideal."
+Metrics:
+  [pipeline][17:57:07.477] TTS first audio chunk received (streaming started)  TTFB=215ms
+Reconcile & State:
+  [reconcile] Turn 19 extraction finished in 264.2ms.
+  [reconcile] Merging Turn 19 background extraction results into state.
+  [reconcile] Transitioning activeStage: 2 -> 3A
+  [reconcile] Transitioning currentPendingField: stage2_closing_offer -> contact_email
+  [reconcile] Turn 19 sentinel check: all __pending__ values resolved ✅
+  [agent-hook]: Stage boundary extraction completed in time! Stage is now: 3A
+  [agent-debug]: Instructions updated — stage=3A, pendingField=contact_email
+Warnings/Errors:
+  
+
+
+--- Turn 39 ---
+Time: 2026-08-15T17:57:19.032Z
+User: "727."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 40 ---
+Time: 2026-08-15T17:57:22.034Z
+User: "727. 4390393."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 41 ---
+Time: 2026-08-15T17:57:26.619Z
+User: "727. 4390393. and my email is david lpatten@gmail.com."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 42 ---
+Time: 2026-08-15T17:57:26.778Z
+User: "727. 4390393. and my email is david lpatten@gmail.com."
+Metrics:
+  [pipeline][17:57:27.510] TTS first audio chunk received (streaming started)  TTFB=201ms
+  [pipeline][17:57:40.002] TTS first audio chunk received (streaming started)  TTFB=192ms
+Reconcile & State:
+  [reconcile] Turn 20 extraction finished in 259.0ms.
+  [reconcile] Merging Turn 20 background extraction results into state.
+  [reconcile] Field "contact_email" updated: "null" → "davidlpatten@gmail.com"
+  [reconcile] Field "contact_mobile" updated: "null" → "7274390393"
+  [reconcile] Field "_pendingOtp" updated: "null" → "123456"
+  [reconcile] Transitioning currentPendingField: contact_email -> otp_verification
+  [reconcile] Turn 20 sentinel check: all __pending__ values resolved ✅
+  [agent-hook]: Stage boundary extraction completed in time! Stage is now: 3A
+  [agent-debug]: Instructions updated — stage=3A, pendingField=otp_verification
+  [agent-debug]: Instructions updated — stage=3A, pendingField=soft_pull_authorization
+Warnings/Errors:
+  
+
+
+--- Turn 43 ---
+Time: 2026-08-15T17:57:58.613Z
+User: "No, it's correct."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 44 ---
+Time: 2026-08-15T17:57:58.797Z
+User: "No, it's correct."
+Metrics:
+  [pipeline][17:57:59.675] TTS first audio chunk received (streaming started)  TTFB=198ms
+Reconcile & State:
+  [reconcile] Turn 21 extraction finished in 663.5ms.
+  [reconcile] Merging Turn 21 background extraction results into state.
+  [reconcile] Field "prefilled_fields_confirmed" updated: "[object Object]" → "[object Object]"
+  [reconcile] Field "needs_prefill_correction" updated: "null" → "false"
+  [reconcile] Transitioning currentPendingField: prefill_name_address -> prefill_employer
+  [reconcile] Turn 21 sentinel check: all __pending__ values resolved ✅
+  [agent-hook]: Stage boundary extraction completed in time! Stage is now: 3A
+  [agent-debug]: Instructions updated — stage=3A, pendingField=prefill_employer
+Warnings/Errors:
+  
+
+
+--- Turn 45 ---
+Time: 2026-08-15T17:58:12.793Z
+User: "I'm not sure what information on file means, but my employer is Convergent AI."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 46 ---
+Time: 2026-08-15T17:58:13.208Z
+User: "I'm not sure what information on file means, but my employer is Convergent AI."
+Metrics:
+  [pipeline][17:58:13.790] LLM first token received  TTFT=568ms  ✓
+  [pipeline][17:58:14.201] LLM metrics — TTFT=568ms  prompt_tokens=3979  cached_tokens=0 [CACHE MISS/COLD]  completion_tokens=63
+  [pipeline][17:58:14.109] TTS first audio chunk received (streaming started)  TTFB=318ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=3A, pendingField=prefill_employer
+  [reconcile] Turn 22 extraction finished in 751.4ms.
+  [reconcile] Merging Turn 22 background extraction results into state.
+  [reconcile] Field "prefilled_fields_confirmed" updated: "[object Object]" → "[object Object]"
+  [reconcile] Field "employer" updated: "null" → "Convergent AI"
+  [reconcile] Transitioning currentPendingField: prefill_employer -> prefill_accounts
+  [reconcile] Turn 22 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  
+
+
+--- Turn 47 ---
+Time: 2026-08-15T17:58:31.432Z
+User: "Oh, those are correct."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 48 ---
+Time: 2026-08-15T17:58:31.597Z
+User: "Oh, those are correct."
+Metrics:
+  [pipeline][17:58:32.307] TTS first audio chunk received (streaming started)  TTFB=195ms
+Reconcile & State:
+  [reconcile] Turn 23 extraction finished in 493.3ms.
+  [reconcile] Merging Turn 23 background extraction results into state.
+  [reconcile] Field "prefilled_fields_confirmed" updated: "[object Object]" → "[object Object]"
+  [reconcile] Transitioning currentPendingField: prefill_accounts -> prefill_credit_range
+  [reconcile] Turn 23 sentinel check: all __pending__ values resolved ✅
+  [agent-hook]: Stage boundary extraction completed in time! Stage is now: 3A
+  [agent-debug]: Instructions updated — stage=3A, pendingField=prefill_credit_range
+Warnings/Errors:
+  
+
+
+--- Turn 49 ---
+Time: 2026-08-15T17:58:42.809Z
+User: "It's what I expected."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 50 ---
+Time: 2026-08-15T17:58:43.002Z
+User: "It's what I expected."
+Metrics:
+  [pipeline][17:58:43.212] TTS first audio chunk received (streaming started)  TTFB=196ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=3A, pendingField=prefill_credit_range
+  [reconcile] Turn 24 extraction finished in 303.7ms.
+  [reconcile] Merging Turn 24 background extraction results into state.
+  [reconcile] Field "credit_range" updated: "700-749" → "Good"
+  [reconcile] Field "prefilled_fields_confirmed" updated: "[object Object]" → "[object Object]"
+  [reconcile] Field "affordability_mode" updated: "null" → "verified"
+  [reconcile] Field "affordability_panel_rendered" updated: "null" → "true"
+  [reconcile] Field "affordability_purchase_price" updated: "null" → "275000"
+  [reconcile] Field "affordability_down_payment" updated: "null" → "20000"
+  [reconcile] Transitioning activeStage: 3A -> 2.5
+  [reconcile] Transitioning currentPendingField: prefill_credit_range -> affordability_panel_active
+  [reconcile] Turn 24 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  
+
+
+--- Turn 51 ---
+Time: 2026-08-15T17:58:54.394Z
+User: "Uh, it's what I expected."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 52 ---
+Time: 2026-08-15T17:58:54.607Z
+User: "Uh, it's what I expected."
+Metrics:
+  [pipeline][17:58:55.279] LLM first token received  TTFT=293ms  ✓
+  [pipeline][17:58:55.641] LLM metrics — TTFT=293ms  prompt_tokens=5267  cached_tokens=1408 [CACHE HIT: 1408 tokens]  completion_tokens=115
+  [pipeline][17:58:55.548] TTS first audio chunk received (streaming started)  TTFB=267ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=2.5, pendingField=affordability_panel_active
+  [reconcile] Turn 25 extraction finished in 376.9ms.
+  [reconcile] Merging Turn 25 background extraction results into state.
+  [reconcile] Turn 25 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  
+
+
+--- Turn 53 ---
+Time: 2026-08-15T17:59:33.420Z
+User: "Yes, because I have a few questions. I see on income it says above typical range. What does that mean?"
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 54 ---
+Time: 2026-08-15T17:59:33.435Z
+User: "Yes, because I have a few questions. I see on income it says above typical range. What does that mean?"
+Metrics:
+  [pipeline][17:59:33.708] LLM first token received  TTFT=194ms  ✓
+  [pipeline][17:59:34.550] LLM metrics — TTFT=194ms  prompt_tokens=5415  cached_tokens=4480 [CACHE HIT: 4480 tokens]  completion_tokens=169
+  [pipeline][17:59:33.941] TTS first audio chunk received (streaming started)  TTFB=230ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=2.5, pendingField=affordability_panel_active
+  [reconcile] Turn 26 extraction finished in 309.2ms.
+  [reconcile] Merging Turn 26 background extraction results into state.
+  [reconcile] Turn 26 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  
+
+
+--- Turn 55 ---
+Time: 2026-08-15T18:00:25.443Z
+User: "Well, I'm gonna adjust some because it looks like my total debt ratio is off. So, I'll adjust that first."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 56 ---
+Time: 2026-08-15T18:00:31.052Z
+User: "Well, I'm gonna adjust some because it looks like my total debt ratio is off. So, I'll adjust that first. And I guess I would have to do that by changing the purchase price."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 57 ---
+Time: 2026-08-15T18:00:31.208Z
+User: "Well, I'm gonna adjust some because it looks like my total debt ratio is off. So, I'll adjust that first. And I guess I would have to do that by changing the purchase price."
+Metrics:
+  [pipeline][18:00:31.439] LLM first token received  TTFT=217ms  ✓
+  [pipeline][18:00:31.636] LLM metrics — TTFT=217ms  prompt_tokens=5636  cached_tokens=4672 [CACHE HIT: 4672 tokens]  completion_tokens=32
+  [pipeline][18:00:31.665] TTS first audio chunk received (streaming started)  TTFB=224ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=2.5, pendingField=affordability_panel_active
+  [reconcile] Turn 27 extraction finished in 287.5ms.
+  [reconcile] Merging Turn 27 background extraction results into state.
+  [reconcile] Transitioning currentPendingField: affordability_panel_active -> affordability_profile_correction
+  [reconcile] ⚠️  Field "affordability_panel_active" had unresolved __pending__ sentinel after extraction — cleared to null. Extractor returned no value.
+Warnings/Errors:
+  [agent-hook][fallback] Injected sentinel "__pending__" for field "affordability_panel_active" — LLM proceeds immediately, extractor will overwrite.
+  [reconcile] ⚠️  Field "affordability_panel_active" had unresolved __pending__ sentinel after extraction — cleared to null. Extractor returned no value.
+
+
+--- Turn 58 ---
+Time: 2026-08-15T18:00:43.407Z
+User: "All right, I made the adjustment."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 59 ---
+Time: 2026-08-15T18:00:43.589Z
+User: "All right, I made the adjustment."
+Metrics:
+  [pipeline][18:00:43.803] LLM first token received  TTFT=201ms  ✓
+  [pipeline][18:00:43.992] LLM metrics — TTFT=201ms  prompt_tokens=5685  cached_tokens=4864 [CACHE HIT: 4864 tokens]  completion_tokens=57
+  [pipeline][18:00:44.095] TTS first audio chunk received (streaming started)  TTFB=290ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=2.5, pendingField=affordability_profile_correction
+  [reconcile] ⚠️  Field "affordability_profile_correction" had unresolved __pending__ sentinel after extraction — cleared to null. Extractor returned no value.
+  [reconcile] Turn 28 extraction finished in 273.7ms.
+  [reconcile] Merging Turn 28 background extraction results into state.
+  [reconcile] Transitioning currentPendingField: affordability_profile_correction -> affordability_panel_active
+Warnings/Errors:
+  [agent-hook][fallback] Injected sentinel "__pending__" for field "affordability_profile_correction" — LLM proceeds immediately, extractor will overwrite.
+  [reconcile] ⚠️  Field "affordability_profile_correction" had unresolved __pending__ sentinel after extraction — cleared to null. Extractor returned no value.
+
+
+--- Turn 60 ---
+Time: 2026-08-15T18:01:20.420Z
+User: "Well, it looks like things are shaping up pretty well, but as I mentioned in the beginning, I wanted to use 20000 dollars as a total investment including down payment and closing costs. It looks like I need 24700 and I just don't have that extra amount. So what what would be the next step?"
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 61 ---
+Time: 2026-08-15T18:01:20.588Z
+User: "Well, it looks like things are shaping up pretty well, but as I mentioned in the beginning, I wanted to use 20000 dollars as a total investment including down payment and closing costs. It looks like I need 24700 and I just don't have that extra amount. So what what would be the next step?"
+Metrics:
+  [pipeline][18:01:20.928] LLM first token received  TTFT=254ms  ✓
+  [pipeline][18:01:21.523] LLM metrics — TTFT=254ms  prompt_tokens=5310  cached_tokens=3712 [CACHE HIT: 3712 tokens]  completion_tokens=138
+  [pipeline][18:01:21.171] TTS first audio chunk received (streaming started)  TTFB=242ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=2.5, pendingField=affordability_panel_active
+  [reconcile] Turn 29 extraction finished in 305.1ms.
+  [reconcile] Merging Turn 29 background extraction results into state.
+  [reconcile] Turn 29 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  
+
+
+--- Turn 62 ---
+Time: 2026-08-15T18:02:08.967Z
+User: "I have read that there are some down payment assistance programs. Be that I'm a first time home buyer, wouldn't I apply be approved for that kind of thing?"
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 63 ---
+Time: 2026-08-15T18:02:09.142Z
+User: "I have read that there are some down payment assistance programs. Be that I'm a first time home buyer, wouldn't I apply be approved for that kind of thing?"
+Metrics:
+  [pipeline][18:02:09.516] LLM first token received  TTFT=239ms  ✓
+  [pipeline][18:02:10.143] LLM metrics — TTFT=239ms  prompt_tokens=5042  cached_tokens=3712 [CACHE HIT: 3712 tokens]  completion_tokens=110
+  [pipeline][18:02:09.918] TTS first audio chunk received (streaming started)  TTFB=401ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=2.5, pendingField=affordability_panel_active
+  [reconcile] Turn 30 extraction finished in 330.1ms.
+  [reconcile] Merging Turn 30 background extraction results into state.
+  [reconcile] Turn 30 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+  
+
+
+--- Turn 64 ---
+Time: 2026-08-15T18:02:43.568Z
+User: "I think at this point I just like to submit it for review."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 65 ---
+Time: 2026-08-15T18:02:43.965Z
+User: "I think at this point I just like to submit it for review."
+Metrics:
+  [pipeline][18:02:44.331] TTS first audio chunk received (streaming started)  TTFB=217ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=2.5, pendingField=affordability_panel_active
+  [reconcile] Turn 31 extraction finished in 7.8ms.
+  [reconcile] Merging Turn 31 background extraction results into state.
+  [reconcile] ⚠️  Field "affordability_panel_active" had unresolved __pending__ sentinel after extraction — cleared to null. Extractor returned no value.
+Warnings/Errors:
+  [agent-hook][fallback] Injected sentinel "__pending__" for field "affordability_panel_active" — LLM proceeds immediately, extractor will overwrite.
+  [reconcile] ⚠️  Field "affordability_panel_active" had unresolved __pending__ sentinel after extraction — cleared to null. Extractor returned no value.
+
+
+--- Turn 66 ---
+Time: 2026-08-15T18:03:15.348Z
+User: "Well, I don't want to speak to someone right now. I just don't have the time, but I would appreciate a call back tomorrow at uh 2 o'clock Eastern."
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 67 ---
+Time: 2026-08-15T18:03:15.946Z
+User: "Well, I don't want to speak to someone right now. I just don't have the time, but I would appreciate a call back tomorrow at uh 2 o'clock Eastern."
+Metrics:
+  [pipeline][18:03:16.311] TTS first audio chunk received (streaming started)  TTFB=205ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=4, pendingField=aus_findings_delivered
+  [reconcile] Turn 32 extraction finished in 4.2ms.
+  [reconcile] ⚠️  Field "aus_findings_delivered" had unresolved __pending__ sentinel after extraction — cleared to null. Extractor returned no value.
+  [reconcile] Merging Turn 32 background extraction results into state.
+Warnings/Errors:
+  [agent-hook][fallback] Injected sentinel "__pending__" for field "aus_findings_delivered" — LLM proceeds immediately, extractor will overwrite.
+  [reconcile] ⚠️  Field "aus_findings_delivered" had unresolved __pending__ sentinel after extraction — cleared to null. Extractor returned no value.
+
+
+--- Turn 68 ---
+Time: 2026-08-15T18:03:42.799Z
+User: "So, can we skip ahead uh and, you know, we'll ignore the call back scheduling and the meeting scheduling. So, what's the next step?"
+Metrics:
+  
+Reconcile & State:
+  
+Warnings/Errors:
+  
+
+
+--- Turn 69 ---
+Time: 2026-08-15T18:03:43.146Z
+User: "So, can we skip ahead uh and, you know, we'll ignore the call back scheduling and the meeting scheduling. So, what's the next step?"
+Metrics:
+  [pipeline][18:03:44.062] LLM first token received  TTFT=703ms  ✓
+  [pipeline][18:03:44.639] LLM metrics — TTFT=703ms  prompt_tokens=3975  cached_tokens=0 [CACHE MISS/COLD]  completion_tokens=166
+  [pipeline][18:03:44.330] TTS first audio chunk received (streaming started)  TTFB=266ms
+Reconcile & State:
+  [agent-debug]: Instructions updated — stage=4, pendingField=aus_findings_delivered
+  [reconcile] Turn 33 extraction finished in 4.4ms.
+  [reconcile] Merging Turn 33 background extraction results into state.
+  [reconcile] Turn 33 sentinel check: all __pending__ values resolved ✅
+Warnings/Errors:
+      error: null
