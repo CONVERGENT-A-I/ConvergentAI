@@ -36,7 +36,7 @@ export default function Footer() {
             <div className="flex items-center gap-4">
               {/* LinkedIn */}
               <Link
-                href="https://linkedin.com"
+                href="https://www.linkedin.com/company/convergentai-tech/posts/?feedView=all"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="LinkedIn"

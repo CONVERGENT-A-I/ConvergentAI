@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import { motion, Variants } from "framer-motion";
-import a1 from "../../public/a1.png";
-import a2 from "../../public/a2.png";
+import daveHeadshot from "../../public/dave_headshot.png";
+import elisaHeadshot from "../../public/elisa_headshot.png";
 import mikeHalesImg from "../../public/Mike_Hales.jpg";
 
 
@@ -83,7 +83,7 @@ export default function AboutLeadership() {
 
               <div className="relative w-full h-full rounded-full overflow-hidden border-4 border-white/10 group-hover:border-brand-teal/50 shadow-2xl transition-all duration-700 hover:scale-[1.03] z-10">
                 <Image
-                  src={a1}
+                  src={daveHeadshot}
                   alt="David Patten"
                   fill
                   className="object-cover group-hover:scale-110 transition-transform duration-1000"
@@ -118,7 +118,7 @@ export default function AboutLeadership() {
 
               <div className="relative w-full h-full rounded-full overflow-hidden border-4 border-white/10 group-hover:border-brand-teal/50 shadow-2xl transition-all duration-700 hover:scale-[1.03] z-10">
                 <Image
-                  src={a2}
+                  src={elisaHeadshot}
                   alt="Elisa Llamido"
                   fill
                   className="object-cover group-hover:scale-110 transition-transform duration-1000"

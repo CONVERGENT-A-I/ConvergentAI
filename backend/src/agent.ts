@@ -6,19 +6,26 @@ if (process.platform === 'win32') {
 }
 
 import dotenv from 'dotenv';
-dotenv.config();
+
+// Check if DATABASE_URL was passed from parent process
+if (!process.env.DATABASE_URL) {
+  // Only load from .env if not already set
+  dotenv.config();
+}
+
+// Log DATABASE_URL status for debugging
+console.log('[agent] DATABASE_URL status:', process.env.DATABASE_URL ? '✅ PRESENT' : '❌ MISSING');
 import { type JobContext, ServerOptions, cli, voice, llm, inference, defineAgent } from '@livekit/agents';
 import { RoomEvent, TrackKind } from '@livekit/rtc-node';
 import { fileURLToPath } from 'url';
 import * as openai from '@livekit/agents-plugin-openai';
-import * as cartesia from '@livekit/agents-plugin-cartesia';
-import { LoggedCartesiaTTS } from './metrics/logged-cartesia-tts.js';
 import { ailanaConfig } from './config/ailana-config.js';
 import { SessionContextManager } from './context/session-context-manager.js';
 import { LatencyTracker, ts } from './metrics/latency-tracker.js';
 import {
   buildBaseInstructions,
   buildVoiceInstructions,
+  GREETING_TEXT,
   GREETING_USER_INPUT,
   RESUME_USER_INPUT,
 } from './prompts/index.js';
@@ -26,205 +33,455 @@ import { logPromptBudget } from './context/context-budget.js';
 import { AvatarSession } from '@livekit/agents-plugin-lemonslice';
 import { BackchannelEngine } from './utils/backchannel-engine.js';
 import { OpenAI } from 'openai';
+import { sendPrequalLetterEmail } from './utils/email-sender.js';
+import { applicationService } from './services/application-service.js';
+import { isDatabaseEnabled } from './services/database.js';
+import { callCrsSoftPull } from './services/crs-service.js';
+import { classifyAuthorization } from './context/llm-extractor.js';
 
-const cerebrasClient = new OpenAI({
-  apiKey: ailanaConfig.cerebrasApiKey,
-  baseURL: ailanaConfig.cerebrasBaseUrl,
+// Global error guard to catch LiveKit SDK RPC connection timeouts gracefully without crashing/stalling the agent loop
+process.on('unhandledRejection', (reason: any) => {
+  if (reason?.type === '_RpcError' || reason?.message?.includes('Connection timeout') || reason?.code === 1501) {
+    console.warn('[agent-warning] Caught LiveKit RPC Connection Timeout gracefully:', reason?.message ?? reason);
+    return;
+  }
+  console.error('[agent-error] Unhandled Promise Rejection:', reason);
 });
 
-const originalCerebrasCreate = cerebrasClient.chat.completions.create.bind(cerebrasClient.chat.completions);
 
-cerebrasClient.chat.completions.create = (async function (body: any, options: any) {
-  let lastErr: any = null;
-  // Retry once with backoff for transient Cerebras errors before falling back
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const t0 = Date.now();
-    try {
-      if (attempt === 0) {
-        console.log(`[cerebras-proxy][${ts()}] Sending request to Cerebras: model=${body.model}`);
-      } else {
-        console.log(`[cerebras-proxy][${ts()}] Retry #${attempt} to Cerebras: model=${body.model}`);
-      }
 
-      const result = await originalCerebrasCreate(body, options);
+// Verbatim Stage 2 Closing Offer text — delivered via session.say() bypassing the LLM.
+// This guarantees the exact two-path script is spoken regardless of LLM instruction-following.
+const STAGE2_CLOSING_OFFER_SCRIPT = (name: string | null | undefined) =>
+  `Great work exploring your numbers${name ? `, ${name}` : ''}. You have two good ways to see your affordability picture. First, with your authorization, I can perform a soft credit review to pre-populate your application with your actual credit data, saving you time and ensuring accurate information, all with no impact to your credit score. Alternatively, I can build your affordability summary right now using just the details you've already shared, and you can add the credit review whenever you're ready. Which path would you prefer?`;
 
-      // If it's a stream, intercept it to track first token, end stream timings, and log the full response
-      if (result && typeof (result as any)[Symbol.asyncIterator] === 'function') {
-        const originalIterator = (result as any)[Symbol.asyncIterator].bind(result);
-        const accumulatedChunks: any[] = [];
+function isQuestionOrCorrection(text: string | null | undefined): boolean {
+  if (!text) return false;
+  const t = text.toLowerCase().trim();
+  if (t.includes('?')) return true;
 
-        (result as any)[Symbol.asyncIterator] = function () {
-          const iterator = originalIterator();
-          let isFirst = true;
-
-          return {
-            async next() {
-              const nextResult = await iterator.next();
-              if (nextResult.done) {
-                const totalDur = Date.now() - t0;
-                console.log(`[cerebras-proxy][${ts()}] Stream complete (Total: ${totalDur}ms, chunks: ${accumulatedChunks.length})`);
-                return nextResult;
-              }
-              if (isFirst) {
-                isFirst = false;
-                const ttft = Date.now() - t0;
-                console.log(`[cerebras-proxy][${ts()}] First chunk/token received (TTFT: ${ttft}ms)`);
-              }
-              if (nextResult.value) {
-                accumulatedChunks.push(nextResult.value);
-              }
-              return nextResult;
-            },
-            [Symbol.asyncIterator]() {
-              return this;
-            }
-          };
-        };
-      } else {
-        const dur = Date.now() - t0;
-        console.log(`[cerebras-proxy][${ts()}] Non-streaming response received (Dur: ${dur}ms)`);
-      }
-
-      return result;
-    } catch (err: any) {
-      lastErr = err;
-      const statusCode = err?.status ?? err?.statusCode;
-      console.warn(`[cerebras-proxy][${ts()}] Cerebras API error (status: ${statusCode}, attempt: ${attempt}):`, err?.message ?? err);
-
-      // Log full error body for HTTP 400
-      if (statusCode === 400) {
-        console.error(`[cerebras-proxy][${ts()}] HTTP 400 full error response:`, JSON.stringify(err?.error ?? err?.body ?? { message: err?.message, code: err?.code, status: statusCode }, null, 2));
-      }
-
-      // On first attempt with a retryable error, wait and retry once
-      if (attempt === 0 && (statusCode === 400 || statusCode === 500 || statusCode === 502 || statusCode === 503)) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        continue;
-      }
-
-      // No Groq fallback — propagate the Cerebras error directly
-      throw err;
-    }
+  // Check if text starts with modal or question words
+  if (/^(what|why|how|where|who|which|can|could|would|should|is|does|will|do i)\b/.test(t)) {
+    return true;
   }
-  throw lastErr;
-} as any);
 
+  // Specific question, explanation, or correction intent phrases
+  const keywords = [
+    'explain', 'detail', 'meaning', 'difference',
+    'change my', 'update my', 'actually my', 'wrong', 'mistake', 'instead',
+    'confused', 'don\'t understand', 'not sure', 'unsure', 'tell me about',
+    'already told you', 'gave it to you', 'gave you', 'just said', 'just shared',
+    'already shared', 'shared that', 'shared it', 'just gave', 'already gave',
+    'already told', 'just told', 'already said', 'i shared', 'i gave'
+  ];
+  return keywords.some(k => t.includes(k));
+}
 
-class CerebrasLLM extends openai.LLM {
-  // gemma-4-31b does not support reasoning_effort or reasoning_format parameters.
+function createVerbatimStream(text: string): ReadableStream<string> {
+  const sanitized = text.replace(/\s*\n+\s*/g, ' ').replace(/—/g, ', ').trim();
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(sanitized);
+      controller.close();
+    },
+  });
 }
 
 class AilanaVoiceAgent extends voice.Agent {
+  public sayCallback: ((text: string) => Promise<void>) | null = null;
+  public onAgentTurnCallback: ((text: string) => Promise<void>) | null = null;
+  private _stage2ClosingOfferDelivered = false;
+
   constructor(
     options: voice.AgentOptions<any>,
     private contextManager: SessionContextManager,
-    private updateInstructionsCallback: () => void
+    private updateInstructionsCallback: () => void,
+    private metrics: LatencyTracker,
+    public sendStageUpdate?: (stage: string) => Promise<void>
   ) {
     super(options);
   }
 
+  override async sttNode(audio: any, modelSettings: any) {
+    this.metrics.markSttStart();
+    return super.sttNode(audio, modelSettings);
+  }
+
+  override async llmNode(chatCtx: any, toolCtx: any, modelSettings: any): ReturnType<typeof voice.Agent.prototype.llmNode> {
+    this.metrics.markLlmStart();
+
+    const pending = this.contextManager.getPendingField();
+    const profile = this.contextManager.getProfile();
+
+    // Check if the user's last turn was a question, correction, or explanation request
+    const lastUserMsg = [...(chatCtx?.items || [])]
+      .reverse()
+      .find((item: any) => item.role === 'user' || item.type === 'user');
+    const lastUserText = typeof lastUserMsg?.content === 'string'
+      ? lastUserMsg.content
+      : Array.isArray(lastUserMsg?.content)
+      ? lastUserMsg.content.join(' ')
+      : '';
+
+    const userAskedQuestion = isQuestionOrCorrection(lastUserText) || (profile as any).last_extracted_offer_val === 'explain';
+    
+    // ── 0ms Verbal Submit Fast-Path (Stage 2.5) ──
+    // Fires before LLM so the base Cerebras model never produces a UI-redirect deflection.
+    // We check this BEFORE the question/correction block so that phrases like "Can you submit this?"
+    // trigger the submission rather than being delegated to the LLM for explanation.
+    const ausAlreadyDone = !!(profile as any).aus_status;
+    const inAffordabilityStage = this.contextManager.getActiveStage() === '2.5' || pending === 'affordability_panel_active';
+    const verbalSubmitPattern = /\b(submit\s*(for\s*me|it|review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|do\s+it\s+for\s+me|send\s+it|yes\s+submit|let'?s\s+submit)\b/i;
+    
+    if (!ausAlreadyDone && inAffordabilityStage && verbalSubmitPattern.test(lastUserText)) {
+      console.log(`[agent-hook]: 0ms Verbal Submit Fast-Path triggered — executing AUS findings immediately without LLM call!`);
+      
+      // 1. Instantly update the UI to show the button as "Review Submitted ✓"
+      profile.affordability_submitted = true;
+      profile.affordability_panel_rendered = true;
+      (profile as any).affordability_panel_closed = false;
+      if (this.sendStageUpdate) {
+        this.sendStageUpdate('2.5').catch(err => console.warn(err));
+      }
+
+      // 2. Delay the backend state transition by 3 seconds so the user can visually see the button state change
+      // before the panel closes.
+      setTimeout(() => {
+        (profile as any).affordability_aus_status = 'refer';
+        profile.aus_status = 'refer';
+        profile.affordability_panel_rendered = false;
+        (profile as any).affordability_panel_closed = true;
+        this.contextManager.setActiveStage('4');
+        this.contextManager.setCurrentPendingField('aus_findings_delivered');
+        if (this.sendStageUpdate) {
+          this.sendStageUpdate('4').catch(err => console.warn(err));
+        }
+      }, 3000);
+
+      const name = profile.borrower_name;
+      const scriptText = `Thank you for your patience${name ? `, ${name}` : ''} — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    if (userAskedQuestion) {
+      (profile as any).last_extracted_offer_val = null; // reset flag
+      console.log(`[agent-hook]: User turn contains question/explanation request ("${lastUserText}") — delegating to Cerebras LLM to answer dynamically.`);
+      return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+    }
+
+    // ── 0ms Parallel Fast-Path for Stage 2 Completion ──
+    const isAnsweringJobTenure =
+      (pending === 'job_tenure_type' || pending === 'stage2_closing_offer') &&
+      !this._stage2ClosingOfferDelivered &&
+      (/\b(salary|salaried|hourly|self-employed|self employed|working|employed|contract|w2|1099|full-time|part-time|full time|part time)\b/i.test(lastUserText) ||
+       /(\d+|\b(one|two|three|four|five|six|seven|eight|nine|ten)\b)\s*(years?|months?)\b/i.test(lastUserText));
+
+    if (pending === 'stage2_closing_offer' || isAnsweringJobTenure) {
+      if (isAnsweringJobTenure) {
+        console.log('[agent-hook]: Parallel 0ms Fast-Path — job_tenure_type answer detected. Triggering STAGE2_CLOSING_OFFER_SCRIPT!');
+        this.contextManager.setCurrentPendingField('stage2_closing_offer');
+      }
+
+      let scriptText = '';
+      if (!this._stage2ClosingOfferDelivered) {
+        this._stage2ClosingOfferDelivered = true;
+        scriptText = STAGE2_CLOSING_OFFER_SCRIPT(profile.borrower_name);
+        console.log('[agent-hook]: Delivering initial STAGE2_CLOSING_OFFER_SCRIPT via Deterministic ReadableStream (0ms LLM)!');
+      } else {
+        // User is answering stage2_closing_offer:
+        const isPathA = /\b(soft pull|review|eligibility|first|most complete|yes|sure|okay|go ahead|proceed|run it)\b/i.test(lastUserText);
+        const isPathB = /\b(summary|explore|stated|second|without|no review|skip)\b/i.test(lastUserText);
+
+        if (isPathA) {
+          console.log('[agent-hook]: Parallel 0ms Fast-Path — Path A chosen! Transitioning directly to STAGE 3A OTP gate (contact_email)!');
+          this.contextManager.setActiveStage('3A');
+          this.contextManager.setCurrentPendingField('contact_email');
+          const script = "Perfect. Before we run your review, let's set up a quick secure login — I'll just need the email and mobile number you'd like to use for your account. What are those for you?";
+          return createVerbatimStream(script) as any;
+        } else if (isPathB) {
+          console.log('[agent-hook]: Parallel 0ms Fast-Path — Path B chosen! Transitioning directly to Stage 2.5 Stated Mode!');
+          this.contextManager.setActiveStage('2.5');
+          profile.affordability_mode = 'stated';
+          profile.affordability_panel_rendered = true;
+          this.contextManager.setCurrentPendingField('affordability_panel_active');
+          return createVerbatimStream("Got it! I've built your affordability summary right here on your screen based on what you shared. Take a moment to review it, and when you're ready, click submit to run your review.") as any;
+        }
+
+        scriptText = 'Which would you prefer — the soft credit review with no impact to your credit score, or building your affordability summary from the information you shared today?';
+        console.log('[agent-hook]: Delivering STAGE2_CLOSING_OFFER re-ask via Deterministic ReadableStream (0ms LLM)!');
+      }
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    if (pending === 'contact_email') {
+      const attempts = this.contextManager.getFieldAttemptCount('contact_email');
+      const apology = attempts >= 1 ? "I'm sorry, I didn't quite catch that. " : "";
+      
+      let scriptText = '';
+      if (profile.contact_mobile) {
+        scriptText = `${apology}I have your mobile number. Could you also share the email address you'd like to use for your account?`;
+        console.log('[agent-hook]: Delivering contact_email script (mobile already captured) via Deterministic ReadableStream!');
+      } else {
+        scriptText = `${apology}Perfect. Before we run your review, let's set up a quick secure login — I'll just need the email and mobile number you'd like to use for your account. What are those for you?`;
+        console.log('[agent-hook]: Delivering Q45 initial contact_email script via Deterministic ReadableStream!');
+      }
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    if (pending === 'contact_mobile') {
+      const attempts = this.contextManager.getFieldAttemptCount('contact_mobile');
+      const apology = attempts >= 1 ? "I'm sorry, I didn't quite catch that. " : "";
+
+      let scriptText = '';
+      if (profile.contact_email) {
+        scriptText = `${apology}I have your email. Could you also share the mobile number you'd like to use?`;
+        console.log('[agent-hook]: Delivering contact_mobile script (email already captured) via Deterministic ReadableStream!');
+      } else {
+        scriptText = `${apology}I have your mobile number. Could you also share the email address you'd like to use?`;
+        console.log('[agent-hook]: Delivering contact_mobile script via Deterministic ReadableStream!');
+      }
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    if (pending === 'military_rural') {
+      const lower = lastUserText.toLowerCase().trim();
+      const isAnsweringMilitary = /\b(yes|yeah|yep|yup|sure|no|never|none|n\/a|not really|veteran|active|guard|reserve|duty|spouse|military|served|army|navy|air force|marines|coast guard|space force)\b/i.test(lower);
+
+      if (isAnsweringMilitary) {
+        console.log(`[agent-hook]: Synchronous military_rural answer detected ("${lastUserText}"). Advancing to job_tenure_type.`);
+        profile.military_rural = /\b(yes|yeah|yep|yup|sure|veteran|active|guard|reserve|duty|spouse|military|served|army|navy|air force|marines|coast guard|space force)\b/i.test(lower) ? 'military' : 'neither';
+        profile.military_rural_confirmed = true;
+        this.contextManager.advanceWorkflow();
+
+        const scriptText = "Got it, thank you. Could you tell me a bit about your current job tenure and how you're paid — for example, whether you are salaried, hourly, or self-employed?";
+        return createVerbatimStream(scriptText) as any;
+      }
+
+      const hasCoBorrower = profile.co_borrower === 'yes';
+      const coBorrowerPhrase = hasCoBorrower ? 'you or a co-borrower' : 'you';
+      const scriptText = `Do ${coBorrowerPhrase} have any military service history — such as being on active duty, a veteran, or part of the Reserve or National Guard?`;
+      console.log(`[agent-hook]: Delivering deterministic military_rural script (hasCoBorrower=${hasCoBorrower}) via ReadableStream!`);
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    if (pending === 'otp_verification' && !profile.otp_verified) {
+      const scriptText = "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely on your screen when it arrives, and you're all set.";
+      console.log('[agent-hook]: Delivering otp_verification instruction script via Deterministic ReadableStream!');
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    if (pending === 'soft_pull_authorization') {
+      const decision = await classifyAuthorization(lastUserText, null);
+      console.log(`[agent-hook]: soft_pull_authorization classification decision="${decision}" (userText="${lastUserText}")`);
+
+      if (decision === 'yes') {
+        profile.soft_pull_consent = 'accepted';
+        profile.prefilled_fields_confirmed = {};
+
+        console.log(`[agent-hook]: Soft pull accepted! Executing CRS soft pull...`);
+        const crsResult = await callCrsSoftPull(profile);
+        if (crsResult) {
+          profile.credit_range = crsResult.creditRange;
+          (profile as any).crs_open_accounts = crsResult.openAccounts;
+          (profile as any).crs_late_payments = crsResult.latePaymentsLast24Mo;
+          if (crsResult.employer) profile.employer = crsResult.employer;
+          profile.legal_name = profile.borrower_name || crsResult.legalName || 'Valued Borrower';
+          if (crsResult.physicalAddress) profile.physical_address = crsResult.physicalAddress;
+          console.log(`[agent-hook]: CRS soft pull complete. Name: ${profile.legal_name}, Address: ${crsResult.physicalAddress}`);
+        } else {
+          console.log(`[agent-hook]: CRS soft pull fallback.`);
+        }
+
+        this.contextManager.advanceWorkflow();
+
+        const name = profile.legal_name || profile.borrower_name || 'Valued Borrower';
+        const address = profile.physical_address || (profile.zip_code ? `address on file in zip code ${profile.zip_code}` : 'address on file');
+        const scriptText = `Thank you. I've processed that soft pull. First, I have your name listed as ${name}, and your physical address as ${address}. Does that look right or is anything out of date?`;
+        console.log('[agent-hook]: Delivering prefill_name_address script directly after soft pull consent!');
+        return createVerbatimStream(scriptText) as any;
+      }
+
+      if (decision === 'no') {
+        profile.soft_pull_consent = 'declined';
+        this.contextManager.advanceWorkflow();
+        console.log('[agent-hook]: Soft pull declined — transitioning to Stage 2.5 Stated Mode.');
+        return createVerbatimStream("Absolutely — we can explore your affordability summary using the information you've already shared.") as any;
+      }
+
+      // If leftover text from OTP entry, deliver the initial disclosure disclosure
+      const lower = lastUserText.toLowerCase().trim();
+      const isOtpTurn = /\b(done|entered|submitted|typed|sent|got it|ok(ay)?|all set|finished|completed|that'?s it|\d{6})\b/i.test(lower) || !lastUserText;
+      if (isOtpTurn) {
+        const scriptText = "Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry — it will not affect your credit score in any way. You are the one authorizing it, and your data is used only to process your initial eligibility review and pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?";
+        console.log('[agent-hook]: Delivering initial soft_pull_authorization disclosure via Deterministic ReadableStream!');
+        return createVerbatimStream(scriptText) as any;
+      }
+
+      // Otherwise user asked a question — delegate to LLM to answer naturally
+      console.log('[agent-hook]: User asked a question about soft pull — delegating to Cerebras LLM.');
+      return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+    }
+
+    if (pending === 'prefill_name_address') {
+      if ((profile as any).needs_prefill_correction) return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+      const name = profile.legal_name || profile.borrower_name || 'Valued Borrower';
+      const address = profile.physical_address || (profile.zip_code ? `address on file in zip code ${profile.zip_code}` : 'address on file');
+      const scriptText = `Thank you. I've processed that soft pull. First, I have your name listed as ${name}, and your physical address as ${address}. Does that look right or is anything out of date?`;
+      console.log('[agent-hook]: Delivering prefill_name_address script via Deterministic ReadableStream!');
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    if (pending === 'prefill_employer') {
+      if ((profile as any).needs_prefill_correction) return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+      const employer = profile.employer || 'information on file';
+      const scriptText = `Great. Next, I have your employer listed as ${employer}. Does that look right or is anything out of date?`;
+      console.log('[agent-hook]: Delivering prefill_employer script via Deterministic ReadableStream!');
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    if (pending === 'prefill_accounts') {
+      if ((profile as any).needs_prefill_correction) return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+      const openAccounts = (profile as any).crs_open_accounts ?? 3;
+      const latePayments = (profile as any).crs_late_payments ?? 0;
+      const lateText = latePayments === 0 ? 'no late payments' : `${latePayments} late payment(s)`;
+      const scriptText = `Perfect. For your accounts summary, I see ${openAccounts} open account(s) and ${lateText} in the last 24 months. Does that look right or is anything out of date?`;
+      console.log('[agent-hook]: Delivering prefill_accounts script via Deterministic ReadableStream!');
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    if (pending === 'prefill_credit_range') {
+      if ((profile as any).needs_prefill_correction) return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+      // Derive the human-readable category label only — never expose the raw numeric score.
+      // This matches stage3-guidance rule: "NEVER read the exact numeric credit score. Only the range category label."
+      let creditScoreNum = 700;
+      if (profile.credit_range) {
+        const m = profile.credit_range.match(/\d+/);
+        if (m) creditScoreNum = parseInt(m[0], 10);
+      }
+      let creditCategory = 'Good';
+      if (creditScoreNum >= 740) creditCategory = 'Excellent';
+      else if (creditScoreNum >= 670) creditCategory = 'Good';
+      else if (creditScoreNum >= 580) creditCategory = 'Fair';
+      else creditCategory = 'Poor';
+      const scriptText = `Lastly, we retrieved your credit profile showing a category rating in the ${creditCategory} range. Does that match what you expect or is anything out of date?`;
+      console.log('[agent-hook]: Delivering prefill_credit_range script via Deterministic ReadableStream!');
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    // (0ms Verbal Submit Fast-Path moved to top of method)
+
+    if ((profile as any).submit_review_requested || pending === 'aus_findings_delivered') {
+      (profile as any).submit_review_requested = false;
+      console.log(`[agent-hook]: LLM-classified submission request detected — executing submission and delivering findings!`);
+      profile.affordability_panel_rendered = false;
+      (profile as any).affordability_panel_closed = true;
+      profile.aus_status = 'refer';
+      this.contextManager.setActiveStage('4');
+      this.contextManager.setCurrentPendingField('aus_findings_delivered');
+
+      const name = profile.borrower_name;
+      const scriptText = `Thank you for your patience${name ? `, ${name}` : ''} — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+  }
+
+  override async ttsNode(text: any, modelSettings: any) {
+    this.metrics.markTtsStart();
+    this.metrics.markAvatarRenderStart();
+    return super.ttsNode(text, modelSettings);
+  }
+
   override async onUserTurnCompleted(chatCtx: any, userMessage: any): Promise<void> {
-    // ── [perf] EOU boundary timestamp ────────────────────────────────────────
     const _perfEouEnd = performance.now();
     console.log(`[agent-hook]: onUserTurnCompleted hook triggered with message: "${userMessage?.textContent}"`);
 
     this.contextManager.setLowConfidenceFlag(false);
 
-    // 1. Checkpoint: Wait for the previous turn's extraction to complete (if any)
-    const prevTurn = this.contextManager.getCurrentTurnCount();
-    if (prevTurn > 0) {
-      const _perfCheckpointStart = performance.now();
-      const pendingCount = this.contextManager.getPendingExtractionCount();
-      const maxWaitMs = pendingCount > 1 ? 0 : 300; // Circuit breaker: 0ms wait if backlog > 1
-
-      console.log(`[checkpoint] Gating on previous turn ${prevTurn} extraction. Pending count: ${pendingCount}. Max wait: ${maxWaitMs}ms`);
-
-      const completed = await this.contextManager.waitForExtraction(prevTurn, maxWaitMs);
-      const waitDur = performance.now() - _perfCheckpointStart;
-
-      if (completed) {
-        console.log(`[checkpoint] Previous turn ${prevTurn} extraction resolved normally. Waited: ${waitDur.toFixed(1)}ms`);
-      } else {
-        console.warn(`[checkpoint] Previous turn ${prevTurn} extraction timed out or skipped. Waited: ${waitDur.toFixed(1)}ms`);
-      }
-    }
-
-    // 2. Trigger the current turn's extraction asynchronously in the background
     if (userMessage?.textContent) {
+      // ⚠️  CRITICAL: Capture the pending field SYNCHRONOUSLY before any awaits.
+      // The reconcile for the PREVIOUS turn's background extraction can fire during
+      // an async yield (e.g. saveVoiceConversationTurn), advancing currentPendingField
+      // to a new (non-boundary) field. If we read it AFTER the await, the boundary
+      // check sees the wrong field and the 0ms path is taken instead of the wait.
+      const activeField = this.contextManager.getPendingField();
+      const isBoundary = this.contextManager.isStageBoundaryField(activeField);
+      const isDeterministic = this.contextManager.isDeterministicField(activeField);
+
+      await this.contextManager.saveVoiceConversationTurn('user', userMessage.textContent);
+
       const currentTurnNumber = this.contextManager.triggerBackgroundExtraction(userMessage.textContent);
-      console.log(`[agent-hook]: Current turn background extraction triggered asynchronously (turn=${currentTurnNumber}).`);
 
-      // ── Universal transition gate ─────────────────────────────────────────
-      // Each field in this Set is the LAST answer in a section. When confirmed,
-      // the background extraction advances the state to a new section/stage, and
-      // Ailana must proactively deliver mandatory speech (bridge phrase, consent
-      // disclosure, closing offer, next question, underwriting result, etc.).
-      //
-      // Without awaiting, updateInstructionsCallback() writes stale instructions —
-      // Ailana acknowledges the answer but goes silent, forcing the user to nudge.
-      //
-      // By awaiting only on these known transition points, we guarantee Ailana
-      // speaks the correct next content immediately.
-      // Cost: ~400–800ms per transition, each happening at most ONCE per session.
-      const TRANSITION_TRIGGER_FIELDS = new Set([
-        'co_borrower',              // Stage 1  last field → Stage 2 bridge + income question
-        'job_tenure_type',          // Stage 2  last field → Stage 2 Closing Offer (verbatim)
-        'stage2_closing_offer',     // Stage 2  YES        → Stage 3A legal name
-        'refinance_type',           // Stage 2  refinance_type → Stage 2 target_price
-        'legal_name',               // Stage 3A legal name → Stage 3A physical address
-        'physical_address',         // Stage 3A physical address → Stage 3A consent disclosure
-        'soft_pull_authorization',  // Stage 3A consent    → Prefill walkthrough start
-        'prefill_name_address',     // Prefill  step 1     → Prefill step 2 (employer)
-        'prefill_employer',         // Prefill  step 2     → Prefill step 3 (accounts)
-        'prefill_accounts',         // Prefill  step 3     → Prefill step 4 (credit range)
-        'prefill_credit_range',     // Prefill  last step  → Stage 3B (marital status)
-        'declarations',             // Stage 3B last field → Submit confirmation speech (verbatim)
-        'submit_confirmation',      // Stage 3B YES        → Stage 4 underwriting result
-      ]);
+      const text = userMessage.textContent.trim();
+      const isQuestionOrHesitation = 
+        /\?$/.test(text) || 
+        /\b(what|why|how|can i|could i|does|is it|explain|tell me|wait|hold on|what if|who|meaning|clarify)\b/i.test(text);
 
-      const currentPending = this.contextManager.getPendingField();
-      if (currentPending !== null && TRANSITION_TRIGGER_FIELDS.has(currentPending)) {
-        console.log(`[agent-hook]: Transition-triggering field "${currentPending}" detected — awaiting extraction for immediate state update...`);
-        const waited = await this.contextManager.waitForExtraction(currentTurnNumber, 10000);
-        console.log(`[agent-hook]: Transition extraction for "${currentPending}" ${waited ? 'completed ✅' : 'timed out ⚠️ (proceeding with best-effort state)'}. Proceeding to instructions update.`);
+      if (isQuestionOrHesitation) {
+        console.log(`[agent-hook]: Question/hesitation detected on field "${activeField}". Staying on current field to answer user question.`);
+        // User asked a question — do NOT advance stage or inject fallback. Let LLM answer and re-prompt the pending field.
+      } else if (isBoundary) {
+        // Deterministic fields (like OTP modal / CRS pull) get their required await
+        const waitMs = isDeterministic ? 2500 : 4000;
+        console.log(`[agent-hook]: Field "${activeField}" is a STAGE BOUNDARY (deterministic=${isDeterministic}). Waiting up to ${waitMs}ms for extraction to transition stage...`);
+        
+        const completedInTime = await this.contextManager.waitForExtraction(currentTurnNumber, waitMs);
+        
+        if (!completedInTime) {
+          console.warn(`[agent-hook]: Stage boundary extraction timed out (>${waitMs}ms). Proceeding without stalling.`);
+        } else {
+          console.log(`[agent-hook]: Stage boundary extraction completed in time! Stage is now: ${this.contextManager.getActiveStage()}`);
+        }
+      } else {
+        console.log(`[agent-hook]: Background extraction triggered async (turn=${currentTurnNumber}, field="${activeField}"). Pipeline proceeds immediately — 0ms wait.`);
+        // Inject placeholder / optimistic advance so the LLM proceeds immediately @ 0ms
+        this.contextManager.injectFallbackForPendingField();
       }
     }
 
-    // ── [perf] Instructions update ───────────────────────────────────────────
-    const _perfInstructionsStart = performance.now();
-    // Update original instructions in the session
+    // ── Instructions update ───────────────────────────────────────────
     this.updateInstructionsCallback();
-    const _perfInstructionsMs = (performance.now() - _perfInstructionsStart).toFixed(1);
-    console.log(`[perf] updateInstructions (getActiveInstructions + chatCtx write): ${_perfInstructionsMs}ms`);
 
     // Update local mutable chatCtx copy to align the LLM prompt for the current generation
-    const _perfCtxUpdateStart = performance.now();
-    const activeInstructions = this.contextManager.getActiveInstructions();
+    const staticInstructions = this.contextManager.getStaticInstructions();
     const systemItem = (chatCtx.items.find(
       (item: any) => item.type === 'message' && item.id === 'lk.agent_task.instructions'
     ) || chatCtx.items.find(
       (item: any) => item.type === 'message' && item.role === 'system'
     )) as llm.ChatMessage | undefined;
     if (systemItem) {
-      systemItem.content = [activeInstructions];
+      if (systemItem.content?.[0] !== staticInstructions) {
+        systemItem.content = [staticInstructions];
+      }
       if ((systemItem as any).id !== 'lk.agent_task.instructions') {
         (systemItem as any).id = 'lk.agent_task.instructions';
       }
-      console.log(`[agent-hook]: Local mutable chatCtx system instructions updated.`);
     } else {
       chatCtx.items.unshift(new llm.ChatMessage({
         id: 'lk.agent_task.instructions',
         role: 'system',
-        content: activeInstructions
+        content: staticInstructions
       }));
-      console.log(`[agent-hook]: Local mutable chatCtx system instructions prepended.`);
     }
-    const _perfCtxUpdateMs = (performance.now() - _perfCtxUpdateStart).toFixed(1);
-    console.log(`[perf] chatCtx local copy update: ${_perfCtxUpdateMs}ms`);
 
-    // ── [perf] Total EOU→instructions gap ────────────────────────────────────
-    const _perfTotalMs = (performance.now() - _perfEouEnd).toFixed(1);
-    console.log(`[perf] EOU->instructions-update gap: ${_perfTotalMs}ms`);
+    // Clean previous dynamic state message if present to keep history prefix pristine
+    const dynamicMsgIndex = chatCtx.items.findIndex(
+      (item: any) => item.type === 'message' && item.id === 'lk.agent_dynamic_state'
+    );
+    if (dynamicMsgIndex !== -1) {
+      chatCtx.items.splice(dynamicMsgIndex, 1);
+    }
+
+    // Append dynamic turn context at the tail to anchor static prefix cache
+    const dynamicContext = this.contextManager.getDynamicContext();
+    if (dynamicContext) {
+      chatCtx.items.push(new llm.ChatMessage({
+        id: 'lk.agent_dynamic_state',
+        role: 'system',
+        content: dynamicContext,
+      }));
+    }
   }
 }
 
@@ -268,75 +525,106 @@ export default defineAgent({
     let isAvatarInitDone = false;
 
     const metrics = new LatencyTracker();
-    const summarizationLlm = new openai.LLM({
-      model: 'gemma-4-31b',
-      baseURL: ailanaConfig.cerebrasBaseUrl,
-      apiKey: ailanaConfig.cerebrasApiKey,
+    const summarizationLlm = new inference.LLM({
+      model: 'google/gemma-4-31b-it',
     });
     const contextManager = new SessionContextManager(summarizationLlm, metrics);
 
-    console.log(`[agent]: Loading VAD (minSilence=${ailanaConfig.vadMinSilenceMs}ms)...`);
-    const sessionVad = new inference.VAD({
-      model: 'silero',
-      minSilenceDuration: ailanaConfig.vadMinSilenceMs,
-      prefixPaddingDuration: 200,
+    // ── DATABASE PERSISTENCE: Create or load application ─────────────────────
+    // Each room session maps to a single application in the database.
+    // Use room name as unique identifier to resume existing sessions.
+    if (isDatabaseEnabled()) {
+      try {
+        const roomName = ctx.room.name ?? `room_${Date.now()}`;
+        console.log(`[agent-db]: Checking for existing application with roomName="${roomName}"...`);
+        
+        // TEMPORARY: Option 3 - Never resume (always create fresh sessions)
+        // TODO: Switch to Option 1 after confirming flow with team lead
+        // Option 1: Only resume IN_PROGRESS applications (production-ready)
+        // Uncomment line below to enable resume:
+        //   const application = await applicationService.findApplicationByRoomName(roomName);
+        // And comment out the next line:
+        const application = null as Awaited<ReturnType<typeof applicationService.findApplicationByRoomName>>; // Force fresh session every time
+        
+        if (application) {
+          console.log(`[agent-db]: ✅ Found existing application (id=${application.id})`);
+          contextManager.setApplicationId(application.id);
+          await contextManager.initializeFromDatabase(application.id);
+          console.log(`[agent-db]: ✅ Context restored from database`);
+        } else {
+          console.log(`[agent-db]: No existing application found, creating new one...`);
+          
+          // Create test user for now (TODO: integrate with actual user authentication)
+          const testUser = await applicationService.createUser({
+            email: `test_${roomName}@convergentai.com`,
+            firstName: 'Test',
+            lastName: 'User',
+            phoneNumber: null,
+          });
+          
+          // Create new application only if testUser was created successfully
+          if (testUser) {
+            const newApplication = await applicationService.createApplication({
+              userId: testUser.id,
+              roomName: roomName,
+              currentStage: '1',
+              status: 'IN_PROGRESS',
+            });
+            
+            if (newApplication) {
+              console.log(`[agent-db]: ✅ Created new application (id=${newApplication.id}) for user (id=${testUser.id})`);
+              contextManager.setApplicationId(newApplication.id);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[agent-db]: ❌ Failed to initialize application:', error);
+        console.log('[agent-db]: Continuing without database persistence...');
+      }
+    } else {
+      console.log('[agent-db]: Database persistence disabled (no DATABASE_URL configured)');
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // ── STT: Cartesia ink-2 via LiveKit Inference ────────────────────────────
+    console.log(`[agent]: Loading Cartesia STT via LiveKit Inference (ink-2)...`);
+    const sessionStt = new inference.STT({
+      model: 'cartesia/ink-2',
+      language: 'en',
     });
 
-    // ── Cartesia STT ──────────────────────────────────────────────────────────
-    console.log(`[agent]: Loading Cartesia STT (ink-2)...`);
-    if (!ailanaConfig.cartesiaKey) {
-      console.error('[agent-startup] FATAL: CARTESIA_KEY is not set — STT will fail!');
-    }
-    const sessionStt = new cartesia.STT({
-      apiKey: ailanaConfig.cartesiaKey,
-      model: 'ink-2',
-    });
-
-    // ── Cartesia TTS ─────────────────────────────────────────────────────────
-    console.log(`[agent]: Loading Cartesia TTS (sonic-3.5, voiceId=${ailanaConfig.cartesiaVoiceId || 'MISSING'})...`);
-    if (!ailanaConfig.cartesiaKey) {
-      console.error('[agent-startup] FATAL: CARTESIA_KEY is not set — TTS will fail!');
-    }
-    if (!ailanaConfig.cartesiaVoiceId) {
-      console.warn('[agent-startup] WARNING: CARTESIA_VOICE_ID is not set — using default voice ID.');
-    }
-
-    const sessionTts = new LoggedCartesiaTTS({
-      apiKey: ailanaConfig.cartesiaKey,
-      voice: ailanaConfig.cartesiaVoiceId,
-      model: 'sonic-3.5',
+    // ── TTS: Cartesia sonic-3.5 via LiveKit Inference ────────────────────────
+    console.log(`[agent]: Loading Cartesia TTS via LiveKit Inference (sonic-3.5)...`);
+    const sessionTts = new inference.TTS({
+      model: 'cartesia/sonic-3.5',
+      voice: ailanaConfig.cartesiaVoiceId || 'a167e0f3-df7e-4d52-a9c3-f949145efdab',
       sampleRate: 16000,
-      volume: 0.8,
     });
-
-
 
     const createVadAgent = () => {
-      console.log('[agent]: Creating Cascaded agent (Cerebras LLM + Cartesia STT + Cartesia TTS + LemonSlice Avatar)...');
+      console.log('[agent]: Creating LiveKit Inference agent (Gemma 4 31B LLM + Cartesia Ink-2 STT + Cartesia Sonic-3.5 TTS + TurnDetector)...');
       return new AilanaVoiceAgent({
-        instructions: contextManager.getActiveInstructions(),
+        instructions: contextManager.getStaticInstructions(),
         stt: sessionStt,
-        vad: sessionVad,
-        llm: new CerebrasLLM({
-          model: 'gemma-4-31b',
-          client: cerebrasClient,
+        llm: new inference.LLM({
+          model: 'google/gemma-4-31b-it',
         }),
         tts: sessionTts,
         turnHandling: {
-          turnDetection: 'stt' as const,
-          endpointing: {
-            minDelay: ailanaConfig.vadEndpointMinDelayMs,
-          },
+          turnDetection: new inference.TurnDetector(),
           interruption: {
-            minDuration: ailanaConfig.vadInterruptMinDurationMs,
-            minWords: ailanaConfig.vadInterruptMinWords,
-            mode: 'vad' as const,
+            mode: 'adaptive' as const,
+          },
+          endpointing: {
+            mode: 'dynamic' as const,
+            minDelay: 100,
+            maxDelay: 500, // Aggressively tightened to 500ms max trailing silence
           },
           preemptiveGeneration: {
             enabled: false,
           },
         } as any,
-      }, contextManager, updateSessionInstructions);
+      }, contextManager, updateSessionInstructions, metrics, (stage: string) => sendStageUpdate(stage));
     };
 
     let vadAgent = createVadAgent();
@@ -351,14 +639,14 @@ export default defineAgent({
     const session = new voice.AgentSession({
       userAwayTimeout: null,
       turnHandling: {
-        turnDetection: 'stt' as const,
+        turnDetection: new inference.TurnDetector(),
         endpointing: {
-          minDelay: ailanaConfig.vadEndpointMinDelayMs,
+          mode: 'dynamic' as const,
+          minDelay: 100,
+          maxDelay: 2000,
         },
         interruption: {
-          minDuration: ailanaConfig.vadInterruptMinDurationMs,
-          minWords: ailanaConfig.vadInterruptMinWords,
-          mode: 'vad' as const,
+          mode: 'adaptive' as const,
         },
         preemptiveGeneration: {
           enabled: false,
@@ -366,10 +654,24 @@ export default defineAgent({
       } as any,
     });
 
+    // Wire session.say() callback into vadAgent so onUserTurnCompleted can
+    // deliver verbatim scripts (e.g. stage2_closing_offer) directly, bypassing the LLM.
+    const wireAgentCallbacks = (agent: AilanaVoiceAgent) => {
+      agent.sayCallback = async (text: string) => {
+        await session.say(text, { addToChatCtx: true });
+      };
+      agent.onAgentTurnCallback = async (text: string) => {
+        await contextManager.onAgentTurn(text);
+      };
+    };
+    wireAgentCallbacks(vadAgent);
+
     const backchannelEngine = new BackchannelEngine();
 
     const createAgentForRotation = () => {
       vadAgent = createVadAgent();
+      wireAgentCallbacks(vadAgent);
+
       return vadAgent;
     };
 
@@ -414,13 +716,17 @@ export default defineAgent({
       monthly_debt:           'I apologize for the interruption. What are your total monthly recurring debt payments — things like car loans, student loans, or credit card minimums?',
       credit_range:           'I apologize for that. How would you describe your current credit score — either as a specific number or a general range?',
       refinance_type:         'I apologize for the interruption. Are you considering a cash-out refinance, or are you wanting to reduce your monthly payment through a rate and term refinance?',
-      target_price:           'I apologize for that. What is the estimated market value of the home you wish to refinance?',
+      target_price:           'I apologize for that. What is your target purchase price for the home you are looking to buy?',
       down_payment:           'I apologize for the interruption. How much do you have available for a down payment?',
       rent_own:               'I apologize for that. Do you currently rent, or do you own your home?',
       realtor_status:         'I apologize for the interruption. Have you connected with a real estate agent yet?',
       property_type:          'I apologize for that. What type of property is this — a single-family home, condo, townhome, multi-family, or something else?',
       military_rural:         'I apologize for the interruption. Do you have any military service history, or is the property in a rural area?',
       job_tenure_type:        'I apologize for that. Could you tell me a bit about your current job tenure and the type of income you have — for example, whether you are salaried, hourly, or self-employed?',
+      // Stage 2 Closing Offer — verbatim two-path choice re-prompt
+      stage2_closing_offer:   'I apologize for the interruption. Let me repeat: you have two options for your affordability summary. The most complete option is a soft credit review — no impact to your credit score — which prefills your application with your real credit data. Or I can build your summary right now from everything you have shared, and you can add the credit review whenever you are ready. Which would you prefer?',
+      // Stage 4
+      checklist_acknowledgement: 'I apologize for that interruption. Do you have these documents available, or would you like to go through any of them?',
     };
 
     session.on(voice.AgentSessionEventTypes.Error, (err: any) => {
@@ -449,8 +755,9 @@ export default defineAgent({
           }
           // Mark avatar render start — LemonSlice receives TTS audio from this moment
           metrics.markAvatarRenderStart();
-          // First audio frame of the avatar track arrives with a short processing delay;
-          // markAvatarFirstFrame() is called from the TrackPublished / TrackSubscribed handler below.
+          // First audio frame of the avatar track: markAvatarFirstFrame() is called
+          // from BOTH ActiveSpeakersChanged (primary) and TrackSubscribed (secondary/safety net).
+          // The idempotency guard ensures only the first event records the metric.
 
           // ── Silent-turn guard: agent started speaking → cancel any pending re-prompt
           if (silentTurnTimer !== null) {
@@ -491,8 +798,20 @@ export default defineAgent({
                 }
                 console.log(`[silent-turn-guard]: Firing re-prompt for field="${pendingField}".`);
                 try {
-                  session.say(repromptText, { addToChatCtx: true });
-                  contextManager.onAgentTurn(repromptText);
+                  // For Stage 4 transitions, use generateReply so the LLM produces
+                  // the full AUS result announcement with the correct Stage 4 context,
+                  // rather than speaking a generic static re-prompt.
+                  if (contextManager.getActiveStage() === '4') {
+                    console.log(`[silent-turn-guard]: Stage 4 detected — using generateReply for AUS result delivery.`);
+                    metrics.startTurn();
+                    metrics.markGenerateReply();
+                    session.generateReply({ userInput: 'The application has been submitted to underwriting. Please announce the result to the borrower.' });
+                  } else {
+                    session.say(repromptText, { addToChatCtx: true });
+                    contextManager.onAgentTurn(repromptText).catch(err => 
+                      console.error('[agent-error]: Failed to save agent turn:', err)
+                    );
+                  }
                 } catch (err) {
                   console.warn('[silent-turn-guard]: Failed to fire re-prompt:', err);
                 }
@@ -528,7 +847,9 @@ export default defineAgent({
           clearTimeout(silentTurnTimer);
           silentTurnTimer = null;
         }
-        contextManager.onAgentTurn(item.textContent);
+        contextManager.onAgentTurn(item.textContent).catch(err => 
+          console.error('[agent-error]: Failed to save agent turn:', err)
+        );
 
         // ── Publish agent message as a LiveKit chat message ─────────────────
         // Since TTS audio goes directly to LemonSlice via DataStreamAudioOutput,
@@ -566,23 +887,78 @@ export default defineAgent({
       if (m?.type === 'llm_metrics') {
         const ttft = m.ttftMs ?? -1;
         const tokens = m.promptTokens ?? 0;
-        metrics.markLlmFirstToken();       // idempotent — only records once
+        const cachedTokens = m.promptCachedTokens ?? m.cachedTokens ?? m.inputCachedTokens ?? m.prompt_cached_tokens ?? 0;
+        metrics.markLlmFirstToken(ttft);       // idempotent — calculates exact arrival timestamp
         metrics.markLlmComplete();
         metrics.recordRealtimeMetrics(ttft, tokens);
-        console.log(`[pipeline][${ts()}] LLM metrics — TTFT=${ttft}ms  prompt_tokens=${tokens}  completion_tokens=${m.completionTokens ?? '?'}`);
+        const cacheTag = cachedTokens > 0 ? ` [CACHE HIT: ${cachedTokens} tokens]` : ' [CACHE MISS/COLD]';
+        console.log(`[pipeline][${ts()}] LLM metrics — TTFT=${ttft}ms  prompt_tokens=${tokens}  cached_tokens=${cachedTokens}${cacheTag}  completion_tokens=${m.completionTokens ?? '?'}`);
       } else if (m?.type === 'tts_metrics') {
-        const dur = m.duration ?? -1;
-        metrics.markTtsComplete();
-        console.log(`[pipeline][${ts()}] TTS metrics — audio_dur=${dur}ms`);
+        const ttfb = m.ttfbMs ?? -1;
+        const dur = m.durationMs ?? m.duration ?? -1;
+        const audioDur = m.audioDurationMs ?? -1;
+        metrics.markTtsComplete(ttfb, dur, audioDur);
       } else if (m?.type === 'realtime_model_metrics') {
         metrics.recordRealtimeMetrics(m.ttftMs ?? -1, m.inputTokens ?? 0);
       }
     });
 
+    let lastSentStage = contextManager.getActiveStage();
+    const sendStageUpdate = async (stage: string) => {
+      try {
+        const prof = contextManager.getProfile();
+        const payload = new TextEncoder().encode(JSON.stringify({
+          message: "SYSTEM_STAGE_UPDATE",
+          stage,
+          profile: {
+            // ── Core borrower data ──────────────────────────────────
+            borrowerName: prof.borrower_name,
+            grossAnnualIncome: prof.gross_annual_income,
+            totalMonthlyDebt: prof.monthly_debt,
+            targetPrice: prof.target_price,
+            downPayment: prof.down_payment,
+            creditRange: prof.credit_range,
+            military_rural: prof.military_rural,
+            militaryRural: prof.military_rural,
+            zipCode: prof.zip_code,
+            propertyType: prof.property_type,
+            // ── Affordability Panel state ────────────────────────────
+            affordability_panel_rendered: prof.affordability_panel_rendered,
+            affordability_mode: prof.affordability_mode,
+            affordability_purchase_price: prof.affordability_purchase_price,
+            affordability_down_payment: prof.affordability_down_payment,
+            affordability_income_band: prof.affordability_income_band,
+            affordability_dti_band: prof.affordability_dti_band,
+            affordability_aus_status: prof.affordability_aus_status,
+            aus_status: prof.aus_status,
+            affordability_panel_closed: (prof as any).affordability_panel_closed,
+            affordability_submitted: prof.affordability_submitted,
+            dti_above_hard_ceiling: prof.dti_above_hard_ceiling,
+            // ── Session login / OTP state ────────────────────────────
+            otp_verified: prof.otp_verified,
+            session_login_complete: prof.session_login_complete,
+            contact_on_file: prof.contact_on_file,
+            contact_email: prof.contact_email,
+            contact_mobile: prof.contact_mobile,
+            // otp_sent = true when the OTP has been generated (even before field reaches 'otp_verification')
+            // This lets the frontend open the modal as soon as the OTP is dispatched.
+            otp_sent: !!(prof as any)._pendingOtp,
+            // ── Flow state ──────────────────────────────────────────
+            current_pending_field: contextManager.getPendingField(),
+          }
+        }));
+        await ctx.room.localParticipant?.publishData(payload, { reliable: true, topic: 'lk-chat' });
+        console.log(`[agent-debug]: Sent stage update to frontend: ${stage} with profile data.`);
+      } catch (e: any) {
+        console.warn(`[agent-debug]: Failed to send stage update:`, e?.message);
+      }
+    };
+
+
     function updateSessionInstructions() {
       try {
-        const activeInstructions = contextManager.getActiveInstructions();
-        (vadAgent as any)._instructions = activeInstructions;
+        const staticInstructions = contextManager.getStaticInstructions();
+        (vadAgent as any)._instructions = staticInstructions;
 
         const chatCtx = session.chatCtx;
         const systemItem = (chatCtx.items.find(
@@ -591,21 +967,29 @@ export default defineAgent({
           (item) => item.type === 'message' && (item as llm.ChatMessage).role === 'system'
         )) as llm.ChatMessage | undefined;
         if (systemItem) {
-          systemItem.content = [activeInstructions];
+          if (systemItem.content?.[0] !== staticInstructions) {
+            systemItem.content = [staticInstructions];
+            console.log(`[agent-debug]: Static system instructions in session.chatCtx updated (stage change).`);
+          }
           // Ensure it has the correct ID so the LiveKit SDK updates it correctly
           if ((systemItem as any).id !== 'lk.agent_task.instructions') {
             (systemItem as any).id = 'lk.agent_task.instructions';
           }
-          console.log(`[agent-debug]: System instruction message in session.chatCtx updated.`);
         } else {
           chatCtx.items.unshift(new llm.ChatMessage({
             id: 'lk.agent_task.instructions',
             role: 'system',
-            content: activeInstructions
+            content: staticInstructions
           }));
-          console.log(`[agent-debug]: System instruction message prepended to session.chatCtx.`);
+          console.log(`[agent-debug]: Static system instructions prepended to session.chatCtx.`);
         }
         console.log(`[agent-debug]: Instructions updated — stage=${contextManager.getActiveStage()}, pendingField=${contextManager.getPendingField()}`);
+        
+        // Broadcast stage + profile to frontend on every turn so UI always has the latest
+        // affordability flags, pending field, and login state (not just on stage changes)
+        const currentStage = contextManager.getActiveStage();
+        lastSentStage = currentStage;
+        sendStageUpdate(currentStage);
       } catch (err) {
         console.warn(`[agent]: Failed to update instructions mid-session:`, err);
       }
@@ -618,27 +1002,33 @@ export default defineAgent({
       console.log(`[agent]: Text-only reply for "${userMessage}"...`);
 
       try {
-        const systemPrompt = contextManager.getActiveInstructions();
-        const chatMessages = contextManager.buildTextMessages(systemPrompt);
+        const chatMessages = contextManager.buildTextMessages();
 
-        // Ensure system prompt is always at index 0 and conversation history is sliced safely
+        // Ensure static system prompt is at index 0, history in middle, dynamic context at end
         const systemMessage = chatMessages[0];
-        const historyMessages = chatMessages.slice(1);
-        const slicedHistory = historyMessages.slice(-23); // keep up to 23 recent turns
-        const messages = [systemMessage, ...slicedHistory];
+        const dynamicMessage = chatMessages[chatMessages.length - 1];
+        const historyMessages = chatMessages.slice(1, -1);
+        const slicedHistory = historyMessages.slice(-22); // keep up to 22 recent turns
+        const messages = [systemMessage, ...slicedHistory, dynamicMessage];
 
-        console.log(`[agent]: Dispatching text-only reply to Cerebras client proxy...`);
-        const completion = await cerebrasClient.chat.completions.create({
-          model: 'gemma-4-31b',
-          messages: messages as any,
-          max_tokens: 500,
-          temperature: 0.6,
-        } as any);
-
-        const reply = completion.choices?.[0]?.message?.content?.trim();
+        console.log(`[agent]: Dispatching text-only reply to LiveKit Inference LLM (prefix cached)...`);
+        const textChatCtx = new llm.ChatContext();
+        for (const msg of messages) {
+          if (msg) {
+            textChatCtx.addMessage({
+              role: (msg.role as any) || 'user',
+              content: msg.content || '',
+            });
+          }
+        }
+        const textStream = summarizationLlm.chat({ chatCtx: textChatCtx });
+        const textCollected = await textStream.collect();
+        const reply = textCollected.text?.trim();
 
         if (reply) {
-          contextManager.onAgentTurn(reply);
+          contextManager.onAgentTurn(reply).catch(err => 
+            console.error('[agent-error]: Failed to save agent turn:', err)
+          );
           console.log(`[agent]: Text-only reply: "${reply}"`);
 
           try {
@@ -655,6 +1045,40 @@ export default defineAgent({
     const handleSystemMessages = async (messageText: string, participantIdentity: string | undefined) => {
       if (isHibernating && messageText !== 'SYSTEM_RESUME_AGENT') {
         console.log(`[agent]: Ignoring message while hibernating: ${messageText}`);
+        return;
+      }
+
+      if (messageText.startsWith('SYSTEM_AUS_SUBMITTED:')) {
+        const status = messageText.split(':')[1];
+        console.log(`[agent]: SYSTEM_AUS_SUBMITTED received. Status: ${status}`);
+        contextManager.applyAusResult(status as any);
+        updateSessionInstructions();
+        
+        const triggerPrompt = `The eligibility review has returned with status: ${status}. Please deliver the findings to the borrower.`;
+        if (voiceMuted) {
+          await generateTextOnlyReply(triggerPrompt);
+        } else {
+          metrics.startTurn();
+          metrics.markGenerateReply();
+          session.generateReply({ userInput: triggerPrompt });
+        }
+        return;
+      }
+
+      if (messageText === 'SYSTEM_STAGE_UPDATE_UPGRADE') {
+        console.log(`[agent]: SYSTEM_STAGE_UPDATE_UPGRADE received. Triggering upgrade to Stage 3A.`);
+        contextManager.triggerUpgradeToVerifiedMode();
+        updateSessionInstructions();
+        await sendStageUpdate(contextManager.getActiveStage());
+
+        const triggerPrompt = `The borrower clicked 'Upgrade to Verified Mode' on their screen. Transition to Stage 3A by asking for their email and mobile number to set up their secure login for the soft credit review.`;
+        if (voiceMuted) {
+          await generateTextOnlyReply(triggerPrompt);
+        } else {
+          metrics.startTurn();
+          metrics.markGenerateReply();
+          session.generateReply({ userInput: triggerPrompt });
+        }
         return;
       }
 
@@ -729,6 +1153,13 @@ export default defineAgent({
         const targetMode = messageText.split(':')[1] || 'video';
         console.log(`[agent]: Channel started (${targetMode}).`);
 
+        if (greetingGenerated) {
+          return;
+        }
+
+        // Flag pendingGreeting so TrackUnmuted or avatarReady handler knows a greeting is queued
+        pendingGreeting = true;
+
         if (!isAvatarInitDone) {
           console.log(`[agent]: SYSTEM_CHANNEL_START received before avatar ready. Waiting for avatar initialization...`);
           await avatarReadyPromise;
@@ -740,7 +1171,8 @@ export default defineAgent({
         }
 
         greetingGenerated = true;
-        const greetingText = "Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?";
+        pendingGreeting = false;
+        const greetingText = GREETING_TEXT;
 
         try {
           if (!(session as any)._started) {
@@ -798,6 +1230,13 @@ export default defineAgent({
       }
     });
 
+    ctx.room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
+      const isSpeaking = speakers.some((p) => p.identity?.startsWith('lemonslice') || p.identity?.includes('avatar'));
+      if (isSpeaking) {
+        metrics.markAvatarFirstFrame();
+      }
+    });
+
     ctx.room.on(RoomEvent.TrackPublished, (pub, participant) => {
       if (isHibernating) {
         pub.setSubscribed(false);
@@ -807,6 +1246,15 @@ export default defineAgent({
     ctx.room.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
       if (isHibernating) {
         pub.setSubscribed(false);
+      }
+      // Secondary avatar first-frame trigger: TrackSubscribed fires earlier than
+      // ActiveSpeakersChanged on fast turns where the SDK cleans up the task
+      // lifecycle before the speaker list updates (the "firstFrameFut cancelled"
+      // race condition). The idempotency guard in markAvatarFirstFrame() ensures
+      // only the first event wins — no double-counting.
+      if (participant?.identity?.startsWith('lemonslice') || participant?.identity?.includes('avatar')) {
+        console.log(`[avatar][${ts()}] 🎯  TrackSubscribed from avatar — triggering markAvatarFirstFrame() as safety net`);
+        metrics.markAvatarFirstFrame();
       }
     });
 
@@ -837,9 +1285,10 @@ export default defineAgent({
         console.log(`[agent]: Sent SYSTEM_AGENT_READY signal.`);
 
         // If the channel start signal already arrived while we were waiting, say greeting now
-        const greetingText = "Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?";
+        const greetingText = GREETING_TEXT;
         if (pendingGreeting && !greetingGenerated) {
           greetingGenerated = true;
+          pendingGreeting = false;
           metrics.startTurn();
           metrics.markAgentSpeaking();
           session.say(greetingText, { addToChatCtx: true });
@@ -858,6 +1307,18 @@ export default defineAgent({
           const str = new TextDecoder().decode(payload);
           try {
             const parsed = JSON.parse(str);
+            if (parsed.type === 'otp_submit') {
+              contextManager.handleOtpSubmission(parsed.code);
+              updateSessionInstructions();
+              const triggerPrompt = `The borrower has entered the OTP code ${parsed.code} into the modal. Please verify it and proceed.`;
+              if (voiceMuted) {
+                await generateTextOnlyReply(triggerPrompt);
+              } else {
+                metrics.startTurn();
+                session.generateReply({ userInput: triggerPrompt });
+              }
+              return;
+            }
             await handleSystemMessages(parsed.message ?? str, identity);
           } catch {
             await handleSystemMessages(str, identity);
@@ -877,6 +1338,18 @@ export default defineAgent({
           if (participant?.identity !== ctx.room.localParticipant?.identity) {
             try {
               const parsed = JSON.parse(fullText);
+              if (parsed.type === 'otp_submit') {
+                contextManager.handleOtpSubmission(parsed.code);
+                updateSessionInstructions();
+                const triggerPrompt = `The borrower has entered the OTP code ${parsed.code} into the modal. Please verify it and proceed.`;
+                if (voiceMuted) {
+                  await generateTextOnlyReply(triggerPrompt);
+                } else {
+                  metrics.startTurn();
+                  session.generateReply({ userInput: triggerPrompt });
+                }
+                return;
+              }
               await handleSystemMessages(parsed.message ?? fullText, participant?.identity);
             } catch {
               await handleSystemMessages(fullText, participant?.identity);
@@ -958,8 +1431,13 @@ export default defineAgent({
         for (const p of ctx.room.remoteParticipants.values()) {
           console.log(`[avatar][${ts()}] Found remote participant: identity=${p.identity}`);
           if (p.identity.startsWith('lemonslice') || p.identity.includes('avatar')) {
-            markReady();
-            return true;
+            const hasVideo = Array.from(p.trackPublications.values()).some((pub: any) => pub.kind === TrackKind.KIND_VIDEO && pub.isSubscribed);
+            if (hasVideo) {
+              markReady();
+              return true;
+            } else {
+              console.log(`[avatar][${ts()}] Participant found but video track not subscribed yet. Waiting for TrackSubscribed event.`);
+            }
           }
         }
         return false;
@@ -967,9 +1445,8 @@ export default defineAgent({
 
       ctx.room.on(RoomEvent.ParticipantConnected, (participant: any) => {
         console.log(`[avatar][${ts()}] Participant Connected: identity=${participant?.identity}`);
-        if (participant?.identity?.startsWith('lemonslice') || participant?.identity?.includes('avatar')) {
-          markReady();
-        }
+        // Do NOT call markReady() here. WebRTC tracks are not subscribed yet.
+        // Wait for TrackSubscribed event so the first audio/video frames are not lost.
       });
 
       // Listen for subscription events
@@ -1005,7 +1482,15 @@ export default defineAgent({
             const avatarSession = new AvatarSession({
               agentId: lsAgentId,
               apiKey: lsApiKey,
+              // agentPrompt controls expressions WHILE SPEAKING
+              agentPrompt: 'You are Ailana, a professional AI mortgage advisor in her mid-30s. You are warm, composed, and confident — the kind of person a member trusts with one of the biggest financial decisions of their life. You represent a credit union, so your manner is approachable but polished, never salesy or performative. Facial expression and movement: stay subtle and controlled at all times. Rest with a calm, closed or barely-parted mouth between utterances. When speaking, use small, measured mouth movements rather than wide or exaggerated openings — this applies especially to the very first word of any sentence, including greetings like "Hi" or "Hello." Avoid theatrical or cartoonish expressions; think understated warmth, not enthusiasm. Head movement is gentle and occasional, eye contact is soft and steady, eyebrow movement is minimal. Your overall demeanor is that of a trusted advisor sitting across a desk from someone — calm, attentive, unhurried.',
+              // agent_idle_prompt controls expressions WHILE LISTENING/IDLE
+              extraPayload: {
+                agent_idle_prompt: 'You are Ailana, a professional AI mortgage advisor in her mid-30s. You are warm, composed, and confident — the kind of person a member trusts with one of the biggest financial decisions of their life. You represent a credit union, so your manner is approachable but polished, never salesy or performative. Facial expression and movement: stay subtle and controlled at all times. Rest with a calm, closed or barely-parted mouth between utterances. When speaking, use small, measured mouth movements rather than wide or exaggerated openings — this applies especially to the very first word of any sentence, including greetings like "Hi" or "Hello." Avoid theatrical or cartoonish expressions; think understated warmth, not enthusiasm. Head movement is gentle and occasional, eye contact is soft and steady, eyebrow movement is minimal. Your overall demeanor is that of a trusted advisor sitting across a desk from someone — calm, attentive, unhurried.',
+                model: 'flash',
+              },
             });
+
             const avatarStartT = Date.now();
             await avatarSession.start(session, ctx.room);
             const elapsed = Date.now() - avatarStartT;
@@ -1070,11 +1555,10 @@ export default defineAgent({
           console.log(`[avatar][${ts()}] ▶  Avatar API call succeeded. Sending SYSTEM_AVATAR_CONNECTED to frontend. Waiting for participant...`);
           sendAvatarStatus('SYSTEM_AVATAR_CONNECTED');
 
-          // When LemonSlice publishes its first track, record latency
+          // Log track publication but do not mark first frame here (done dynamically on speakers changed)
           ctx.room.on(RoomEvent.TrackPublished, (pub: any, participant: any) => {
             if (participant?.identity?.startsWith('lemonslice') || participant?.identity?.includes('avatar')) {
               console.log(`[avatar][${ts()}] 📹  LemonSlice track published — kind=${pub.kind} source=${pub.source}`);
-              metrics.markAvatarFirstFrame();
             }
           });
 
@@ -1127,31 +1611,9 @@ export default defineAgent({
       resolveAvatarReady();
     }
 
-    // Measure connection latency to Cerebras API endpoint on start
-    (async () => {
-      const start = Date.now();
-      try {
-        const res = await fetch(`${ailanaConfig.cerebrasBaseUrl}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${ailanaConfig.cerebrasApiKey}`
-          },
-          body: JSON.stringify({
-            model: 'gemma-4-31b',
-            messages: [{ role: 'user', content: 'ping' }],
-            max_tokens: 1,
-          })
-        });
-        const duration = Date.now() - start;
-        console.log(`[latency-check][${ts()}] Cerebras API connection roundtrip test completed in ${duration}ms (HTTP Status: ${res.status})`);
-      } catch (err: any) {
-        const duration = Date.now() - start;
-        console.warn(`[latency-check][${ts()}] Cerebras API connection test returned error after ${duration}ms: ${err?.message || err}`);
-      }
-    })();
 
-    const activeModelName = 'cascade-livekit-inference (Cerebras GPT-OSS 120B + Cartesia TTS + LemonSlice Avatar)';
+
+    const activeModelName = 'LiveKit Inference (google/gemma-4-31b-it + cartesia/ink-2 + cartesia/sonic-3.5 + LemonSlice Avatar)';
     console.log(
       `[agent]: Ready — model=${activeModelName}, prompt=${ailanaConfig.promptVersion}, compact@${ailanaConfig.compactEveryNTurns} turns / ${ailanaConfig.forceCompactInputTokens} tokens`,
     );

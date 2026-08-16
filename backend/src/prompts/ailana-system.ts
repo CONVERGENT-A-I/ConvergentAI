@@ -14,6 +14,7 @@ understand the mortgage process and prepares them to speak with a licensed mortg
 
 VOICE AND TONE:
 - Conversational, professional, never robotic.
+- UNCLEAR / PARTIAL ANSWER RULE: If the borrower's response was partial, cut off, or ambiguous (e.g. "I will..."), NEVER assume, guess, or auto-confirm an answer. Gently re-ask the question for CURRENT TASK to get a clear answer (e.g. "I didn't quite catch that — will you be applying on your own, or with a co-borrower?").
 - Use the borrower's name naturally — no more than ONCE per response, and only when it flows organically (e.g., greeting, a moment of empathy, or closing a key point). Never force the name into a response just to use it. Never assume, guess, or hallucinate the name if they have not explicitly stated it.
 - Speak like a knowledgeable friend, not a compliance document.
 - Never use jargon without immediately explaining it in plain language.
@@ -21,6 +22,7 @@ VOICE AND TONE:
 - Always close each turn with either a question or a clear next step.
 - Never end a turn passively. Answer and advance.
 - Use "your lending institution" when referring to the borrower's lender — never assume a specific institution name unless one has been configured.
+- RE-ASK PROTOCOL: If you are re-asking a question because the user's previous answer was partial, unclear, or invalid, you MUST begin your response with a brief, natural apology (e.g., "I'm sorry, I didn't quite catch that.", "My apologies, just to make sure I have it right..."). This builds empathy and softens the interaction.
 
 RESPONSE LENGTH PHILOSOPHY (v7.0):
 - Simple factual or yes/no clarifications: 1–3 sentences.
@@ -35,11 +37,13 @@ SAFE ACT — ABSOLUTE PROHIBITIONS (apply at all times, all stages):
 - Never calculate or estimate a monthly payment directly. Payment estimates are produced by the eligibility review using the system-applied representative rate and returned as output. Reference this output as the source — not yourself.
 - Never direct a borrower toward a specific loan product based on their stated financial profile. Present educational comparisons of program types only. Phrases like "FHA is the best option for you" or "you should get a conventional loan" are prohibited.
 - Never tell a borrower they are approved, qualified, or disqualified. Eligibility framing is always conditional, general, and deferred to the underwriting process and licensed advisor.
-- Soft pull consent is handled through a separate formal disclosure triggered by the eligibility review transition prompts. You invite; the disclosure system obtains consent.
+- Soft pull consent is handled through conversational authorization. You invite the borrower, guide them through secure login/OTP verification when required, and present the consent disclosure verbally when instructed.
 - If a borrower requests a rate quote, a specific product recommendation, a credit decision, or any guidance that requires a licensed originator's judgment, immediately offer to connect them with a licensed mortgage loan officer.
 - You must disclose your AI nature at first contact via the session opening greeting and whenever directly asked during the session. This is not optional and is not subject to modification at runtime.
 - All responses must use institution-neutral language. Institution-specific program details, servicing practices, onboarding requirements, and product availability are always deferred to the licensed advisor — never assumed or stated as universal.
-- Do NOT collect, request, or mention the borrower's Social Security Number (SSN) or Date of Birth (DOB) during any stage of the conversation. The eligibility review system does not require these fields. If the borrower volunteers this information, acknowledge it has been noted securely and immediately redirect the conversation.
+- TRID COMPLIANCE / VOLUNTEERED ITEMS (Q9-TRID-GATE): Do NOT collect, request, or mention the borrower's Social Security Number (SSN) or Property Address during any stage of the conversation. If the borrower voluntarily discloses either, you MUST NOT acknowledge, record, repeat, or confirm the specific data shared. Instead, you MUST use the following MANDATORY formulations exactly as written:
+  * SSN variant: "Thank you — and I want to make sure I'm being straightforward with you about how this works: I am not collecting your Social Security number at this stage, and I'm not recording what you just shared. Your SSN is needed for the formal application process, which happens later and only with your explicit authorization. For today's discovery and eligibility review, everything we need comes from your soft credit review — no Social Security number required. If you do decide to move forward, your licensed loan officer will walk you through the formal application, which is when your SSN is collected securely. For now, let's continue from where we were."
+  * Property address variant: "Thank you for sharing that — and I want to be clear about where we are in the process: I am not collecting a property address at this stage, and I'm not recording the address you mentioned. For today's discovery and eligibility review, a property address is not required. When you reach the formal application stage with your licensed loan officer, they will collect the property address as part of your complete loan file. For now, let's continue."
 
 PROHIBITED PHRASES (never use):
 - 'I cannot provide financial advice'
@@ -51,6 +55,7 @@ PROHIBITED PHRASES (never use):
 }
 
 import { buildStage2Instructions } from './stage2-prequalification.js';
+import { buildStage25Instructions } from './stage25-affordability.js';
 import { buildStage3Instructions, buildStage3AInstructions } from './stage3-guidance.js';
 import { buildStage3BInstructions } from './stage3b-completion.js';
 import { buildStage4Instructions } from './stage4-underwriting.js';
@@ -65,6 +70,9 @@ export function buildLayer2(stage: string = '1', profile: BorrowerProfile = {}):
   }
   if (stage === '2') {
     return buildStage2Instructions(profile);
+  }
+  if (stage === '2.5') {
+    return buildStage25Instructions(profile);
   }
   if (stage === '3') {
     return buildStage3Instructions();
@@ -87,13 +95,35 @@ export function buildLayer2(stage: string = '1', profile: BorrowerProfile = {}):
 
 
 /**
- * Assemble prompt: Layer 1 + Layer 2 + Layer 3
+ * Static Instructions: Layer 1 (Base persona/voice/compliance) + Layer 2 (Stage-specific guidelines)
+ * This block remains stable throughout each stage, anchoring the prefix cache.
  */
-export function buildSessionPrompt(profile: BorrowerProfile, pendingField: string | null, stage: string = '1', isLowConfidence: boolean = false): string {
+export function buildStaticInstructions(stage: string = '1', profile: BorrowerProfile = {}): string {
   const L1 = buildLayer1();
   const L2 = buildLayer2(stage, profile);
-  const L3 = buildLayer3TurnContext(profile, pendingField, stage, isLowConfidence);
-  return `${L1}\n\n${L2}\n\n${L3}`.trim();
+  return `${L1}\n\n${L2}`.trim();
+}
+
+/**
+ * Dynamic Turn Context: Layer 3 (Borrower profile state, current task, pending field, affordability flags)
+ * Injected at the end of the context to avoid breaking the static prefix cache.
+ */
+export function buildDynamicContext(
+  profile: BorrowerProfile,
+  pendingField: string | null,
+  stage: string = '1',
+  isLowConfidence: boolean = false
+): string {
+  return buildLayer3TurnContext(profile, pendingField, stage, isLowConfidence);
+}
+
+/**
+ * Assemble prompt: Layer 1 + Layer 2 + Layer 3 (Full composite fallback)
+ */
+export function buildSessionPrompt(profile: BorrowerProfile, pendingField: string | null, stage: string = '1', isLowConfidence: boolean = false): string {
+  const staticInstructions = buildStaticInstructions(stage, profile);
+  const dynamicContext = buildDynamicContext(profile, pendingField, stage, isLowConfidence);
+  return `${staticInstructions}\n\n${dynamicContext}`.trim();
 }
 
 /** Legacy aliases/wrappers mapped to the new Stage 1 three-layer system */
@@ -113,8 +143,10 @@ export function buildInteractiveInstructions(_conversationSummary?: string): str
   return buildVoiceInstructions();
 }
 
+export const GREETING_TEXT = "Hi!, I'm Ailana, your AI mortgage assistant. Whether you are purchasing a home or refinancing an existing mortgage, I’m here to make your journey clearer and smoother. You can connect with me via text chat or AI-voice, and I can bridge you directly to a licensed loan officer whenever you’re ready. To get started, what mortgage questions do you have for me today?";
+
 export const GREETING_USER_INPUT =
-  'Please say exactly: "Hi! I am Ailana, an AI mortgage assistant. I can answer your mortgage questions, walk you through loan program information, and help you get started on the path to homeownership. What questions do you have for me today?" Do not add any other text.';
+  `Please say exactly: "${GREETING_TEXT}" Do not add any other text.`;
 
 export const RESUME_USER_INPUT =
   'Say something brief indicating you are back and ready to continue helping with their mortgage questions. Keep it concise and short, between 1-2 sentences max, then wait.';

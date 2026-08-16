@@ -8,6 +8,7 @@ import FloatingCTA from "@/components/floating-cta";
 import BackendConnectionTest from "@/components/backend-connection-test";
 
 import ErrorBoundary from "@/components/error-boundary";
+import { ConditionalUI } from "@/components/conditional-ui";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -44,12 +45,14 @@ export default function RootLayout({
 
         {process.env.NODE_ENV === "development" && <BackendConnectionTest />}
         {children}
-        <Suspense fallback={null}>
-          <ErrorBoundary>
-            <FloatingCTA />
-          </ErrorBoundary>
-        </Suspense>
-        <Footer />
+        <ConditionalUI>
+          <Suspense fallback={null}>
+            {/* <ErrorBoundary>
+              <FloatingCTA />
+            </ErrorBoundary> */}
+          </Suspense>
+          <Footer />
+        </ConditionalUI>
       </body>
     </html>
   );

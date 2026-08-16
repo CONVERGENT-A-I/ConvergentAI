@@ -1,4 +1,6 @@
 export interface BorrowerProfile {
+  current_pending_field?: string | null;
+
   // ── Stage 1 ──────────────────────────────────────────────────────────────
   borrower_name?: string | null;
   borrower_name_confirmed?: boolean;
@@ -31,13 +33,13 @@ export interface BorrowerProfile {
   down_payment?: number | null;
   down_payment_confirmed?: boolean;
 
-  rent_own?: 'rent' | 'own' | 'own_selling' | null;
+  rent_own?: 'rent' | 'own' | 'own_selling' | 'other' | null;
   rent_own_confirmed?: boolean;
 
-  realtor_status?: 'yes' | 'no' | null;
+  realtor_status?: 'yes' | 'no' | 'other' | null;
   realtor_status_confirmed?: boolean;
 
-  refinance_type?: 'cash_out' | 'rate_term' | null;
+  refinance_type?: 'cash_out' | 'rate_term' | 'other' | null;
   refinance_type_confirmed?: boolean;
 
   target_price?: number | null;
@@ -58,7 +60,7 @@ export interface BorrowerProfile {
   pending_confirm_value?: string | null;
 
   // Active transition bridge phrase to output next response
-  bridge_to_say?: 'stage1_to_stage2' | 'stage2_to_stage3' | null;
+  bridge_to_say?: 'stage1_to_stage2' | 'stage2_to_stage3' | 'stage3A_to_stage3B' | null;
 
   // ── Stage 3 / 3A ─────────────────────────────────────────────────────────
   eligible_products?: string[] | null;
@@ -97,6 +99,30 @@ export interface BorrowerProfile {
   declarations_confirmed?: boolean;
   ready_to_submit?: boolean;
 
+  // ── Stage 2.5 (Affordability Panel) ──────────────────────────────────────
+  affordability_panel_rendered?: boolean;
+  affordability_mode?: 'stated' | 'verified' | null;
+  affordability_purchase_price?: number | null;
+  affordability_down_payment?: number | null;
+  affordability_income_band?: 'within' | 'above' | null;
+  affordability_dti_band?: 'within' | 'above' | null;
+  affordability_submitted?: boolean;
+  affordability_aus_status?: 'pending' | 'approve_eligible' | 'refer' | null;
+  affordability_prequel_letter_sent?: boolean;
+  session_login_complete?: boolean;
+  contact_on_file?: boolean;
+  contact_email?: string | null;
+  contact_mobile?: string | null;
+  otp_verified?: boolean;
+  zip_code?: string | null;
+
+  // ── Stage 2.5 Compliance Disclosures & Flags ──────────────────────────────
+  eligibility_review_explained?: boolean;
+  credit_impact_stated?: boolean;
+  pmi_explained?: boolean;
+  transition_pitch_delivered?: boolean;
+  dti_above_hard_ceiling?: boolean;
+
   // ── Stage 4 ──────────────────────────────────────────────────────────────
   aus_status?: 'waiting' | 'approve' | 'approve_with_conditions' | 'refer' | 'suspend' | 'timeout' | null;
   aus_confirmed?: boolean;
@@ -121,7 +147,7 @@ const FIELD_LABELS: Record<string, string> = {
   realtor_status: 'real estate agent connection status',
   target_price: 'target purchase price',
   property_type: 'property type',
-  military_rural: 'military service or rural property status',
+  military_rural: 'military service history (VA loan eligibility check)',
   job_tenure_type: 'employment tenure and income type',
   marital_status: 'marital status',
   dependents: 'number of dependents',
@@ -134,6 +160,12 @@ const FIELD_LABELS: Record<string, string> = {
   home_horizon: 'home horizon status',
   aus_status: 'automated underwriting status',
   checklist_discussed: 'documentation checklist confirmation',
+  affordability_purchase_price: 'target purchase price (affordability panel)',
+  affordability_down_payment: 'down payment (affordability panel)',
+  affordability_aus_status: 'AUS eligibility review result',
+  contact_email: 'email address for secure login',
+  contact_mobile: 'mobile phone number for OTP verification',
+  otp_verification: 'one-time verification code',
 };
 
 export function buildLayer3TurnContext(
@@ -218,15 +250,18 @@ export function buildLayer3TurnContext(
     `Comparison Walkthrough:     ${profile.program_comparison_interest ?? 'not yet collected'}`,
     `Financial priority:          ${profile.financial_priority ?? 'not yet collected'}`,
     `Home horizon:                ${profile.home_horizon ?? 'not yet collected'}`,
+    `Contact Email:               ${profile.contact_email ?? 'not yet collected'}`,
+    `Contact Mobile:              ${profile.contact_mobile ?? 'not yet collected'}`,
+    `OTP Verified:                ${!!profile.otp_verified}`,
     `Legal Name:                  ${profile.legal_name ?? 'not yet collected'} (Confirmed: ${!!profile.legal_name_confirmed})`,
     `Physical Address:            ${profile.physical_address ?? 'not yet collected'} (Confirmed: ${!!profile.physical_address_confirmed})`,
     `Soft pull consent:           ${profile.soft_pull_consent ?? 'not yet asked'}`,
     profile.soft_pull_consent === 'accepted' ? [
-      `MOCK PRE-FILLED DATA RETRIEVED VIA SOFT PULL:`,
-      `  - Full Name & Address to confirm: ${profile.legal_name || 'John Doe'}, ${profile.physical_address || '1234 Maple Avenue, Suite 100, Los Angeles, CA 90012'}`,
-      `  - Employer to confirm: ${profile.employer || 'Nexus Technologies LLC Corp'}`,
-      `  - Accounts Summary to confirm: 2 open active credit cards, 1 auto loan, and no negative accounts or late payments in the last 24 months`,
-      `  - Credit Range Category to confirm: ${profile.credit_range ? (profile.credit_range + ' range') : (creditRangeCategory + ' range (' + creditRangeLimits + ')')}`,
+      `PRE-FILLED DATA RETRIEVED VIA SOFT PULL (CRS API):`,
+      `  - Full Name & Address to confirm: ${profile.legal_name || profile.borrower_name || 'Valued Borrower'}, ${profile.physical_address || (profile.zip_code ? ('address on file in zip code ' + profile.zip_code) : 'address on file')}`,
+      `  - Employer to confirm: ${profile.employer || 'information on file'}`,
+      `  - Accounts Summary to confirm: ${(profile as any).crs_open_accounts !== undefined ? `${(profile as any).crs_open_accounts} open account(s), ${(profile as any).crs_late_payments === 0 ? 'no late payments' : (profile as any).crs_late_payments + ' late payment(s)'} in the last 24 months` : '2 open active credit cards, 1 auto loan, no negative accounts'}`,
+      `  - Credit Range Category to confirm: ${profile.credit_range ? (creditRangeCategory + ' range (' + profile.credit_range + ')') : (creditRangeCategory + ' range (' + creditRangeLimits + ')')}`,
     ].join('\n') : '',
     `Prefilled fields confirmed:`,
     `  - Name & Address: ${!!profile.prefilled_fields_confirmed?.name_address}`,
@@ -263,38 +298,33 @@ export function buildLayer3TurnContext(
   // ── Current task line ─────────────────────────────────────────────────────
   const isRef = profile.mortgage_goal === 'refinance';
   let taskLine = '';
-  if (profile.pending_confirm_field && profile.pending_confirm_value) {
-    let label = FIELD_LABELS[profile.pending_confirm_field] ?? profile.pending_confirm_field;
-    if (isRef && profile.pending_confirm_field === 'target_price') {
-      label = 'estimated property value';
-    }
-    taskLine = `CURRENT TASK:\nConfirm the value of "${profile.pending_confirm_value}" for ${label}. Do NOT ask for the next field yet.`;
-  } else if (pendingField) {
-    taskLine = `CURRENT TASK:\nCollect ${pendingField}\n\nDO NOT ASK FOR ANY OTHER FIELD.`;
-  } else {
-    taskLine = 'CURRENT TASK:\nAll fields for this stage collected.';
-  }
 
-  // ── Confirmation instruction (only when a field was just extracted) ────────
-  let confirmBlock = '';
-  if (profile.pending_confirm_field && profile.pending_confirm_value) {
-    let label = FIELD_LABELS[profile.pending_confirm_field] ?? profile.pending_confirm_field;
-    if (isRef && profile.pending_confirm_field === 'target_price') {
-      label = 'estimated property value';
-    }
+  // Only generate the generic CURRENT TASK line when there is no specific override block.
+  // If stage2_closing_offer, OTP, or consent instructions take over, skip the generic task.
+  const hasSpecificOverride =
+    pendingField === 'stage2_closing_offer' ||
+    pendingField === 'contact_email' ||
+    pendingField === 'contact_mobile' ||
+    pendingField === 'otp_verification' ||
+    profile.soft_pull_consent === 'pending';
 
-    if (isRef && profile.pending_confirm_field === 'target_price') {
-      confirmBlock =
-        `\nCONFIRM THIS TURN:\n` +
-        `The borrower just mentioned "${profile.pending_confirm_value}" as their estimated property value.\n` +
-        `Say EXACTLY: "Ok, we will use the value of ${profile.pending_confirm_value} as the value, correct?"\n` +
-        `Do NOT ask for any other field. Wait for their yes/no before continuing.`;
+  if (!hasSpecificOverride) {
+    if (profile.pending_confirm_field && profile.pending_confirm_value) {
+      let label = FIELD_LABELS[profile.pending_confirm_field] ?? profile.pending_confirm_field;
+      if (isRef && profile.pending_confirm_field === 'target_price') {
+        label = 'estimated property value';
+      }
+      taskLine = `CURRENT TASK:\nConfirm the value of "${profile.pending_confirm_value}" for ${label}. Do NOT ask for the next field yet.`;
+    } else if (pendingField === 'property_type') {
+      taskLine = `CURRENT TASK:\nCollect property_type and zip_code\n\nAsk EXACTLY this: "What type of home are you looking for — such as a single-family home, condo, townhome, or multi-family — and what city or zip code are you looking in?"\nDO NOT ASK FOR ANY OTHER FIELD.`;
+    } else if (pendingField === 'military_rural') {
+      const hasCoBorrower = profile.co_borrower === 'yes';
+      const coBorrowerPhrase = hasCoBorrower ? 'you or a co-borrower' : 'you';
+      taskLine = `CURRENT TASK:\nCollect military_rural\n\nAsk EXACTLY this: "Now, do ${coBorrowerPhrase} have any military service history — such as being on active duty, a veteran, or in the Reserve or National Guard?"\nDO NOT ASK FOR ANY OTHER FIELD.`;
+    } else if (pendingField) {
+      taskLine = `CURRENT TASK:\nCollect ${pendingField}\n\nDO NOT ASK FOR ANY OTHER FIELD.`;
     } else {
-      confirmBlock =
-        `\nCONFIRM THIS TURN:\n` +
-        `The borrower just mentioned "${profile.pending_confirm_value}" as their ${label}.\n` +
-        `Say EXACTLY: "Just to confirm — you mentioned ${profile.pending_confirm_value} as your ${label}. Is that right?"\n` +
-        `Do NOT ask for any other field. Wait for their yes/no before continuing.`;
+      taskLine = 'CURRENT TASK:\nAll fields for this stage collected.';
     }
   }
 
@@ -304,12 +334,29 @@ export function buildLayer3TurnContext(
     bridgeBlock = `\n\n*** MANDATORY TRANSITION — DO NOT SKIP ***\nYour response for this turn MUST follow this exact structure:\n1. One brief sentence acknowledging what the borrower just said (e.g. "Got it." or "Understood, thank you.").\n2. Then say the following transition phrase VERBATIM, word-for-word:\n"That gives me a great starting point. Now I would like to spend a few minutes exploring your financial picture — income, current debts, credit profile, and a few other details — so I can map out the loan programs that may be most relevant to your situation."\n3. Then immediately ask for ${pendingField}.\nDo NOT skip this transition regardless of what the borrower just said. Do NOT replace the verbatim phrase with your own words.`;
   } else if (profile.bridge_to_say === 'stage2_to_stage3') {
     bridgeBlock = `\n\n*** MANDATORY TRANSITION — DO NOT SKIP ***\nYour response for this turn MUST follow this exact structure:\n1. One brief sentence acknowledging what the borrower just said.\n2. Then say the following transition phrase VERBATIM, word-for-word:\n"Based on what you have shared, I can walk you through the loan programs that may be most relevant to your situation and answer any questions you have about the process."\nDo NOT skip this transition regardless of what the borrower just said. Do NOT replace the verbatim phrase with your own words.`;
+  } else if (profile.bridge_to_say === 'stage3A_to_stage3B') {
+    bridgeBlock = `\n\n*** MANDATORY TRANSITION — DO NOT SKIP ***\nYour response for this turn MUST follow this exact structure:\n1. One brief sentence acknowledging what the borrower just confirmed (e.g. "Great, your soft pull details are confirmed!").\n2. Then say the following transition phrase VERBATIM, word-for-word:\n"To finalize the remaining application questions for our underwriting check, I just have a few quick questions."\n3. Then immediately ask for their marital status: "First, what is your current marital status?"\nDo NOT skip this transition regardless of what the borrower just said. Do NOT replace the verbatim phrase with your own words.`;
   }
 
   // ── Stage 2 Closing Offer Instruction ──────────────────────────────────────
   let stage2ClosingBlock = '';
   if (pendingField === 'stage2_closing_offer') {
-    stage2ClosingBlock = `\n\nSTAGE 2 CLOSING OFFER INSTRUCTION:\nYou must deliver the following closing transition offer EXACTLY word-for-word:\n"We have covered a lot of great ground together, and I now have a solid picture of your financial starting point. Based on what you have shared, I can begin walking you through the loan programs that may be most relevant to your situation. Before we do that — when you are ready, the natural next step is to submit your information for an initial eligibility review. This gives you real, meaningful feedback on your conditional eligibility — including an estimated payment range — before connecting with a licensed mortgage advisor. The payment estimate is generated by the eligibility review using a current representative rate from our rate sheet — so it reflects actual market conditions, not a rough guess. Would you like to move forward with that now, or would you prefer to continue exploring your options first?"\n\nIf the borrower asks what it involves, say EXACTLY:\n"It is a brief review of the financial information you have shared today. The system will apply a current market rate from our rate sheet as part of the automated eligibility process, and return your conditional eligibility result along with an estimated payment range. Before we proceed, you will be presented with a short disclosure explaining exactly what is included and asked for your authorization. There is no obligation, and the initial review does not affect your credit score."`;
+    stage2ClosingBlock = `
+================================================================================
+CRITICAL OVERRIDE: STAGE 2 CLOSING OFFER (v8.7 TWO-PATH CHOICE)
+================================================================================
+STOP. Do NOT generate any loan program information, estimated payments, or rate discussions.
+Do NOT say "based on your profile" or explain FHA/conventional/VA options.
+Do NOT ask for contact information or anything else.
+The two-path offer text has already been delivered to the borrower via the system.
+Your ONLY job right now is to LISTEN for which path the borrower chooses:
+  PATH A = soft credit review (they say "yes", "review", "eligibility review", etc.)
+  PATH B = explore without review (they say "no review", "explore first", etc.)
+If they ask what the review involves, explain briefly and ONLY that.
+If you absolutely must speak, say ONLY:
+"Which would you prefer — the soft credit review, or building the summary from what you shared?"
+NEVER quote payment amounts. NEVER mention loan programs. NEVER say "FHA" or "conventional".
+================================================================================`;
   }
 
   // ── Verbatim Consent Instruction ──────────────────────────────────────────
@@ -324,10 +371,47 @@ export function buildLayer3TurnContext(
     lowConfidenceBlock = `\n\nLOW CONFIDENCE DETECTED:\nThe borrower's last speech was recorded with low audio recognition confidence and was likely garbled or misheard.\nSay EXACTLY: "I'm sorry, I didn't quite catch that. Could you please repeat?"\nDo NOT ask any other question, do NOT confirm fields, do NOT advance stages. Simply prompt for repeat and stop.`;
   }
 
+  // ── OTP Gate Instruction Blocks (v8.7) ────────────────────────────────────
+  let otpBlock = '';
+  if (pendingField === 'contact_email') {
+    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT EMAIL AND MOBILE ***
+You MUST ask for the borrower's email and mobile number together in ONE question.
+Say EXACTLY: "I'll just need the email and mobile number you'd like to use — I'll send a one-time code to confirm it's you. What are those for you?"
+Do NOT ask for anything else. Do NOT mention the soft pull until after OTP is verified.`;
+  } else if (pendingField === 'contact_mobile') {
+    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT MOBILE ***
+The email was captured. Now ask for their mobile number.
+Say EXACTLY: "And what mobile number should I send your verification code to?"
+Do NOT ask for anything else.`;
+  } else if (pendingField === 'otp_verification') {
+    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: VERIFY CODE VIA MODAL ***
+A one-time verification code has been sent to the borrower's email and mobile. You must instruct them to use the secure popup modal.
+Say EXACTLY: "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely on your screen when it arrives, and you're all set."
+Do NOT ask them to read the code out loud. Do NOT ask for anything else. Wait for the borrower to enter the code in the modal.`;
+  }
+
+
+  // ── Stage 2.5 affordability panel block ───────────────────────────────────
+  const stage25Block = [
+    '=== BORROWER PROFILE (Stage 2.5 — Affordability Panel) ===',
+    `Panel Rendered:            ${!!profile.affordability_panel_rendered}`,
+    `Purchase Price (Slider):   ${profile.affordability_purchase_price ? `$${profile.affordability_purchase_price.toLocaleString()}` : 'not set'}`,
+    `Down Payment (Slider):     ${profile.affordability_down_payment ? `$${profile.affordability_down_payment.toLocaleString()}` : 'not set'}`,
+    `Income Band Status:        ${profile.affordability_income_band ?? 'not computed'}`,
+    `DTI Band Status:           ${profile.affordability_dti_band ?? 'not computed'}`,
+    `Submitted for Review:      ${!!profile.affordability_submitted}`,
+    `AUS Review Result:         ${profile.affordability_aus_status ?? 'not yet submitted'}`,
+    `Pre-Qual Letter Emailed:   ${!!profile.affordability_prequel_letter_sent}`,
+    '=== END STAGE 2.5 ===',
+  ].join('\n');
+
   const blocks: string[] = [];
   blocks.push(stage1Block);
-  if (stage === '2' || stage === '3' || stage === '3A' || stage === '3B' || stage === '4' || stage === '5') {
+  if (stage === '2' || stage === '2.5' || stage === '3' || stage === '3A' || stage === '3B' || stage === '4' || stage === '5') {
     blocks.push(stage2Block);
+  }
+  if (stage === '2.5' || stage === '3' || stage === '3A' || stage === '3B' || stage === '4' || stage === '5') {
+    blocks.push(stage25Block);
   }
   if (stage === '3' || stage === '3A' || stage === '3B' || stage === '4' || stage === '5') {
     blocks.push(stage3Block);
@@ -338,7 +422,7 @@ export function buildLayer3TurnContext(
   if (stage === '4' || stage === '5') {
     blocks.push(stage4Block);
   }
-  blocks.push(taskLine + confirmBlock + bridgeBlock + stage2ClosingBlock + consentBlock + lowConfidenceBlock);
+  blocks.push(taskLine + bridgeBlock + stage2ClosingBlock + consentBlock + otpBlock + lowConfidenceBlock);
 
   const vaEligibilityReferenceBlock = `
 === VA ELIGIBILITY DETAIL — PROMPT REFERENCE ===

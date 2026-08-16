@@ -11,7 +11,10 @@
     "start": "node dist/index.js",
     "start:agent": "node dist/agent.js dev",
     "start:full": "npm run build && node dist/agent.js dev",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "tsx src/__tests__/affordability-calculator.test.ts",
+    "prisma:generate": "node scripts/prisma-generate-safe.js",
+    "prisma:migrate": "prisma migrate dev",
+    "postinstall": "npm run prisma:generate"
   },
   "dependencies": {
     "@livekit/agents": "^1.5.0",
@@ -20,7 +23,9 @@
     "@livekit/agents-plugin-lemonslice": "^1.5.0",
     "@livekit/agents-plugin-openai": "^1.5.0",
     "@livekit/agents-plugin-silero": "^1.5.0",
+    "@prisma/client": "^6.2.0",
     "cors": "^2.8.6",
+    "cross-env": "^7.0.3",
     "dotenv": "^17.4.1",
     "express": "^5.2.1",
     "livekit-server-sdk": "^2.15.1",
@@ -31,6 +36,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.5.2",
+    "prisma": "^6.2.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2"

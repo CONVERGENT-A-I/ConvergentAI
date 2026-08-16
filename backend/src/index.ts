@@ -118,12 +118,20 @@ app.listen(PORT, async () => {
       ? path.join(__dirname, 'agent.js')   // production: run compiled JS
       : path.join(__dirname, 'agent.ts');  // development: run TS via tsx
 
+    // Pass DATABASE_URL explicitly to forked process
+    const forkEnv = {
+      ...process.env,
+      LIVEKIT_LOG_LEVEL: 'info',
+      DATABASE_URL: process.env.DATABASE_URL, // Explicitly pass DATABASE_URL
+    };
+
     const forkOptions = isCompiledDist
-      ? { env: { ...process.env, LIVEKIT_LOG_LEVEL: 'info' }, stdio: 'inherit' as const }
-      : { execArgv: ['--import', 'tsx'], env: { ...process.env, LIVEKIT_LOG_LEVEL: 'info' }, stdio: 'inherit' as const };
+      ? { env: forkEnv, stdio: 'inherit' as const }
+      : { execArgv: ['--import', 'tsx'], env: forkEnv, stdio: 'inherit' as const };
 
     console.log(`[server]: Starting Agent Worker — ${isCompiledDist ? 'production (compiled JS)' : 'development (tsx TS)'}`);
     console.log(`[server]: Agent worker file: ${agentFilePath}`);
+    console.log(`[server]: DATABASE_URL passed to agent: ${process.env.DATABASE_URL ? '✅ YES' : '❌ NO'}`);
 
     const agentProcess = fork(agentFilePath, ['dev'], forkOptions);
 

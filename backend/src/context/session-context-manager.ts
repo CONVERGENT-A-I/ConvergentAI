@@ -1,5 +1,4 @@
-﻿import { llm, type voice } from '@livekit/agents';
-import type { LLM } from '@livekit/agents-plugin-openai';
+import { llm, type voice } from '@livekit/agents';
 import { ailanaConfig } from '../config/ailana-config.js';
 import {
   getForceCompactTokenThreshold,
@@ -7,8 +6,13 @@ import {
 } from './context-budget.js';
 import type { LatencyTracker } from '../metrics/latency-tracker.js';
 import type { BorrowerProfile } from '../prompts/layer3-context.js';
-import { buildSessionPrompt } from '../prompts/ailana-system.js';
-import { extractProfileField, classifyConfirmation, extractMultipleFields, type FieldToExtract } from './llm-extractor.js';
+import { buildSessionPrompt, buildStaticInstructions, buildDynamicContext } from '../prompts/ailana-system.js';
+import { extractProfileField, classifyConfirmation, classifyAuthorization, extractMultipleFields, type FieldToExtract } from './llm-extractor.js';
+import { applicationService } from '../services/application-service.js';
+import { conversationService } from '../services/conversation-service.js';
+import { isDatabaseEnabled } from '../services/database.js';
+import { callCrsSoftPull } from '../services/crs-service.js';
+import { lookupZipData } from '../utils/zip-lookup.js';
 
 
 export type TurnLogEntry = {
@@ -22,6 +26,14 @@ interface SessionContextManagerSnapshot {
   activeStage: string;
   currentPendingField: string | null;
   fieldAttempts: Record<string, number>;
+}
+
+function isLikelyQuestion(text: string): boolean {
+  const t = text.toLowerCase().trim();
+  if (t.includes('?')) return true;
+  if (/^(what|why|how|where|who|which|can|could|would|should|is|does|will|do i)\b/.test(t)) return true;
+  const keywords = ['explain', 'detail', 'meaning', 'difference', 'tell me', 'what does', 'what is'];
+  return keywords.some(k => t.includes(k));
 }
 
 export class SessionContextManager {
@@ -53,10 +65,23 @@ export class SessionContextManager {
     durationMs?: number;
   }>();
 
+  // Database persistence (optional - only if DATABASE_URL is set)
+  private applicationId: string | null = null;
+  private lastSyncAt = Date.now();
+  private readonly syncIntervalMs = 5000; // Sync every 5 seconds
+  private readonly dbEnabled: boolean;
+
   constructor(
-    private readonly summarizationLlm: LLM,
+    private readonly summarizationLlm: llm.LLM,
     private readonly metrics: LatencyTracker,
-  ) {}
+  ) {
+    this.dbEnabled = isDatabaseEnabled();
+    if (this.dbEnabled) {
+      console.log('[context-manager] Database persistence ENABLED');
+    } else {
+      console.log('[context-manager] Database persistence DISABLED (no DATABASE_URL found)');
+    }
+  }
 
   clone(): SessionContextManager {
     const cloned = new SessionContextManager(this.summarizationLlm, this.metrics);
@@ -89,6 +114,203 @@ export class SessionContextManager {
     return count;
   }
 
+  // ============================================================================
+  // DATABASE PERSISTENCE (Optional - only if DATABASE_URL is set)
+  // ============================================================================
+
+  /**
+   * Set the application ID for database persistence
+   */
+  setApplicationId(id: string): void {
+    this.applicationId = id;
+    console.log(`[context-manager] Application ID set: ${id}`);
+  }
+
+  /**
+   * Initialize context from database (resume existing application)
+   */
+  async initializeFromDatabase(applicationId: string): Promise<void> {
+    if (!this.dbEnabled || !applicationId) {
+      console.log('[context-manager] Skipping database initialization (database not enabled)');
+      return;
+    }
+
+    try {
+      this.applicationId = applicationId;
+      console.log(`[context-manager] Loading application ${applicationId} from database...`);
+
+      const app = await applicationService.getApplicationWithStages(applicationId);
+      if (!app) {
+        console.log('[context-manager] No existing data found in database, starting fresh');
+        return;
+      }
+
+      // Restore Stage 1
+      if (app.stage1) {
+        this.profile.borrower_name = app.stage1.borrowerName ?? null;
+        this.profile.borrower_name_confirmed = app.stage1.borrowerNameConfirmed;
+        this.profile.mortgage_goal = app.stage1.mortgageGoal ?? null;
+        this.profile.mortgage_goal_confirmed = app.stage1.mortgageGoalConfirmed;
+        this.profile.occupancy = app.stage1.occupancy as any ?? null;
+        this.profile.occupancy_confirmed = app.stage1.occupancyConfirmed;
+        this.profile.existing_relationship = app.stage1.existingRelationship as any ?? null;
+        this.profile.existing_relationship_confirmed = app.stage1.existingRelationshipConfirmed;
+        this.profile.timeline = app.stage1.timeline ?? null;
+        this.profile.timeline_confirmed = app.stage1.timelineConfirmed;
+        this.profile.co_borrower = app.stage1.coBorrower as any ?? null;
+        this.profile.co_borrower_confirmed = app.stage1.coBorrowerConfirmed;
+      }
+
+      // Restore Stage 2
+      if (app.stage2) {
+        this.profile.gross_annual_income = app.stage2.grossAnnualIncome?.toNumber() ?? null;
+        this.profile.gross_annual_income_confirmed = app.stage2.grossAnnualIncomeConfirmed;
+        this.profile.monthly_debt = app.stage2.monthlyDebt?.toNumber() ?? null;
+        this.profile.monthly_debt_confirmed = app.stage2.monthlyDebtConfirmed;
+        this.profile.credit_range = app.stage2.creditRange ?? null;
+        this.profile.credit_range_confirmed = app.stage2.creditRangeConfirmed;
+        this.profile.down_payment = app.stage2.downPayment?.toNumber() ?? null;
+        this.profile.down_payment_confirmed = app.stage2.downPaymentConfirmed;
+        this.profile.target_price = app.stage2.targetPrice?.toNumber() ?? null;
+        this.profile.target_price_confirmed = app.stage2.targetPriceConfirmed;
+        this.profile.rent_own = app.stage2.rentOwn as any ?? null;
+        this.profile.rent_own_confirmed = app.stage2.rentOwnConfirmed;
+        this.profile.realtor_status = app.stage2.realtorStatus as any ?? null;
+        this.profile.realtor_status_confirmed = app.stage2.realtorStatusConfirmed;
+        this.profile.refinance_type = app.stage2.refinanceType as any ?? null;
+        this.profile.refinance_type_confirmed = app.stage2.refinanceTypeConfirmed;
+        this.profile.property_type = app.stage2.propertyType as any ?? null;
+        this.profile.property_type_confirmed = app.stage2.propertyTypeConfirmed;
+        this.profile.military_rural = app.stage2.militaryRural as any ?? null;
+        this.profile.military_rural_confirmed = app.stage2.militaryRuralConfirmed;
+        this.profile.job_tenure_type = app.stage2.jobTenureType ?? null;
+        this.profile.job_tenure_type_confirmed = app.stage2.jobTenureTypeConfirmed;
+        this.profile.pending_confirm_field = app.stage2.pendingConfirmField ?? null;
+        this.profile.pending_confirm_value = app.stage2.pendingConfirmValue ?? null;
+        this.profile.bridge_to_say = app.stage2.bridgeToSay as any ?? null;
+      }
+
+      // Restore Stage 3 (unified)
+      if (app.stage3) {
+        this.profile.eligible_products = app.stage3.eligibleProducts as string[];
+        this.profile.program_comparison_interest = app.stage3.programComparisonInterest as any ?? null;
+        this.profile.program_comparison_interest_confirmed = app.stage3.programComparisonInterestConfirmed;
+        this.profile.financial_priority = app.stage3.financialPriority as any ?? null;
+        this.profile.financial_priority_confirmed = app.stage3.financialPriorityConfirmed;
+        this.profile.home_horizon = app.stage3.homeHorizon as any ?? null;
+        this.profile.home_horizon_confirmed = app.stage3.homeHorizonConfirmed;
+        this.profile.legal_name = app.stage3.legalName ?? null;
+        this.profile.legal_name_confirmed = app.stage3.legalNameConfirmed;
+        this.profile.physical_address = app.stage3.physicalAddress ?? null;
+        this.profile.physical_address_confirmed = app.stage3.physicalAddressConfirmed;
+        this.profile.soft_pull_consent = app.stage3.softPullConsent as any ?? null;
+        this.profile.employer = app.stage3.employer ?? null;
+        this.profile.prefilled_fields_confirmed = app.stage3.prefilledFieldsConfirmed as any;
+        this.profile.marital_status = app.stage3.maritalStatus as any ?? null;
+        this.profile.marital_status_confirmed = app.stage3.maritalStatusConfirmed;
+        this.profile.dependents = app.stage3.dependents ?? null;
+        this.profile.dependents_confirmed = app.stage3.dependentsConfirmed;
+        this.profile.employment_position = app.stage3.employmentPosition ?? null;
+        this.profile.employment_years = app.stage3.employmentYears?.toNumber() ?? null;
+        this.profile.self_employed = app.stage3.selfEmployed ?? null;
+        this.profile.employment_confirmed = app.stage3.employmentConfirmed;
+        this.profile.checking_savings_balance = app.stage3.checkingSavingsBalance?.toNumber() ?? null;
+        this.profile.checking_savings_confirmed = app.stage3.checkingSavingsConfirmed;
+        this.profile.declarations_bankruptcy = app.stage3.declarationsBankruptcy ?? null;
+        this.profile.declarations_foreclosure = app.stage3.declarationsForeclosure ?? null;
+        this.profile.declarations_confirmed = app.stage3.declarationsConfirmed;
+        this.profile.ready_to_submit = app.stage3.readyToSubmit;
+      }
+
+      // Restore Stage 4
+      if (app.stage4) {
+        this.profile.aus_status = app.stage4.ausStatus as any || undefined;
+        this.profile.aus_confirmed = app.stage4.ausConfirmed;
+        this.profile.checklist_discussed = app.stage4.checklistDiscussed;
+      }
+
+      // Restore current stage and field attempts
+      this.activeStage = app.currentStage;
+      this.fieldAttempts = (app.fieldAttempts as Record<string, number>) || {};
+
+      console.log(`[context-manager] ✅ Successfully restored application from database (stage: ${this.activeStage})`);
+    } catch (error) {
+      console.error('[context-manager] ❌ Failed to load from database:', error);
+      console.log('[context-manager] Continuing with fresh state...');
+    }
+  }
+
+  /**
+   * Sync current state to database (called periodically)
+   */
+  async syncToDatabase(): Promise<void> {
+    if (!this.dbEnabled || !this.applicationId) {
+      return; // Silently skip if database not enabled
+    }
+
+    // Throttle syncs to avoid overwhelming database
+    if (Date.now() - this.lastSyncAt < this.syncIntervalMs) {
+      return;
+    }
+
+    try {
+      // Strip any __pending__ sentinel values injected by injectFallbackForPendingField()
+      // so they are never persisted to the database.
+      const profileForSync: Record<string, any> = {};
+      for (const [k, v] of Object.entries(this.profile)) {
+        if (v !== '__pending__') {
+          profileForSync[k] = v;
+        }
+      }
+      await applicationService.syncAllStages(
+        this.applicationId,
+        profileForSync as any,
+        this.activeStage
+      );
+      this.lastSyncAt = Date.now();
+      console.log(`[db-sync] ✅ Application ${this.applicationId} synced to database`);
+    } catch (error) {
+      console.error('[db-sync] ❌ Failed to sync to database:', error);
+      // Don't throw - continue operating even if sync fails
+    }
+  }
+
+
+  /**
+   * Save a conversation turn to database (public method for voice turns)
+   */
+  async saveVoiceConversationTurn(role: 'user' | 'assistant', text: string): Promise<void> {
+    await this.saveConversationTurn(role, text);
+  }
+
+  /**
+   * Save a conversation turn to database
+   */
+  private async saveConversationTurn(role: 'user' | 'assistant', text: string): Promise<void> {
+    if (!this.dbEnabled || !this.applicationId) {
+      return; // Silently skip if database not enabled
+    }
+
+    try {
+      await conversationService.saveTurn(
+        this.applicationId,
+        role.toUpperCase() as 'USER' | 'ASSISTANT',
+        text,
+        this.turnCount,
+        {
+          lowConfidence: this.lowConfidence,
+        }
+      );
+    } catch (error) {
+      console.error('[db-sync] ❌ Failed to save conversation turn:', error);
+      // Don't throw - continue operating even if save fails
+    }
+  }
+
+  // ============================================================================
+  // END DATABASE PERSISTENCE
+  // ============================================================================
+
   triggerBackgroundExtraction(text: string): number {
     const turnNumber = this.nextExtractionTurn++;
     const snapshot: SessionContextManagerSnapshot = {
@@ -103,9 +325,13 @@ export class SessionContextManager {
     const promise = (async () => {
       const t0 = performance.now();
       try {
+        // No artificial delay needed: the extractor uses CEREBRAS_EXTRACTOR_API_KEY
+        // (a separate request pool), so there is zero contention with the main LLM.
+        // Removing the 50ms pause means the real extracted value replaces __pending__
+        // as early as possible (~200-350ms after user turn ends).
         await clonedManager.onUserTurn(text);
         const duration = performance.now() - t0;
-        
+
         const pending = this.pendingExtractions.get(turnNumber);
         if (pending) {
           pending.status = 'completed';
@@ -165,7 +391,7 @@ export class SessionContextManager {
     while (this.pendingExtractions.has(this.lastAppliedTurn + 1)) {
       const turnNum = this.lastAppliedTurn + 1;
       const extraction = this.pendingExtractions.get(turnNum)!;
-      
+
       if (extraction.status === 'pending') {
         break;
       }
@@ -177,13 +403,42 @@ export class SessionContextManager {
         console.log(`[reconcile] Turn ${turnNum} was timed out/skipped. Proceeding without matching results.`);
       }
 
+      // ── Sentinel cleanup ──────────────────────────────────────────────────
+      // After reconcile, sweep for any __pending__ values the extractor didn't
+      // replace (e.g. returned null, bad JSON, or threw). Clear them back to
+      // null so the field is treated as unanswered — Ailana will re-ask on the
+      // next turn rather than being stuck with a permanent placeholder.
+      let sentinelsCleared = 0;
+      for (const key of Object.keys(this.profile) as Array<keyof BorrowerProfile>) {
+        if ((this.profile as any)[key] === '__pending__') {
+          (this.profile as any)[key] = null;
+          sentinelsCleared++;
+          console.warn(`[reconcile] ⚠️  Field "${key}" had unresolved __pending__ sentinel after extraction — cleared to null. Extractor returned no value.`);
+        }
+      }
+      if (sentinelsCleared === 0) {
+        console.log(`[reconcile] Turn ${turnNum} sentinel check: all __pending__ values resolved ✅`);
+      }
+
       this.lastAppliedTurn = turnNum;
       this.pendingExtractions.delete(turnNum);
     }
   }
 
+
   private reconcileState(snapshot: SessionContextManagerSnapshot, clone: SessionContextManager): void {
     const delta = this.getProfileDelta(snapshot.profile, clone.profile);
+
+    // Log each field that changed so we can trace __pending__ → real value replacements
+    for (const [key, newVal] of Object.entries(delta)) {
+      const liveVal = (this.profile as any)[key];
+      if (liveVal === '__pending__') {
+        console.log(`[reconcile] ✅ Field "${key}" resolved: __pending__ → "${newVal}" (extraction succeeded)`);
+      } else {
+        console.log(`[reconcile] Field "${key}" updated: "${liveVal ?? 'null'}" → "${newVal}"`);
+      }
+    }
+
     Object.assign(this.profile, delta);
 
     if (clone.activeStage !== snapshot.activeStage) {
@@ -200,6 +455,7 @@ export class SessionContextManager {
     }
   }
 
+
   private getProfileDelta(original: BorrowerProfile, updated: BorrowerProfile): Partial<BorrowerProfile> {
     const delta: Partial<BorrowerProfile> = {};
     for (const key of Object.keys(updated) as Array<keyof BorrowerProfile>) {
@@ -211,6 +467,7 @@ export class SessionContextManager {
   }
 
   getProfile(): BorrowerProfile {
+    this.profile.current_pending_field = this.currentPendingField;
     return this.profile;
   }
 
@@ -218,13 +475,151 @@ export class SessionContextManager {
     return this.activeStage;
   }
 
+  setActiveStage(stage: string): void {
+    this.activeStage = stage as any;
+  }
+
   getPendingField(): string | null {
     return this.currentPendingField;
   }
 
+  getFieldAttemptCount(field: string): number {
+    return this.fieldAttempts[field] || 0;
+  }
+
+  setCurrentPendingField(field: string | null): void {
+    this.currentPendingField = field;
+    this.profile.current_pending_field = field;
+  }
+
+  /**
+   * Returns true if the specified field (or current pending field) is a stage boundary
+   * field whose completion triggers a workflow stage transition.
+   */
+  isStageBoundaryField(field?: string | null): boolean {
+    const target = field ?? this.currentPendingField;
+    if (!target) return false;
+
+    // Deterministic fields MUST wait for extraction because they bypass the __pending__ fallback.
+    // If they don't wait, the LLM starts at 0ms and re-asks the question instantly.
+    if (this.isDeterministicField(target)) return true;
+
+    const BOUNDARY_FIELDS = new Set([
+      'home_horizon',
+      'soft_pull_authorization',
+      'assets_details',
+      // Deterministic fields with async operations (like OTP modal / CRS API pull)
+      'contact_email',
+      'contact_mobile',
+      'otp_verification',
+      'prefill_name_address',
+      'prefill_employer',
+      'prefill_accounts',
+    ]);
+    return BOUNDARY_FIELDS.has(target);
+  }
+
+
+  /**
+   * Returns true if the field is handled deterministically in llmNode.
+   * Deterministic fields bypass the __pending__ fallback entirely.
+   */
+  isDeterministicField(field?: string | null): boolean {
+    const target = field ?? this.currentPendingField;
+    if (!target) return false;
+    const DETERMINISTIC_FIELDS = new Set([
+      'stage2_closing_offer',
+      'contact_email',
+      'contact_mobile',
+      'otp_verification',
+      'soft_pull_authorization',
+      'prefill_name_address',
+      'prefill_employer',
+      'prefill_accounts',
+      'prefill_credit_range',
+      'declarations',
+      'submit_confirmation',
+      'military_rural',
+
+    ]);
+    return DETERMINISTIC_FIELDS.has(target);
+  }
+
+  /**
+   * Immediately stamps the active pending field with a sentinel or optimistic value so the
+   * conversational LLM prompt reflects that an answer was received without
+   * waiting for the background extractor to finish.
+   *
+   * The real extracted value is applied via applyCompletedExtractions() / reconcile once
+   * the background turn resolves (~1.2s later, before the next user turn begins).
+   */
+  injectFallbackForPendingField(): void {
+    const field = this.currentPendingField;
+    if (!field) return;
+
+    // Fields handled deterministically in llmNode — don't inject fallback,
+    // they bypass the profile entirely.
+    if (this.isDeterministicField(field)) return;
+
+    // Only inject if the field is currently unset — don't overwrite a real value
+    const currentValue = (this.profile as any)[field];
+    if (currentValue !== undefined && currentValue !== null && currentValue !== '') return;
+
+    // ── Optimistic Boundary Transitions (0ms Fast-Path with Average/Default Values) ──
+    const lastQuestion = this.getLastAssistantUtterance()?.toLowerCase() || '';
+    const wasAskedCoBorrower = lastQuestion.includes('co-borrower') || lastQuestion.includes('co borrower') || lastQuestion.includes('applying on your own') || lastQuestion.includes('joining you on the loan');
+
+    if (field === 'co_borrower' && wasAskedCoBorrower) {
+      this.profile.co_borrower = 'no'; // Default fallback value
+      this.profile.co_borrower_confirmed = true;
+      (this.profile as any)._optimistic_co_borrower = true;
+      this.activeStage = '2';
+      this.currentPendingField = 'gross_annual_income';
+      this.profile.bridge_to_say = 'stage1_to_stage2';
+      console.log(`[agent-hook][fallback] Optimistically advanced Stage 1 -> Stage 2 for field "co_borrower" (default="no"). LLM transitions immediately with bridge!`);
+      return;
+    }
+
+    if (field === 'military_rural') {
+      this.profile.military_rural = 'neither'; // Default fallback value
+      this.profile.military_rural_confirmed = true;
+      this.currentPendingField = 'job_tenure_type';
+      console.log(`[agent-hook][fallback] Optimistically advanced field "military_rural" -> "job_tenure_type" (default="neither").`);
+      return;
+    }
+
+    if (field === 'job_tenure_type') {
+      this.profile.job_tenure_type = 'salaried'; // Default fallback value
+      this.profile.job_tenure_type_confirmed = true;
+      this.currentPendingField = 'stage2_closing_offer';
+      console.log(`[agent-hook][fallback] Optimistically advanced field "job_tenure_type" -> "stage2_closing_offer" (default="salaried").`);
+      return;
+    }
+
+    (this.profile as any)[field] = '__pending__';
+    console.log(`[agent-hook][fallback] Injected sentinel "__pending__" for field "${field}" — LLM proceeds immediately, extractor will overwrite.`);
+  }
+
   async onUserTurn(text: string): Promise<void> {
     const _perfOnUserTurnStart = performance.now();
-    const trimmed = text.trim();
+    let trimmed = text.trim();
+
+
+    // Redact SSNs from user input to comply with TRID logging requirements
+    trimmed = trimmed.replace(/\b\d{3}[- ]?\d{2}[- ]?\d{4}\b/g, '[REDACTED_SSN]');
+
+    // Pre-clean STT currency artifacts for credit score if currentPendingField is credit_range or if user input contains e.g. "$710000" / "710000"
+    if (this.currentPendingField === 'credit_range' || (!this.profile.credit_range_confirmed && this.activeStage === '2')) {
+      trimmed = trimmed.replace(/\$?(\d{3})(?:000|,000|\.00)\b/g, (match, p1) => {
+        const score = parseInt(p1, 10);
+        if (score >= 300 && score <= 850) {
+          console.log(`[context-manager]: Pre-cleaned STT credit score artifact in input: "${match}" -> "${p1}"`);
+          return p1;
+        }
+        return match;
+      });
+    }
+
     if (!trimmed || trimmed.startsWith('SYSTEM_')) return;
     if (this.lowConfidence) {
       console.log('[context-manager]: Low confidence detected. Skipping data extraction for this turn.');
@@ -267,14 +662,20 @@ export class SessionContextManager {
 
     // 3. Track attempts for the current pending field
     if (this.currentPendingField) {
-      const attempts = (this.fieldAttempts[this.currentPendingField] || 0) + 1;
-      this.fieldAttempts[this.currentPendingField] = attempts;
-      console.log(`[context-manager] Attempt count for "${this.currentPendingField}" is ${attempts}`);
-      if (attempts >= 3) {
-        console.log(`[context-manager] Max attempts reached for "${this.currentPendingField}". Declining field.`);
-        this.declineCurrentField();
-        console.log(`[perf] context-manager onUserTurn TOTAL: ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
-        return;
+      const userIsAsking = isLikelyQuestion(trimmed);
+
+      if (userIsAsking) {
+        console.log(`[context-manager]: Q&A turn detected for "${this.currentPendingField}" — not counting against attempt limit.`);
+      } else {
+        const attempts = (this.fieldAttempts[this.currentPendingField] || 0) + 1;
+        this.fieldAttempts[this.currentPendingField] = attempts;
+        console.log(`[context-manager] Attempt count for "${this.currentPendingField}" is ${attempts}`);
+        if (attempts >= 3) {
+          console.log(`[context-manager] Max attempts reached for "${this.currentPendingField}". Declining field.`);
+          this.declineCurrentField();
+          console.log(`[perf] context-manager onUserTurn TOTAL: ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
+          return;
+        }
       }
     }
 
@@ -292,6 +693,8 @@ export class SessionContextManager {
       await this.runStage1Extraction(trimmed);
     } else if (this.activeStage === '2') {
       await this.runStage2Extraction(trimmed);
+    } else if (this.activeStage === '2.5') {
+      await this.runStage25Extraction(trimmed);
     } else if (this.activeStage === '3') {
       await this.runStage3Extraction(trimmed);
     } else if (this.activeStage === '3A') {
@@ -303,6 +706,134 @@ export class SessionContextManager {
     }
     console.log(`[perf] context-manager stage${this.activeStage} extraction: ${(performance.now() - _tExtract).toFixed(1)}ms`);
     console.log(`[perf] context-manager onUserTurn TOTAL: ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
+
+    // ── DATABASE PERSISTENCE ────────────────────────────────────────────────
+    // Save user turn to database and sync profile state
+    await this.saveConversationTurn('user', trimmed);
+    await this.syncToDatabase();
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Stage 2.5 (Affordability Panel) Extraction
+  // ──────────────────────────────────────────────────────────────────────────
+  private async runStage25Extraction(text: string): Promise<void> {
+    const lastQuestion = this.getLastAssistantUtterance();
+    const field = this.currentPendingField;
+
+    if (field === 'affordability_panel_active') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'affordability_action',
+        'the specific action the user is explicitly requesting in relation to the affordability panel',
+        'string',
+        'IMPORTANT: Only extract "submit" if the borrower explicitly says one of: "submit", "submit for review", "submit it", "run the review", "run the credit check", or "ready to submit". ' +
+        'Do NOT extract "submit" for general affirmations like "yes", "sure", "okay", "sounds good", "proceed", "continue", "move on", "let\'s go", "next steps" — these should return null. ' +
+        'Extract "update_profile" ONLY if borrower explicitly says they want to correct or change a specific data point (e.g. "my income is actually", "let me update that", "I want to change my"). Do NOT extract update_profile for employment descriptions, job information, tenure, or general statements about work. ' +
+        'Extract "upgrade" if borrower asks to upgrade to verified mode or run a soft credit review. ' +
+        'Extract "delete_data" if borrower asks to delete their information or stop using data. ' +
+        'Extract "drop_off" if borrower explicitly says they want to stop, pause, exit, or think about it. Return null for everything else including general conversation, job/employment answers, and statements about work.'
+      );
+
+      if (res.value === 'submit') {
+        if (this.profile.affordability_mode === 'stated' || !this.profile.otp_verified) {
+          // Voice submit in stated mode -> triggers upgrade flow
+          this.activeStage = '3A';
+          this.currentPendingField = 'contact_email';
+          console.log('[context-manager]: Voice submit in stated mode -> triggering upgrade (Stage 3A contact_email).');
+        } else {
+          // Voice submit in verified mode -> executes AUS submission
+          this.profile.affordability_submitted = true;
+          this.applyAusResult('approve_eligible');
+          console.log('[context-manager]: Affordability panel EXPLICITLY submitted for review via voice! AUS result applied.');
+        }
+      } else if (res.value === 'upgrade') {
+        // Trigger upgrade to verified mode — set pending to OTP gate
+        this.activeStage = '3A';
+        this.currentPendingField = 'contact_email';
+        console.log('[context-manager]: Affordability panel upgrade to verified mode requested via voice. Going to OTP gate.');
+      } else if (res.value === 'update_profile') {
+        this.currentPendingField = 'affordability_profile_correction';
+      } else if (res.value === 'delete_data') {
+        this.currentPendingField = 'affordability_data_deletion';
+      } else if (res.value === 'drop_off') {
+        this.currentPendingField = 'affordability_drop_off';
+      }
+      // null or unknown: stay on affordability_panel_active, let Ailana continue exploring with user
+      return;
+    }
+
+
+    if (field === 'affordability_profile_correction' || field === 'affordability_income_correction') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'gross_annual_income',
+        'borrower gross annual household income or other profile updates',
+        'number',
+        'Extract the updated gross annual income figure mentioned by the user if present. Return number or null.'
+      );
+      if (res.value && typeof res.value === 'number') {
+        this.profile.gross_annual_income = res.value;
+        this.profile.gross_annual_income_confirmed = true;
+        console.log(`[context-manager]: Corrected income in Stage 2.5 to $${res.value}`);
+      }
+      this.currentPendingField = 'affordability_panel_active';
+      return;
+    }
+
+    if (field === 'affordability_data_deletion') {
+      const res = await classifyConfirmation(text, lastQuestion, 'confirm_deletion', 'Would you like me to start that process for you now?');
+      if (res === 'yes') {
+        this.activeStage = '5';
+        this.currentPendingField = null;
+        console.log('[context-manager]: Borrower confirmed data deletion request. Escalating/stopping flow.');
+      } else {
+        this.currentPendingField = 'affordability_panel_active';
+      }
+      return;
+    }
+
+    if (field === 'affordability_drop_off') {
+      const res = await classifyConfirmation(text, lastQuestion, 'summary_offer', 'Would that summary be helpful?');
+      if (res === 'yes') {
+        this.currentPendingField = 'affordability_drop_off_delivery_method';
+      } else {
+        this.currentPendingField = null;
+        this.activeStage = '5';
+      }
+      return;
+    }
+
+    if (field === 'affordability_drop_off_delivery_method') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'delivery_method',
+        'delivery method preference for summary (email or mobile/SMS)',
+        'string',
+        'Extract "email" if user prefers email, or "sms" if user prefers text/mobile. Return string or null.'
+      );
+      this.profile.affordability_prequel_letter_sent = true;
+      console.log(`[context-manager]: Borrower requested scenario summary on drop-off via ${res.value || 'email'}.`);
+      this.currentPendingField = null;
+      this.activeStage = '5';
+      return;
+    }
+  }
+
+  public applyAusResult(result: 'approve_eligible' | 'refer'): void {
+    this.profile.affordability_aus_status = result;
+    this.activeStage = '2.5';
+    this.currentPendingField = result === 'approve_eligible' ? 'fd1_delivery' : 'fd2_delivery';
+    console.log(`[context-manager]: Applied AUS result: ${result} -> pending field set to ${this.currentPendingField}`);
+  }
+
+  public triggerUpgradeToVerifiedMode(): void {
+    this.activeStage = '3A';
+    this.currentPendingField = 'contact_email';
+    this.profile.transition_pitch_delivered = true;
+    console.log('[context-manager]: Explicit upgrade to verified mode triggered! Active stage set to 3A, pending field set to contact_email.');
   }
 
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢
@@ -337,9 +868,10 @@ export class SessionContextManager {
       );
 
       if (res.value === 'yes') {
+        // Route through v8.7 OTP gate
         this.activeStage = '3A';
-        this.currentPendingField = 'legal_name';
-        console.log('[context-manager]: stage3_closing_offer accepted! Transitioning to STAGE 3A Legal Name!');
+        this.currentPendingField = 'contact_email';
+        console.log('[context-manager]: stage3_closing_offer accepted! Transitioning to STAGE 3A OTP gate (contact_email)!');
 
       } else if (res.value === 'no') {
         this.currentPendingField = 'advisor_connection_offer';
@@ -422,12 +954,111 @@ export class SessionContextManager {
 
     if (anyUpdates) {
       this.advanceWorkflow();
+    }
   }
 
+  public handleOtpSubmission(code: string): void {
+    if (this.currentPendingField !== 'otp_verification') {
+      console.warn(`[context-manager] Received OTP submission but current field is ${this.currentPendingField}. Ignoring.`);
+      return;
     }
+
+    const expectedCode = (this.profile as any)._pendingOtp ?? '123456';
+    if (code === expectedCode) {
+      console.log('[context-manager] ✅ OTP verified via modal submission!');
+      this.profile.otp_verified = true;
+      this.advanceWorkflow();
+      this.syncToDatabase().catch(err => console.error('[context-manager] DB sync failed on OTP submit:', err));
+    } else {
+      console.log(`[context-manager] ❌ OTP modal verification failed. Expected ${expectedCode}, got ${code}`);
+    }
+  }
+
   private async runStage3AExtraction(text: string): Promise<void> {
     const lastQuestion = this.getLastAssistantUtterance();
 
+    // ── v8.7 OTP Gate: Step 1 & 2 — collect email and/or mobile in any order ──
+    if (this.currentPendingField === 'contact_email' || this.currentPendingField === 'contact_mobile') {
+      const results = await extractMultipleFields(text, lastQuestion, [
+        {
+          name: 'contact_email',
+          description: "borrower's email address for secure login",
+          expectedType: 'string',
+          additionalInstructions: 'Critically extract the email address. ALWAYS fix phonetic speech-to-text formatting. Replace "at the rate", "at the rate of", or "at" with "@". Replace "dot" with ".". STRIP OUT ALL SPACES and convert to lowercase. If the user spells it out conversationally (e.g., "David l patton at gmail dot com"), convert it to standard format (davidlpatton@gmail.com). Do NOT return null if a conversational email is provided. Return null ONLY if no email is mentioned.',
+        },
+        {
+          name: 'contact_mobile',
+          description: "borrower's mobile phone number",
+          expectedType: 'string',
+          additionalInstructions: 'Critically extract ANY sequence of numbers the user provides as their phone or mobile number (e.g. "174862528", "555-123-4567", "5551234"). Handle phonetic spelling of numbers (e.g., "zero", "one", "dash"). Strip all non-numeric characters except for a leading "+" if provided. Do NOT return null even if the number has 7, 8, 9, 10, or 11 digits. If the user spoke a number for mobile, extract it as a string of digits. Return null ONLY if no phone number was mentioned at all.',
+        },
+      ]);
+
+      if (results.contact_email?.value) {
+        this.profile.contact_email = results.contact_email.value as string;
+        console.log(`[context-manager]: Captured contact email: ${this.profile.contact_email}`);
+      }
+      if (results.contact_mobile?.value) {
+        this.profile.contact_mobile = results.contact_mobile.value as string;
+        console.log(`[context-manager]: Captured contact mobile: ${this.profile.contact_mobile}`);
+      }
+
+      if (this.profile.contact_email && this.profile.contact_mobile) {
+        // Generate and "send" a mock OTP
+        const mockOtp = '123456';
+        (this.profile as any)._pendingOtp = mockOtp;
+        console.log(`[OTP-Service]: Generated mock OTP code: ${mockOtp}`);
+        console.log(`[OTP-Service]: OTP sent to ${this.profile.contact_email} and ${this.profile.contact_mobile}`);
+      }
+
+      if (results.contact_email?.value || results.contact_mobile?.value) {
+        this.advanceWorkflow();
+      }
+      return;
+    }
+
+    // ── v8.7 OTP Gate: Step 3 — verify the OTP code ──
+    if (this.currentPendingField === 'otp_verification') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'otp_code',
+        'the 6-digit one-time verification code the borrower read back',
+        'string',
+        'Extract the numeric OTP code the borrower mentioned (e.g. "123456"). Return string or null.'
+      );
+
+      const enteredCode = (res.value as string | null)?.replace(/\s+/g, '') ?? null;
+      const expectedCode = (this.profile as any)._pendingOtp ?? '123456';
+
+      // Fallback regex extraction if LLM extraction returned null or non-matching string
+      let finalCode = enteredCode;
+      if (!finalCode || finalCode !== expectedCode) {
+        const rawDigitsMatch = text.replace(/\D/g, '');
+        if (rawDigitsMatch.length === 6) {
+          finalCode = rawDigitsMatch;
+        } else {
+          const digitsInText = text.match(/\b\d{6}\b/);
+          if (digitsInText) {
+            finalCode = digitsInText[0];
+          }
+        }
+      }
+
+      if (finalCode === expectedCode) {
+        this.profile.otp_verified = true;
+        this.profile.session_login_complete = true;
+        this.profile.contact_on_file = true;
+        console.log('[OTP-Gate]: OTP verified successfully (Code: 123456). Secure login complete.');
+        this.advanceWorkflow();
+      } else {
+        console.log(`[OTP-Gate]: OTP mismatch. Entered: ${finalCode || text}, Expected: ${expectedCode}. Re-prompting.`);
+        // Stay on otp_verification — LLM will re-ask
+      }
+      return;
+    }
+
+    // ── legal_name (still used for prefill display during walkthrough) ──
     if (this.currentPendingField === 'legal_name') {
       const res = await extractProfileField(
         text,
@@ -435,7 +1066,7 @@ export class SessionContextManager {
         'legal_name',
         "borrower's full legal name",
         'string',
-        'Extract the full legal name of the borrower (first and last name, e.g. "John Doe"). If they say "John Doe", extract "John Doe". If not found, return null.'
+        'Extract the full legal name of the borrower (first and last name, e.g. "John Doe"). If not found, return null.'
       );
       if (res.value) {
         this.profile.legal_name = res.value as string;
@@ -452,7 +1083,7 @@ export class SessionContextManager {
         'physical_address',
         "borrower's physical address",
         'string',
-        'Extract the full physical address of the borrower including city, state, or zip code if mentioned. If they say "123 Maple Street", extract "123 Maple Street". If not found, return null.'
+        'Extract the full physical address of the borrower including city, state, or zip code if mentioned. If not found, return null.'
       );
       if (res.value) {
         this.profile.physical_address = res.value as string;
@@ -463,10 +1094,38 @@ export class SessionContextManager {
     }
 
     if (this.currentPendingField === 'soft_pull_authorization') {
-      const decision = await classifyConfirmation(text, lastQuestion, 'soft_pull_consent', 'Do you authorize the soft credit inquiry on that basis?');
+      // Use classifyAuthorization: regex fast-path (0ms) + Cerebras fallback.
+      // If user asks a question ("what does soft pull mean?"), returns 'needs_explanation'
+      // and we simply let the main LLM answer it — the field stays on soft_pull_authorization.
+      const decision = await classifyAuthorization(text, lastQuestion);
+      console.log(`[soft_pull_authorization] Authorization decision=${decision}`);
+
+      if (decision === 'needs_explanation') {
+        // User is asking for more info — don't advance or re-ask, let the LLM answer naturally.
+        console.log('[soft_pull_authorization] User asked for explanation — staying on field, LLM will answer.');
+        return;
+      }
+
       if (decision === 'yes') {
         this.profile.soft_pull_consent = 'accepted';
         this.profile.prefilled_fields_confirmed = {};
+
+
+        // Make real CRS API call (awaited before advanceWorkflow)
+        const crsResult = await callCrsSoftPull(this.profile);
+
+        if (crsResult) {
+          this.profile.credit_range = crsResult.creditRange;
+          (this.profile as any).crs_open_accounts = crsResult.openAccounts;
+          (this.profile as any).crs_late_payments = crsResult.latePaymentsLast24Mo;
+          if (crsResult.employer) this.profile.employer = crsResult.employer;
+          this.profile.legal_name = this.profile.borrower_name || crsResult.legalName || 'Valued Borrower';
+          if (crsResult.physicalAddress) this.profile.physical_address = crsResult.physicalAddress;
+          console.log(`[CRS]: Soft pull complete. Name: ${this.profile.legal_name}, Address: ${crsResult.physicalAddress}, Score: ${crsResult.creditScore}, Range: ${crsResult.creditRangeLabel}`);
+        } else {
+          console.log('[CRS]: Soft pull failed — using mock fallback.');
+        }
+
         this.advanceWorkflow();
       } else if (decision === 'no') {
         this.profile.soft_pull_consent = 'declined';
@@ -479,65 +1138,124 @@ export class SessionContextManager {
       this.currentPendingField === 'prefill_credit_range'
     ) {
       const step = this.currentPendingField;
-      const decision = await classifyConfirmation(text, lastQuestion, step, 'Does that look right or is anything out of date?');
-      
-      const confirmed = this.profile.prefilled_fields_confirmed || {};
-      
-      if (decision === 'no') {
-        if (step === 'prefill_employer') {
-          const res = await extractProfileField(
-            text,
-            lastQuestion,
-            'employer_correction',
-            'corrected employer name',
-            'string',
-            'Extract the corrected employer name mentioned by the user (e.g. "Hexler Tech"). If not found, return null.'
-          );
-          if (res.value) {
-            this.profile.employer = res.value as string;
-            console.log(`[context-manager]: Corrected employer to ${res.value}`);
-          }
+
+      // 1. Build list of correction fields to extract in parallel
+      const correctionFields: FieldToExtract[] = [];
+      if (step === 'prefill_employer') {
+        correctionFields.push({
+          name: 'employer_correction',
+          description: 'corrected employer name',
+          expectedType: 'string',
+          additionalInstructions: 'Extract the corrected employer name mentioned by the user (e.g. "Hexler Tech"). If not found, return null.'
+        });
+      } else if (step === 'prefill_name_address') {
+        correctionFields.push({
+          name: 'name_correction',
+          description: 'corrected borrower name',
+          expectedType: 'string',
+          additionalInstructions: 'Extract the corrected borrower full name. If not found, return null.'
+        }, {
+          name: 'address_correction',
+          description: 'corrected physical address',
+          expectedType: 'string',
+          additionalInstructions: 'Extract the corrected physical address. If not found, return null.'
+        });
+      } else if (step === 'prefill_credit_range') {
+        correctionFields.push({
+          name: 'credit_correction',
+          description: 'corrected credit score or range',
+          expectedType: 'string',
+          additionalInstructions: 'Extract the corrected credit score or range. If not found, return null.'
+        });
+      } else if (step === 'prefill_accounts') {
+        correctionFields.push({
+          name: 'open_accounts_correction',
+          description: 'corrected number of open accounts',
+          expectedType: 'number',
+          additionalInstructions: 'Extract the corrected number of open accounts mentioned by the user (e.g. 4 for "4 accounts"). Return an integer or null if not mentioned.'
+        }, {
+          name: 'late_payments_correction',
+          description: 'corrected number of late payments in past 24 months',
+          expectedType: 'number',
+          additionalInstructions: 'Extract the corrected number of late payments mentioned by the user (e.g. 0 for "no late payments", 1 for "1 late payment"). Return an integer or null if not mentioned.'
+        });
+      }
+
+      const [classifyRes, extractRes] = await Promise.all([
+        classifyConfirmation(text, lastQuestion, step, 'Does that look right or is anything out of date?'),
+        correctionFields.length > 0
+          ? extractMultipleFields(text, lastQuestion, correctionFields)
+          : Promise.resolve(null),
+      ]);
+      let decision = classifyRes;
+      let extractionResults: any = extractRes;
+
+      let hasCorrection = false;
+      if (extractionResults) {
+        if (step === 'prefill_employer' && extractionResults.employer_correction?.value) {
+          this.profile.employer = extractionResults.employer_correction.value as string;
+          console.log(`[context-manager]: Corrected employer to ${extractionResults.employer_correction.value}`);
+          hasCorrection = true;
         } else if (step === 'prefill_name_address') {
-          const resName = await extractProfileField(
-            text,
-            lastQuestion,
-            'name_correction',
-            'corrected borrower name',
-            'string',
-            'Extract the corrected borrower full name. If not found, return null.'
-          );
-          if (resName.value) {
-            this.profile.borrower_name = resName.value as string;
-            this.profile.legal_name = resName.value as string;
-            console.log(`[context-manager]: Corrected borrower name to ${resName.value}`);
+          if (extractionResults.name_correction?.value) {
+            this.profile.borrower_name = extractionResults.name_correction.value as string;
+            this.profile.legal_name = extractionResults.name_correction.value as string;
+            console.log(`[context-manager]: Corrected borrower name to ${extractionResults.name_correction.value}`);
+            hasCorrection = true;
           }
-          const resAddress = await extractProfileField(
-            text,
-            lastQuestion,
-            'address_correction',
-            'corrected physical address',
-            'string',
-            'Extract the corrected physical address. If not found, return null.'
-          );
-          if (resAddress.value) {
-            this.profile.physical_address = resAddress.value as string;
-            console.log(`[context-manager]: Corrected physical address to ${resAddress.value}`);
+          if (extractionResults.address_correction?.value) {
+            this.profile.physical_address = extractionResults.address_correction.value as string;
+            console.log(`[context-manager]: Corrected physical address to ${extractionResults.address_correction.value}`);
+            hasCorrection = true;
           }
-        } else if (step === 'prefill_credit_range') {
-          const resCredit = await extractProfileField(
-            text,
-            lastQuestion,
-            'credit_correction',
-            'corrected credit score or range',
-            'string',
-            'Extract the corrected credit score or range. If not found, return null.'
-          );
-          if (resCredit.value) {
-            this.profile.credit_range = resCredit.value as string;
-            console.log(`[context-manager]: Corrected credit range to ${resCredit.value}`);
+        } else if (step === 'prefill_credit_range' && extractionResults.credit_correction?.value) {
+          this.profile.credit_range = sanitizeCreditScore(extractionResults.credit_correction.value as string);
+          console.log(`[context-manager]: Corrected credit range to ${this.profile.credit_range}`);
+          hasCorrection = true;
+        } else if (step === 'prefill_accounts') {
+          if (extractionResults.open_accounts_correction?.value !== undefined && extractionResults.open_accounts_correction?.value !== null) {
+            const val = Number(extractionResults.open_accounts_correction.value);
+            if (!isNaN(val)) {
+              (this.profile as any).crs_open_accounts = val;
+              console.log(`[context-manager]: Corrected open accounts to ${val}`);
+              hasCorrection = true;
+            }
+          }
+          if (extractionResults.late_payments_correction?.value !== undefined && extractionResults.late_payments_correction?.value !== null) {
+            const val = Number(extractionResults.late_payments_correction.value);
+            if (!isNaN(val)) {
+              (this.profile as any).crs_late_payments = val;
+              console.log(`[context-manager]: Corrected late payments to ${val}`);
+              hasCorrection = true;
+            }
           }
         }
       }
+
+      if (hasCorrection) {
+        decision = 'no';
+      }
+
+      if ((decision as string) === 'no_content' && !hasCorrection) {
+        console.warn(`[context-manager]: classifyConfirmation returned no_content for ${step} — Cerebras null response. Re-delivering script without marking needs_prefill_correction.`);
+        return; // Stay on the field, agent.ts deterministic script will re-ask correctly
+      }
+
+      if (decision === 'ambiguous' && !hasCorrection) {
+        console.log(`[context-manager]: User response to ${step} was ambiguous. Pausing for LLM clarification.`);
+        (this.profile as any).needs_prefill_correction = true;
+        return; // Do NOT confirm and advance, wait for LLM to clarify
+      }
+
+      if (decision === 'no' && !hasCorrection) {
+        console.log(`[context-manager]: User said no to ${step} but provided no correction. Pausing for LLM clarification.`);
+        (this.profile as any).needs_prefill_correction = true;
+        return; // Do NOT confirm and advance, wait for user correction
+      } else {
+        (this.profile as any).needs_prefill_correction = false;
+      }
+
+      const confirmed = this.profile.prefilled_fields_confirmed || {};
 
       if (step === 'prefill_name_address') {
         confirmed.name_address = true;
@@ -810,12 +1528,33 @@ export class SessionContextManager {
     return 'approve';
   }
 
-  onAgentTurn(text: string): void {
+  async onAgentTurn(text: string): Promise<void> {
     const trimmed = text.trim();
     if (!trimmed) return;
     this.turnLog.push({ role: 'assistant', text: trimmed, timestamp: Date.now() });
     this.profile.bridge_to_say = null;
     this.lastProcessedInput = null;
+
+    // Synchronize currentPendingField with what Ailana ACTUALLY asked in Stage 1
+    if (this.activeStage === '1') {
+      const lower = trimmed.toLowerCase();
+      if (lower.includes('co-borrower') || lower.includes('co borrower') || lower.includes('applying on your own') || lower.includes('joining you on the loan')) {
+        this.currentPendingField = 'co_borrower';
+      } else if (lower.includes('existing account') || lower.includes('existing relationship') || lower.includes('new customer') || lower.includes('lending institution')) {
+        this.currentPendingField = 'existing_relationship';
+      } else if (lower.includes('timeline') || lower.includes('moved in') || lower.includes('next few months') || lower.includes('when are you hoping')) {
+        this.currentPendingField = 'timeline';
+      } else if (lower.includes('primary residence') || lower.includes('investment property') || lower.includes('second home')) {
+        this.currentPendingField = 'occupancy';
+      } else if (lower.includes('primary goal') || lower.includes('purchase') || lower.includes('refinance') || lower.includes('buying a home') || lower.includes('mortgage goal')) {
+        this.currentPendingField = 'mortgage_goal';
+      }
+    }
+
+    // ── DATABASE PERSISTENCE ────────────────────────────────────────────────
+    // Save assistant turn to database
+    await this.saveConversationTurn('assistant', trimmed);
+    await this.syncToDatabase();
   }
 
   private getLastAssistantUtterance(): string | null {
@@ -885,16 +1624,25 @@ export class SessionContextManager {
       this.profile.borrower_name = extractionResults.borrower_name.value as string;
       this.profile.borrower_name_confirmed = true;
       anyUpdates = true;
+    } else if (!this.profile.borrower_name_confirmed) {
+      const match = text.match(/\b(?:my name is|i am|i'm|call me|name's)\s+([A-Z][a-z]+|[a-z]+)\b/i);
+      if (match && match[1] && !['a', 'the', 'looking', 'buying', 'interested', 'here', 'not', 'no'].includes(match[1].toLowerCase())) {
+        this.profile.borrower_name = match[1].charAt(0).toUpperCase() + match[1].slice(1);
+        this.profile.borrower_name_confirmed = true;
+        anyUpdates = true;
+      }
     }
     const mgRaw = extractionResults.mortgage_goal?.value;
     const mgVal = typeof mgRaw === 'string' ? mgRaw.toLowerCase().trim() : null;
-    if (mgVal === 'purchase' || mgVal === 'refinance' || mgVal === 'equity') {
-      this.profile.mortgage_goal = mgVal;
+    if (mgVal && (mgVal.includes('purchase') || mgVal.includes('refinance') || mgVal.includes('equity'))) {
+      this.profile.mortgage_goal = mgVal.includes('purchase') ? 'purchase' : mgVal.includes('refinance') ? 'refinance' : 'equity';
       this.profile.mortgage_goal_confirmed = true;
       anyUpdates = true;
     }
-    if (extractionResults.occupancy && (extractionResults.occupancy.value === 'primary' || extractionResults.occupancy.value === 'secondary' || extractionResults.occupancy.value === 'investment')) {
-      this.profile.occupancy = extractionResults.occupancy.value;
+    const occRaw = extractionResults.occupancy?.value;
+    const occVal = typeof occRaw === 'string' ? occRaw.toLowerCase().trim() : null;
+    if (occVal && (occVal.includes('primary') || occVal.includes('secondary') || occVal.includes('investment'))) {
+      this.profile.occupancy = occVal.includes('primary') ? 'primary' : occVal.includes('secondary') ? 'secondary' : 'investment';
       this.profile.occupancy_confirmed = true;
       anyUpdates = true;
     }
@@ -911,7 +1659,17 @@ export class SessionContextManager {
     if (extractionResults.co_borrower && (extractionResults.co_borrower.value === 'yes' || extractionResults.co_borrower.value === 'no')) {
       this.profile.co_borrower = extractionResults.co_borrower.value;
       this.profile.co_borrower_confirmed = true;
+      delete (this.profile as any)._optimistic_co_borrower;
       anyUpdates = true;
+    } else if ((this.profile as any)._optimistic_co_borrower && (!extractionResults.co_borrower || !extractionResults.co_borrower.value)) {
+      // Borrower did not answer co_borrower (e.g. asked a question or spoke off-topic)
+      console.log('[reconcile]: Borrower did not answer co_borrower (asked question/off-topic) -> Rolling back to Stage 1 co_borrower.');
+      this.profile.co_borrower = null;
+      this.profile.co_borrower_confirmed = false;
+      delete (this.profile as any)._optimistic_co_borrower;
+      this.activeStage = '1';
+      this.currentPendingField = 'co_borrower';
+      this.profile.bridge_to_say = null;
     }
 
     if (anyUpdates) {
@@ -923,14 +1681,9 @@ export class SessionContextManager {
   // Stage 2 extraction — two-phase: extract → await confirm
   // ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-  private async runStage2Extraction(text: string): Promise<void> {
-    // -- SINGLE-CALL extraction: merge categorical opportunistic scan + pending field -------------
-    // Builds ONE field list that includes both opportunistic categorical fields AND the specific
-    // field being asked, then makes a single extractMultipleFields call instead of 2 sequential calls.
-
+  private buildStage2ExtractionFields(): { allFields: FieldToExtract[], pendingIsNumeric: boolean } {
     const allFields: FieldToExtract[] = [];
     const field = this.currentPendingField;
-    const lastQuestion = this.getLastAssistantUtterance();
 
     // Opportunistic categorical fields (always included while unconfirmed)
     if (!this.profile.credit_range_confirmed) {
@@ -938,7 +1691,7 @@ export class SessionContextManager {
         name: 'credit_range',
         description: 'credit score number or general tier/range',
         expectedType: 'string',
-        additionalInstructions: 'Extract the credit score number (e.g. 720) or range/tier (e.g. "Excellent", "680-700"). If they decline, skip, or say they don\'t know, set "declined" to true. If not mentioned, return null.',
+        additionalInstructions: 'Extract the credit score number (e.g. 720) or range/tier/rating (e.g. "Excellent", "Very Good", "Good", "Fair", "Poor", "680-700", "740+"). If the user says their credit is "very good", "good", "great", "excellent", "fair", "poor", or "bad", extract that exact phrase or tier. Do NOT return null if a tier or descriptive rating is provided. Do NOT include dollar signs or extra thousand zeroes. Credit scores are 3-digit numbers between 300 and 850. If STT transcribed "$710000" or "$710,000" or "710000", extract 710. If they decline, skip, or say they don\'t know, set "declined" to true. If not mentioned at all, return null.',
       });
     }
     const isRef = this.profile.mortgage_goal === 'refinance';
@@ -948,7 +1701,7 @@ export class SessionContextManager {
         name: 'rent_own',
         description: 'Whether they rent, own, or own and plan to sell their current home',
         expectedType: 'string',
-        additionalInstructions: 'Extract "rent", "own", or "own_selling". If they own and plan to sell, return "own_selling". If they own but do not mention selling, return "own". If they rent, return "rent". If not found, return null.',
+        additionalInstructions: 'Extract "rent", "own", or "own_selling". If they own and plan to sell, return "own_selling". If they own but do not mention selling, return "own". If they rent, return "rent". If their response is ambiguous or does not fit these choices, return "other". If not found, return null.',
       });
     }
     if (!isRef && !this.profile.realtor_status_confirmed) {
@@ -956,7 +1709,7 @@ export class SessionContextManager {
         name: 'realtor_status',
         description: 'Whether they have connected with a real estate agent',
         expectedType: 'string',
-        additionalInstructions: 'Extract "yes" or "no". If they have an agent/realtor, return "yes". If not, return "no". If not found, return null.',
+        additionalInstructions: 'Extract "yes" or "no". If they have an agent/realtor, return "yes". If not, return "no". If their response is ambiguous or does not fit these choices, return "other". If not found, return null.',
       });
     }
     if (isRef && !this.profile.refinance_type_confirmed) {
@@ -964,7 +1717,7 @@ export class SessionContextManager {
         name: 'refinance_type',
         description: 'Whether they want a cash-out refinance or rate and term refinance',
         expectedType: 'string',
-        additionalInstructions: 'Extract "cash_out" or "rate_term". If they say cash out, equity draw, take cash out, return "cash_out". If they say rate and term, lower monthly payment, reduce rate, change terms, return "rate_term". If not found, return null.',
+        additionalInstructions: 'Extract "cash_out" or "rate_term". If they say cash out, equity draw, take cash out, return "cash_out". If they say rate and term, lower monthly payment, reduce rate, change terms, return "rate_term". If their response is ambiguous or does not fit these choices, return "other". If not found, return null.',
       });
     }
     if (!this.profile.property_type_confirmed) {
@@ -974,13 +1727,22 @@ export class SessionContextManager {
         expectedType: 'string',
         additionalInstructions: 'Extract "single_family", "condo", "townhome", "multi_family", or "other". If not found, return null.',
       });
+      // Also extract zip_code from the same Q42 turn (combined property type + location question)
+      if (!this.profile.zip_code) {
+        allFields.push({
+          name: 'zip_code',
+          description: 'The zip code or city/state location the borrower mentioned for their property search',
+          expectedType: 'string',
+          additionalInstructions: 'Extract a 5-digit zip code if mentioned (e.g. "78209"). If they mention a city/state but no zip, extract in "city, state" format (e.g. "San Antonio, TX"). If no location is mentioned, return null.',
+        });
+      }
     }
     if (!this.profile.military_rural_confirmed) {
       allFields.push({
         name: 'military_rural',
-        description: 'Whether they are a current/former military service member, or buying in a rural/suburban area',
+        description: 'Whether borrower or co-borrower has military service history (active duty, veteran, Reserve/Guard, surviving spouse)',
         expectedType: 'string',
-        additionalInstructions: 'Return "military", "rural", "both", or "neither". If not found, return null.',
+        additionalInstructions: 'Return "military" if borrower confirms military service history. CRITICAL: If the user explicitly says "no", denies having military service, or says they have no military service of any kind, you MUST return "neither" as the value. Ignore rural property location as that is handled by zip code. If not found at all, return null.',
       });
     }
     if (!this.profile.job_tenure_type_confirmed) {
@@ -990,6 +1752,12 @@ export class SessionContextManager {
         expectedType: 'string',
         additionalInstructions: 'Extract a concise summary (e.g. "5 years, W2 salary" or "2 years, self-employed"). If not found, return null.',
       });
+      allFields.push({
+        name: 'employment_years',
+        description: 'number of years the borrower has been in their current job or profession',
+        expectedType: 'number',
+        additionalInstructions: 'Extract the number of years as an integer (e.g. 5 for 5 years, 0 for less than 1 year or months). Return number or null.',
+      });
     }
 
     // Add the specific numeric pending field if not already in the list
@@ -997,9 +1765,9 @@ export class SessionContextManager {
     const pendingIsNumeric = field !== null && numericFields.includes(field);
     if (pendingIsNumeric && field && !allFields.some(f => f.name === field)) {
       const fieldDesc = field === 'gross_annual_income' ? 'gross annual household income'
-                      : field === 'monthly_debt' ? 'total monthly recurring debt obligations (sum all debts)'
-                      : field === 'down_payment' ? 'down payment savings amount'
-                      : 'target purchase price';
+        : field === 'monthly_debt' ? 'total monthly recurring debt obligations (sum all debts)'
+          : field === 'down_payment' ? 'down payment savings amount'
+            : 'target purchase price';
       let instruction = 'Extract the dollar amount as a plain integer (e.g. 80000). If the user declines, skips, or says they don\'t know, set "declined" to true. If not mentioned, return null.';
       if (field === 'down_payment' && this.profile.target_price) {
         instruction += ` If the user specifies a percentage, calculate it against the target price ($${this.profile.target_price}) and return the integer dollar amount.`;
@@ -1007,69 +1775,161 @@ export class SessionContextManager {
       allFields.push({ name: field, description: fieldDesc, expectedType: 'number', additionalInstructions: instruction });
     }
 
-    // stage2_closing_offer (3-way classification)
-    if (field === 'stage2_closing_offer' && !allFields.some(f => f.name === 'stage2_closing_offer')) {
+    // stage2_closing_offer (always opportunistic when near the end of Stage 2, or when pending)
+    if ((field === 'stage2_closing_offer' || this.profile.job_tenure_type_confirmed || this.profile.military_rural_confirmed || this.activeStage === '2') && !allFields.some(f => f.name === 'stage2_closing_offer')) {
       allFields.push({
         name: 'stage2_closing_offer',
-        description: 'whether the user wants to proceed with the eligibility review or explore first',
+        description: 'which path the borrower has chosen: soft credit review (Path A) or explore first without credit review (Path B)',
         expectedType: 'string',
-        additionalInstructions: 'Extract "yes", "no", or "explain". If they say yes/sure/okay/go ahead, return "yes". If they say no/not yet/explore first, return "no". If they ask what it involves, return "explain". If not sure, return null.',
+        additionalInstructions:
+          'Classify the borrower response to a two-path affordability offer. ' +
+          'Path A = soft credit review. Path B = build summary without review. ' +
+          'Extract "soft_pull" (Path A) for: "yes", "sure", "okay", "let\'s do it", "go ahead", ' +
+          '"sounds good", "proceed", "run it", "run the review", "eligibility", "eligibility review", ' +
+          '"soft credit", "credit review", "the review", "first option", "most complete option", ' +
+          '"I authorize", "I authorized", "I consent", "I give consent", "authorized", "that one". ' +
+          'Extract "explore_first" (Path B) for: "affordability summary", "the summary", ' +
+          '"I would like the affordability summary", "build my summary", "build from what I shared", ' +
+          '"explore first", "stated mode", "second option", "without the review", "skip the review", ' +
+          '"no review", "not yet", "no", "not right now", "I would rather not". ' +
+          'Extract "explain" if borrower asks what the credit review or soft pull involves. ' +
+          'Return null if completely off-topic (wants a loan officer, asks about rates or programs). ' +
+          'KEY: "I would like the affordability summary" = explore_first. "Licensed loan officer" = null. ' +
+          'Prefer "soft_pull" over null when affirmation is ambiguous.',
       });
     }
 
-    if (allFields.length === 0) {
-      this.advanceWorkflow();
+    // Stage 2.5 submission intent classification — skip entirely if AUS review already completed to prevent double-submission
+    const ausAlreadyCompleted = !!(this.profile as any).aus_status;
+    if (!ausAlreadyCompleted && (this.activeStage === '2.5' || field === 'affordability_panel_active') && !allFields.some(f => f.name === 'submit_review_intent')) {
+      allFields.push({
+        name: 'submit_review_intent',
+        description: 'whether the borrower wants to submit their scenario/summary for formal eligibility review',
+        expectedType: 'string',
+        additionalInstructions:
+          'Classify if the borrower indicates readiness or intent to submit their scenario for formal review or underwriting. ' +
+          'Extract "submit" for: "submit", "submit for review", "run the review", "send it", "looks good", "submit this for me", ' +
+          '"can you submit", "can you submit for me", "please submit", "do it for me", "submit it for me", "you can submit", ' +
+          '"submit my review", "submit the review", "go ahead and submit", "I\'m ready", "go ahead", "let\'s move forward", ' +
+          '"check eligibility", "proceed with review", "send my scenario", "submit now", "yes please submit". ' +
+          'Return null if the borrower is asking a general question, adjusting target numbers, or talking about something else.',
+      });
+    }
+
+    return { allFields, pendingIsNumeric };
+  }
+
+  private applyStage2ExtractionResults(results: any, pendingIsNumeric: boolean, text: string = ''): void {
+    const field = this.currentPendingField;
+    let anyUpdates = false;
+
+    // Handle LLM-classified submission intent during Stage 2.5
+    if (results.submit_review_intent?.value === 'submit') {
+      console.log(`[context-manager] Stage 2.5: submit_review_intent extracted via LLM -> transitioning to Stage 4 (AUS findings)!`);
+      (this.profile as any).submit_review_requested = true;
+      this.profile.affordability_panel_rendered = false;
+      (this.profile as any).affordability_panel_closed = true;
+      this.profile.aus_status = 'refer';
+      this.activeStage = '4';
+      this.currentPendingField = 'aus_findings_delivered';
       return;
     }
 
-    const results = await extractMultipleFields(text, lastQuestion, allFields);
-    let anyUpdates = false;
-
     // Process categorical fields
     if (results.credit_range?.value && !this.profile.credit_range_confirmed) {
-      this.profile.credit_range = String(results.credit_range.value);
+      const sanitizedScore = sanitizeCreditScore(results.credit_range.value);
+      this.profile.credit_range = sanitizedScore;
       this.profile.credit_range_confirmed = true;
       anyUpdates = true;
-      console.log(`[context-manager] Stage2: credit_range=${results.credit_range.value}`);
+      console.log(`[context-manager] Stage2: credit_range=${sanitizedScore} (raw: ${results.credit_range.value})`);
     } else if (results.credit_range?.declined && !this.profile.credit_range_confirmed) {
       this.profile.credit_range = null;
       this.profile.credit_range_confirmed = true;
       anyUpdates = true;
     }
 
-    const rown = results.rent_own?.value;
-    if ((rown === 'rent' || rown === 'own' || rown === 'own_selling') && !this.profile.rent_own_confirmed) {
+    let rown = results.rent_own?.value;
+    if (typeof rown === 'string') {
+      rown = rown.toLowerCase().trim();
+      if (rown.includes('rent')) rown = 'rent';
+      else if (rown.includes('sell') && rown.includes('own')) rown = 'own_selling';
+      else if (rown.includes('own')) rown = 'own';
+      else rown = 'other';
+    }
+    if ((rown === 'rent' || rown === 'own' || rown === 'own_selling' || rown === 'other') && !this.profile.rent_own_confirmed) {
       this.profile.rent_own = rown;
       this.profile.rent_own_confirmed = true;
       anyUpdates = true;
       console.log(`[context-manager] Stage2: rent_own=${rown}`);
     }
 
-    const rs = results.realtor_status?.value;
-    if ((rs === 'yes' || rs === 'no') && !this.profile.realtor_status_confirmed) {
+    let rs = results.realtor_status?.value;
+    if (typeof rs === 'string') {
+      rs = rs.toLowerCase().trim();
+      if (rs.includes('yes') || rs === 'true') rs = 'yes';
+      else if (rs.includes('no') || rs === 'false') rs = 'no';
+      else if (rs !== 'yes' && rs !== 'no') rs = 'other';
+    }
+    if ((rs === 'yes' || rs === 'no' || rs === 'other') && !this.profile.realtor_status_confirmed) {
       this.profile.realtor_status = rs;
       this.profile.realtor_status_confirmed = true;
       anyUpdates = true;
       console.log(`[context-manager] Stage2: realtor_status=${rs}`);
     }
 
-    const rt = results.refinance_type?.value;
-    if ((rt === 'cash_out' || rt === 'rate_term') && !this.profile.refinance_type_confirmed) {
+    let rt = results.refinance_type?.value;
+    if (typeof rt === 'string') {
+      rt = rt.toLowerCase().trim();
+      if (rt.includes('cash')) rt = 'cash_out';
+      else if (rt.includes('rate') || rt.includes('term')) rt = 'rate_term';
+      else if (rt !== 'cash_out' && rt !== 'rate_term') rt = 'other';
+    }
+    if ((rt === 'cash_out' || rt === 'rate_term' || rt === 'other') && !this.profile.refinance_type_confirmed) {
       this.profile.refinance_type = rt;
       this.profile.refinance_type_confirmed = true;
       anyUpdates = true;
       console.log(`[context-manager] Stage2: refinance_type=${rt}`);
     }
 
-    const pt = results.property_type?.value;
-    if ((pt === 'single_family' || pt === 'condo' || pt === 'townhome' || pt === 'multi_family' || pt === 'other') && !this.profile.property_type_confirmed) {
+    const rawPt = results.property_type?.value;
+    const pt = sanitizePropertyType(rawPt);
+    if (pt && !this.profile.property_type_confirmed) {
       this.profile.property_type = pt;
       this.profile.property_type_confirmed = true;
       anyUpdates = true;
-      console.log(`[context-manager] Stage2: property_type=${pt}`);
+
+      // Extract zip/city from Q42 response for property tax and system-side USDA eligibility check
+      const zipData = lookupZipData(text);
+      if (zipData.zip) {
+        this.profile.zip_code = zipData.zip;
+        console.log(`[context-manager] Stage2: extracted zip_code=${zipData.zip}, taxRate=${zipData.propertyTaxRate}`);
+      }
+      if (zipData.isUsdaEligible && !this.profile.military_rural) {
+        this.profile.military_rural = 'rural';
+        console.log(`[context-manager] Stage2: system-side USDA eligibility determined for area: ${zipData.zip || text}`);
+      }
+      console.log(`[context-manager] Stage2: property_type=${pt} (raw: ${rawPt})`);
     }
 
-    const mr = results.military_rural?.value;
+    // Also apply LLM-extracted zip_code from Q42 combined question
+    const extractedZip = results.zip_code?.value;
+    if (extractedZip && !this.profile.zip_code) {
+      this.profile.zip_code = String(extractedZip);
+      console.log(`[context-manager] Stage2: LLM-extracted zip_code=${this.profile.zip_code}`);
+    }
+
+    let mr = typeof results.military_rural?.value === 'string' ? results.military_rural.value.toLowerCase().trim() : results.military_rural?.value;
+
+    if (!mr && results.military_rural?.declined) {
+      // If the user explicitly says "no", the extractor often marks it as declined rather than outputting "neither".
+      // Guard against background LLM hallucination: only mark as 'neither' if military_rural was the pending field or user gave explicit negation.
+      if (this.currentPendingField === 'military_rural' || /\b(no|never|none|n\/a|not really|don't|do not|no military)\b/i.test(text)) {
+        mr = 'neither';
+      }
+    } else if (mr === 'no' || mr === 'none' || mr === 'false') {
+      mr = 'neither';
+    }
+
     if ((mr === 'military' || mr === 'rural' || mr === 'both' || mr === 'neither') && !this.profile.military_rural_confirmed) {
       this.profile.military_rural = mr;
       this.profile.military_rural_confirmed = true;
@@ -1087,6 +1947,13 @@ export class SessionContextManager {
       } else if (jtLower.includes('w2') || jtLower.includes('salary') || jtLower.includes('w-2')) {
         this.profile.self_employed = false;
       }
+      // Pre-populate employment_years from job_tenure_type to avoid re-asking in Stage 3B.
+      if (this.profile.employment_years === undefined) {
+        if (results.employment_years?.value !== undefined && results.employment_years?.value !== null) {
+          this.profile.employment_years = Number(results.employment_years.value);
+          console.log(`[context-manager] Stage2: pre-populated employment_years=${this.profile.employment_years} via LLM extraction`);
+        }
+      }
       anyUpdates = true;
       console.log(`[context-manager] Stage2: job_tenure_type=${jt}`);
     }
@@ -1098,50 +1965,95 @@ export class SessionContextManager {
         this.commitStage2Value(field, null, true);
         anyUpdates = true;
       } else if (numResult?.value !== null && numResult?.value !== undefined) {
-        this.profile.pending_confirm_field = field;
-        this.profile.pending_confirm_value = `$${(numResult.value as number).toLocaleString()}`;
-        console.log(`[context-manager] Stage2: extracted ${field}=${numResult.value}, awaiting confirm`);
+        const rawValue = `$${(numResult.value as number).toLocaleString()}`;
+        console.log(`[context-manager] Stage2: extracted and committing ${field}=${numResult.value} directly`);
+        this.commitStage2Value(field, rawValue, false);
         anyUpdates = true;
       }
     }
 
-    // Process stage2_closing_offer
-    const offerVal = results.stage2_closing_offer?.value;
-    if (field === 'stage2_closing_offer' && offerVal) {
-      if (offerVal === 'yes') {
+    // Process stage2_closing_offer (v8.7 two-path routing via LLM intent classification)
+    if (field === 'stage2_closing_offer') {
+      const offerVal = results.stage2_closing_offer?.value;
+
+      if (offerVal === 'soft_pull') {
+        // Path A: OTP gate → soft pull → prefill → Stage 2.5 Verified
         this.activeStage = '3A';
-        this.currentPendingField = 'legal_name';
-        console.log('[context-manager]: stage2_closing_offer accepted! Transitioning to STAGE 3A Legal Name!');
-      } else if (offerVal === 'no') {
-        this.activeStage = '3';
-        this.currentPendingField = 'product_fit_walkthrough';
-        this.profile.bridge_to_say = 'stage2_to_stage3';
-        console.log('[context-manager]: stage2_closing_offer declined! Transitioning to STAGE 3 Product Guidance!');
+        this.currentPendingField = 'contact_email';
+        console.log('[context-manager]: Path A chosen via LLM — Stage 2 closing offer accepted. Transitioning to STAGE 3A OTP gate (contact_email)!');
+        return;
       } else if (offerVal === 'explain') {
-        console.log('[context-manager]: stage2_closing_offer explanation requested.');
+        console.log('[context-manager]: stage2_closing_offer explanation requested via LLM.');
+        (this.profile as any).last_extracted_offer_val = 'explain';
+        return;
+      } else if (offerVal === 'explore_first') {
+        // Path B: Immediate Stage 2.5 in Stated-Data mode — explicit explore_first choice
+        this.activeStage = '2.5';
+        this.profile.affordability_mode = 'stated';
+        this.profile.affordability_panel_rendered = true;
+        this.profile.affordability_purchase_price = this.profile.target_price ?? 350000;
+        this.profile.affordability_down_payment = this.profile.down_payment ?? 70000;
+        if (!this.profile.target_price) this.profile.target_price = 350000;
+        if (!this.profile.down_payment) this.profile.down_payment = 70000;
+        this.currentPendingField = 'affordability_panel_active';
+        console.log('[context-manager]: Path B chosen via LLM — Stated-Data Mode. Transitioning directly to Stage 2.5 (Affordability Panel)!');
+        return;
+      } else {
+        // null — no clear choice extracted. Stay on stage2_closing_offer and wait for explicit response.
+        console.log('[context-manager]: stage2_closing_offer — no clear choice extracted (null). Waiting for explicit borrower choice.');
+        return;
       }
-      return;
     }
 
     if (anyUpdates) {
       this.advanceWorkflow();
     }
   }
+
+  private async runStage2Extraction(text: string): Promise<void> {
+    const { allFields, pendingIsNumeric } = this.buildStage2ExtractionFields();
+
+    if (allFields.length === 0) {
+      this.advanceWorkflow();
+      return;
+    }
+
+    const lastQuestion = this.getLastAssistantUtterance();
+    const results = await extractMultipleFields(text, lastQuestion, allFields);
+    this.applyStage2ExtractionResults(results, pendingIsNumeric, text);
+  }
   private async handleStage2Confirmation(text: string): Promise<void> {
     const field = this.profile.pending_confirm_field!;
     const rawValue = this.profile.pending_confirm_value!;
     const lastQuestion = this.getLastAssistantUtterance();
 
-    const decision = await classifyConfirmation(text, lastQuestion, field, rawValue);
+    const { allFields, pendingIsNumeric } = this.buildStage2ExtractionFields();
+
+    // ─── Parallel LLM Calls Execution ───
+    const decisionPromise = classifyConfirmation(text, lastQuestion, field, rawValue);
+    const extractionPromise = allFields.length > 0
+      ? extractMultipleFields(text, lastQuestion, allFields)
+      : Promise.resolve(null);
+
+    const [decision, extractionResults] = await Promise.all([decisionPromise, extractionPromise]);
 
     if (decision === 'yes') {
-      console.log(`[context-manager] Stage2: ${field} confirmed Ã¢â€ â€™ ${rawValue}`);
+      console.log(`[context-manager] Stage2: ${field} confirmed -> ${rawValue}`);
       this.commitStage2Value(field, rawValue, false);
+      if (extractionResults) {
+        // Remove the pending field from the extraction results to prevent double-committing/overwriting
+        if (field && extractionResults[field]) {
+          delete extractionResults[field];
+        }
+        this.applyStage2ExtractionResults(extractionResults, false, text);
+      }
     } else if (decision === 'no') {
-      console.log(`[context-manager] Stage2: ${field} correction incoming Ã¢â‚¬â€ resetting pending`);
+      console.log(`[context-manager] Stage2: ${field} correction incoming -> resetting pending`);
       this.profile.pending_confirm_field = null;
       this.profile.pending_confirm_value = null;
-      await this.runStage2Extraction(text);
+      if (extractionResults) {
+        this.applyStage2ExtractionResults(extractionResults, pendingIsNumeric, text);
+      }
     }
   }
 
@@ -1165,7 +2077,7 @@ export class SessionContextManager {
       this.profile.down_payment = declined ? null : numVal;
       this.profile.down_payment_confirmed = true;
     } else if (field === 'target_price') {
-      this.profile.target_price = declined ? null : numVal;
+      this.profile.target_price = (declined || !numVal) ? 350000 : numVal;
       this.profile.target_price_confirmed = true;
     }
 
@@ -1258,12 +2170,27 @@ export class SessionContextManager {
    * Advance workflow stage and pending objective sequentially.
    * Called ONLY after a field is confirmed (or declined). LLM never calls this.
    */
-  private advanceWorkflow(): void {
+  public advanceWorkflow(): void {
     if (this.currentPendingField) {
       this.fieldAttempts[this.currentPendingField] = 0;
     }
     // Ã¢â€â‚¬Ã¢â€â‚¬ Stage 1 Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
     if (this.activeStage === '1') {
+      // Boundary guard: if all core Stage 1 fields are confirmed, auto-confirm borrower_name (defaulting to Valued Member if missing)
+      if (
+        !this.profile.borrower_name_confirmed &&
+        this.profile.mortgage_goal_confirmed &&
+        this.profile.occupancy_confirmed &&
+        this.profile.existing_relationship_confirmed &&
+        this.profile.timeline_confirmed &&
+        this.profile.co_borrower_confirmed
+      ) {
+        if (!this.profile.borrower_name) {
+          this.profile.borrower_name = 'Valued Member';
+        }
+        this.profile.borrower_name_confirmed = true;
+      }
+
       if (!this.profile.borrower_name_confirmed) {
         this.currentPendingField = 'borrower_name';
       } else if (!this.profile.mortgage_goal_confirmed) {
@@ -1284,6 +2211,44 @@ export class SessionContextManager {
       }
     } else if (this.activeStage === '2') {
       const isRef = this.profile.mortgage_goal === 'refinance';
+
+      // ── Auto-Recovery & Desync Protection ──
+      // If we have reached or confirmed the final Stage 2 question (job_tenure_type),
+      // auto-resolve any earlier unconfirmed fields so the state machine advances directly to the closing offer.
+      if (this.profile.job_tenure_type_confirmed) {
+        if (!this.profile.gross_annual_income_confirmed) {
+          this.profile.gross_annual_income_confirmed = true;
+          this.profile.gross_annual_income = this.profile.gross_annual_income ?? 0;
+        }
+        if (!this.profile.monthly_debt_confirmed) {
+          this.profile.monthly_debt_confirmed = true;
+          this.profile.monthly_debt = this.profile.monthly_debt ?? 0;
+        }
+        if (!this.profile.credit_range_confirmed) {
+          this.profile.credit_range_confirmed = true;
+          this.profile.credit_range = this.profile.credit_range ?? 'Good';
+        }
+        if (!this.profile.down_payment_confirmed) {
+          this.profile.down_payment_confirmed = true;
+        }
+        if (!this.profile.rent_own_confirmed) {
+          this.profile.rent_own_confirmed = true;
+        }
+        if (!this.profile.realtor_status_confirmed) {
+          this.profile.realtor_status_confirmed = true;
+        }
+        if (!this.profile.target_price_confirmed) {
+          this.profile.target_price_confirmed = true;
+        }
+        if (!this.profile.property_type_confirmed) {
+          this.profile.property_type_confirmed = true;
+          this.profile.property_type = this.profile.property_type ?? 'single_family';
+        }
+        if (!this.profile.military_rural_confirmed) {
+          this.profile.military_rural_confirmed = true;
+          this.profile.military_rural = this.profile.military_rural ?? 'neither';
+        }
+      }
 
       if (!this.profile.gross_annual_income_confirmed) {
         this.currentPendingField = 'gross_annual_income';
@@ -1325,18 +2290,20 @@ export class SessionContextManager {
       }
     } else if (this.activeStage === '3A') {
       const confirmed = this.profile.prefilled_fields_confirmed || {};
-      // -- Pre-consent collection: legal name -> address -> consent disclosure --
-      if (!this.profile.legal_name_confirmed) {
-        this.currentPendingField = 'legal_name';
-      } else if (!this.profile.physical_address_confirmed) {
-        this.currentPendingField = 'physical_address';
+      // -- v8.7 OTP Gate: contact_email → contact_mobile → otp_verification → soft_pull_authorization → prefill walkthrough --
+      if (!this.profile.contact_email) {
+        this.currentPendingField = 'contact_email';
+      } else if (!this.profile.contact_mobile) {
+        this.currentPendingField = 'contact_mobile';
+      } else if (!this.profile.otp_verified) {
+        this.currentPendingField = 'otp_verification';
       } else if (!this.profile.soft_pull_consent || this.profile.soft_pull_consent === 'pending') {
-        // Both name and address collected -- now ask for soft pull authorization
+        // OTP complete — now ask for formal soft pull authorization
         this.currentPendingField = 'soft_pull_authorization';
         if (!this.profile.soft_pull_consent) {
           this.profile.soft_pull_consent = 'pending';
         }
-      // -- Post-consent: prefill walkthrough or skip to 3B --
+        // -- Post-consent: prefill walkthrough or skip to 3B --
       } else if (this.profile.soft_pull_consent === 'accepted') {
         if (!confirmed.name_address) {
           this.currentPendingField = 'prefill_name_address';
@@ -1347,18 +2314,40 @@ export class SessionContextManager {
         } else if (!confirmed.credit_range) {
           this.currentPendingField = 'prefill_credit_range';
         } else {
-          // Finished prefilled walkthrough, go to Stage 3B (Application completion)
-          this.currentPendingField = 'marital_status';
-          this.activeStage = '3B';
-          console.log('[context-manager]: Prefills confirmed! Transitioning to STAGE 3B!');
+          // Finished prefilled walkthrough, transition to Stage 2.5 (Affordability Panel)
+          this.activeStage = '2.5';
+          this.profile.affordability_mode = 'verified';
+          this.currentPendingField = 'affordability_panel_active';
+          this.profile.affordability_panel_rendered = true;
+          this.profile.affordability_purchase_price = this.profile.target_price ?? null;
+          this.profile.affordability_down_payment = this.profile.down_payment ?? null;
+          console.log('[context-manager]: Prefills confirmed! Transitioning to STAGE 2.5 Verified Mode (Affordability Panel)!');
         }
       } else if (this.profile.soft_pull_consent === 'declined') {
-        // Go straight to Stage 3B manual completion
-        this.currentPendingField = 'marital_status';
-        this.activeStage = '3B';
-        console.log('[context-manager]: Consent declined. Transitioning to STAGE 3B (manual)!');
+        // Go to Stage 2.5 for manual scenario exploration
+        this.activeStage = '2.5';
+        this.currentPendingField = 'affordability_panel_active';
+        this.profile.affordability_panel_rendered = true;
+        this.profile.affordability_purchase_price = this.profile.target_price ?? null;
+        this.profile.affordability_down_payment = this.profile.down_payment ?? null;
+        console.log('[context-manager]: Consent declined. Transitioning to STAGE 2.5 (Affordability Panel)!');
       }
     } else if (this.activeStage === '3B') {
+      // Auto-confirm employment_details if sub-fields were already populated
+      // from Stage 2 job_tenure_type — prevents re-asking questions the borrower
+      // already answered during pre-qualification.
+      if (
+        !this.profile.employment_confirmed &&
+        this.profile.self_employed !== undefined &&
+        this.profile.employment_years !== undefined
+      ) {
+        this.profile.employment_confirmed = true;
+        if (this.profile.employment_position === undefined) {
+          this.profile.employment_position = this.profile.job_tenure_type ?? 'Previously provided';
+        }
+        console.log('[context-manager]: employment_details auto-confirmed from Stage 2 job_tenure_type data.');
+      }
+
       if (!this.profile.marital_status_confirmed) {
         this.currentPendingField = 'marital_status';
       } else if (!this.profile.dependents_confirmed) {
@@ -1392,6 +2381,14 @@ export class SessionContextManager {
     }
   }
 
+  getStaticInstructions(): string {
+    return buildStaticInstructions(this.activeStage, this.profile);
+  }
+
+  getDynamicContext(): string {
+    return buildDynamicContext(this.profile, this.currentPendingField, this.activeStage, this.lowConfidence);
+  }
+
   getActiveInstructions(): string {
     return buildSessionPrompt(this.profile, this.currentPendingField, this.activeStage, this.lowConfidence);
   }
@@ -1423,9 +2420,10 @@ export class SessionContextManager {
     return this.lastInputTokens;
   }
 
-  buildTextMessages(systemPrompt: string): Array<{ role: string; content: string }> {
+  buildTextMessages(systemPrompt?: string): Array<{ role: string; content: string }> {
+    const staticPrompt = systemPrompt ?? this.getStaticInstructions();
     const messages: Array<{ role: string; content: string }> = [
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: staticPrompt },
     ];
 
     if (this.conversationSummary) {
@@ -1438,6 +2436,15 @@ export class SessionContextManager {
     const recent = this.turnLog.slice(-(ailanaConfig.keepRecentTurns * 2));
     for (const entry of recent) {
       messages.push({ role: entry.role, content: entry.text });
+    }
+
+    // Append dynamic state context at the end to anchor static prefix cache
+    const dynamicContext = this.getDynamicContext();
+    if (dynamicContext) {
+      messages.push({
+        role: 'system',
+        content: dynamicContext,
+      });
     }
 
     return messages;
@@ -1600,7 +2607,7 @@ export class SessionContextManager {
         session.updateAgent(newAgent);
         if ((session as any)._chatCtx) {
           (session as any)._chatCtx.items = (session as any)._chatCtx.items.filter(
-              (item: any) => item.type !== 'agent_handoff'
+            (item: any) => item.type !== 'agent_handoff'
           );
         }
         await newAgent.updateChatCtx(summarized.copy({ excludeHandoff: true }));
@@ -1608,7 +2615,7 @@ export class SessionContextManager {
         session.updateAgent(createAgent());
         if ((session as any)._chatCtx) {
           (session as any)._chatCtx.items = (session as any)._chatCtx.items.filter(
-              (item: any) => item.type !== 'agent_handoff'
+            (item: any) => item.type !== 'agent_handoff'
           );
         }
       }
@@ -1679,7 +2686,7 @@ export class SessionContextManager {
       this.profile.monthly_debt = numVal;
       this.profile.monthly_debt_confirmed = true;
     } else if (field === 'credit_range') {
-      this.profile.credit_range = rawValue;
+      this.profile.credit_range = sanitizeCreditScore(rawValue);
       this.profile.credit_range_confirmed = true;
     } else if (field === 'down_payment') {
       this.profile.down_payment = numVal;
@@ -1796,12 +2803,9 @@ If no correction/change is found, return null.`
       const field = parts[0]?.trim();
       const newVal = parts.slice(1).join(':')?.trim();
       if (field && newVal && confirmedFields.includes(field)) {
-        console.log(`[context-manager] Global: Correction detected for ${field} to ${newVal}`);
-        this.profile.pending_confirm_field = field;
-        this.profile.pending_confirm_value = newVal;
-
-        // Reset confirmed flag
-        (this.profile as any)[`${field}_confirmed`] = false;
+        console.log(`[context-manager] Global: Correction detected for ${field} to ${newVal} — committing immediately`);
+        this.commitGlobalValue(field, newVal);
+        this.advanceWorkflow();
         return true;
       }
     }
@@ -1875,4 +2879,61 @@ If no correction/change is found, return null.`
 
     this.advanceWorkflow();
   }
+}
+
+export function sanitizeCreditScore(input: string | number | null | undefined): string | null {
+  if (input === null || input === undefined) return null;
+  let str = String(input).trim();
+  if (!str) return null;
+
+  const lower = str.toLowerCase();
+  if (lower.includes('excellent')) return 'Excellent';
+  if (lower.includes('very good') || lower.includes('great')) return 'Very Good';
+  if (lower.includes('good')) return 'Good';
+  if (lower.includes('fair') || lower.includes('average') || lower.includes('ok') || lower.includes('okay')) return 'Fair';
+  if (lower.includes('poor') || lower.includes('bad') || lower.includes('low')) return 'Poor';
+
+  // 1. Remove lead dollar sign if present (e.g. "$710000" -> "710000", "$710" -> "710")
+  str = str.replace(/^\$\s*/, '').replace(/,/g, '').replace(/\.00$/, '');
+
+  // 2. Extract digits
+  const digitsOnly = str.replace(/\D/g, '');
+  if (digitsOnly.length > 0) {
+    const fullVal = parseInt(digitsOnly, 10);
+    // If number exceeds valid FICO range (850)
+    if (fullVal > 850) {
+      // Check if leading 3 digits form a valid FICO score (300 to 850)
+      const lead3 = parseInt(digitsOnly.slice(0, 3), 10);
+      if (lead3 >= 300 && lead3 <= 850) {
+        console.log(`[credit-sanitizer] STT mis-transcription sanitized: "${input}" -> "${lead3}"`);
+        return String(lead3);
+      }
+    }
+  }
+
+  return str;
+}
+
+export function sanitizePropertyType(val: string | null | undefined): 'single_family' | 'condo' | 'townhome' | 'multi_family' | 'other' | null {
+  if (!val || typeof val !== 'string') return null;
+  const v = val.toLowerCase().trim();
+  if (!v || v === 'null' || v === 'none' || v === 'undefined') return null;
+
+  if (v.includes('multi') || v.includes('duplex') || v.includes('triplex') || v.includes('fourplex') || v.includes('2 family') || v.includes('two family') || v.includes('2-family')) {
+    return 'multi_family';
+  }
+  if (v.includes('condo') || v.includes('condominium')) {
+    return 'condo';
+  }
+  if (v.includes('town')) {
+    return 'townhome';
+  }
+  if (v.includes('single') || v.includes('house') || v.includes('detached')) {
+    return 'single_family';
+  }
+
+  // ── Universal Catch-All Safety Net ──
+  // Any non-empty property type response (e.g. "co-op", "manufactured home", "cabin", "land")
+  // automatically falls back to 'other' so property_type_confirmed is set to true and the workflow NEVER stalls!
+  return 'other';
 }
