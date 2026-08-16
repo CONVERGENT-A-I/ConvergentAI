@@ -127,6 +127,10 @@ export interface BorrowerProfile {
   aus_status?: 'waiting' | 'approve' | 'approve_with_conditions' | 'refer' | 'suspend' | 'timeout' | null;
   aus_confirmed?: boolean;
   checklist_discussed?: boolean;
+
+  // ── Stage 5 (Escalation) ─────────────────────────────────────────────────
+  escalation_preference?: 'live_transfer' | 'scheduled_call' | 'declined' | null;
+  scheduled_call_time?: string | null;
 }
 
 const FIELD_LABELS: Record<string, string> = {
@@ -166,6 +170,8 @@ const FIELD_LABELS: Record<string, string> = {
   contact_email: 'email address for secure login',
   contact_mobile: 'mobile phone number for OTP verification',
   otp_verification: 'one-time verification code',
+  escalation_preference: 'preference for live transfer or scheduled callback',
+  scheduled_call_time: 'preferred date and time for the callback',
 };
 
 export function buildLayer3TurnContext(
@@ -295,6 +301,14 @@ export function buildLayer3TurnContext(
     '=== END STAGE 4 ===',
   ].join('\n');
 
+  // ── Stage 5 escalation block ──────────────────────────────────────────────
+  const stage5Block = [
+    '=== BORROWER PROFILE (Stage 5 — Escalation & Handoff) ===',
+    `Escalation Pref:     ${profile.escalation_preference ?? 'not yet collected'}`,
+    `Scheduled Time:      ${profile.scheduled_call_time ?? 'not yet collected'}`,
+    '=== END STAGE 5 ===',
+  ].join('\n');
+
   // ── Current task line ─────────────────────────────────────────────────────
   const isRef = profile.mortgage_goal === 'refinance';
   let taskLine = '';
@@ -321,6 +335,10 @@ export function buildLayer3TurnContext(
       const hasCoBorrower = profile.co_borrower === 'yes';
       const coBorrowerPhrase = hasCoBorrower ? 'you or a co-borrower' : 'you';
       taskLine = `CURRENT TASK:\nCollect military_rural\n\nAsk EXACTLY this: "Now, do ${coBorrowerPhrase} have any military service history — such as being on active duty, a veteran, or in the Reserve or National Guard?"\nDO NOT ASK FOR ANY OTHER FIELD.`;
+    } else if (pendingField === 'escalation_preference') {
+      taskLine = `CURRENT TASK:\nDetermine if the borrower wants a live transfer to a loan officer right now or to schedule a callback for later. If they want to schedule a callback, ask for their preferred day and time. If they want a live transfer, direct them to click the 'Loan Officer' button.`;
+    } else if (pendingField === 'scheduled_call_time') {
+      taskLine = `CURRENT TASK:\nCollect the borrower's preferred date and time for the scheduled callback. Once they provide it, confirm it warmly.`;
     } else if (pendingField) {
       taskLine = `CURRENT TASK:\nCollect ${pendingField}\n\nDO NOT ASK FOR ANY OTHER FIELD.`;
     } else {
@@ -421,6 +439,9 @@ Do NOT ask them to read the code out loud. Do NOT ask for anything else. Wait fo
   }
   if (stage === '4' || stage === '5') {
     blocks.push(stage4Block);
+  }
+  if (stage === '5') {
+    blocks.push(stage5Block);
   }
   blocks.push(taskLine + bridgeBlock + stage2ClosingBlock + consentBlock + otpBlock + lowConfidenceBlock);
 

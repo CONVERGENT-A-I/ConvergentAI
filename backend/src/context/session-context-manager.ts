@@ -540,7 +540,7 @@ export class SessionContextManager {
       'declarations',
       'submit_confirmation',
       'military_rural',
-
+      'affordability_panel_active'
     ]);
     return DETERMINISTIC_FIELDS.has(target);
   }
@@ -703,6 +703,8 @@ export class SessionContextManager {
       await this.runStage3BExtraction(trimmed);
     } else if (this.activeStage === '4') {
       await this.runStage4Extraction(trimmed);
+    } else if (this.activeStage === '5') {
+      await this.runStage5Extraction(trimmed);
     }
     console.log(`[perf] context-manager stage${this.activeStage} extraction: ${(performance.now() - _tExtract).toFixed(1)}ms`);
     console.log(`[perf] context-manager onUserTurn TOTAL: ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
@@ -1461,11 +1463,78 @@ export class SessionContextManager {
     const lastQuestion = this.getLastAssistantUtterance();
     const field = this.currentPendingField;
 
+    if (field === 'aus_findings_delivered') {
+      console.log('[context-manager]: aus_findings_delivered in runStage4Extraction -> advancing to Stage 5');
+      this.activeStage = '5';
+      this.currentPendingField = 'escalation_preference';
+      await this.runStage5Extraction(text);
+      return;
+    }
+
     if (field === 'checklist_acknowledgement') {
       const decision = await classifyConfirmation(text, lastQuestion, 'checklist_discussed', 'Do you understand the list and have these documents available?');
       if (decision === 'yes') {
         this.profile.checklist_discussed = true;
         this.advanceWorkflow();
+      }
+    }
+  }
+
+  private async runStage5Extraction(text: string): Promise<void> {
+    const lastQuestion = this.getLastAssistantUtterance();
+    const field = this.currentPendingField;
+
+    if (field === 'escalation_preference') {
+      const results = await extractMultipleFields(text, lastQuestion, [
+        { 
+          name: 'escalation_preference', 
+          description: 'preference for live transfer, scheduled callback, or declined',
+          expectedType: 'string',
+          additionalInstructions: 'Extract if the user prefers to speak to a loan officer right now (live_transfer), or schedule a callback for later (scheduled_call), or declines both (declined).' 
+        },
+        {
+          name: 'scheduled_call_time',
+          description: 'preferred date and time for the callback if provided in the utterance',
+          expectedType: 'string',
+          additionalInstructions: 'Extract the date and time the user wants to schedule the callback ONLY if they provide BOTH a specific day and a specific time (e.g. "Tomorrow at 2 PM", "Tuesday at 15:30"). If they only provide a day or a general time of day (e.g. "tomorrow", "in the evening"), return null so we can ask for clarification.'
+        }
+      ]);
+      const pref = typeof results.escalation_preference?.value === 'string' ? results.escalation_preference.value.toLowerCase() : null;
+      if (pref === 'live_transfer' || pref === 'scheduled_call' || pref === 'declined') {
+        this.profile.escalation_preference = pref as any;
+        if (results.scheduled_call_time?.value && !results.scheduled_call_time?.declined) {
+          this.profile.scheduled_call_time = results.scheduled_call_time.value as string;
+        }
+        this.advanceWorkflow();
+        
+        if (pref === 'live_transfer' || (pref === 'scheduled_call' && this.profile.scheduled_call_time)) {
+          try {
+            const { triggerMloEscalation } = await import('../utils/email-sender.js');
+            await triggerMloEscalation(this.profile);
+          } catch (e) {
+            console.error('Failed to trigger MLO escalation', e);
+          }
+        }
+      }
+    } else if (field === 'scheduled_call_time') {
+      const results = await extractMultipleFields(text, lastQuestion, [
+        { 
+          name: 'scheduled_call_time', 
+          description: 'preferred date and time for the callback',
+          expectedType: 'string',
+          additionalInstructions: 'Extract the date and time the user wants to schedule the callback ONLY if they provide BOTH a specific day and a specific time (e.g. "Tomorrow at 2 PM", "Tuesday at 15:30"). If they only provide a day or a general time of day (e.g. "tomorrow", "in the evening"), return null so we can ask for clarification.' 
+        }
+      ]);
+      if (results.scheduled_call_time?.value && !results.scheduled_call_time?.declined) {
+        this.profile.scheduled_call_time = results.scheduled_call_time.value as string;
+        this.advanceWorkflow();
+
+        try {
+          const { triggerMloEscalation } = await import('../utils/email-sender.js');
+          await triggerMloEscalation(this.profile);
+        } catch (e) {
+          console.error('Failed to trigger MLO escalation', e);
+        }
       }
     }
   }
@@ -1825,13 +1894,13 @@ export class SessionContextManager {
 
     // Handle LLM-classified submission intent during Stage 2.5
     if (results.submit_review_intent?.value === 'submit') {
-      console.log(`[context-manager] Stage 2.5: submit_review_intent extracted via LLM -> transitioning to Stage 4 (AUS findings)!`);
+      console.log(`[context-manager] Stage 2.5: submit_review_intent extracted via LLM -> transitioning to Stage 5 (Escalation)!`);
       (this.profile as any).submit_review_requested = true;
       this.profile.affordability_panel_rendered = false;
       (this.profile as any).affordability_panel_closed = true;
       this.profile.aus_status = 'refer';
-      this.activeStage = '4';
-      this.currentPendingField = 'aus_findings_delivered';
+      this.activeStage = '5';
+      this.currentPendingField = 'escalation_preference';
       return;
     }
 
@@ -2375,8 +2444,17 @@ export class SessionContextManager {
       } else {
         // All Stage 4 completed! Transition to Stage 5 (Escalation compliance)
         this.activeStage = '5';
-        this.currentPendingField = null;
+        this.currentPendingField = 'escalation_preference';
         console.log('[context-manager]: Document checklist acknowledged! Transitioning to STAGE 5 (MLO Escalation)!');
+      }
+    } else if (this.activeStage === '5') {
+      if (!this.profile.escalation_preference) {
+        this.currentPendingField = 'escalation_preference';
+      } else if (this.profile.escalation_preference === 'scheduled_call' && !this.profile.scheduled_call_time) {
+        this.currentPendingField = 'scheduled_call_time';
+      } else {
+        this.currentPendingField = null;
+        console.log('[context-manager]: Stage 5 Escalation complete.');
       }
     }
   }

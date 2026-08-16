@@ -151,10 +151,10 @@ class AilanaVoiceAgent extends voice.Agent {
         profile.aus_status = 'refer';
         profile.affordability_panel_rendered = false;
         (profile as any).affordability_panel_closed = true;
-        this.contextManager.setActiveStage('4');
-        this.contextManager.setCurrentPendingField('aus_findings_delivered');
+        this.contextManager.setActiveStage('5');
+        this.contextManager.setCurrentPendingField('escalation_preference');
         if (this.sendStageUpdate) {
-          this.sendStageUpdate('4').catch(err => console.warn(err));
+          this.sendStageUpdate('5').catch(err => console.warn(err));
         }
       }, 3000);
 
@@ -370,14 +370,17 @@ class AilanaVoiceAgent extends voice.Agent {
 
     // (0ms Verbal Submit Fast-Path moved to top of method)
 
-    if ((profile as any).submit_review_requested || pending === 'aus_findings_delivered') {
+    if ((profile as any).submit_review_requested) {
       (profile as any).submit_review_requested = false;
       console.log(`[agent-hook]: LLM-classified submission request detected — executing submission and delivering findings!`);
       profile.affordability_panel_rendered = false;
       (profile as any).affordability_panel_closed = true;
       profile.aus_status = 'refer';
-      this.contextManager.setActiveStage('4');
-      this.contextManager.setCurrentPendingField('aus_findings_delivered');
+      this.contextManager.setActiveStage('5');
+      this.contextManager.setCurrentPendingField('escalation_preference');
+      if (this.sendStageUpdate) {
+        this.sendStageUpdate('5').catch(err => console.warn(err));
+      }
 
       const name = profile.borrower_name;
       const scriptText = `Thank you for your patience${name ? `, ${name}` : ''} — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;
