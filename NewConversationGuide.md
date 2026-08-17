@@ -49,10 +49,10 @@ Type or say these exact messages to Ailana to progress the conversation:
     * **You:** `No, I don't need any agents yet.`
 12. **Ailana:** *"Roughly what is the target purchase price range...?"*
     * **You:** `It's 350000 dollars.`
-13. **Ailana:** *"What type of property are you considering... and do you have a particular town or area in mind?"* (Revised Q42)
+13. **Ailana:** *"What type of home are you looking for — such as a single-family home, condo, townhome, or multi-family — and what city or zip code are you looking in?"* (Revised Q42)
     * **You:** `Single family home, and I am looking in San Antonio, Texas 78209.`
     * *Verify:* The system captures property type and zip code `78209`. Ailana may deliver the `Q42-USDA` conditional addendum if the zip matches an eligible area. The zip code is passed to the engine for property tax estimation.
-14. **Ailana:** *"And have you or your co-borrower ever served in the military?"* (Revised Q43 - military only)
+14. **Ailana:** *"Now, do you have any military service history — such as being on active duty, a veteran, or in the Reserve or National Guard?"* (Revised Q43 - military only)
     * **You:** `I don't have any military background.`
 15. **Ailana:** *"...could you tell me a bit about your current job tenure and how you're paid...?"*
     * **You:** `I am salaried and working since last 6 years.`
@@ -143,3 +143,30 @@ Once in **Verified Mode** (either through Option A or Option B upgrade):
 5. **Verify Letter Email Dispatch:**
    * Look at your backend console output. It must print:
      `"[Email-Service]: Pre-Qualification Letter successfully delivered to..."`
+
+---
+
+### Phase 5: Handoff & Escalation (Stage 5)
+
+Immediately following the findings delivery, Ailana will transition to Stage 5 to handle SAFE Act compliance by escalating you to a licensed Loan Officer.
+
+#### Option 1: Scheduled Callback
+1. **You:** `I would like to schedule a callback with a loan officer.`
+2. **Ailana:** *"I'd be glad to schedule that for you! What day and time works best for you?"*
+3. **You:** `Tomorrow at 3 PM.`
+4. **Ailana:** *"Perfect, I've got that noted for tomorrow at 3 PM. A licensed loan officer will reach out to you then. Is there anything else I can help you with today?"*
+5. **Verify:** Check your backend terminal console logs. It should print:
+   ```text
+   [MLO-Routing]: Scheduling callback for David Beckham at Tomorrow at 3 PM.
+   [Email-Service]: Sending calendar invite and profile summary to MLO Queue...
+   [Email-Service]: Callback successfully scheduled for Tomorrow at 3 PM.
+   ```
+
+#### Option 2: Live Transfer
+1. **You:** `I want to speak with a loan officer right now.`
+2. **Ailana:** *"Great! Please click the 'Loan Officer' button on your screen and you'll be connected to the next available loan officer right away."*
+3. **Verify:** Check your backend terminal console logs. It should print:
+   ```text
+   [MLO-Routing]: Live transfer initiated for David Beckham.
+   [MLO-Routing]: Waiting for available Loan Officer...
+   ```

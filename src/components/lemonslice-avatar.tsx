@@ -269,7 +269,7 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
           </div>
 
           <div className="mt-8 text-center px-6 z-10">
-            <h3 className="text-white text-base font-medium tracking-wider">Ailana • AI Mortgage Advisor</h3>
+            <h3 className="text-white text-base font-medium tracking-wider">Ailana • AI Mortgage Assistant</h3>
             <div className="mt-2 flex items-center justify-center gap-2">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00b4d8] opacity-75"></span>
