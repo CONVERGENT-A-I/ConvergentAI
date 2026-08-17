@@ -192,10 +192,10 @@ class AilanaVoiceAgent extends voice.Agent {
         const isPathB = /\b(summary|explore|stated|second|without|no review|skip)\b/i.test(lastUserText);
 
         if (isPathA) {
-          console.log('[agent-hook]: Parallel 0ms Fast-Path — Path A chosen! Transitioning directly to STAGE 3A OTP gate (contact_email)!');
+          console.log('[agent-hook]: Parallel 0ms Fast-Path — Path A chosen! Transitioning directly to STAGE 3A OTP gate (contact_name)!');
           this.contextManager.setActiveStage('3A');
-          this.contextManager.setCurrentPendingField('contact_email');
-          const script = "Perfect. Before we run your review, let's set up a quick secure login — I'll just need the email and mobile number you'd like to use for your account. What are those for you?";
+          this.contextManager.setCurrentPendingField('contact_name');
+          const script = "Perfect. Before we run your review, I'll need a few details to set up your secure login. First, what's your name?";
           return createVerbatimStream(script) as any;
         } else if (isPathB) {
           console.log('[agent-hook]: Parallel 0ms Fast-Path — Path B chosen! Transitioning directly to Stage 2.5 Stated Mode!');
@@ -212,6 +212,14 @@ class AilanaVoiceAgent extends voice.Agent {
       return createVerbatimStream(scriptText) as any;
     }
 
+    if (pending === 'contact_name') {
+      const attempts = this.contextManager.getFieldAttemptCount('contact_name');
+      const apology = attempts >= 1 ? "I'm sorry, I didn't quite catch that. " : "";
+      const scriptText = `${apology}Perfect. Before we run your review, I'll need a few details to set up your secure login. First, what's your name?`;
+      console.log('[agent-hook]: Delivering contact_name script via Deterministic ReadableStream!');
+      return createVerbatimStream(scriptText) as any;
+    }
+
     if (pending === 'contact_email') {
       const attempts = this.contextManager.getFieldAttemptCount('contact_email');
       const apology = attempts >= 1 ? "I'm sorry, I didn't quite catch that. " : "";
@@ -221,8 +229,8 @@ class AilanaVoiceAgent extends voice.Agent {
         scriptText = `${apology}I have your mobile number. Could you also share the email address you'd like to use for your account?`;
         console.log('[agent-hook]: Delivering contact_email script (mobile already captured) via Deterministic ReadableStream!');
       } else {
-        scriptText = `${apology}Perfect. Before we run your review, let's set up a quick secure login — I'll just need the email and mobile number you'd like to use for your account. What are those for you?`;
-        console.log('[agent-hook]: Delivering Q45 initial contact_email script via Deterministic ReadableStream!');
+        scriptText = `${apology}Thank you. Now, what email and mobile number would you like to use for your account?`;
+        console.log('[agent-hook]: Delivering contact_email script via Deterministic ReadableStream!');
       }
       return createVerbatimStream(scriptText) as any;
     }
@@ -284,7 +292,7 @@ class AilanaVoiceAgent extends voice.Agent {
           (profile as any).crs_open_accounts = crsResult.openAccounts;
           (profile as any).crs_late_payments = crsResult.latePaymentsLast24Mo;
           if (crsResult.employer) profile.employer = crsResult.employer;
-          profile.legal_name = profile.borrower_name || crsResult.legalName || 'Valued Borrower';
+          profile.legal_name = profile.contact_name || profile.borrower_name || crsResult.legalName || 'Valued Borrower';
           if (crsResult.physicalAddress) profile.physical_address = crsResult.physicalAddress;
           console.log(`[agent-hook]: CRS soft pull complete. Name: ${profile.legal_name}, Address: ${crsResult.physicalAddress}`);
         } else {
@@ -293,7 +301,7 @@ class AilanaVoiceAgent extends voice.Agent {
 
         this.contextManager.advanceWorkflow();
 
-        const name = profile.legal_name || profile.borrower_name || 'Valued Borrower';
+        const name = profile.contact_name || profile.legal_name || profile.borrower_name || 'Valued Borrower';
         const address = profile.physical_address || (profile.zip_code ? `address on file in zip code ${profile.zip_code}` : 'address on file');
         const scriptText = `Thank you. I've processed that soft pull. First, I have your name listed as ${name}, and your physical address as ${address}. Does that look right or is anything out of date?`;
         console.log('[agent-hook]: Delivering prefill_name_address script directly after soft pull consent!');
@@ -323,7 +331,7 @@ class AilanaVoiceAgent extends voice.Agent {
 
     if (pending === 'prefill_name_address') {
       if ((profile as any).needs_prefill_correction) return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
-      const name = profile.legal_name || profile.borrower_name || 'Valued Borrower';
+      const name = profile.contact_name || profile.legal_name || profile.borrower_name || 'Valued Borrower';
       const address = profile.physical_address || (profile.zip_code ? `address on file in zip code ${profile.zip_code}` : 'address on file');
       const scriptText = `Thank you. I've processed that soft pull. First, I have your name listed as ${name}, and your physical address as ${address}. Does that look right or is anything out of date?`;
       console.log('[agent-hook]: Delivering prefill_name_address script via Deterministic ReadableStream!');
@@ -939,6 +947,7 @@ export default defineAgent({
             otp_verified: prof.otp_verified,
             session_login_complete: prof.session_login_complete,
             contact_on_file: prof.contact_on_file,
+            contact_name: prof.contact_name,
             contact_email: prof.contact_email,
             contact_mobile: prof.contact_mobile,
             // otp_sent = true when the OTP has been generated (even before field reaches 'otp_verification')

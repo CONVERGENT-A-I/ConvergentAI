@@ -509,6 +509,7 @@ export class SessionContextManager {
       'soft_pull_authorization',
       'assets_details',
       // Deterministic fields with async operations (like OTP modal / CRS API pull)
+      'contact_name',
       'contact_email',
       'contact_mobile',
       'otp_verification',
@@ -529,6 +530,7 @@ export class SessionContextManager {
     if (!target) return false;
     const DETERMINISTIC_FIELDS = new Set([
       'stage2_closing_offer',
+      'contact_name',
       'contact_email',
       'contact_mobile',
       'otp_verification',
@@ -741,8 +743,8 @@ export class SessionContextManager {
         if (this.profile.affordability_mode === 'stated' || !this.profile.otp_verified) {
           // Voice submit in stated mode -> triggers upgrade flow
           this.activeStage = '3A';
-          this.currentPendingField = 'contact_email';
-          console.log('[context-manager]: Voice submit in stated mode -> triggering upgrade (Stage 3A contact_email).');
+          this.currentPendingField = 'contact_name';
+          console.log('[context-manager]: Voice submit in stated mode -> triggering upgrade (Stage 3A contact_name).');
         } else {
           // Voice submit in verified mode -> executes AUS submission
           this.profile.affordability_submitted = true;
@@ -752,8 +754,8 @@ export class SessionContextManager {
       } else if (res.value === 'upgrade') {
         // Trigger upgrade to verified mode — set pending to OTP gate
         this.activeStage = '3A';
-        this.currentPendingField = 'contact_email';
-        console.log('[context-manager]: Affordability panel upgrade to verified mode requested via voice. Going to OTP gate.');
+        this.currentPendingField = 'contact_name';
+        console.log('[context-manager]: Affordability panel upgrade to verified mode requested via voice. Going to OTP gate (contact_name).');
       } else if (res.value === 'update_profile') {
         this.currentPendingField = 'affordability_profile_correction';
       } else if (res.value === 'delete_data') {
@@ -833,9 +835,9 @@ export class SessionContextManager {
 
   public triggerUpgradeToVerifiedMode(): void {
     this.activeStage = '3A';
-    this.currentPendingField = 'contact_email';
+    this.currentPendingField = 'contact_name';
     this.profile.transition_pitch_delivered = true;
-    console.log('[context-manager]: Explicit upgrade to verified mode triggered! Active stage set to 3A, pending field set to contact_email.');
+    console.log('[context-manager]: Explicit upgrade to verified mode triggered! Active stage set to 3A, pending field set to contact_name.');
   }
 
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢
@@ -872,8 +874,8 @@ export class SessionContextManager {
       if (res.value === 'yes') {
         // Route through v8.7 OTP gate
         this.activeStage = '3A';
-        this.currentPendingField = 'contact_email';
-        console.log('[context-manager]: stage3_closing_offer accepted! Transitioning to STAGE 3A OTP gate (contact_email)!');
+        this.currentPendingField = 'contact_name';
+        console.log('[context-manager]: stage3_closing_offer accepted! Transitioning to STAGE 3A OTP gate (contact_name)!');
 
       } else if (res.value === 'no') {
         this.currentPendingField = 'advisor_connection_offer';
@@ -978,6 +980,27 @@ export class SessionContextManager {
 
   private async runStage3AExtraction(text: string): Promise<void> {
     const lastQuestion = this.getLastAssistantUtterance();
+
+    // ── v8.7 OTP Gate: Step 0 — collect contact_name ──
+    if (this.currentPendingField === 'contact_name') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'contact_name',
+        "the borrower's preferred first name or full name",
+        'string',
+        'Extract the name they want to use for account setup or preferred name. Return null if no name is mentioned.'
+      );
+      if (res.value) {
+        this.profile.contact_name = res.value as string;
+        this.profile.borrower_name = res.value as string;
+        this.profile.legal_name = res.value as string;
+        this.profile.contact_name_confirmed = true;
+        console.log(`[context-manager]: Captured contact name: ${this.profile.contact_name}`);
+        this.advanceWorkflow();
+      }
+      return;
+    }
 
     // ── v8.7 OTP Gate: Step 1 & 2 — collect email and/or mobile in any order ──
     if (this.currentPendingField === 'contact_email' || this.currentPendingField === 'contact_mobile') {
@@ -1121,7 +1144,7 @@ export class SessionContextManager {
           (this.profile as any).crs_open_accounts = crsResult.openAccounts;
           (this.profile as any).crs_late_payments = crsResult.latePaymentsLast24Mo;
           if (crsResult.employer) this.profile.employer = crsResult.employer;
-          this.profile.legal_name = this.profile.borrower_name || crsResult.legalName || 'Valued Borrower';
+          this.profile.legal_name = this.profile.contact_name || this.profile.borrower_name || crsResult.legalName || 'Valued Borrower';
           if (crsResult.physicalAddress) this.profile.physical_address = crsResult.physicalAddress;
           console.log(`[CRS]: Soft pull complete. Name: ${this.profile.legal_name}, Address: ${crsResult.physicalAddress}, Score: ${crsResult.creditScore}, Range: ${crsResult.creditRangeLabel}`);
         } else {
@@ -2029,8 +2052,8 @@ export class SessionContextManager {
       if (offerVal === 'soft_pull') {
         // Path A: OTP gate → soft pull → prefill → Stage 2.5 Verified
         this.activeStage = '3A';
-        this.currentPendingField = 'contact_email';
-        console.log('[context-manager]: Path A chosen via LLM — Stage 2 closing offer accepted. Transitioning to STAGE 3A OTP gate (contact_email)!');
+        this.currentPendingField = 'contact_name';
+        console.log('[context-manager]: Path A chosen via LLM — Stage 2 closing offer accepted. Transitioning to STAGE 3A OTP gate (contact_name)!');
         return;
       } else if (offerVal === 'explain') {
         console.log('[context-manager]: stage2_closing_offer explanation requested via LLM.');
@@ -2324,8 +2347,10 @@ export class SessionContextManager {
       }
     } else if (this.activeStage === '3A') {
       const confirmed = this.profile.prefilled_fields_confirmed || {};
-      // -- v8.7 OTP Gate: contact_email → contact_mobile → otp_verification → soft_pull_authorization → prefill walkthrough --
-      if (!this.profile.contact_email) {
+      // -- v8.7 OTP Gate: contact_name → contact_email → contact_mobile → otp_verification → soft_pull_authorization → prefill walkthrough --
+      if (!this.profile.contact_name) {
+        this.currentPendingField = 'contact_name';
+      } else if (!this.profile.contact_email) {
         this.currentPendingField = 'contact_email';
       } else if (!this.profile.contact_mobile) {
         this.currentPendingField = 'contact_mobile';
@@ -2884,7 +2909,9 @@ If no correction/change is found, return null.`
         (this.profile as any)[`${field}_confirmed`] = true;
         this.advanceWorkflow();
       }
-      return;
+    } else if (field === 'contact_name') {
+      this.profile.contact_name = 'Valued Member';
+      this.profile.contact_name_confirmed = true;
     } else if (field === 'soft_pull_authorization') {
       this.profile.soft_pull_consent = 'declined';
     } else if (field === 'prefill_name_address' || field === 'prefill_employer' || field === 'prefill_accounts' || field === 'prefill_credit_range') {

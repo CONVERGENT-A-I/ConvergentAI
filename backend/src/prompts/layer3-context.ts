@@ -111,6 +111,8 @@ export interface BorrowerProfile {
   affordability_prequel_letter_sent?: boolean;
   session_login_complete?: boolean;
   contact_on_file?: boolean;
+  contact_name?: string | null;
+  contact_name_confirmed?: boolean;
   contact_email?: string | null;
   contact_mobile?: string | null;
   otp_verified?: boolean;
@@ -167,6 +169,7 @@ const FIELD_LABELS: Record<string, string> = {
   affordability_purchase_price: 'target purchase price (affordability panel)',
   affordability_down_payment: 'down payment (affordability panel)',
   affordability_aus_status: 'AUS eligibility review result',
+  contact_name: 'preferred name for account setup',
   contact_email: 'email address for secure login',
   contact_mobile: 'mobile phone number for OTP verification',
   otp_verification: 'one-time verification code',
@@ -256,6 +259,7 @@ export function buildLayer3TurnContext(
     `Comparison Walkthrough:     ${profile.program_comparison_interest ?? 'not yet collected'}`,
     `Financial priority:          ${profile.financial_priority ?? 'not yet collected'}`,
     `Home horizon:                ${profile.home_horizon ?? 'not yet collected'}`,
+    `Contact Name:                ${profile.contact_name ?? 'not yet collected'}`,
     `Contact Email:               ${profile.contact_email ?? 'not yet collected'}`,
     `Contact Mobile:              ${profile.contact_mobile ?? 'not yet collected'}`,
     `OTP Verified:                ${!!profile.otp_verified}`,
@@ -264,7 +268,7 @@ export function buildLayer3TurnContext(
     `Soft pull consent:           ${profile.soft_pull_consent ?? 'not yet asked'}`,
     profile.soft_pull_consent === 'accepted' ? [
       `PRE-FILLED DATA RETRIEVED VIA SOFT PULL (CRS API):`,
-      `  - Full Name & Address to confirm: ${profile.legal_name || profile.borrower_name || 'Valued Borrower'}, ${profile.physical_address || (profile.zip_code ? ('address on file in zip code ' + profile.zip_code) : 'address on file')}`,
+      `  - Full Name & Address to confirm: ${profile.contact_name || profile.legal_name || profile.borrower_name || 'Valued Borrower'}, ${profile.physical_address || (profile.zip_code ? ('address on file in zip code ' + profile.zip_code) : 'address on file')}`,
       `  - Employer to confirm: ${profile.employer || 'information on file'}`,
       `  - Accounts Summary to confirm: ${(profile as any).crs_open_accounts !== undefined ? `${(profile as any).crs_open_accounts} open account(s), ${(profile as any).crs_late_payments === 0 ? 'no late payments' : (profile as any).crs_late_payments + ' late payment(s)'} in the last 24 months` : '2 open active credit cards, 1 auto loan, no negative accounts'}`,
       `  - Credit Range Category to confirm: ${profile.credit_range ? (creditRangeCategory + ' range (' + profile.credit_range + ')') : (creditRangeCategory + ' range (' + creditRangeLimits + ')')}`,
@@ -317,6 +321,7 @@ export function buildLayer3TurnContext(
   // If stage2_closing_offer, OTP, or consent instructions take over, skip the generic task.
   const hasSpecificOverride =
     pendingField === 'stage2_closing_offer' ||
+    pendingField === 'contact_name' ||
     pendingField === 'contact_email' ||
     pendingField === 'contact_mobile' ||
     pendingField === 'otp_verification' ||
@@ -391,10 +396,15 @@ NEVER quote payment amounts. NEVER mention loan programs. NEVER say "FHA" or "co
 
   // ── OTP Gate Instruction Blocks (v8.7) ────────────────────────────────────
   let otpBlock = '';
-  if (pendingField === 'contact_email') {
+  if (pendingField === 'contact_name') {
+    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT PREFERRED NAME ***
+You MUST ask for the borrower's name to set up their secure login.
+Say EXACTLY: "Perfect. Before we run your review, I'll need a few details to set up your secure login. First, what's your name?"
+Do NOT ask for email or mobile yet. Do NOT mention the soft pull until after OTP is verified.`;
+  } else if (pendingField === 'contact_email') {
     otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT EMAIL AND MOBILE ***
 You MUST ask for the borrower's email and mobile number together in ONE question.
-Say EXACTLY: "I'll just need the email and mobile number you'd like to use — I'll send a one-time code to confirm it's you. What are those for you?"
+Say EXACTLY: "Thank you. Now, what email and mobile number would you like to use for your account?"
 Do NOT ask for anything else. Do NOT mention the soft pull until after OTP is verified.`;
   } else if (pendingField === 'contact_mobile') {
     otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT MOBILE ***

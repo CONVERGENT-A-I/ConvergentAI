@@ -68,20 +68,22 @@ If you select Path A, you will run a credit review first and launch the panel wi
 
 #### Flow Steps:
 1. **You:** `Let's run the soft credit review.`
-2. **Ailana (Secure Login & One-Time OTP Gate):** *"Perfect. Before we run your review, let's set up a quick secure login... I'll just need the email and mobile number you'd like to use..."*
+2. **Ailana (Secure Login & One-Time OTP Gate):** *"Perfect. Before we run your review, I'll need a few details to set up your secure login. First, what's your name?"*
+   * **You:** `David`
+3. **Ailana:** *"Thank you. Now, what email and mobile number would you like to use for your account?"*
    * **You:** `My email is david@example.com and mobile is 555-0199.`
-3. **Ailana:** *"I've sent a one-time code to confirm your email and mobile number... go ahead and enter/read it back."*
+4. **Ailana:** *"I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely on your screen when it arrives, and you're all set."*
    * *Verification:* Check your terminal console logs. The backend prints: `[OTP-Service]: Generated mock OTP code: 123456`.
-   * **You:** `123456`
-4. **Ailana (Soft Pull Consent):** *"Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry — it will not affect your credit score in any way... Do you authorize the soft credit inquiry on that basis?"*
+   * **You:** `123456` (or enter in modal)
+5. **Ailana (Soft Pull Consent):** *"Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry — it will not affect your credit score in any way... Do you authorize the soft credit inquiry on that basis?"*
    * **You:** `Yes, I authorize.`
-5. **Ailana (Prefill Walkthrough):** *"Thank you. I've processed that soft pull... First, I have your name and address listed as David Beckham, 123 Main Street... Does that look right?"*
+6. **Ailana (Prefill Walkthrough):** *"Thank you. I've processed that soft pull... First, I have your name and address listed as David Beckham, 123 Main Street... Does that look right?"*
    * **You:** `Yes, that looks correct.`
-6. **Ailana:** *"Great. Next, I have your employer listed as Nexus Technologies LLC Corp. Does that look right?"*
+7. **Ailana:** *"Great. Next, I have your employer listed as Nexus Technologies LLC Corp. Does that look right?"*
    * **You:** `Yes, correct.`
-7. **Ailana:** *"Perfect. For your accounts summary, I see two open active credit cards... Does that look right?"*
+8. **Ailana:** *"Perfect. For your accounts summary, I see two open active credit cards... Does that look right?"*
    * **You:** `Yes, correct.`
-8. **Ailana:** *"Lastly, we retrieved your credit profile showing a category rating in the 700 range... Does that match what you expect?"*
+9. **Ailana:** *"Lastly, we retrieved your credit profile showing a category rating in the 700 range... Does that match what you expect?"*
    * **You:** `Yes, that correct.`
 
 #### Transition to Stage 2.5 (Verified Mode):
@@ -117,15 +119,17 @@ If you select Path B, you will open the panel immediately using only stated esti
 
 #### Upgrade / Submit (Triggers OTP Identity Gate):
 * When you click **"Upgrade to Verified Mode"** OR **"Submit for review"**:
-  1. **OTP Gate fires:** Ailana asks for email and mobile to set up your secure login.
+  1. **OTP Gate Step 1:** Ailana asks for your name: *"Perfect. Before we run your review, I'll need a few details to set up your secure login. First, what's your name?"*
+     * **You:** `David`
+  2. **OTP Gate Step 2:** Ailana asks for email and mobile: *"Thank you. Now, what email and mobile number would you like to use for your account?"*
      * **You:** `My email is david@example.com and mobile is 555-0199.`
-  2. **OTP verification:** Retrieve mock code from terminal (e.g. `123456`).
+  3. **OTP verification:** Retrieve mock code from terminal (e.g. `123456`).
      * **You:** `123456`
-  3. **Credit pull authorization:** Ailana presents the soft-pull disclosure.
+  4. **Credit pull authorization:** Ailana presents the soft-pull disclosure.
      * **You:** `Yes, I authorize.`
-  4. **Walkthrough:** Confirm the prefilled items (name, employer, credit score).
-  5. **Upgrade Re-render:** The panel re-renders in **Verified Mode** (credit score displays, debts lock to credit bureau tradelines, and tax rate applies from zip code).
-  6. **Ailana speaks Upgrade Narration:**
+  5. **Walkthrough:** Confirm the prefilled items (name, employer, credit score).
+  6. **Upgrade Re-render:** The panel re-renders in **Verified Mode** (credit score displays, debts lock to credit bureau tradelines, and tax rate applies from zip code).
+  7. **Ailana speaks Upgrade Narration:**
      > *"Your summary just updated — it now reflects your actual credit review..."*
 
 ---

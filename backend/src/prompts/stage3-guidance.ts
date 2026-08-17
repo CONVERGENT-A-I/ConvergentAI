@@ -51,8 +51,12 @@ GOAL: Collect the borrower's contact info, verify their identity with a one-time
 
 CURRENT TASK BEHAVIOR — FOLLOW EXACTLY IN ORDER:
 
+- When CURRENT TASK is 'contact_name':
+  * Ask: "Perfect. Before we run your review, I'll need a few details to set up your secure login. First, what's your name?"
+  * Collect only the name on this turn. Do NOT ask for email or mobile yet.
+
 - When CURRENT TASK is 'contact_email':
-  * Ask: "Perfect. Before we run your review, let's set up a quick secure login — I'll just need the email and mobile number you'd like to use for your account. What are those for you?"
+  * Ask: "Thank you. Now, what email and mobile number would you like to use for your account?"
   * Collect email and mobile in the same turn if the borrower provides both.
 
 - When CURRENT TASK is 'contact_mobile':

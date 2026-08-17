@@ -110,8 +110,9 @@ export async function callCrsSoftPull(
     // 2. Order Credit Report (TransUnion Vantage 4)
     const orderPayload = SANDBOX_IDENTITIES[identityKey] || SANDBOX_IDENTITIES.WILLIE;
 
-    let legalName = `${orderPayload.firstName} ${orderPayload.lastName}`;
-    if (orderPayload.middleName) {
+    const userProvidedName = profile?.contact_name || profile?.borrower_name || profile?.legal_name || null;
+    let legalName = userProvidedName || `${orderPayload.firstName} ${orderPayload.lastName}`;
+    if (!userProvidedName && orderPayload.middleName) {
       legalName = `${orderPayload.firstName} ${orderPayload.middleName} ${orderPayload.lastName}`;
     }
 
@@ -120,7 +121,7 @@ export async function callCrsSoftPull(
       ? `${addr.addressLine1}, ${addr.city}, ${addr.state} ${addr.postalCode}`
       : null;
 
-    console.log(`[CRS]: Ordering soft pull for ${legalName} sandbox identity...`);
+    console.log(`[CRS]: Ordering soft pull for ${legalName} (sandbox profile)...`);
     const orderRes = await fetch(`${baseUrl}/transunion/credit-report/standard/tu-prequal-vantage4`, {
       method: 'POST',
       headers: {
