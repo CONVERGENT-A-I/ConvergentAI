@@ -341,11 +341,13 @@ export function buildLayer3TurnContext(
       const coBorrowerPhrase = hasCoBorrower ? 'you or a co-borrower' : 'you';
       taskLine = `CURRENT TASK:\nCollect military_rural\n\nAsk EXACTLY this: "Now, do ${coBorrowerPhrase} have any military service history — such as being on active duty, a veteran, or in the Reserve or National Guard?"\nDO NOT ASK FOR ANY OTHER FIELD.`;
     } else if (pendingField === 'escalation_preference') {
-      taskLine = `CURRENT TASK:\nDetermine if the borrower wants a live transfer to a loan officer right now or to schedule a callback for later. If they want to schedule a callback, ask for their preferred day and time. If they want a live transfer, direct them to click the 'Loan Officer' button.`;
+      taskLine = `CURRENT TASK:\nIf the borrower asks general questions about the review findings, loan programs, documents, or the mortgage process, answer them thoroughly and helpfully, then gently offer live transfer or scheduling a callback. If they choose to schedule or connect, handle their preference accordingly.`;
     } else if (pendingField === 'scheduled_call_time') {
       taskLine = `CURRENT TASK:\nCollect the borrower's preferred date and time for the scheduled callback. Once they provide it, confirm it warmly.`;
     } else if (pendingField) {
       taskLine = `CURRENT TASK:\nCollect ${pendingField}\n\nDO NOT ASK FOR ANY OTHER FIELD.`;
+    } else if (stage === '5') {
+      taskLine = 'CURRENT TASK:\nStage 5 complete. Answer any questions the borrower has about their scenario, loan programs, next steps, documents to prepare, or general mortgage topics warmly and conversationally.';
     } else {
       taskLine = 'CURRENT TASK:\nAll fields for this stage collected.';
     }
