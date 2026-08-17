@@ -645,14 +645,30 @@ export default defineAgent({
     let sessionStarted = false;
     let pendingGreeting = false;
 
+    const expressiveConfig = ailanaConfig.expressiveMode
+      ? {
+          ttsInstructionsAppend: `
+MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
+- Maintain a warm, composed, and confident credit union advisor demeanor.
+- For positive news (e.g. strong qualifications, savings), use subtle warm and encouraging delivery.
+- For sensitive topics (e.g. debt disclosures, automated refer findings), adopt a calm, empathetic, and reassuring register.
+- Use natural, unhurried pacing with slight pauses when discussing numbers or financial disclosures.
+- NEVER use casual disfluencies, giggling, theatrical laughter, or dramatic sighs.
+`.trim(),
+        }
+      : false;
+
+    console.log(`[agent]: Expressive mode configured: ${ailanaConfig.expressiveMode ? '✅ ENABLED (Cartesia Sonic-3.5)' : '❌ DISABLED'}`);
+
     const session = new voice.AgentSession({
       userAwayTimeout: null,
+      expressive: expressiveConfig,
       turnHandling: {
         turnDetection: new inference.TurnDetector(),
         endpointing: {
           mode: 'dynamic' as const,
           minDelay: 100,
-          maxDelay: 2000,
+          maxDelay: 500,
         },
         interruption: {
           mode: 'adaptive' as const,
@@ -800,12 +816,13 @@ export default defineAgent({
                   console.log(`[silent-turn-guard]: Re-prompt cancelled — agent moved to "${currentAgentState}" before timer fired.`);
                   return;
                 }
-                // Only fire if the pending field hasn't changed (no turn happened in between)
-                if (contextManager.getPendingField() !== pendingField) {
-                  console.log(`[silent-turn-guard]: Re-prompt cancelled — pending field changed from "${pendingField}" to "${contextManager.getPendingField()}".`);
+                const currentField = contextManager.getPendingField();
+                const activeReprompt = currentField ? (PENDING_FIELD_REPROMPT[currentField] || repromptText) : repromptText;
+                if (!activeReprompt) {
+                  console.log(`[silent-turn-guard]: Re-prompt cancelled — no active reprompt text found for field="${currentField}".`);
                   return;
                 }
-                console.log(`[silent-turn-guard]: Firing re-prompt for field="${pendingField}".`);
+                console.log(`[silent-turn-guard]: Firing re-prompt for active field="${currentField}" (originally scheduled on "${pendingField}").`);
                 try {
                   // For Stage 4 transitions, use generateReply so the LLM produces
                   // the full AUS result announcement with the correct Stage 4 context,
@@ -816,8 +833,8 @@ export default defineAgent({
                     metrics.markGenerateReply();
                     session.generateReply({ userInput: 'The application has been submitted to underwriting. Please announce the result to the borrower.' });
                   } else {
-                    session.say(repromptText, { addToChatCtx: true });
-                    contextManager.onAgentTurn(repromptText).catch(err => 
+                    session.say(activeReprompt, { addToChatCtx: true });
+                    contextManager.onAgentTurn(activeReprompt).catch(err => 
                       console.error('[agent-error]: Failed to save agent turn:', err)
                     );
                   }

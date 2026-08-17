@@ -11,6 +11,7 @@ export const ailanaConfig = {
   summarizationModel: process.env.SUMMARIZATION_MODEL ?? 'gpt-4o-mini',
   textModel: process.env.TEXT_MODEL ?? 'gpt-4o-mini',
   promptVersion: process.env.PROMPT_VERSION ?? 'mvp-1',
+  expressiveMode: process.env.EXPRESSIVE_MODE !== 'false', // Enabled by default unless explicitly disabled
 
   /** Compaction triggers — tuned for latency, not just 32k limit */
   compactEveryNTurns: envInt('AILANA_COMPACT_EVERY_N_TURNS', 6),
