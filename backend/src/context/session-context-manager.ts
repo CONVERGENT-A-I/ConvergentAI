@@ -49,7 +49,7 @@ export class SessionContextManager {
   // State / Session variables
   private profile: BorrowerProfile = {};
   private activeStage: string = '1';
-  private currentPendingField: string | null = 'borrower_name';
+  private currentPendingField: string | null = 'mortgage_goal';
   private lastProcessedInput: string | null = null;
   private lowConfidence = false;
   private fieldAttempts: Record<string, number> = {};
@@ -1646,14 +1646,7 @@ export class SessionContextManager {
     // Always send the FULL static set of Stage 1 fields — never conditionally
     // remove confirmed ones. This keeps the system prompt prefix byte-identical
     // across every turn so Cerebras prefix cache hits after the first call.
-    // The model returns null for fields it can't find in the current input.
     const fieldsToExtract: FieldToExtract[] = [
-      {
-        name: 'borrower_name',
-        description: "The user's first/given name or full name",
-        expectedType: 'string',
-        additionalInstructions: 'Extract the first name or name the user wants to be called. If they say "my name is Muhammad" extract "Muhammad". If they just say "Muhammad", extract "Muhammad". If not found, return null.',
-      },
       {
         name: 'mortgage_goal',
         description: 'Whether they want to purchase/buy a new home, refinance an existing mortgage, or explore a home equity option',
@@ -1689,18 +1682,6 @@ export class SessionContextManager {
     const extractionResults = await extractMultipleFields(text, lastQuestion, fieldsToExtract);
     let anyUpdates = false;
 
-    if (extractionResults.borrower_name && extractionResults.borrower_name.value) {
-      this.profile.borrower_name = extractionResults.borrower_name.value as string;
-      this.profile.borrower_name_confirmed = true;
-      anyUpdates = true;
-    } else if (!this.profile.borrower_name_confirmed) {
-      const match = text.match(/\b(?:my name is|i am|i'm|call me|name's)\s+([A-Z][a-z]+|[a-z]+)\b/i);
-      if (match && match[1] && !['a', 'the', 'looking', 'buying', 'interested', 'here', 'not', 'no'].includes(match[1].toLowerCase())) {
-        this.profile.borrower_name = match[1].charAt(0).toUpperCase() + match[1].slice(1);
-        this.profile.borrower_name_confirmed = true;
-        anyUpdates = true;
-      }
-    }
     const mgRaw = extractionResults.mortgage_goal?.value;
     const mgVal = typeof mgRaw === 'string' ? mgRaw.toLowerCase().trim() : null;
     if (mgVal && (mgVal.includes('purchase') || mgVal.includes('refinance') || mgVal.includes('equity'))) {
@@ -2245,24 +2226,8 @@ export class SessionContextManager {
     }
     // Ã¢â€â‚¬Ã¢â€â‚¬ Stage 1 Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
     if (this.activeStage === '1') {
-      // Boundary guard: if all core Stage 1 fields are confirmed, auto-confirm borrower_name (defaulting to Valued Member if missing)
-      if (
-        !this.profile.borrower_name_confirmed &&
-        this.profile.mortgage_goal_confirmed &&
-        this.profile.occupancy_confirmed &&
-        this.profile.existing_relationship_confirmed &&
-        this.profile.timeline_confirmed &&
-        this.profile.co_borrower_confirmed
-      ) {
-        if (!this.profile.borrower_name) {
-          this.profile.borrower_name = 'Valued Member';
-        }
-        this.profile.borrower_name_confirmed = true;
-      }
 
-      if (!this.profile.borrower_name_confirmed) {
-        this.currentPendingField = 'borrower_name';
-      } else if (!this.profile.mortgage_goal_confirmed) {
+      if (!this.profile.mortgage_goal_confirmed) {
         this.currentPendingField = 'mortgage_goal';
       } else if (!this.profile.occupancy_confirmed) {
         this.currentPendingField = 'occupancy';
@@ -2772,9 +2737,6 @@ export class SessionContextManager {
     } else if (field === 'target_price') {
       this.profile.target_price = numVal;
       this.profile.target_price_confirmed = true;
-    } else if (field === 'borrower_name') {
-      this.profile.borrower_name = rawValue;
-      this.profile.borrower_name_confirmed = true;
     } else if (field === 'mortgage_goal') {
       this.profile.mortgage_goal = rawValue;
       this.profile.mortgage_goal_confirmed = true;
@@ -2819,7 +2781,6 @@ export class SessionContextManager {
 
     // Get list of fields that are already confirmed
     const confirmedFields: string[] = [];
-    if (this.profile.borrower_name_confirmed) confirmedFields.push('borrower_name');
     if (this.profile.mortgage_goal_confirmed) confirmedFields.push('mortgage_goal');
     if (this.profile.occupancy_confirmed) confirmedFields.push('occupancy');
     if (this.profile.existing_relationship_confirmed) confirmedFields.push('existing_relationship');
@@ -2839,7 +2800,6 @@ export class SessionContextManager {
     if (confirmedFields.length === 0) return false;
 
     const fieldDescriptions: Record<string, string> = {
-      borrower_name: "The user's name",
       mortgage_goal: "Whether they want to purchase/buy a new home, refinance, or explore equity",
       occupancy: "Primary residence, second home, or investment property",
       existing_relationship: "Whether they have worked with this lending institution/bank before (NOT personal relationship status like single/married)",
@@ -2895,10 +2855,7 @@ If no correction/change is found, return null.`
     const field = this.currentPendingField;
     this.fieldAttempts[field] = 0;
 
-    if (field === 'borrower_name') {
-      this.profile.borrower_name = 'Valued Member';
-      this.profile.borrower_name_confirmed = true;
-    } else if (field === 'mortgage_goal') {
+    if (field === 'mortgage_goal') {
       this.profile.mortgage_goal = 'purchase';
       this.profile.mortgage_goal_confirmed = true;
     } else if (field === 'occupancy') {

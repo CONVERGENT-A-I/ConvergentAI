@@ -342,7 +342,7 @@ export function AffordabilityPanel({
           <input
             type="range"
             min={0}
-            max={purchasePrice}
+            max={2000000}
             step={1000}
             value={downPayment}
             onChange={(e) => handleDownPaymentChange(Number(e.target.value))}

@@ -56,7 +56,7 @@ Type or say these exact messages to Ailana to progress the conversation:
     * **You:** `I don't have any military background.`
 15. **Ailana:** *"...could you tell me a bit about your current job tenure and how you're paid...?"*
     * **You:** `I am salaried and working since last 6 years.`
-16. **Ailana:** *"We have covered a lot of great ground together... You've got two good ways to see your affordability picture... [Path A] Run soft credit review... or [Path B] build affordability summary right now from everything you've shared. Which would you like?"* (Two-Path Closing Transition)
+16. **Ailana:** *"Great work exploring your numbers. You have two good ways to see your affordability picture..."* (Two-Path Closing Transition)
 
 At this point, choose either **Path A** or **Path B** below:
 
@@ -88,7 +88,7 @@ If you select Path A, you will run a credit review first and launch the panel wi
 * **The Affordability Panel slides open** next to the chat.
 * **Credit details are displayed** (credit score is shown, monthly debts are locked to bureau data).
 * Ailana speaks **Q46**:
-  > *"Thank you for your patience, David — your initial results are in, and I've placed your affordability summary on your screen..."*
+  > *"Thank you for your patience — your initial results are in, and I've placed your affordability summary on your screen..."*
 * Follow the **Phase 4 Underwriting Submission** below to complete.
 
 ---
@@ -108,7 +108,7 @@ If you select Path B, you will open the panel immediately using only stated esti
      * An **"Upgrade to Verified Mode"** button is visible.
      * Math, bands, and permanent disclaimers remain identical.
    * Ailana speaks **Q46-S**:
-     > *"Here it is, David — I've placed your affordability summary on your screen, built from everything you've shared with me..."*
+     > *"Here it is — I've placed your affordability summary on your screen, built from everything you've shared with me..."*
 
 #### Test Conversational Debt Corrections (Q58 Stated Extension):
 * In Stated mode, both income and debts can be updated conversationally.
@@ -126,7 +126,7 @@ If you select Path B, you will open the panel immediately using only stated esti
   4. **Walkthrough:** Confirm the prefilled items (name, employer, credit score).
   5. **Upgrade Re-render:** The panel re-renders in **Verified Mode** (credit score displays, debts lock to credit bureau tradelines, and tax rate applies from zip code).
   6. **Ailana speaks Upgrade Narration:**
-     > *"Your summary just updated, David — it now reflects your actual credit review..."*
+     > *"Your summary just updated — it now reflects your actual credit review..."*
 
 ---
 
@@ -139,7 +139,7 @@ Once in **Verified Mode** (either through Option A or Option B upgrade):
 3. Wait 2–4 seconds for the mock Automated Underwriting System (AUS) to return.
 4. **Verify Findings Delivery (FD1):**
    * Ailana will deliver the **FD1 script** verbatim:
-     > *"Wonderful news, David — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built..."*
+     > *"Wonderful news — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built..."*
 5. **Verify Letter Email Dispatch:**
    * Look at your backend console output. It must print:
      `"[Email-Service]: Pre-Qualification Letter successfully delivered to..."`

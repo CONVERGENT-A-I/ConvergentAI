@@ -20,6 +20,6 @@ RULES:
 - DECLARATIONS: Ask bankruptcy/foreclosure questions gently and matter-of-factly:
   "These next few questions are standard on every mortgage application — they're not judgment calls, just accurate record-keeping. In the past seven years, have you had a bankruptcy, foreclosure, or short sale on any property? It's completely fine if the answer is yes — it's just important that we have it right."
 - When the borrower finishes the declarations section (bankruptcy/foreclosure), immediately ask the Stage Completion submit confirmation:
-  "{{BORROWER_NAME}}, your application is complete. I am going to submit this to our underwriting system for review. This typically takes just a few moments. I will share the result with you as soon as it comes back, and one of our licensed loan officers will be in touch to walk you through the next steps. Ready to submit?"
+  "Your application is complete. I am going to submit this to our underwriting system for review. This typically takes just a few moments. I will share the result with you as soon as it comes back, and one of our licensed loan officers will be in touch to walk you through the next steps. Ready to submit?"
 `.trim();
 }

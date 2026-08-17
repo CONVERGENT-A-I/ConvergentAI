@@ -52,8 +52,8 @@ process.on('unhandledRejection', (reason: any) => {
 
 // Verbatim Stage 2 Closing Offer text — delivered via session.say() bypassing the LLM.
 // This guarantees the exact two-path script is spoken regardless of LLM instruction-following.
-const STAGE2_CLOSING_OFFER_SCRIPT = (name: string | null | undefined) =>
-  `Great work exploring your numbers${name ? `, ${name}` : ''}. You have two good ways to see your affordability picture. First, with your authorization, I can perform a soft credit review to pre-populate your application with your actual credit data, saving you time and ensuring accurate information, all with no impact to your credit score. Alternatively, I can build your affordability summary right now using just the details you've already shared, and you can add the credit review whenever you're ready. Which path would you prefer?`;
+const STAGE2_CLOSING_OFFER_SCRIPT = () =>
+  `Great work exploring your numbers. You have two good ways to see your affordability picture. First, with your authorization, I can perform a soft credit review to pre-populate your application with your actual credit data, saving you time and ensuring accurate information, all with no impact to your credit score. Alternatively, I can build your affordability summary right now using just the details you've already shared, and you can add the credit review whenever you're ready. Which path would you prefer?`;
 
 function isQuestionOrCorrection(text: string | null | undefined): boolean {
   if (!text) return false;
@@ -158,8 +158,7 @@ class AilanaVoiceAgent extends voice.Agent {
         }
       }, 3000);
 
-      const name = profile.borrower_name;
-      const scriptText = `Thank you for your patience${name ? `, ${name}` : ''} — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;
+      const scriptText = `Thank you for your patience — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;
       return createVerbatimStream(scriptText) as any;
     }
 
@@ -185,7 +184,7 @@ class AilanaVoiceAgent extends voice.Agent {
       let scriptText = '';
       if (!this._stage2ClosingOfferDelivered) {
         this._stage2ClosingOfferDelivered = true;
-        scriptText = STAGE2_CLOSING_OFFER_SCRIPT(profile.borrower_name);
+        scriptText = STAGE2_CLOSING_OFFER_SCRIPT();
         console.log('[agent-hook]: Delivering initial STAGE2_CLOSING_OFFER_SCRIPT via Deterministic ReadableStream (0ms LLM)!');
       } else {
         // User is answering stage2_closing_offer:
@@ -382,8 +381,7 @@ class AilanaVoiceAgent extends voice.Agent {
         this.sendStageUpdate('5').catch(err => console.warn(err));
       }
 
-      const name = profile.borrower_name;
-      const scriptText = `Thank you for your patience${name ? `, ${name}` : ''} — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;
+      const scriptText = `Thank you for your patience — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;
       return createVerbatimStream(scriptText) as any;
     }
 

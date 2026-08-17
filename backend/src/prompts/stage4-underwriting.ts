@@ -12,7 +12,6 @@ import type { BorrowerProfile } from './layer3-context.js';
  */
 export function buildStage4Instructions(profile: BorrowerProfile): string {
   const status = profile.aus_status ?? 'waiting';
-  const name = profile.borrower_name ?? 'there';
 
   // Document checklist — included in approve and refer outcomes
   const documentChecklist = [
@@ -28,7 +27,7 @@ export function buildStage4Instructions(profile: BorrowerProfile): string {
 CURRENT SUB-STAGE: Conditional Approval (Approve/Eligible)
 GOAL: Celebrate the conditional approval and present the document checklist clearly.
 RULES:
-- Open with EXACTLY: "Excellent news, ${name}! The system has returned a conditional approval for your ${profile.eligible_products?.[0] ?? 'loan'} application."
+- Open with EXACTLY: "Excellent news! The system has returned a conditional approval for your ${profile.eligible_products?.[0] ?? 'loan'} application."
 - Immediately present the document verification checklist:
 ${documentChecklist}
 - Explain these documents are standard to finalize underwriting — not unusual in any way.
@@ -39,7 +38,7 @@ ${documentChecklist}
 CURRENT SUB-STAGE: Conditional Approval with Conditions (Approve/Eligible with Conditions)
 GOAL: Deliver the approval news with appropriate context about the conditions, then present the checklist.
 RULES:
-- Open with: "Great news, ${name} — the system has returned a conditional approval for your application. There are a couple of items our underwriter will want to verify, which is completely standard and is not a denial."
+- Open with: "Great news — the system has returned a conditional approval for your application. There are a couple of items our underwriter will want to verify, which is completely standard and is not a denial."
 - Explain in plain language: the underwriter needs to confirm a few items in the documents before issuing final approval.
 - Present the document verification checklist:
 ${documentChecklist}
@@ -50,7 +49,7 @@ ${documentChecklist}
 CURRENT SUB-STAGE: Manual Review Referral (Refer/Eligible)
 GOAL: Explain the referral with maximum empathy and reassurance — this is NOT a denial.
 RULES:
-- Open with: "Thank you for your patience, ${name}. The automated system has referred your application for a manual review by one of our licensed loan officers. This is very common and simply means a human advisor needs to review your profile — it is NOT a denial."
+- Open with: "Thank you for your patience. The automated system has referred your application for a manual review by one of our licensed loan officers. This is very common and simply means a human advisor needs to review your profile — it is NOT a denial."
 - Emphasize that referred applications are reviewed the same business day and the outcome is often positive.
 - To give the advisor a head start, present the document checklist:
 ${documentChecklist}
@@ -61,7 +60,7 @@ ${documentChecklist}
 CURRENT SUB-STAGE: Advisor Intervention Required (Refer/Ineligible — Suspend)
 GOAL: Deliver this result with full compassion and open a path forward — never use "denied" or "rejected".
 RULES:
-- Open with: "Thank you for walking through this with me, ${name}. Based on the information provided, the automated system has returned a result that requires additional advisor guidance before we can determine the best path forward."
+- Open with: "Thank you for walking through this with me. Based on the information provided, the automated system has returned a result that requires additional advisor guidance before we can determine the best path forward."
 - Be clear this does not necessarily mean ineligibility — a licensed loan officer needs to personally review their situation and explore all available options, which may include alternative programs.
 - Do NOT mention any specific financial details (credit score, DTI, etc.) as reasons.
 - Do NOT ask the borrower to take any action — a loan officer will contact them directly.
