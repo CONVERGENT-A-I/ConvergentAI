@@ -45,6 +45,7 @@ import { LoanOfficerLiveUI, LoanOfficerQueueUI } from "./loan-officer-queue";
 import { NetworkQualityBanner } from "./network-quality-banner";
 import { NetworkStrengthBars } from "./network-strength-bars";
 import { LogoLoader } from "./logo-loader";
+import { playConnectingSound, stopConnectingSound } from "../../utils/ui-sounds";
 
 import { StageListener } from "./stage-listener";
 import { AffordabilityPanel } from "../affordability-panel";
@@ -298,6 +299,7 @@ export default function FloatingCTA() {
         clearTimeout(connectionTimeoutRef.current);
         connectionTimeoutRef.current = null;
       }
+      stopConnectingSound();
       console.error("Error connecting to LiveKit:", err);
       setFlowPhase("error");
       flowPhaseRef.current = "error";
@@ -387,6 +389,7 @@ export default function FloatingCTA() {
 
       // Not connected — always fetch a fresh token + room for a new session.
       console.log("[ui] Fetching fresh token and room session.");
+      playConnectingSound();
       setToken(null);
       setLkUrl(null);
       setRoomName("");
@@ -411,6 +414,7 @@ export default function FloatingCTA() {
   // Centralised session reset — nukes all LiveKit / flow state so the
   // intro → compliance → live flow can replay cleanly.
   const resetSession = () => {
+    stopConnectingSound();
     setFlowPhase("idle");
     flowPhaseRef.current = "idle";
     setToken(null);
@@ -689,7 +693,11 @@ export default function FloatingCTA() {
     };
   }, [isOpen]);
 
-
+  useEffect(() => {
+    if (isAgentReady || flowPhase === "error" || flowPhase === "idle") {
+      stopConnectingSound();
+    }
+  }, [isAgentReady, flowPhase]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -1720,6 +1728,7 @@ export default function FloatingCTA() {
         onClick={() => {
           setIsOpen(true);
           if (flowPhaseRef.current === "idle") {
+            playConnectingSound();
             setFlowPhase("connecting");
             flowPhaseRef.current = "connecting";
             setPendingMode("video");
