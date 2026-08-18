@@ -1080,6 +1080,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         console.log(`[agent]: SYSTEM_AUS_SUBMITTED received. Status: ${status}`);
         contextManager.applyAusResult(status as any);
         updateSessionInstructions();
+        await sendStageUpdate(contextManager.getActiveStage());
         
         const triggerPrompt = `The eligibility review has returned with status: ${status}. Please deliver the findings to the borrower.`;
         if (voiceMuted) {

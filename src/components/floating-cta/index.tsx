@@ -22,6 +22,7 @@ import {
   Sparkles,
   Check,
   SlidersHorizontal,
+  Minus,
 } from "lucide-react";
 import "@livekit/components-styles";
 
@@ -46,7 +47,7 @@ import { LogoLoader } from "./logo-loader";
 
 import { StageListener } from "./stage-listener";
 import { AffordabilityPanel } from "../affordability-panel";
-import { AffordabilityModal } from "./affordability-modal";
+import { AffordabilityModal } from "./affordability-modal"; // kept for potential future use
 import { OtpVerificationModal } from "./otp-verification-modal";
 import VideoStage from "../video-stage";
 
@@ -70,6 +71,7 @@ export default function FloatingCTA() {
   const [activeStage, setActiveStage] = useState<string>("1");
   const [borrowerProfile, setBorrowerProfile] = useState<any>(null);
   const [isAffordabilityPanelOpen, setIsAffordabilityPanelOpen] = useState<boolean>(false);
+  const [hasSubmittedAus, setHasSubmittedAus] = useState<boolean>(false);
   const [isOtpModalOpen, setIsOtpModalOpen] = useState<boolean>(false);
   const [panelClosedByUser, setPanelClosedByUser] = useState<boolean>(false);
   const isSubmittingAfterOtpRef = useRef<boolean>(false);
@@ -721,11 +723,13 @@ export default function FloatingCTA() {
           >
             <AnimatePresence mode="wait">
               <motion.div
-                key="main-stage"
+                layout
                 initial={{ scale: 1.05, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="relative w-[96vw] sm:w-[90vw] max-w-7xl h-[85dvh] sm:h-[92vh] min-h-0 sm:min-h-[500px] max-h-none sm:max-h-[960px] bg-[#0B0F19] rounded-2xl sm:rounded-3xl shadow-[0_8px_60px_rgba(0,180,216,0.25),0_0_0_1px_rgba(0,180,216,0.08)] flex flex-col overflow-hidden border border-white/20"
+                style={{ maxWidth: isAffordabilityPanelOpen ? '1800px' : '80rem' }}
+                transition={{ type: 'spring', stiffness: 260, damping: 28 }}
+                className="relative w-[96vw] sm:w-[90vw] h-[85dvh] sm:h-[92vh] min-h-0 sm:min-h-[500px] max-h-none sm:max-h-[960px] bg-[#0B0F19] rounded-2xl sm:rounded-3xl shadow-[0_8px_60px_rgba(0,180,216,0.25),0_0_0_1px_rgba(0,180,216,0.08)] flex flex-col overflow-hidden border border-white/20"
               >
                 {isOffline && (
                   <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[220] px-4 py-2 rounded-full bg-red-500/90 text-white text-xs font-bold tracking-wide border border-white/20 shadow-[0_8px_25px_rgba(239,68,68,0.35)]">
@@ -1011,8 +1015,18 @@ export default function FloatingCTA() {
                     </div>
                   </div>
 
-                  {/* ── Main Content ── */}
-                  <div className="flex-1 min-h-0 relative w-full flex flex-col items-center justify-center overflow-hidden bg-transparent">
+                  {/* ── Main Content — split row when affordability panel is open ── */}
+                  <div className="flex-1 min-h-0 relative flex flex-col lg:flex-row overflow-hidden bg-transparent">
+                    {/* ── LEFT column: Ailana session (shrinks when panel is open) ── */}
+                    <motion.div
+                      layout
+                      className={`relative flex flex-col items-center justify-center min-h-0 shrink-0 order-1 ${
+                        isAffordabilityPanelOpen
+                          ? 'w-full h-1/2 lg:w-[65%] xl:w-[70%] lg:h-full'
+                          : 'w-full h-full'
+                      }`}
+                      transition={{ type: 'spring', stiffness: 260, damping: 28 }}
+                    >
                     <AnimatePresence>
                       {flowPhase === "idle" && (
                         <motion.div
@@ -1202,12 +1216,15 @@ export default function FloatingCTA() {
                                   setActiveStage(stage);
                                   if (profile) setBorrowerProfile(profile);
 
-                                  // Open affordability panel ONLY when stage is 2.5, rendered is true, and user hasn't closed or submitted it
+                                  // Auto-OPEN the panel at Stage 2.5 — never auto-close it (user controls that)
                                   const isPanelClosed = panelClosedByUser || (profile as any)?.affordability_panel_closed || Boolean(profile?.aus_status);
                                   if (stage === "2.5" && profile?.affordability_panel_rendered && !isPanelClosed) {
                                     setIsAffordabilityPanelOpen(true);
-                                  } else {
+                                  }
+                                  // Only auto-close after AUS submission completes
+                                  if (Boolean(profile?.aus_status) && !panelClosedByUser) {
                                     setIsAffordabilityPanelOpen(false);
+                                    setPanelClosedByUser(true);
                                   }
 
                                   // Open OTP modal ONLY when:
@@ -1226,50 +1243,7 @@ export default function FloatingCTA() {
                                   }
                                 }}
                               />
-                              <AffordabilityModal
-                                isOpen={isAffordabilityPanelOpen}
-                                onClose={() => {
-                                  setIsAffordabilityPanelOpen(false);
-                                  setPanelClosedByUser(true);
-                                }}
-                                mode={borrowerProfile?.affordability_mode ?? 'verified'}
-                                borrowerProfile={borrowerProfile}
-                                onUpgrade={async () => {
-                                  setIsAffordabilityPanelOpen(false);
-                                  setPanelClosedByUser(true);
-                                  if ((window as any).lkPublishData) {
-                                    const encoder = new TextEncoder();
-                                    const payload = encoder.encode(JSON.stringify({
-                                      message: 'SYSTEM_STAGE_UPDATE_UPGRADE'
-                                    }));
-                                    await (window as any).lkPublishData(payload, {
-                                      topic: "lk-chat",
-                                      reliable: true,
-                                    });
-                                  }
-                                }}
-                                onSubmitSuccess={async (status) => {
-                                  // Close panel on submit click
-                                  setIsAffordabilityPanelOpen(false);
-                                  setPanelClosedByUser(true);
-
-                                  console.log('[ui-affordability]: Submitted AUS status:', status);
-                                  try {
-                                    const encoder = new TextEncoder();
-                                    const payload = encoder.encode(JSON.stringify({
-                                      message: `SYSTEM_AUS_SUBMITTED:${status}`
-                                    }));
-                                    if ((window as any).lkPublishData) {
-                                      await (window as any).lkPublishData(payload, {
-                                        topic: "lk-chat",
-                                        reliable: true,
-                                      });
-                                    }
-                                  } catch (err) {
-                                    console.warn("[ui]: Failed to publish AUS submission event:", err);
-                                  }
-                                }}
-                              />
+                              {/* AffordabilityModal removed — panel is now inline split-screen */}
                               <OtpVerificationModal
                                 isOpen={isOtpModalOpen}
                                 onClose={() => setIsOtpModalOpen(false)}
@@ -1500,6 +1474,108 @@ export default function FloatingCTA() {
                         </button>
                       </motion.div>
                     )}
+
+                    </motion.div>
+
+                    <AnimatePresence>
+                      {isAffordabilityPanelOpen && (() => {
+                        const apEligiblePrograms: ('conventional' | 'fha' | 'va' | 'usda')[] = ['conventional', 'fha'];
+                        const apMr = borrowerProfile?.military_rural;
+                        if (apMr === 'military' || apMr === 'both') apEligiblePrograms.push('va');
+                        if (apMr === 'rural' || apMr === 'both') apEligiblePrograms.push('usda');
+                        const apProgram: 'conventional' | 'fha' | 'va' | 'usda' = apEligiblePrograms.includes('va') ? 'va' : 'conventional';
+                        const apIsSubmitted = !!(
+                          hasSubmittedAus ||
+                          borrowerProfile?.affordability_submitted ||
+                          borrowerProfile?.affordability_aus_status ||
+                          borrowerProfile?.aus_status ||
+                          borrowerProfile?.ausStatus ||
+                          borrowerProfile?.stage === '3B' ||
+                          borrowerProfile?.stage === '4' ||
+                          activeStage === '3B' ||
+                          activeStage === '4'
+                        );
+                        return (
+                          <motion.div
+                            key="affordability-panel-inline"
+                            layout
+                            initial={{ opacity: 0, x: 50 }}
+                            animate={{ opacity: 1, x: 0, transition: { delay: 0.08, type: 'spring', stiffness: 280, damping: 26 } }}
+                            exit={{ opacity: 0, x: 50, transition: { type: 'spring', stiffness: 300, damping: 30 } }}
+                            className="w-full h-1/2 lg:w-[35%] xl:w-[30%] lg:h-full flex flex-col shrink-0 border-t lg:border-t-0 lg:border-l border-white/10 bg-[#080c14]/80 z-10 order-2"
+                          >
+                            <div className="flex items-center justify-between px-5 py-3.5 bg-[#131b2e]/90 border-b border-gray-800/80 shrink-0">
+                              <div className="flex items-center gap-2.5">
+                                <SlidersHorizontal className="w-4 h-4 text-[#00b4d8]" />
+                                <span className="text-sm font-bold text-white tracking-wide">Affordability Summary</span>
+                                <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                                  (borrowerProfile?.affordability_mode ?? 'verified') === 'stated'
+                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                }`}>
+                                  {(borrowerProfile?.affordability_mode ?? 'verified') === 'stated' ? 'Stated Mode' : 'Verified Mode'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => { setIsAffordabilityPanelOpen(false); setPanelClosedByUser(true); }}
+                                  title="Minimize"
+                                  className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
+                                >
+                                  <Minus className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { setIsAffordabilityPanelOpen(false); setPanelClosedByUser(true); }}
+                                  title="Close"
+                                  className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-4">
+                              <AffordabilityPanel
+                                initialPurchasePrice={borrowerProfile?.target_price ?? borrowerProfile?.targetPrice ?? borrowerProfile?.affordability_purchase_price ?? 350000}
+                                initialDownPayment={borrowerProfile?.down_payment ?? borrowerProfile?.downPayment ?? borrowerProfile?.affordability_down_payment ?? 70000}
+                                grossAnnualIncome={borrowerProfile?.gross_annual_income ?? borrowerProfile?.grossAnnualIncome ?? 120000}
+                                totalMonthlyDebt={borrowerProfile?.monthly_debt ?? borrowerProfile?.totalMonthlyDebt ?? 500}
+                                programType={apProgram}
+                                zipCode={borrowerProfile?.zip_code ?? borrowerProfile?.zipCode}
+                                mode={borrowerProfile?.affordability_mode ?? 'verified'}
+                                onUpgrade={async () => {
+                                  setIsAffordabilityPanelOpen(false);
+                                  setPanelClosedByUser(true);
+                                  if ((window as any).lkPublishData) {
+                                    const encoder = new TextEncoder();
+                                    const payload = encoder.encode(JSON.stringify({ message: 'SYSTEM_STAGE_UPDATE_UPGRADE' }));
+                                    await (window as any).lkPublishData(payload, { topic: 'lk-chat', reliable: true });
+                                  }
+                                }}
+                                onSubmitSuccess={async (status) => {
+                                  setHasSubmittedAus(true);
+                                  setIsAffordabilityPanelOpen(false);
+                                  setPanelClosedByUser(true);
+                                  console.log('[ui-affordability]: Submitted AUS status:', status);
+                                  try {
+                                    const encoder = new TextEncoder();
+                                    const payload = encoder.encode(JSON.stringify({ message: `SYSTEM_AUS_SUBMITTED:${status}` }));
+                                    if ((window as any).lkPublishData) {
+                                      await (window as any).lkPublishData(payload, { topic: 'lk-chat', reliable: true });
+                                    }
+                                  } catch (err) {
+                                    console.warn('[ui]: Failed to publish AUS submission event:', err);
+                                  }
+                                }}
+                                eligiblePrograms={apEligiblePrograms}
+                                isSubmitted={apIsSubmitted}
+                              />
+                            </div>
+                          </motion.div>
+                        );
+                      })()}
+                    </AnimatePresence>
 
                     {flowPhase === "closing-mlo" && (
                       <motion.div
