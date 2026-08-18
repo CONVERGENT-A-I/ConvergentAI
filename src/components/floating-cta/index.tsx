@@ -43,6 +43,7 @@ import { ChannelStartTrigger } from "./channel-start-trigger";
 import { MediaGuard } from "./media-guard";
 import { LoanOfficerLiveUI, LoanOfficerQueueUI } from "./loan-officer-queue";
 import { NetworkQualityBanner } from "./network-quality-banner";
+import { NetworkStrengthBars } from "./network-strength-bars";
 import { LogoLoader } from "./logo-loader";
 
 import { StageListener } from "./stage-listener";
@@ -1349,6 +1350,10 @@ export default function FloatingCTA() {
                                           <span className="hidden sm:inline text-[9px] font-mono text-white/70">
                                             {formatTime(recordingSeconds)}
                                           </span>
+                                        </div>
+                                        {/* Network strength signal bars */}
+                                        <div className="flex items-center bg-black/50 backdrop-blur-md px-2 py-1.5 rounded-full border border-white/10">
+                                          <NetworkStrengthBars />
                                         </div>
                                       </div>
                                     )}
