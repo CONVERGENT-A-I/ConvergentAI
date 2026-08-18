@@ -1530,14 +1530,32 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             // Save the DataStreamAudioOutput set by LemonSlice
             const dataStreamAudio = session.output.audio;
 
+            // Temporarily clear it so session.start creates a RoomAudioOutput for fallback
+            if (session.output) {
+              (session.output as any).audio = undefined;
+            }
+
             // Start the AgentSession (audioEnabled: true creates the audio track for transcription)
             sessionStarted = true;
             await session.start({ agent: vadAgent, room: ctx.room });
 
+            // Save the newly created RoomAudioOutput for fallback
+            const roomAudioOutput = session.output?.audio;
+
             // Restore the DataStreamAudioOutput so TTS audio goes directly to the avatar
-            if (dataStreamAudio) {
+            if (dataStreamAudio && session.output) {
               session.output.audio = dataStreamAudio;
             }
+
+            // Listen for LemonSlice disconnection mid-conversation to trigger audio fallback
+            ctx.room.on(RoomEvent.ParticipantDisconnected, (p: any) => {
+              if (p.identity?.startsWith('lemonslice') || p.identity?.includes('avatar')) {
+                console.warn(`[avatar][${ts()}] ⚠️ LemonSlice participant disconnected mid-conversation! Routing audio back to LiveKit room fallback.`);
+                if (roomAudioOutput && session.output) {
+                  session.output.audio = roomAudioOutput;
+                }
+              }
+            });
 
             avatarConnected = true;
             break;
@@ -1615,6 +1633,10 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
 
           // Fallback session start (voice-only mode)
           sessionStarted = true;
+          // Force LiveKit to create a RoomAudioOutput instead of using the dead LemonSlice data stream
+          if (session.output) {
+            (session.output as any).audio = undefined;
+          }
           await session.start({ agent: vadAgent, room: ctx.room });
 
           isAvatarInitDone = true;
