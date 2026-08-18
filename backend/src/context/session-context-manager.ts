@@ -828,7 +828,7 @@ export class SessionContextManager {
 
   public applyAusResult(result: 'approve_eligible' | 'refer'): void {
     this.profile.affordability_aus_status = result;
-    this.profile.aus_status = result;
+    this.profile.aus_status = result === 'approve_eligible' ? 'approve' : result;
     this.profile.affordability_submitted = true;
     this.activeStage = '2.5';
     this.currentPendingField = result === 'approve_eligible' ? 'fd1_delivery' : 'fd2_delivery';
