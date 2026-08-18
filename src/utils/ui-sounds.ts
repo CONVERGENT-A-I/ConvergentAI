@@ -15,68 +15,78 @@ export function playConnectingSound() {
     const ctx = new AudioContext();
     const now = ctx.currentTime;
     
-    // Master gain with a slow, soothing envelope
+    // Create master gain
     const masterGain = ctx.createGain();
-    masterGain.gain.setValueAtTime(0, now);
-    masterGain.gain.linearRampToValueAtTime(0.12, now + 1.5); // 1.5 second slow fade in
+    masterGain.gain.value = 0.4; // Soft volume for background
     masterGain.connect(ctx.destination);
 
-    // Create a soothing Fmaj7 ambient chord (F4, A4, C5, E5)
-    const frequencies = [349.23, 440.00, 523.25, 659.25];
-    const oscillators: OscillatorNode[] = [];
+    // C Major Pentatonic scale (very relaxing, spa-like feel)
+    const frequencies = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25]; 
 
-    frequencies.forEach((freq) => {
-      // Main pure tone
+    let intervalId: NodeJS.Timeout;
+    const activeOscillators = new Set<OscillatorNode>();
+
+    const playAmbientNote = () => {
+      if (ctx.state === 'closed') return;
+      const freq = frequencies[Math.floor(Math.random() * frequencies.length)];
+      
       const osc = ctx.createOscillator();
+      const noteGain = ctx.createGain();
+      
       osc.type = 'sine';
       osc.frequency.value = freq;
       
-      // Individual gain for slight detune/chorus balancing
-      const oscGain = ctx.createGain();
-      oscGain.gain.value = 0.25; 
+      // Extremely gentle envelope (like wind chimes or soft synth pad)
+      const t = ctx.currentTime;
+      noteGain.gain.setValueAtTime(0, t);
+      noteGain.gain.linearRampToValueAtTime(0.08, t + 1.5); // Slow 1.5s fade in
+      noteGain.gain.exponentialRampToValueAtTime(0.001, t + 5.0); // 3.5s long ringing fade out
       
-      osc.connect(oscGain);
-      oscGain.connect(masterGain);
+      osc.connect(noteGain);
+      noteGain.connect(masterGain);
       
-      osc.start(now);
-      oscillators.push(osc);
+      osc.start(t);
+      osc.stop(t + 5.0);
       
-      // Add a very subtle detuned layer for each note to create a warm "shimmer"
-      const detunedOsc = ctx.createOscillator();
-      detunedOsc.type = 'sine';
-      detunedOsc.frequency.value = freq + (Math.random() * 2 - 1); // detune by +/- 1 Hz
-      
-      const detunedGain = ctx.createGain();
-      detunedGain.gain.value = 0.1; 
-      
-      detunedOsc.connect(detunedGain);
-      detunedGain.connect(masterGain);
-      
-      detunedOsc.start(now);
-      oscillators.push(detunedOsc);
-    });
-    
-    // Fallback: stop after 30 seconds anyway to prevent infinite drones if something hangs
+      activeOscillators.add(osc);
+      osc.onended = () => {
+        activeOscillators.delete(osc);
+      };
+    };
+
+    // Initial chord swell: play 3 random notes in sequence
+    playAmbientNote();
+    setTimeout(playAmbientNote, 400);
+    setTimeout(playAmbientNote, 900);
+
+    // Continue generating new relaxing notes every 1.2 seconds
+    intervalId = setInterval(() => {
+      playAmbientNote();
+    }, 1200);
+
+    // Fallback stop
     const fallbackTimeout = setTimeout(() => {
       if (ctx.state !== 'closed') {
         masterGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 2.0);
-        setTimeout(() => ctx.close().catch(() => {}), 2000);
+        setTimeout(() => ctx.close().catch(() => {}), 2500);
       }
-    }, 30000);
+    }, 45000); // Allow up to 45 seconds of hold music
 
     // Save the stop function globally
     globalStopSound = () => {
       clearTimeout(fallbackTimeout);
+      clearInterval(intervalId);
       if (ctx.state !== 'closed') {
         const stopTime = ctx.currentTime;
         masterGain.gain.cancelScheduledValues(stopTime);
-        masterGain.gain.setValueAtTime(masterGain.gain.value || 0.12, stopTime);
-        masterGain.gain.exponentialRampToValueAtTime(0.001, stopTime + 1.0); // 1 second gentle fade out
+        masterGain.gain.setValueAtTime(masterGain.gain.value || 0.4, stopTime);
+        masterGain.gain.linearRampToValueAtTime(0.001, stopTime + 1.0); // Smooth 1-second fade out when agent connects
         
         setTimeout(() => {
-          oscillators.forEach(osc => {
+          activeOscillators.forEach(osc => {
             try { osc.stop(); } catch(e) {}
           });
+          activeOscillators.clear();
           ctx.close().catch(() => {});
         }, 1100);
       }
