@@ -274,6 +274,9 @@ class AilanaVoiceAgent extends voice.Agent {
     if (pending === 'otp_verification' && !profile.otp_verified) {
       const scriptText = "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely on your screen when it arrives, and you're all set.";
       console.log('[agent-hook]: Delivering otp_verification instruction script via Deterministic ReadableStream!');
+      // Mark OTP as ready to show ONLY NOW — after Ailana has spoken the bridging line.
+      // This prevents the frontend OTP modal from rendering before the speech is delivered.
+      (profile as any)._otpReadyToShow = true;
       return createVerbatimStream(scriptText) as any;
     }
 
@@ -967,9 +970,10 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             contact_name: prof.contact_name,
             contact_email: prof.contact_email,
             contact_mobile: prof.contact_mobile,
-            // otp_sent = true when the OTP has been generated (even before field reaches 'otp_verification')
-            // This lets the frontend open the modal as soon as the OTP is dispatched.
-            otp_sent: !!(prof as any)._pendingOtp,
+            // otp_sent = true only AFTER Ailana has delivered the "I've sent a code" line.
+            // The _otpReadyToShow flag is set explicitly in the otp_verification script handler below,
+            // preventing the modal from appearing before Ailana finishes speaking.
+            otp_sent: !!(prof as any)._otpReadyToShow,
             // ── Flow state ──────────────────────────────────────────
             current_pending_field: contextManager.getPendingField(),
           }
@@ -1072,6 +1076,29 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
     const handleSystemMessages = async (messageText: string, participantIdentity: string | undefined) => {
       if (isHibernating && messageText !== 'SYSTEM_RESUME_AGENT') {
         console.log(`[agent]: Ignoring message while hibernating: ${messageText}`);
+        return;
+      }
+
+      // ── Issue 1 Fix: Affordability Calculator disappeared from frontend ──────
+      // Fires when the frontend widget unmounts unexpectedly while the user was using it.
+      // Ailana verbalizes the issue, attempts to reopen the panel, and offers a verbal fallback.
+      if (messageText === 'SYSTEM_PANEL_DISAPPEARED') {
+        console.warn('[agent]: SYSTEM_PANEL_DISAPPEARED received — affordability panel unmounted unexpectedly.');
+        const prof = contextManager.getProfile();
+        // Attempt to reopen by re-sending the stage update with panel rendered = true
+        prof.affordability_panel_rendered = true;
+        (prof as any).affordability_panel_closed = false;
+        await sendStageUpdate(contextManager.getActiveStage());
+        const recoveryScript = "It looks like the affordability panel may have closed on your screen — I'm trying to bring it back right now. If it doesn't reappear in a moment, you can refresh the page and I'll pick up right where we left off, or we can continue walking through your numbers verbally. Which would you prefer?";
+        if (voiceMuted) {
+          await generateTextOnlyReply(recoveryScript);
+        } else {
+          metrics.startTurn();
+          session.say(recoveryScript, { addToChatCtx: true });
+          contextManager.onAgentTurn(recoveryScript).catch(err =>
+            console.error('[agent-error]: Failed to save agent turn:', err)
+          );
+        }
         return;
       }
 
