@@ -240,38 +240,35 @@ function BenchmarkGauge({ label, value, guideline, sublabel }: BenchmarkGaugePro
   const gap = value - guideline;
 
   return (
-    <div style={{ flex: "1 1 150px", minWidth: 140, background: "rgba(255,255,255,0.02)", padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.line}` }}>
-      <div style={{ fontFamily: FONT_SANS, fontSize: 11, color: T.inkSoft, fontWeight: 500, lineHeight: 1.25 }}>{label}</div>
-      <div style={{ fontFamily: FONT_MONO, fontSize: 18, fontWeight: 700, color: T.ink, marginTop: 2 }}>{fmtPct(value)}</div>
-      
-      {/* Gauge Bar */}
-      <div style={{ position: "relative", height: 8, borderRadius: 99, background: "#1e293b", overflow: "visible", marginTop: 6 }}>
-        <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${guidelinePct}%`, background: "rgba(16, 185, 129, 0.4)", borderRadius: "99px 0 0 99px" }} />
-        <div style={{ position: "absolute", left: `${guidelinePct}%`, top: 0, bottom: 0, right: 0, background: "rgba(245, 158, 11, 0.25)", borderRadius: "0 99px 99px 0" }} />
-        <div style={{ position: "absolute", left: `calc(${guidelinePct}% - 1px)`, top: -2, bottom: -2, width: 2, background: "#fff", opacity: 0.5, zIndex: 2 }} />
-        <div
-          title={fmtPct(value)}
-          style={{
-            position: "absolute",
-            left: `calc(${pct}% - 6px)`,
-            top: -3,
-            width: 14,
-            height: 14,
-            borderRadius: "50%",
-            background: zc.fg,
-            border: "2px solid #0f172a",
-            boxShadow: `0 0 8px ${zc.fg}`,
-            zIndex: 3,
-            transition: "left 0.2s ease-out",
-          }}
-        />
+    <div className="flex-1 min-w-0 bg-white/[0.02] p-1.5 lg:p-2 rounded-lg border border-white/10 overflow-hidden flex flex-col justify-between">
+      <div>
+        <div className="text-[8.5px] lg:text-[10px] text-slate-400 font-medium leading-tight truncate">{label}</div>
+        <div className="text-xs lg:text-sm font-mono font-bold text-white mt-0.5">{fmtPct(value)}</div>
+
+        {/* Gauge Bar */}
+        <div className="relative h-1 rounded-full bg-slate-800 overflow-visible mt-1 lg:mt-1.5">
+          <div style={{ width: `${guidelinePct}%` }} className="absolute left-0 top-0 bottom-0 bg-emerald-500/40 rounded-l-full" />
+          <div style={{ left: `${guidelinePct}%` }} className="absolute top-0 bottom-0 right-0 bg-amber-500/25 rounded-r-full" />
+          <div style={{ left: `calc(${guidelinePct}% - 1px)` }} className="absolute -top-0.5 -bottom-0.5 w-[1.5px] bg-white/60 z-10" />
+          <div
+            title={fmtPct(value)}
+            style={{
+              left: `calc(${pct}% - 4px)`,
+              background: zc.fg,
+              boxShadow: `0 0 5px ${zc.fg}`,
+            }}
+            className="absolute -top-1 w-2 h-2 lg:w-2 lg:h-2 rounded-full border border-slate-900 z-20 transition-all duration-200"
+          />
+        </div>
       </div>
 
-      <div style={{ fontFamily: FONT_SANS, fontSize: 10.5, fontWeight: 600, color: zc.fg, marginTop: 5, lineHeight: 1.3 }}>{zc.label}</div>
-      <div style={{ fontFamily: FONT_SANS, fontSize: 10, color: T.inkMuted, marginTop: 1 }}>
-        {fmtPct(guideline)} guideline{zone === "over" && ` · ${gap.toFixed(1)} pts over`}
+      <div className="mt-1 lg:mt-1.5">
+        <div style={{ color: zc.fg }} className="text-[8px] lg:text-[9.5px] font-semibold leading-tight truncate">{zc.label}</div>
+        <div className="text-[7.5px] lg:text-[8.5px] text-slate-500 mt-0.5 truncate">
+          {fmtPct(guideline)} limit{zone === "over" ? ` (+${gap.toFixed(1)}%)` : ""}
+        </div>
+        {sublabel && <div className="text-[7.5px] lg:text-[8.5px] text-slate-500 mt-0.5 truncate">{sublabel}</div>}
       </div>
-      {sublabel && <div style={{ fontFamily: FONT_SANS, fontSize: 9.5, color: T.inkMuted, marginTop: 2 }}>{sublabel}</div>}
     </div>
   );
 }
@@ -287,51 +284,50 @@ interface PaymentLedgerProps {
 }
 
 function PaymentLedger({ segments, total, extraLine, totalLabel = "Total PITIA" }: PaymentLedgerProps) {
-  // Brand color palette for segments
   const palette = ["#00b4d8", "#023e8a", "#10b981", "#8b5cf6", "#f59e0b"];
 
   return (
-    <div style={{ marginTop: 4 }}>
+    <div className="mt-1 lg:mt-1.5">
       {/* Proportional Bar */}
-      <div style={{ display: "flex", height: 22, borderRadius: 6, overflow: "hidden", border: `1px solid ${T.line}`, background: "#131b2e" }}>
+      <div className="flex h-2 lg:h-2.5 rounded-md overflow-hidden border border-white/10 bg-slate-900">
         {segments.map((s, i) => (
           <div
             key={s.label}
             style={{
               width: `${total > 0 ? (s.value / total) * 100 : 0}%`,
               background: palette[i % palette.length],
-              minWidth: s.value > 0 ? 3 : 0,
-              transition: "width 0.2s ease-out",
+              minWidth: s.value > 0 ? 2 : 0,
             }}
+            className="transition-all duration-200"
             title={`${s.label}: $${fmt(s.value)}`}
           />
         ))}
       </div>
 
-      {/* Legend */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", marginTop: 10, alignItems: "center" }}>
-        {segments.map((s, i) => (
-          <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: palette[i % palette.length], display: "inline-block" }} />
-            <span style={{ fontFamily: FONT_SANS, fontSize: 11, color: T.inkSoft }}>{s.label}</span>
-            <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: T.ink, fontWeight: 600 }}>${fmt(s.value)}</span>
+      {/* Legend — 2-column compact grid */}
+      <div className="grid grid-cols-2 gap-x-2 gap-y-1 mt-1 lg:mt-2">
+        {segments.filter(s => s.value > 0).map((s, i) => (
+          <div key={s.label} className="flex items-center gap-1.5 overflow-hidden">
+            <span style={{ background: palette[i % palette.length] }} className="w-1.5 h-1.5 rounded-sm shrink-0" />
+            <span className="text-[8.5px] lg:text-[10.5px] text-slate-400 truncate">{s.label}</span>
+            <span className="text-[8.5px] lg:text-[10.5px] font-mono font-semibold text-white shrink-0 ml-auto">${fmt(s.value)}</span>
           </div>
         ))}
         {extraLine && (
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: "transparent", border: `1px dashed ${T.teal}`, display: "inline-block" }} />
-            <span style={{ fontFamily: FONT_SANS, fontSize: 11, color: T.teal }}>{extraLine.label}</span>
-            <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: T.teal, fontWeight: 600 }}>${fmt(extraLine.value)}</span>
+          <div className="flex items-center gap-1.5 overflow-hidden">
+            <span className="w-1.5 h-1.5 rounded-sm border border-dashed border-[#00b4d8] shrink-0" />
+            <span className="text-[8.5px] lg:text-[10.5px] text-[#00b4d8] truncate">{extraLine.label}</span>
+            <span className="text-[8.5px] lg:text-[10.5px] font-mono font-semibold text-[#00b4d8] shrink-0 ml-auto">${fmt(extraLine.value)}</span>
           </div>
         )}
       </div>
 
       {/* Summary Total */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.line}` }}>
-        <span style={{ fontFamily: FONT_SANS, fontSize: 12, color: T.ink, fontWeight: 600 }}>{totalLabel}</span>
-        <span style={{ fontFamily: FONT_MONO, fontSize: 16, color: T.teal, fontWeight: 700, textShadow: `0 0 12px ${T.tealGlow}` }}>
+      <div className="flex items-center justify-between mt-1.5 lg:mt-2 pt-1.5 lg:pt-2 border-t border-white/10">
+        <span className="text-[9.5px] lg:text-xs font-semibold text-white">{totalLabel}</span>
+        <span className="text-xs lg:text-sm font-mono font-bold text-[#00b4d8] drop-shadow-[0_0_8px_rgba(0,180,216,0.35)]">
           ${fmt(total)}
-          <span style={{ fontSize: 11, fontWeight: 400, color: T.inkSoft }}> /mo</span>
+          <span className="text-[9px] lg:text-[10.5px] font-normal text-slate-400">/mo</span>
         </span>
       </div>
     </div>
@@ -344,17 +340,11 @@ function PaymentLedger({ segments, total, extraLine, totalLabel = "Total PITIA" 
 export interface AffordabilityPanelNewProps {
   transactionType?: TransactionType;
   cashOutIntent?: boolean;
-  /** "stated" = explore-first, pre-soft-pull (Q46-S); "pulled" = post-soft-pull, bureau-verified (Q46) */
   dataMode?: DataMode;
-  /** Applicant's monthly gross income */
   income?: number;
-  /** Monthly debts */
   monthlyDebts?: number;
-  /** Seeds initial values per mode */
   initialAssumptions?: Partial<Record<ModeId, Partial<Assumptions>>>;
-  /** Callback to trigger soft credit check modal/consent flow */
   onRequestSoftPull?: () => void;
-  /** Callback on final submission */
   onSubmitReview?: () => void;
 }
 
@@ -459,375 +449,294 @@ export function AffordabilityPanelNew({
 
   const ltvGuideline = mode === "heloc" ? 85 : activeProgram.ltv.guideline;
   const ltvVal = mode === "heloc" ? (calc.cltv as number) : (calc.ltv as number);
-  const ltvLabel = mode === "heloc" ? "Combined Loan-to-Value (CLTV)" : "Loan-to-Value (LTV)";
-  const baselineText = mode === "purchase" ? `Target Price · $${fmt(a.price as number)}` : `Home Value · $${fmt(a.homeValue as number)}`;
+  const baselineText = mode === "purchase" ? `Target: $${fmt(a.price as number)}` : `Value: $${fmt(a.homeValue as number)}`;
 
   return (
-    <div style={{ background: T.paper, minHeight: "100%", padding: "14px 12px", fontFamily: FONT_SANS, color: T.ink }}>
-      <div style={{ maxWidth: 640, margin: "0 auto" }}>
-        <div style={{ background: T.card, borderRadius: 16, border: `1px solid ${T.line}`, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}>
-          
-          {/* Header */}
-          <div style={{ padding: "16px 18px 0", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-            <div>
-              <div style={{ fontFamily: FONT_DISPLAY, fontSize: 18, fontWeight: 700, color: "#fff", letterSpacing: -0.3, display: "flex", alignItems: "center", gap: 6 }}>
-                <SlidersHorizontal size={16} color={T.teal} />
-                Affordability Summary
+    <div className="w-full min-h-full flex flex-col justify-between font-sans text-white bg-transparent">
+      {/* Main Card with full height distribution & natural scroll */}
+      <div className="bg-[#0F172A] rounded-xl border border-white/10 shadow-lg w-full flex flex-col min-h-full justify-between shrink-0">
+
+        <div className="flex flex-col gap-1.5 lg:gap-2.5 p-2.5 lg:p-3">
+            
+            {/* Sub-Header: Income & Baseline preview */}
+            <div className="flex justify-between items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <SlidersHorizontal className="w-3 h-3 lg:w-3.5 lg:h-3.5 text-[#00b4d8]" />
+                <span className="font-mono text-[9.5px] lg:text-[11px] text-slate-300 font-medium">{baselineText}</span>
               </div>
-              <div style={{ fontFamily: FONT_MONO, fontSize: 11.5, color: T.inkSoft, marginTop: 2 }}>{baselineText}</div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontFamily: FONT_MONO, fontSize: 19, fontWeight: 700, color: T.ink }}>
-                ${fmt(income)}
-                <span style={{ fontSize: 11, color: T.inkSoft, fontWeight: 400 }}>/mo</span>
-              </div>
-              {dataMode === "pulled" ? (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: T.green, fontFamily: FONT_SANS, fontSize: 10.5, fontWeight: 600 }}>
-                  <CheckCircle2 size={12} /> Verified Income
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[11px] lg:text-xs font-bold text-white">
+                  ${fmt(income)}<span className="text-[8.5px] lg:text-[10px] text-slate-400 font-normal">/mo</span>
                 </span>
-              ) : (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: T.brass, fontFamily: FONT_SANS, fontSize: 10.5, fontWeight: 600 }}>
-                  Stated Estimate
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Mode Switcher Tabs */}
-          <div style={{ padding: "12px 18px 0" }}>
-            <div style={{ display: "flex", gap: 4, background: "rgba(255,255,255,0.03)", padding: 4, borderRadius: 10, border: `1px solid ${T.line}`, flexWrap: "wrap" }}>
-              {MODES.map((m) => {
-                const active = m.id === mode;
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => setMode(m.id)}
-                    style={{
-                      fontFamily: FONT_SANS,
-                      fontSize: 11.5,
-                      fontWeight: active ? 600 : 500,
-                      padding: "6px 10px",
-                      borderRadius: 7,
-                      border: "none",
-                      background: active ? `linear-gradient(135deg, ${T.teal}, ${T.tealDeep})` : "transparent",
-                      color: active ? "#fff" : T.inkSoft,
-                      boxShadow: active ? `0 2px 8px ${T.tealGlow}` : "none",
-                      cursor: "pointer",
-                      transition: "all 0.15s ease",
-                    }}
-                  >
-                    {m.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {mode !== "heloc" && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 10, flexWrap: "wrap" }}>
-                <span style={{ fontFamily: FONT_SANS, fontSize: 11, color: T.inkSoft, fontWeight: 500 }}>Loan Program:</span>
-                <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                  {(Object.entries(PROGRAMS) as [ProgramId, ProgramConfig][]).map(([id, p]) => {
-                    const active = id === program;
-                    return (
-                      <button
-                        key={id}
-                        onClick={() => {
-                          setProgram(id);
-                          if (mode === "purchase" && (a.downPct as number) < p.minDownPct) update("downPct", p.minDownPct);
-                        }}
-                        style={{
-                          fontFamily: FONT_SANS,
-                          fontSize: 10.5,
-                          fontWeight: 600,
-                          padding: "3px 8px",
-                          borderRadius: 6,
-                          border: `1px solid ${active ? T.teal : T.line}`,
-                          background: active ? T.tealBg : "transparent",
-                          color: active ? T.teal : T.inkSoft,
-                          cursor: "pointer",
-                          transition: "all 0.15s ease",
-                        }}
-                      >
-                        {p.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <Divider />
-
-          {/* Payment Stats Row */}
-          <div style={{ padding: "14px 18px 0", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
-            <div style={{ background: "rgba(255,255,255,0.02)", padding: "12px 14px", borderRadius: 10, border: `1px solid ${T.line}` }}>
-              <div style={{ fontFamily: FONT_SANS, fontSize: 10, color: T.inkSoft, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                {mode === "heloc" ? "Est. Monthly Obligation" : "Est. Monthly Payment (PITIA)"}
-              </div>
-              <div style={{ fontFamily: FONT_MONO, fontSize: 24, fontWeight: 700, color: T.teal, marginTop: 2, textShadow: `0 0 15px ${T.tealGlow}` }}>
-                ${fmt(calc.pitia)}
-                <span style={{ fontSize: 12, color: T.inkSoft, fontWeight: 400 }}> /mo</span>
-              </div>
-            </div>
-
-            <div style={{ background: "rgba(255,255,255,0.02)", padding: "12px 14px", borderRadius: 10, border: `1px solid ${T.line}` }}>
-              <div style={{ fontFamily: FONT_SANS, fontSize: 10, color: T.inkSoft, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                {mode === "heloc" ? "Total Liens (1st + HELOC)" : "Mortgage Amount"}
-              </div>
-              <div style={{ fontFamily: FONT_MONO, fontSize: 17, fontWeight: 600, color: T.ink, marginTop: 2 }}>
-                ${fmt(mode === "heloc" ? (calc.totalLiens as number) : (calc.loanAmt as number))}
-              </div>
-              {mode !== "heloc" && (calc.upfrontFee as number) > 0 && (
-                <div style={{ fontFamily: FONT_SANS, fontSize: 9.5, color: T.inkMuted, marginTop: 2 }}>
-                  ${fmt(calc.baseLoan as number)} base + ${fmt(calc.upfrontFee as number)} {activeProgram.upfrontFeeLabel}
-                </div>
-              )}
-            </div>
-
-            {calc.cashBand && (
-              <div style={{ background: "rgba(255,255,255,0.02)", padding: "12px 14px", borderRadius: 10, border: `1px solid ${T.line}` }}>
-                <div style={{ fontFamily: FONT_SANS, fontSize: 10, color: T.inkSoft, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  {mode === "purchase" ? "Est. Cash to Close" : "Est. Cash at Closing"}
-                </div>
-                <div style={{ fontFamily: FONT_MONO, fontSize: 17, fontWeight: 600, color: T.green, marginTop: 2 }}>
-                  ${fmt(calc.cashBand[0])}–${fmt(calc.cashBand[1])}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Payment Ledger Bar & Legend */}
-          <div style={{ padding: "12px 18px 0" }}>
-            <PaymentLedger
-              segments={calc.segments}
-              total={calc.pitia}
-              extraLine={calc.cashBand ? { label: mode === "purchase" ? "Cash to close" : "Cash-out", value: calc.exactCash as number } : null}
-              totalLabel={mode === "heloc" ? "Total Combined Monthly Obligation" : "Total Estimated Monthly Housing Obligation"}
-            />
-
-            {mode !== "heloc" && (
-              <div style={{ marginTop: 8, fontFamily: FONT_SANS, fontSize: 10.5, color: T.inkSoft, lineHeight: 1.4 }}>
-                {(mode === "refiRT" || mode === "refiCO") && (
-                  <>
-                    <span style={{ color: (calc.delta as number) >= 0 ? T.green : T.amber, fontWeight: 600 }}>
-                      {(calc.delta as number) >= 0
-                        ? `Lowers your current payment by $${fmt(Math.abs(calc.delta as number))}/mo`
-                        : `Raises your current payment by $${fmt(Math.abs(calc.delta as number))}/mo`}
-                    </span>
-                    {mode === "refiCO" && ` · Cash-out is added to your new balance`}
-                    {" · "}
-                  </>
+                {dataMode === "pulled" ? (
+                  <span className="inline-flex items-center gap-1 text-emerald-400 text-[8.5px] lg:text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30">
+                    <CheckCircle2 className="w-2.5 h-2.5 lg:w-3 lg:h-3" /> Verified
+                  </span>
+                ) : (
+                  <span className="text-amber-400 text-[8.5px] lg:text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30">
+                    Stated
+                  </span>
                 )}
-                {activeProgram.miNote(calc.mi as number)}
-              </div>
-            )}
-          </div>
-
-          <Divider />
-
-          {/* Benchmarks Section */}
-          <div style={{ padding: "14px 18px 0" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
-              <div style={{ fontFamily: FONT_SANS, fontSize: 10.5, color: T.inkSoft, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600 }}>
-                Debt-to-Income & Equity Benchmarks — {activeProgram.label}
               </div>
             </div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <BenchmarkGauge
-                label="Housing Ratio (Front-End)"
-                value={calc.front}
-                guideline={activeProgram.dtiFront.guideline}
-                sublabel={program === "va" ? "VA prioritizes residual income above this" : undefined}
-              />
-              <BenchmarkGauge
-                label="Total Debt Ratio (Back-End)"
-                value={calc.back}
-                guideline={activeProgram.dtiBack.guideline}
-                sublabel={`Includes $${fmt(effectiveDebts)}/mo other debts`}
-              />
-              <BenchmarkGauge label={ltvLabel} value={ltvVal} guideline={ltvGuideline} />
-            </div>
 
-            <div style={{ fontFamily: FONT_SANS, fontSize: 10, color: T.inkMuted, marginTop: 8, lineHeight: 1.35 }}>
-              Ratios over guideline may still qualify with {activeProgram.compensating}. This is an educational guide — formal review evaluates full automated underwriting factors.
-            </div>
-
-            {dataMode === "stated" && (
-              <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.line}` }}>
-                <SliderRow
-                  label="Monthly Debts (your estimate — adjust anytime)"
-                  value={statedDebts}
-                  min={0}
-                  max={5000}
-                  step={25}
-                  onChange={setStatedDebts}
-                  prefix="$"
-                  suffix="/mo"
-                />
+            {/* Mode Switcher Tabs */}
+            <div>
+              <div className="flex gap-1 lg:gap-1.5 bg-white/[0.03] p-1 rounded-lg border border-white/10">
+                {MODES.map((m) => {
+                  const active = m.id === mode;
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => setMode(m.id)}
+                      className={`flex-1 text-[8.5px] lg:text-[10.5px] font-semibold py-1 lg:py-1 px-1.5 rounded-md transition-all truncate ${
+                        active
+                          ? "bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-[0_2px_8px_rgba(0,180,216,0.35)]"
+                          : "text-slate-400 hover:text-white hover:bg-white/5"
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  );
+                })}
               </div>
-            )}
-          </div>
 
-          <Divider />
-
-          {/* Stated Mode Soft Pull Upgrade CTA */}
-          {dataMode === "stated" && onRequestSoftPull && (
-            <>
-              <div style={{ padding: "14px 18px 0" }}>
-                <div style={{ background: "linear-gradient(135deg, rgba(0, 180, 216, 0.12), rgba(2, 62, 138, 0.2))", borderRadius: 12, padding: "14px", border: `1px solid ${T.lineBright}` }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: FONT_SANS, fontSize: 12.5, fontWeight: 700, color: "#fff", marginBottom: 3 }}>
-                    <Sparkles size={14} color={T.teal} />
-                    Want your verified numbers?
+              {mode !== "heloc" && (
+                <div className="flex items-center gap-1.5 lg:gap-2 pt-1.5 lg:pt-1.5 flex-wrap">
+                  <span className="text-[8.5px] lg:text-[10.5px] text-slate-400 font-medium">Program:</span>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {(Object.entries(PROGRAMS) as [ProgramId, ProgramConfig][]).map(([id, p]) => {
+                      const active = id === program;
+                      return (
+                        <button
+                          key={id}
+                          onClick={() => {
+                            setProgram(id);
+                            if (mode === "purchase" && (a.downPct as number) < p.minDownPct) update("downPct", p.minDownPct);
+                          }}
+                          className={`text-[8.5px] lg:text-[10px] font-semibold py-0.5 lg:py-0.5 px-1.5 lg:px-2 rounded-md border transition-all ${
+                            active
+                              ? "border-[#00b4d8] bg-[#00b4d8]/15 text-[#00b4d8]"
+                              : "border-white/10 text-slate-400 hover:text-white hover:bg-white/5"
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      );
+                    })}
                   </div>
-                  <div style={{ fontFamily: FONT_SANS, fontSize: 11, color: T.inkSoft, lineHeight: 1.4, marginBottom: 10 }}>
-                    A quick soft credit review replaces your stated estimates with your actual verified credit data — with zero impact to your credit score.
+                </div>
+              )}
+            </div>
+
+            <div className="h-px bg-white/10" />
+
+            {/* Payment Stats Row */}
+            <div className={`grid gap-1.5 lg:gap-2 ${calc.cashBand ? "grid-cols-3" : "grid-cols-2"}`}>
+              <div className="bg-white/[0.02] p-1.5 lg:p-2 rounded-lg border border-white/10 min-w-0 overflow-hidden">
+                <div className="text-[7.5px] lg:text-[9px] uppercase font-semibold text-slate-400 tracking-wider truncate">
+                  {mode === "heloc" ? "Monthly Obligation" : "Est. PITIA"}
+                </div>
+                <div className="text-sm lg:text-base font-mono font-bold text-[#00b4d8] mt-0.5 drop-shadow-[0_0_8px_rgba(0,180,216,0.35)] truncate">
+                  ${fmt(calc.pitia)}
+                  <span className="text-[8.5px] lg:text-[10px] text-slate-400 font-normal">/mo</span>
+                </div>
+              </div>
+
+              <div className="bg-white/[0.02] p-1.5 lg:p-2 rounded-lg border border-white/10 min-w-0 overflow-hidden">
+                <div className="text-[7.5px] lg:text-[9px] uppercase font-semibold text-slate-400 tracking-wider truncate">
+                  {mode === "heloc" ? "Total Liens" : "Loan Amount"}
+                </div>
+                <div className="text-xs lg:text-sm font-mono font-semibold text-white mt-0.5 truncate">
+                  ${fmt(mode === "heloc" ? (calc.totalLiens as number) : (calc.loanAmt as number))}
+                </div>
+              </div>
+
+              {calc.cashBand && (
+                <div className="bg-white/[0.02] p-1.5 lg:p-2 rounded-lg border border-white/10 min-w-0 overflow-hidden">
+                  <div className="text-[7.5px] lg:text-[9px] uppercase font-semibold text-slate-400 tracking-wider truncate">
+                    {mode === "purchase" ? "Cash to Close" : "Cash at Close"}
+                  </div>
+                  <div className="text-[11px] lg:text-sm font-mono font-semibold text-emerald-400 mt-0.5 truncate">
+                    ${fmt(calc.cashBand[0])}–${fmt(calc.cashBand[1])}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Payment Ledger Bar & Legend */}
+            <div>
+              <PaymentLedger
+                segments={calc.segments}
+                total={calc.pitia}
+                extraLine={calc.cashBand ? { label: mode === "purchase" ? "Cash to close" : "Cash-out", value: calc.exactCash as number } : null}
+                totalLabel={mode === "heloc" ? "Total Monthly Obligation" : "Total Housing Obligation"}
+              />
+
+              {mode !== "heloc" && (
+                <div className="mt-1 lg:mt-1.5 text-[8.5px] lg:text-[10.5px] text-slate-400 leading-normal">
+                  {(mode === "refiRT" || mode === "refiCO") && (
+                    <>
+                      <span className={(calc.delta as number) >= 0 ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold"}>
+                        {(calc.delta as number) >= 0
+                          ? `Saves $${fmt(Math.abs(calc.delta as number))}/mo`
+                          : `Adds $${fmt(Math.abs(calc.delta as number))}/mo`}
+                      </span>
+                      {" · "}
+                    </>
+                  )}
+                  {activeProgram.miNote(calc.mi as number)}
+                </div>
+              )}
+            </div>
+
+            <div className="h-px bg-white/10" />
+
+            {/* Benchmarks Section */}
+            <div>
+              <div className="text-[8.5px] lg:text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 lg:mb-1.5">
+                DTI & LTV Benchmarks — {activeProgram.label}
+              </div>
+              <div className="flex gap-1.5 lg:gap-2 w-full">
+                <BenchmarkGauge
+                  label="Front-End DTI"
+                  value={calc.front}
+                  guideline={activeProgram.dtiFront.guideline}
+                />
+                <BenchmarkGauge
+                  label="Back-End DTI"
+                  value={calc.back}
+                  guideline={activeProgram.dtiBack.guideline}
+                  sublabel={`+$${fmt(effectiveDebts)}/mo`}
+                />
+                <BenchmarkGauge label={mode === "heloc" ? "CLTV" : "LTV"} value={ltvVal} guideline={ltvGuideline} />
+              </div>
+
+              {dataMode === "stated" && (
+                <div className="mt-1.5 lg:mt-2 pt-1.5 lg:pt-2 border-t border-white/10">
+                  <SliderRow
+                    label="Monthly Debts (your estimate)"
+                    value={statedDebts}
+                    min={0}
+                    max={5000}
+                    step={25}
+                    onChange={setStatedDebts}
+                    prefix="$"
+                    suffix="/mo"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Stated Mode Soft Pull Upgrade CTA */}
+            {dataMode === "stated" && onRequestSoftPull && (
+              <>
+                <div className="h-px bg-white/10" />
+                <div className="bg-gradient-to-r from-[#00b4d8]/10 to-[#023e8a]/20 rounded-lg p-2 lg:p-2.5 border border-[#00b4d8]/30 flex items-center justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-1.5 text-[9.5px] lg:text-[11px] font-bold text-white">
+                      <Sparkles className="w-3 h-3 text-[#00b4d8]" /> Want verified numbers?
+                    </div>
+                    <div className="text-[8px] lg:text-[10px] text-slate-400 leading-tight mt-0.5">
+                      Soft credit pull — zero credit score impact.
+                    </div>
                   </div>
                   <button
                     onClick={onRequestSoftPull}
-                    style={{
-                      fontFamily: FONT_SANS,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      padding: "8px 16px",
-                      borderRadius: 8,
-                      border: "none",
-                      background: `linear-gradient(135deg, ${T.teal}, ${T.tealDeep})`,
-                      color: "#fff",
-                      boxShadow: `0 2px 10px ${T.tealGlow}`,
-                      cursor: "pointer",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
+                    className="text-[9px] lg:text-[10.5px] font-bold py-1 lg:py-1 px-2.5 lg:px-3 rounded-md bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-[0_2px_8px_rgba(0,180,216,0.3)] hover:opacity-90 transition cursor-pointer flex items-center gap-1 shrink-0"
                   >
-                    Upgrade to Verified Mode <ArrowUpRight size={13} />
+                    Upgrade <ArrowUpRight className="w-3 h-3" />
                   </button>
                 </div>
-              </div>
-              <Divider />
-            </>
-          )}
+              </>
+            )}
 
-          {/* Scenario Assumptions Grid */}
-          <div style={{ padding: "14px 18px 0" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: FONT_SANS, fontSize: 11.5, fontWeight: 600, color: T.teal }}>
-                <SlidersHorizontal size={13} /> Scenario Assumptions
-              </div>
-              <button
-                onClick={() => setAssump((prev) => ({ ...prev, [mode]: JSON.parse(JSON.stringify(DEFAULTS[mode])) }))}
-                style={{ fontFamily: FONT_SANS, fontSize: 10.5, color: T.inkSoft, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
-              >
-                <RotateCcw size={11} /> Reset defaults
-              </button>
-            </div>
+            <div className="h-px bg-white/10" />
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: 16, rowGap: 4, paddingBottom: 6 }}>
-              {mode === "purchase" && (
-                <>
-                  <SliderRow label="Target Price" value={a.price as number} min={100000} max={1500000} step={5000} onChange={(v) => update("price", v)} prefix="$" />
-                  <SliderRow
-                    label="Down Payment"
-                    value={a.downPct as number}
-                    min={activeProgram.minDownPct}
-                    max={40}
-                    step={0.5}
-                    onChange={(v) => update("downPct", v)}
-                    suffix="%"
-                  />
-                  <SliderRow label="Interest Rate" value={a.rate as number} min={3.5} max={10} step={0.125} onChange={(v) => update("rate", v)} suffix="%" />
-                  <ToggleRow label="Term" options={[15, 30]} value={a.term as number} onChange={(v) => update("term", v)} suffix="-yr" />
-                </>
-              )}
-              {(mode === "refiRT" || mode === "refiCO") && (
-                <>
-                  <SliderRow label="Home Value" value={a.homeValue as number} min={150000} max={1500000} step={5000} onChange={(v) => update("homeValue", v)} prefix="$" />
-                  <SliderRow
-                    label="Payoff Balance"
-                    value={a.payoff as number}
-                    min={50000}
-                    max={a.homeValue as number}
-                    step={5000}
-                    onChange={(v) => update("payoff", v)}
-                    prefix="$"
-                  />
-                  {mode === "refiCO" ? (
-                    <SliderRow label="Requested Cash-Out" value={a.cashOut as number} min={0} max={250000} step={2500} onChange={(v) => update("cashOut", v)} prefix="$" />
-                  ) : (
-                    <div />
-                  )}
-                  <SliderRow label="Interest Rate" value={a.rate as number} min={3.5} max={10} step={0.125} onChange={(v) => update("rate", v)} suffix="%" />
-                  <ToggleRow label="Term" options={[15, 30]} value={a.term as number} onChange={(v) => update("term", v)} suffix="-yr" />
-                </>
-              )}
-              {mode === "heloc" && (
-                <>
-                  <SliderRow label="Home Value" value={a.homeValue as number} min={150000} max={1500000} step={5000} onChange={(v) => update("homeValue", v)} prefix="$" />
-                  <SliderRow
-                    label="1st Mortgage Balance"
-                    value={a.firstBalance as number}
-                    min={50000}
-                    max={a.homeValue as number}
-                    step={5000}
-                    onChange={(v) => update("firstBalance", v)}
-                    prefix="$"
-                  />
-                  <SliderRow label="Credit Line Amount" value={a.lineAmount as number} min={10000} max={300000} step={2500} onChange={(v) => update("lineAmount", v)} prefix="$" />
-                  <SliderRow label="Draw Rate" value={a.drawRate as number} min={5} max={14} step={0.25} onChange={(v) => update("drawRate", v)} suffix="%" />
-                </>
-              )}
-              <SliderRow label="Homeowners Insurance" value={a.insurance} min={40} max={400} step={10} onChange={(v) => update("insurance", v)} prefix="$" suffix="/mo" />
-              {mode !== "heloc" && (
-                <SliderRow label="Monthly HOA Dues" value={a.hoaFee as number} min={0} max={600} step={10} onChange={(v) => update("hoaFee", v)} prefix="$" suffix="/mo" />
-              )}
-            </div>
-
-            {onSubmitReview && dataMode === "pulled" && (
-              <div style={{ padding: "10px 0 14px" }}>
+            {/* Scenario Assumptions Grid */}
+            <div>
+              <div className="flex items-center justify-between mb-1 lg:mb-1.5">
+                <div className="flex items-center gap-1.5 text-[9px] lg:text-[11px] font-bold text-[#00b4d8]">
+                  <SlidersHorizontal className="w-3 h-3 lg:w-3.5 lg:h-3.5" /> Scenario Assumptions
+                </div>
                 <button
-                  onClick={onSubmitReview}
-                  style={{
-                    width: "100%",
-                    fontFamily: FONT_SANS,
-                    fontSize: 13,
-                    fontWeight: 700,
-                    padding: "10px",
-                    borderRadius: 8,
-                    border: "none",
-                    background: `linear-gradient(135deg, ${T.teal}, ${T.tealDeep})`,
-                    color: "#fff",
-                    boxShadow: `0 4px 15px ${T.tealGlow}`,
-                    cursor: "pointer",
-                  }}
+                  onClick={() => setAssump((prev) => ({ ...prev, [mode]: JSON.parse(JSON.stringify(DEFAULTS[mode])) }))}
+                  className="text-[8.5px] lg:text-[10px] text-slate-400 hover:text-white transition flex items-center gap-1 cursor-pointer"
                 >
-                  Submit for Formal Underwriting Review
+                  <RotateCcw className="w-2.5 h-2.5 lg:w-3 lg:h-3" /> Reset
                 </button>
               </div>
-            )}
+
+              <div className="grid grid-cols-2 gap-x-2.5 lg:gap-x-3.5 gap-y-1 lg:gap-y-1.5">
+                {mode === "purchase" && (
+                  <>
+                    <SliderRow label="Target Price" value={a.price as number} min={100000} max={1500000} step={5000} onChange={(v) => update("price", v)} prefix="$" />
+                    <SliderRow label="Down Payment" value={a.downPct as number} min={activeProgram.minDownPct} max={40} step={0.5} onChange={(v) => update("downPct", v)} suffix="%" />
+                    <SliderRow label="Interest Rate" value={a.rate as number} min={3.5} max={10} step={0.125} onChange={(v) => update("rate", v)} suffix="%" />
+                    <ToggleRow label="Loan Term" options={[15, 30]} value={a.term as number} onChange={(v) => update("term", v)} suffix="-yr" />
+                  </>
+                )}
+                {(mode === "refiRT" || mode === "refiCO") && (
+                  <>
+                    <SliderRow label="Home Value" value={a.homeValue as number} min={150000} max={1500000} step={5000} onChange={(v) => update("homeValue", v)} prefix="$" />
+                    <SliderRow label="Payoff Balance" value={a.payoff as number} min={50000} max={a.homeValue as number} step={5000} onChange={(v) => update("payoff", v)} prefix="$" />
+                    {mode === "refiCO" ? (
+                      <SliderRow label="Cash-Out" value={a.cashOut as number} min={0} max={250000} step={2500} onChange={(v) => update("cashOut", v)} prefix="$" />
+                    ) : (
+                      <div />
+                    )}
+                    <SliderRow label="Interest Rate" value={a.rate as number} min={3.5} max={10} step={0.125} onChange={(v) => update("rate", v)} suffix="%" />
+                    <ToggleRow label="Loan Term" options={[15, 30]} value={a.term as number} onChange={(v) => update("term", v)} suffix="-yr" />
+                  </>
+                )}
+                {mode === "heloc" && (
+                  <>
+                    <SliderRow label="Home Value" value={a.homeValue as number} min={150000} max={1500000} step={5000} onChange={(v) => update("homeValue", v)} prefix="$" />
+                    <SliderRow label="1st Balance" value={a.firstBalance as number} min={50000} max={a.homeValue as number} step={5000} onChange={(v) => update("firstBalance", v)} prefix="$" />
+                    <SliderRow label="Credit Line" value={a.lineAmount as number} min={10000} max={300000} step={2500} onChange={(v) => update("lineAmount", v)} prefix="$" />
+                    <SliderRow label="Draw Rate" value={a.drawRate as number} min={5} max={14} step={0.25} onChange={(v) => update("drawRate", v)} suffix="%" />
+                  </>
+                )}
+                <SliderRow label="Insurance" value={a.insurance} min={40} max={400} step={10} onChange={(v) => update("insurance", v)} prefix="$" suffix="/mo" />
+                {mode !== "heloc" && (
+                  <SliderRow label="HOA Dues" value={a.hoaFee as number} min={0} max={600} step={10} onChange={(v) => update("hoaFee", v)} prefix="$" suffix="/mo" />
+                )}
+              </div>
+
+              {onSubmitReview && dataMode === "pulled" && (
+                <div className="pt-2 lg:pt-2.5">
+                  <button
+                    onClick={onSubmitReview}
+                    className="w-full text-xs lg:text-xs font-bold py-2 lg:py-2 rounded-lg bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-[0_4px_15px_rgba(0,180,216,0.35)] hover:opacity-90 transition cursor-pointer"
+                  >
+                    Submit for Formal Underwriting Review
+                  </button>
+                </div>
+              )}
+            </div>
+
           </div>
 
           {/* Compliance Footer */}
-          <div style={{ background: "#080c14", padding: "10px 18px", borderTop: `1px solid ${T.line}` }}>
-            <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-              <Shield size={13} color={T.teal} style={{ marginTop: 2, flexShrink: 0 }} />
-              <div style={{ fontFamily: FONT_SANS, fontSize: 9.5, color: T.inkMuted, lineHeight: 1.4 }}>
-                Educational estimate only. Adjusting price, down payment, cash-out, or rate updates this preview instantly and does not constitute a loan application, rate lock, or commitment to lend. Final terms depend on formal underwriting.
+          <div className="bg-[#080c14] px-2.5 lg:px-3 py-1.5 lg:py-2 border-t border-white/10 mt-auto">
+            <div className="flex gap-2 items-start">
+              <Shield className="w-3 h-3 lg:w-3.5 lg:h-3.5 text-[#00b4d8] shrink-0 mt-0.5" />
+              <div className="text-[7.5px] lg:text-[9px] text-slate-500 leading-normal">
+                Educational estimate only — not a loan commitment. Final terms subject to formal underwriting review.
               </div>
             </div>
           </div>
 
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
 /* ---------------------------------------------------------
    REUSABLE PRIMITIVES
 --------------------------------------------------------- */
 function Divider() {
-  return <div style={{ height: 1, background: T.line, margin: "12px 18px 0" }} />;
+  return <div className="h-px bg-white/10 my-1 lg:my-2" />;
 }
 
 interface SliderRowProps {
@@ -843,13 +752,11 @@ interface SliderRowProps {
 
 function SliderRow({ label, value, min, max, step, onChange, prefix = "", suffix = "" }: SliderRowProps) {
   return (
-    <div style={{ marginBottom: 8 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-        <span style={{ fontFamily: FONT_SANS, fontSize: 10.5, color: T.inkSoft }}>{label}</span>
-        <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: T.ink, fontWeight: 600 }}>
-          {prefix}
-          {fmt(value, step < 1 ? 2 : 0)}
-          {suffix}
+    <div className="mb-1 lg:mb-1.5">
+      <div className="flex justify-between items-center mb-0.5">
+        <span className="text-[8.5px] lg:text-xs text-slate-400 truncate">{label}</span>
+        <span className="text-[9px] lg:text-xs font-mono font-bold text-white shrink-0 ml-1">
+          {prefix}{fmt(value, step < 1 ? 2 : 0)}{suffix}
         </span>
       </div>
       <input
@@ -859,14 +766,7 @@ function SliderRow({ label, value, min, max, step, onChange, prefix = "", suffix
         step={step}
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        style={{
-          width: "100%",
-          accentColor: T.teal,
-          height: 4,
-          background: "#1e293b",
-          borderRadius: 4,
-          cursor: "pointer",
-        }}
+        className="w-full accent-[#00b4d8] h-1 lg:h-1.5 bg-slate-800 rounded-sm cursor-pointer block"
       />
     </div>
   );
@@ -882,28 +782,20 @@ interface ToggleRowProps {
 
 function ToggleRow({ label, options, value, onChange, suffix = "" }: ToggleRowProps) {
   return (
-    <div style={{ marginBottom: 8 }}>
-      <div style={{ fontFamily: FONT_SANS, fontSize: 10.5, color: T.inkSoft, marginBottom: 3 }}>{label}</div>
-      <div style={{ display: "flex", gap: 5 }}>
+    <div className="mb-1 lg:mb-1.5">
+      <div className="text-[8.5px] lg:text-xs text-slate-400 mb-1">{label}</div>
+      <div className="flex gap-1.5">
         {options.map((opt) => (
           <button
             key={opt}
             onClick={() => onChange(opt)}
-            style={{
-              fontFamily: FONT_SANS,
-              fontSize: 10.5,
-              fontWeight: 600,
-              padding: "3px 10px",
-              borderRadius: 6,
-              border: `1px solid ${value === opt ? T.teal : T.line}`,
-              background: value === opt ? T.tealBg : "transparent",
-              color: value === opt ? T.teal : T.inkSoft,
-              cursor: "pointer",
-              transition: "all 0.15s ease",
-            }}
+            className={`text-[8.5px] lg:text-xs font-semibold py-0.5 lg:py-1 px-1.5 lg:px-3 rounded-md border transition-all cursor-pointer ${
+              value === opt
+                ? "border-[#00b4d8] bg-[#00b4d8]/15 text-[#00b4d8]"
+                : "border-white/10 text-slate-400 hover:text-white hover:bg-white/5"
+            }`}
           >
-            {opt}
-            {suffix}
+            {opt}{suffix}
           </button>
         ))}
       </div>
