@@ -3,41 +3,66 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Video, Phone, MessageCircle, Headset, SlidersHorizontal, X, Minus } from 'lucide-react';
-import { AffordabilityPanel } from '@/components/affordability-panel';
+import {
+  Video,
+  Phone,
+  MessageCircle,
+  Headset,
+  SlidersHorizontal,
+  X,
+  Minus,
+  Sparkles,
+  Monitor,
+  Smartphone,
+} from 'lucide-react';
+import { AffordabilityPanelNew, TransactionType, DataMode } from '@/components/affordability-panel-new';
 
 export default function AffordabilitySandboxPage() {
-  const [isPanelOpen, setIsPanelOpen] = useState(false);
-  const [panelMode, setPanelMode] = useState<'stated' | 'verified'>('stated');
+  const [isPanelOpen, setIsPanelOpen] = useState(true);
+  const [panelMode, setPanelMode] = useState<DataMode>('stated');
+  const [transactionType, setTransactionType] = useState<TransactionType>('TT-PUR');
+  const [cashOutIntent, setCashOutIntent] = useState<boolean>(false);
   const [pendingMode, setPendingMode] = useState<'video' | 'voice' | 'avatar-chat' | 'loan-officer'>('video');
 
-  // We mock a borrowerProfile for the panel logic
-  const mockProfile = {
-    target_price: 500000,
-    down_payment: 100000,
-    gross_annual_income: 140000,
-    monthly_debt: 800,
-    zip_code: "78209",
-    borrower_name: "David",
-    military_rural: "military"
-  };
+  const [income, setIncome] = useState<number>(11667); // ~$140k/yr
+  const [debts, setDebts] = useState<number>(800);
 
-  // Same logic as AffordabilityModal
-  const eligiblePrograms: ('conventional' | 'fha' | 'va' | 'usda')[] = ['conventional', 'fha'];
-  if (mockProfile.military_rural === 'military' || mockProfile.military_rural === 'both') eligiblePrograms.push('va');
-  if (mockProfile.military_rural === 'rural' || mockProfile.military_rural === 'both') eligiblePrograms.push('usda');
-  const program = eligiblePrograms.includes('va') ? 'va' : 'conventional';
+  const panelComponent = (
+    <AffordabilityPanelNew
+      key={`${transactionType}-${panelMode}-${income}-${debts}`}
+      transactionType={transactionType}
+      cashOutIntent={cashOutIntent}
+      dataMode={panelMode}
+      income={income}
+      monthlyDebts={debts}
+      initialAssumptions={{
+        purchase: { price: 550000, downPct: 15, rate: 6.375, term: 30, insurance: 130, hoaFee: 0 },
+        refiRT: { homeValue: 500000, payoff: 300000, rate: 6.125, term: 30, insurance: 120, hoaFee: 0, currentPayment: 2204 },
+        refiCO: { homeValue: 500000, payoff: 300000, cashOut: 30000, rate: 6.375, term: 30, insurance: 120, hoaFee: 0, currentPayment: 2204 },
+        heloc: { homeValue: 500000, firstBalance: 300000, lineAmount: 50000, drawRate: 8.5, insurance: 120, firstPI: 1895 },
+      }}
+      onRequestSoftPull={() => {
+        setPanelMode('pulled');
+        alert('Soft credit review authorized! Switching to Verified Mode with bureau-verified numbers.');
+      }}
+      onSubmitReview={() => {
+        alert('Application submitted for formal underwriting review!');
+      }}
+    />
+  );
 
   return (
-    <div className="min-h-screen bg-black/50 backdrop-blur-md p-0 sm:p-4 md:p-6 flex items-center justify-center font-sans">
+    <div className="min-h-screen bg-[#050811] p-0 sm:p-4 md:p-6 flex items-center justify-center font-sans">
       {/* Mock Floating CTA Modal Container */}
       <motion.div 
         layout
-        className={`relative w-[96vw] sm:w-[90vw] ${isPanelOpen ? 'max-w-[1800px]' : 'max-w-7xl'} h-[85dvh] sm:h-[92vh] min-h-0 sm:min-h-[500px] max-h-none sm:max-h-[960px] bg-[#0B0F19] rounded-2xl sm:rounded-3xl shadow-[0_8px_60px_rgba(0,180,216,0.25),0_0_0_1px_rgba(0,180,216,0.08)] flex flex-col overflow-hidden border border-white/20`}
+        className={`relative w-[96vw] sm:w-[90vw] ${
+          isPanelOpen ? 'max-w-7xl lg:max-w-[1800px]' : 'max-w-7xl'
+        } h-[88dvh] sm:h-[94vh] min-h-0 sm:min-h-[550px] max-h-none sm:max-h-[980px] bg-[#0B0F19] rounded-2xl sm:rounded-3xl shadow-[0_8px_60px_rgba(0,180,216,0.25),0_0_0_1px_rgba(0,180,216,0.08)] flex flex-col overflow-hidden border border-white/20`}
         transition={{ type: 'spring', stiffness: 260, damping: 28 }}
       >
         
-        {/* ── Top Header (Copied exactly from FloatingCTA) ── */}
+        {/* ── Top Header ── */}
         <div className="flex items-center justify-between px-3 sm:px-4 md:px-6 py-2.5 md:py-4 relative z-50 shrink-0 bg-[#080c14]/95 backdrop-blur-md border-b border-white/15 gap-2">
           
           {/* Left: Logo */}
@@ -105,69 +130,153 @@ export default function AffordabilitySandboxPage() {
             </button>
           </div>
 
-          {/* Right: Close button */}
-          <div className="flex items-center justify-end shrink-0 w-28 sm:w-36 md:w-44">
+          {/* Right: Dynamic Badge + Close button */}
+          <div className="flex items-center justify-end gap-2 shrink-0 w-28 sm:w-36 md:w-44">
+            {/* Desktop indicator */}
+            <span className="hidden lg:inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300">
+              <Monitor className="w-3 h-3 text-[#00b4d8]" /> Split Screen
+            </span>
+            {/* Mobile/Tablet indicator */}
+            <span className="inline-flex lg:hidden items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300">
+              <Smartphone className="w-3 h-3 text-amber-400" /> Pop-up
+            </span>
             <button className="p-1.5 sm:p-2 rounded-full bg-white/5 text-gray-400 hover:bg-red-500 hover:text-white transition-all cursor-pointer shrink-0">
               <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </button>
           </div>
         </div>
 
-        {/* ── Body Area: Split View ── */}
-        <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden relative bg-[#0b0f19]">
+        {/* ── Body Area ── */}
+        <div className="flex-1 flex min-h-0 overflow-hidden relative bg-[#0b0f19]">
           
-          {/* LEFT/TOP: Ailana Session Area */}
+          {/* LEFT: Session Area with Sandbox Controls */}
           <motion.div
             layout
-            className={`flex flex-col items-center justify-center relative min-h-0 shrink-0 lg:order-1 order-1 ${
-              isPanelOpen 
-                ? 'w-full h-1/2 lg:w-[65%] xl:w-[70%] lg:h-full' 
-                : 'w-full h-full'
-            }`}
+            className={`flex flex-col items-center justify-between p-4 sm:p-6 relative min-h-0 shrink-0 overflow-y-auto w-full ${
+              isPanelOpen ? 'lg:w-[55%] xl:w-[60%]' : 'lg:w-full'
+            } h-full`}
             transition={{ type: 'spring', stiffness: 260, damping: 28 }}
           >
-            <div className="flex flex-col items-center justify-center w-full h-full relative">
-              <p className="text-gray-600 font-mono text-sm opacity-50 whitespace-nowrap">Mock Ailana Session Area</p>
-              
-              <div className="flex gap-4 mt-8 absolute bottom-8">
-                <button
-                  onClick={() => {
-                    setPanelMode('stated');
-                    setIsPanelOpen(true);
-                  }}
-                  className="px-4 py-2 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded-lg text-xs font-semibold hover:bg-amber-500/20 transition cursor-pointer"
-                >
-                  Test Stated Mode
-                </button>
-                <button
-                  onClick={() => {
-                    setPanelMode('verified');
-                    setIsPanelOpen(true);
-                  }}
-                  className="px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-semibold hover:bg-emerald-500/20 transition cursor-pointer"
-                >
-                  Test Verified Mode
-                </button>
+            <div className="flex flex-col items-center justify-center flex-1 w-full text-center">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#00b4d8]/20 to-[#023e8a]/40 border border-[#00b4d8]/40 flex items-center justify-center mb-3 shadow-[0_0_30px_rgba(0,180,216,0.2)]">
+                <Sparkles className="w-7 h-7 text-[#00b4d8]" />
               </div>
+              <h2 className="text-lg md:text-xl font-bold text-white tracking-tight">Ailana AI Mortgage Sandbox</h2>
+              <p className="text-xs text-gray-400 max-w-md mt-1">
+                Resize the browser width in DevTools: <strong>1024px or wider</strong> shows Split Screen, and <strong>under 1024px</strong> shows Pop-up Modal automatically.
+              </p>
+
+              {/* Sandbox Mode Controls */}
+              <div className="mt-6 bg-white/5 border border-white/10 rounded-2xl p-4 w-full max-w-lg text-left backdrop-blur-md">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-1.5">
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-[#00b4d8]" /> Interactive Sandbox Controls
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="text-[11px] text-gray-300 font-medium block mb-1">Data Mode</label>
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => setPanelMode('stated')}
+                        className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                          panelMode === 'stated'
+                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
+                            : 'bg-white/5 text-gray-400 border-transparent hover:bg-white/10'
+                        }`}
+                      >
+                        Stated Mode
+                      </button>
+                      <button
+                        onClick={() => setPanelMode('pulled')}
+                        className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                          panelMode === 'pulled'
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
+                            : 'bg-white/5 text-gray-400 border-transparent hover:bg-white/10'
+                        }`}
+                      >
+                        Verified Mode
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] text-gray-300 font-medium block mb-1">Transaction Intent</label>
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => { setTransactionType('TT-PUR'); setCashOutIntent(false); }}
+                        className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                          transactionType === 'TT-PUR'
+                            ? 'bg-[#00b4d8]/20 text-[#00b4d8] border-[#00b4d8]/50 shadow-[0_0_10px_rgba(0,180,216,0.2)]'
+                            : 'bg-white/5 text-gray-400 border-transparent hover:bg-white/10'
+                        }`}
+                      >
+                        Purchase
+                      </button>
+                      <button
+                        onClick={() => { setTransactionType('TT-REF'); setCashOutIntent(false); }}
+                        className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                          transactionType === 'TT-REF'
+                            ? 'bg-[#00b4d8]/20 text-[#00b4d8] border-[#00b4d8]/50 shadow-[0_0_10px_rgba(0,180,216,0.2)]'
+                            : 'bg-white/5 text-gray-400 border-transparent hover:bg-white/10'
+                        }`}
+                      >
+                        Refinance
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/5">
+                  <div>
+                    <label className="text-[10.5px] text-gray-400 block mb-1">Monthly Gross Income ($)</label>
+                    <input
+                      type="number"
+                      value={income}
+                      onChange={(e) => setIncome(Number(e.target.value))}
+                      className="w-full bg-[#080c14] text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-gray-700 focus:border-[#00b4d8] outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10.5px] text-gray-400 block mb-1">Monthly Debts ($)</label>
+                    <input
+                      type="number"
+                      value={debts}
+                      onChange={(e) => setDebts(Number(e.target.value))}
+                      className="w-full bg-[#080c14] text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-gray-700 focus:border-[#00b4d8] outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-[11px] text-gray-500 flex items-center gap-2 mt-4">
+              <span>Panel is <strong>{isPanelOpen ? 'Open' : 'Closed'}</strong></span>
+              <span>·</span>
+              <button 
+                onClick={() => setIsPanelOpen(!isPanelOpen)}
+                className="text-[#00b4d8] hover:underline cursor-pointer font-medium"
+              >
+                {isPanelOpen ? 'Close Panel' : 'Open Panel'}
+              </button>
             </div>
           </motion.div>
 
-          {/* RIGHT/BOTTOM: Affordability Panel Slide-in */}
+          {/* ── 1. DESKTOP SPLIT SCREEN PANEL (Only rendered & visible on lg: screens >= 1024px) ── */}
           <AnimatePresence>
             {isPanelOpen && (
               <motion.div
-                key="affordability-panel-container"
+                key="affordability-split-screen"
                 layout
-                initial={{ opacity: 0, x: 50, y: 0 }}
-                animate={{ opacity: 1, x: 0, y: 0, transition: { delay: 0.1, type: 'spring', stiffness: 280, damping: 26 } }}
-                exit={{ opacity: 0, x: 50, y: 0, transition: { type: 'spring', stiffness: 300, damping: 30 } }}
-                className="w-full h-1/2 lg:w-[35%] xl:w-[30%] lg:h-full flex flex-col shrink-0 border-t lg:border-t-0 lg:border-l border-white/10 bg-[#080c14]/80 z-10 lg:order-2 order-2"
+                initial={{ opacity: 0, x: 60 }}
+                animate={{ opacity: 1, x: 0, transition: { delay: 0.08, type: 'spring', stiffness: 280, damping: 26 } }}
+                exit={{ opacity: 0, x: 60, transition: { type: 'spring', stiffness: 300, damping: 30 } }}
+                className="hidden lg:flex w-[45%] xl:w-[40%] h-full flex-col shrink-0 border-l border-white/10 bg-[#080c14]/90 z-10"
               >
                 {/* Panel Header */}
-                <div className="flex items-center justify-between px-5 py-3.5 bg-[#131b2e]/90 border-b border-gray-800/80 shrink-0">
-                  <div className="flex items-center gap-2.5">
+                <div className="flex items-center justify-between px-4 py-3 bg-[#131b2e]/90 border-b border-gray-800/80 shrink-0">
+                  <div className="flex items-center gap-2">
                     <SlidersHorizontal className="w-4 h-4 text-[#00b4d8]" />
-                    <span className="text-sm font-bold text-white tracking-wide">
+                    <span className="text-xs font-bold text-white tracking-wide">
                       Affordability Summary
                     </span>
                     <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
@@ -179,11 +288,11 @@ export default function AffordabilitySandboxPage() {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
                       onClick={() => setIsPanelOpen(false)}
-                      title="Minimize Modal"
+                      title="Minimize"
                       className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
                     >
                       <Minus className="w-4 h-4" />
@@ -191,7 +300,7 @@ export default function AffordabilitySandboxPage() {
                     <button
                       type="button"
                       onClick={() => setIsPanelOpen(false)}
-                      title="Close Modal"
+                      title="Close"
                       className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
                     >
                       <X className="w-4 h-4" />
@@ -200,33 +309,71 @@ export default function AffordabilitySandboxPage() {
                 </div>
 
                 {/* Panel Content (Scrollable) */}
-                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                  <AffordabilityPanel
-                    initialPurchasePrice={mockProfile.target_price}
-                    initialDownPayment={mockProfile.down_payment}
-                    grossAnnualIncome={mockProfile.gross_annual_income}
-                    totalMonthlyDebt={mockProfile.monthly_debt}
-                    programType={program}
-                    zipCode={mockProfile.zip_code}
-                    mode={panelMode}
-                    eligiblePrograms={eligiblePrograms}
-                    isSubmitted={false}
-                    onUpgrade={() => {
-                      alert('Upgrade to Verified Mode requested!');
-                      setIsPanelOpen(false);
-                    }}
-                    onSubmitSuccess={(status) => {
-                      alert(`Submit successful! Status: ${status}`);
-                      setIsPanelOpen(false);
-                    }}
-                    borrowerName={mockProfile.borrower_name}
-                  />
+                <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
+                  {panelComponent}
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
         </div>
+
+        {/* ── 2. MOBILE & TABLET POP-UP MODAL (Only visible on screens < 1024px) ── */}
+        <AnimatePresence>
+          {isPanelOpen && (
+            <motion.div
+              key="affordability-popup-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex lg:hidden fixed inset-0 z-[250] bg-black/80 backdrop-blur-md items-center justify-center p-3 sm:p-5"
+            >
+              <motion.div
+                key="affordability-popup-modal"
+                initial={{ scale: 0.94, opacity: 0, y: 15 }}
+                animate={{ scale: 1, opacity: 1, y: 0, transition: { type: 'spring', damping: 25, stiffness: 300 } }}
+                exit={{ scale: 0.94, opacity: 0, y: 15, transition: { duration: 0.15 } }}
+                className="w-full max-w-xl max-h-[90vh] bg-[#0B0F19] rounded-2xl border border-white/20 shadow-[0_10px_50px_rgba(0,180,216,0.35)] flex flex-col overflow-hidden"
+              >
+                {/* Modal Header */}
+                <div className="flex items-center justify-between px-4 py-3 bg-[#131b2e] border-b border-gray-800 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-[#00b4d8]/10 border border-[#00b4d8]/30">
+                      <SlidersHorizontal className="w-4 h-4 text-[#00b4d8]" />
+                    </div>
+                    <div>
+                      <span className="text-xs sm:text-sm font-bold text-white tracking-wide block">
+                        Affordability Summary
+                      </span>
+                    </div>
+                    <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ml-1 ${
+                      panelMode === 'stated'
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                        : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                    }`}>
+                      {panelMode === 'stated' ? 'Stated Mode' : 'Verified Mode'}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsPanelOpen(false)}
+                    title="Close Modal"
+                    className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Modal Scrollable Body */}
+                <div className="flex-1 overflow-y-auto p-3 sm:p-4 custom-scrollbar">
+                  {panelComponent}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
       </motion.div>
     </div>
   );
