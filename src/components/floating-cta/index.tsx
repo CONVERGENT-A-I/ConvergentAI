@@ -48,8 +48,10 @@ import { LogoLoader } from "./logo-loader";
 import { playConnectingSound, stopConnectingSound } from "../../utils/ui-sounds";
 
 import { StageListener } from "./stage-listener";
-import { AffordabilityPanel } from "../affordability-panel";
-import { AffordabilityModal } from "./affordability-modal"; // kept for potential future use
+import {
+  AffordabilityPanelNew,
+  type DataMode as AffordabilityDataMode,
+} from "../affordability-panel-new";
 import { OtpVerificationModal } from "./otp-verification-modal";
 import VideoStage from "../video-stage";
 
@@ -1031,7 +1033,7 @@ export default function FloatingCTA() {
                       layout
                       className={`relative flex flex-col items-center justify-center min-h-0 shrink-0 order-1 ${
                         isAffordabilityPanelOpen
-                          ? 'w-full h-1/2 lg:w-[65%] xl:w-[70%] lg:h-full'
+                          ? 'w-full h-1/2 lg:flex-1 lg:min-w-0 lg:h-full'
                           : 'w-full h-full'
                       }`}
                       transition={{ type: 'spring', stiffness: 260, damping: 28 }}
@@ -1500,13 +1502,26 @@ export default function FloatingCTA() {
 
                     </motion.div>
 
+                    {/* ── Affordability Panel: Desktop Inline Split (lg+) ── */}
                     <AnimatePresence>
                       {isAffordabilityPanelOpen && (() => {
                         const apEligiblePrograms: ('conventional' | 'fha' | 'va' | 'usda')[] = ['conventional', 'fha'];
                         const apMr = borrowerProfile?.military_rural;
                         if (apMr === 'military' || apMr === 'both') apEligiblePrograms.push('va');
                         if (apMr === 'rural' || apMr === 'both') apEligiblePrograms.push('usda');
-                        const apProgram: 'conventional' | 'fha' | 'va' | 'usda' = apEligiblePrograms.includes('va') ? 'va' : 'conventional';
+
+                        // Map borrowerProfile → AffordabilityPanelNew props
+                        const apRawMode = borrowerProfile?.affordability_mode ?? 'stated';
+                        const apDataMode: AffordabilityDataMode = apRawMode === 'pulled' ? 'pulled' : apRawMode === 'verified' ? 'pulled' : 'stated';
+                        const apMonthlyIncome = (() => {
+                          const annual = borrowerProfile?.gross_annual_income ?? borrowerProfile?.grossAnnualIncome ?? 120000;
+                          return Math.round(annual / 12);
+                        })();
+                        const apMonthlyDebts = borrowerProfile?.monthly_debt ?? borrowerProfile?.totalMonthlyDebt ?? 500;
+                        const apTargetPrice = borrowerProfile?.target_price ?? borrowerProfile?.targetPrice ?? borrowerProfile?.affordability_purchase_price ?? 350000;
+                        const apDownPayment = borrowerProfile?.down_payment ?? borrowerProfile?.downPayment ?? borrowerProfile?.affordability_down_payment ?? 70000;
+                        const apDownPct = apTargetPrice > 0 ? Math.round((apDownPayment / apTargetPrice) * 100 * 10) / 10 : 20;
+
                         const apIsSubmitted = !!(
                           hasSubmittedAus ||
                           borrowerProfile?.affordability_submitted ||
@@ -1518,84 +1533,161 @@ export default function FloatingCTA() {
                           activeStage === '3B' ||
                           activeStage === '4'
                         );
+
+                        const handleClose = () => {
+                          setIsAffordabilityPanelOpen(false);
+                          setPanelClosedByUser(true);
+                        };
+
+                        const handleSoftPull = async () => {
+                          handleClose();
+                          if ((window as any).lkPublishData) {
+                            const encoder = new TextEncoder();
+                            const payload = encoder.encode(JSON.stringify({ message: 'SYSTEM_STAGE_UPDATE_UPGRADE' }));
+                            await (window as any).lkPublishData(payload, { topic: 'lk-chat', reliable: true });
+                          }
+                        };
+
+                        const handleSubmitReview = async () => {
+                          setHasSubmittedAus(true);
+                          console.log('[ui-affordability]: Submitted review via new panel');
+                          try {
+                            const encoder = new TextEncoder();
+                            const payload = encoder.encode(JSON.stringify({ message: 'SYSTEM_AUS_SUBMITTED:approve_eligible' }));
+                            if ((window as any).lkPublishData) {
+                              await (window as any).lkPublishData(payload, { topic: 'lk-chat', reliable: true });
+                            }
+                          } catch (err) {
+                            console.warn('[ui]: Failed to publish AUS submission event:', err);
+                          }
+                        };
+
+                        const panelNode = (
+                          <AffordabilityPanelNew
+                            transactionType="TT-PUR"
+                            dataMode={apDataMode}
+                            income={apMonthlyIncome}
+                            monthlyDebts={apMonthlyDebts}
+                            statedDownPaymentDollars={apDownPayment}
+                            lockedMode={true}
+                            eligiblePrograms={apEligiblePrograms}
+                            isSubmitted={apIsSubmitted}
+                            initialAssumptions={{
+                              purchase: {
+                                price: apTargetPrice,
+                                downPct: apDownPct,
+                              },
+                            }}
+                            onRequestSoftPull={handleSoftPull}
+                            onSubmitReview={handleSubmitReview}
+                          />
+                        );
+
                         return (
-                          <motion.div
-                            key="affordability-panel-inline"
-                            layout
-                            initial={{ opacity: 0, x: 50 }}
-                            animate={{ opacity: 1, x: 0, transition: { delay: 0.08, type: 'spring', stiffness: 280, damping: 26 } }}
-                            exit={{ opacity: 0, x: 50, transition: { type: 'spring', stiffness: 300, damping: 30 } }}
-                            className="w-full h-1/2 lg:w-[35%] xl:w-[30%] lg:h-full flex flex-col shrink-0 border-t lg:border-t-0 lg:border-l border-white/10 bg-[#080c14]/80 z-10 order-2"
-                          >
-                            <div className="flex items-center justify-between px-5 py-3.5 bg-[#131b2e]/90 border-b border-gray-800/80 shrink-0">
-                              <div className="flex items-center gap-2.5">
-                                <SlidersHorizontal className="w-4 h-4 text-[#00b4d8]" />
-                                <span className="text-sm font-bold text-white tracking-wide">Affordability Summary</span>
-                                <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                                  (borrowerProfile?.affordability_mode ?? 'verified') === 'stated'
-                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                                }`}>
-                                  {(borrowerProfile?.affordability_mode ?? 'verified') === 'stated' ? 'Stated Mode' : 'Verified Mode'}
-                                </span>
+                          <>
+                            {/* Desktop: inline split panel (lg+) */}
+                            <motion.div
+                              key="affordability-panel-inline"
+                              layout
+                              initial={{ opacity: 0, x: 50 }}
+                              animate={{ opacity: 1, x: 0, transition: { delay: 0.08, type: 'spring', stiffness: 280, damping: 26 } }}
+                              exit={{ opacity: 0, x: 50, transition: { type: 'spring', stiffness: 300, damping: 30 } }}
+                              className="hidden lg:flex w-[45%] xl:w-[42%] min-w-[390px] max-w-[560px] h-full flex-col shrink-0 border-l border-white/10 bg-[#080c14]/80 z-10 order-2 overflow-hidden"
+                            >
+                              {/* Panel header */}
+                              <div className="flex items-center justify-between px-5 py-3.5 bg-[#131b2e]/90 border-b border-gray-800/80 shrink-0">
+                                <div className="flex items-center gap-2.5">
+                                  <SlidersHorizontal className="w-4 h-4 text-[#00b4d8]" />
+                                  <span className="text-sm font-bold text-white tracking-wide">Affordability Summary</span>
+                                  <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                                    apRawMode === 'stated'
+                                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                  }`}>
+                                    {apRawMode === 'stated' ? 'Stated' : 'Verified'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={handleClose}
+                                    title="Minimize"
+                                    className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
+                                  >
+                                    <Minus className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={handleClose}
+                                    title="Close"
+                                    className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
-                              <div className="flex items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => { setIsAffordabilityPanelOpen(false); setPanelClosedByUser(true); }}
-                                  title="Minimize"
-                                  className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
-                                >
-                                  <Minus className="w-4 h-4" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => { setIsAffordabilityPanelOpen(false); setPanelClosedByUser(true); }}
-                                  title="Close"
-                                  className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
+                              {/* Panel body */}
+                              <div className="flex-1 overflow-y-auto">
+                                {panelNode}
                               </div>
-                            </div>
-                            <div className="flex-1 overflow-y-auto p-4">
-                              <AffordabilityPanel
-                                initialPurchasePrice={borrowerProfile?.target_price ?? borrowerProfile?.targetPrice ?? borrowerProfile?.affordability_purchase_price ?? 350000}
-                                initialDownPayment={borrowerProfile?.down_payment ?? borrowerProfile?.downPayment ?? borrowerProfile?.affordability_down_payment ?? 70000}
-                                grossAnnualIncome={borrowerProfile?.gross_annual_income ?? borrowerProfile?.grossAnnualIncome ?? 120000}
-                                totalMonthlyDebt={borrowerProfile?.monthly_debt ?? borrowerProfile?.totalMonthlyDebt ?? 500}
-                                programType={apProgram}
-                                zipCode={borrowerProfile?.zip_code ?? borrowerProfile?.zipCode}
-                                mode={borrowerProfile?.affordability_mode ?? 'verified'}
-                                onUpgrade={async () => {
-                                  setIsAffordabilityPanelOpen(false);
-                                  setPanelClosedByUser(true);
-                                  if ((window as any).lkPublishData) {
-                                    const encoder = new TextEncoder();
-                                    const payload = encoder.encode(JSON.stringify({ message: 'SYSTEM_STAGE_UPDATE_UPGRADE' }));
-                                    await (window as any).lkPublishData(payload, { topic: 'lk-chat', reliable: true });
-                                  }
-                                }}
-                                onSubmitSuccess={async (status) => {
-                                  setHasSubmittedAus(true);
-                                  setIsAffordabilityPanelOpen(false);
-                                  setPanelClosedByUser(true);
-                                  console.log('[ui-affordability]: Submitted AUS status:', status);
-                                  try {
-                                    const encoder = new TextEncoder();
-                                    const payload = encoder.encode(JSON.stringify({ message: `SYSTEM_AUS_SUBMITTED:${status}` }));
-                                    if ((window as any).lkPublishData) {
-                                      await (window as any).lkPublishData(payload, { topic: 'lk-chat', reliable: true });
-                                    }
-                                  } catch (err) {
-                                    console.warn('[ui]: Failed to publish AUS submission event:', err);
-                                  }
-                                }}
-                                eligiblePrograms={apEligiblePrograms}
-                                isSubmitted={apIsSubmitted}
-                              />
-                            </div>
-                          </motion.div>
+                            </motion.div>
+
+                            {/* Mobile: popup modal (< lg) */}
+                            <motion.div
+                              key="affordability-panel-mobile-backdrop"
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 0.18 }}
+                              className="lg:hidden fixed inset-0 z-[300] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md"
+                              onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
+                            >
+                              <motion.div
+                                key="affordability-panel-mobile-modal"
+                                initial={{ opacity: 0, scale: 0.94, y: 15 }}
+                                animate={{ opacity: 1, scale: 1, y: 0, transition: { type: 'spring', stiffness: 340, damping: 28 } }}
+                                exit={{ opacity: 0, scale: 0.94, y: 15, transition: { duration: 0.18 } }}
+                                className="relative w-full max-w-lg bg-[#0b0f19]/98 border border-[#00b4d8]/30 rounded-2xl shadow-[0_0_60px_rgba(0,180,216,0.25)] overflow-hidden flex flex-col max-h-[90dvh]"
+                              >
+                                {/* Modal header */}
+                                <div className="flex items-center justify-between px-5 py-3.5 bg-[#131b2e]/90 border-b border-gray-800/80 shrink-0">
+                                  <div className="flex items-center gap-2.5">
+                                    <SlidersHorizontal className="w-4 h-4 text-[#00b4d8]" />
+                                    <span className="text-sm font-bold text-white tracking-wide">Affordability Summary</span>
+                                    <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                                      apRawMode === 'stated'
+                                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                        : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                    }`}>
+                                      {apRawMode === 'stated' ? 'Stated' : 'Verified'}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={handleClose}
+                                      title="Minimize"
+                                      className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
+                                    >
+                                      <Minus className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={handleClose}
+                                      title="Close"
+                                      className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                                {/* Modal body */}
+                                <div className="flex-1 overflow-y-auto">
+                                  {panelNode}
+                                </div>
+                              </motion.div>
+                            </motion.div>
+                          </>
                         );
                       })()}
                     </AnimatePresence>

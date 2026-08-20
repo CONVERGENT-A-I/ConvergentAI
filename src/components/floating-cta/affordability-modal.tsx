@@ -3,7 +3,10 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Minus, X, SlidersHorizontal } from 'lucide-react';
-import { AffordabilityPanel } from '../affordability-panel';
+import {
+  AffordabilityPanelNew,
+  type DataMode as AffordabilityDataMode,
+} from '../affordability-panel-new';
 
 export interface AffordabilityModalProps {
   isOpen: boolean;
@@ -26,24 +29,25 @@ export function AffordabilityModal({
 
   const targetPrice = borrowerProfile?.target_price ?? borrowerProfile?.targetPrice ?? 350000;
   const downPayment = borrowerProfile?.down_payment ?? borrowerProfile?.downPayment ?? 70000;
-  const income = borrowerProfile?.gross_annual_income ?? borrowerProfile?.grossAnnualIncome ?? 120000;
+  const annualIncome = borrowerProfile?.gross_annual_income ?? borrowerProfile?.grossAnnualIncome ?? 120000;
+  const monthlyIncome = Math.round(annualIncome / 12);
   const debt = borrowerProfile?.monthly_debt ?? borrowerProfile?.totalMonthlyDebt ?? 500;
-  const zipCode = borrowerProfile?.zip_code ?? borrowerProfile?.zipCode;
-  
+  const downPct = targetPrice > 0 ? Math.round((downPayment / targetPrice) * 100 * 10) / 10 : 20;
+
   const eligiblePrograms: ('conventional' | 'fha' | 'va' | 'usda')[] = ['conventional', 'fha'];
   const mr = borrowerProfile?.military_rural ?? borrowerProfile?.militaryRural;
   if (mr === 'military' || mr === 'both') eligiblePrograms.push('va');
   if (mr === 'rural' || mr === 'both') eligiblePrograms.push('usda');
-  
-  // Default to VA if eligible, else conventional
-  const program = eligiblePrograms.includes('va') ? 'va' : 'conventional';
-  const borrowerName = borrowerProfile?.borrower_name ?? borrowerProfile?.borrowerName;
+
+  const dataMode: AffordabilityDataMode =
+    mode === 'verified' ? 'pulled' : 'stated';
+
+  const rawModeLabel = mode === 'stated' ? 'Stated' : 'Verified';
   const isSubmitted = !!(
     borrowerProfile?.affordability_submitted ||
     borrowerProfile?.affordability_aus_status ||
     borrowerProfile?.aus_status ||
     borrowerProfile?.ausStatus ||
-    borrowerProfile?.stage === '3A' ||
     borrowerProfile?.stage === '3B' ||
     borrowerProfile?.stage === '4'
   );
@@ -70,7 +74,7 @@ export function AffordabilityModal({
           className="relative w-full max-w-lg bg-[#0b0f19]/95 border border-[#00b4d8]/40 rounded-2xl shadow-[0_0_60px_rgba(0,180,216,0.3)] overflow-hidden flex flex-col max-h-[90vh]"
         >
           {/* Header Bar */}
-          <div className="flex items-center justify-between px-5 py-3.5 bg-[#131b2e]/90 border-b border-gray-800/80">
+          <div className="flex items-center justify-between px-5 py-3.5 bg-[#131b2e]/90 border-b border-gray-800/80 shrink-0">
             <div className="flex items-center gap-2.5">
               <SlidersHorizontal className="w-4 h-4 text-[#00b4d8]" />
               <span className="text-sm font-bold text-white tracking-wide">
@@ -81,7 +85,7 @@ export function AffordabilityModal({
                   ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                   : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
               }`}>
-                {mode === 'stated' ? 'Stated Mode' : 'Verified Mode'}
+                {rawModeLabel}
               </span>
             </div>
 
@@ -106,20 +110,24 @@ export function AffordabilityModal({
           </div>
 
           {/* Content */}
-          <div className="p-4 overflow-y-auto">
-            <AffordabilityPanel
-              initialPurchasePrice={targetPrice}
-              initialDownPayment={downPayment}
-              grossAnnualIncome={income}
-              totalMonthlyDebt={debt}
-              programType={program}
-              zipCode={zipCode}
-              mode={mode}
-              onUpgrade={onUpgrade}
-              onSubmitSuccess={onSubmitSuccess}
-              borrowerName={borrowerName}
+          <div className="flex-1 overflow-y-auto">
+            <AffordabilityPanelNew
+              transactionType="TT-PUR"
+              dataMode={dataMode}
+              income={monthlyIncome}
+              monthlyDebts={debt}
+              statedDownPaymentDollars={downPayment}
+              lockedMode={true}
               eligiblePrograms={eligiblePrograms}
               isSubmitted={isSubmitted}
+              initialAssumptions={{
+                purchase: {
+                  price: targetPrice,
+                  downPct: downPct,
+                },
+              }}
+              onRequestSoftPull={onUpgrade}
+              onSubmitReview={() => onSubmitSuccess?.('approve_eligible')}
             />
           </div>
         </motion.div>
@@ -127,4 +135,3 @@ export function AffordabilityModal({
     </AnimatePresence>
   );
 }
-

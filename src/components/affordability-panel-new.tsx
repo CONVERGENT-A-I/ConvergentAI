@@ -349,6 +349,7 @@ export interface AffordabilityPanelNewProps {
   initialAssumptions?: Partial<Record<ModeId, Partial<Assumptions>>>;
   onRequestSoftPull?: () => void;
   onSubmitReview?: () => void;
+  isSubmitted?: boolean;
 }
 
 export function AffordabilityPanelNew({
@@ -363,9 +364,11 @@ export function AffordabilityPanelNew({
   initialAssumptions = {},
   onRequestSoftPull,
   onSubmitReview,
+  isSubmitted = false,
 }: AffordabilityPanelNewProps) {
   const [initialMode] = useState<ModeId>(() => resolveMode(transactionType, cashOutIntent));
   const [mode, setMode] = useState<ModeId>(initialMode);
+  const [hasSubmittedLocally, setHasSubmittedLocally] = useState<boolean>(false);
   
   // Default program to first eligible program or conventional
   const defaultProgram = eligiblePrograms.includes("conventional") ? "conventional" : (eligiblePrograms[0] || "conventional");
@@ -775,12 +778,25 @@ export function AffordabilityPanelNew({
 
             {onSubmitReview && dataMode === "pulled" && (
               <div className="pt-2 lg:pt-2">
-                <button
-                  onClick={onSubmitReview}
-                  className="w-full text-[10.5px] lg:text-xs font-bold py-1.5 lg:py-2 rounded-lg bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-[0_4px_12px_rgba(0,180,216,0.35)] hover:opacity-90 transition cursor-pointer"
-                >
-                  Submit for Formal Underwriting Review
-                </button>
+                {isSubmitted || hasSubmittedLocally ? (
+                  <button
+                    disabled
+                    className="w-full text-[10.5px] lg:text-xs font-bold py-1.5 lg:py-2 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 cursor-default flex items-center justify-center gap-1.5 shadow-[0_2px_8px_rgba(16,185,129,0.2)]"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Review Submitted
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setHasSubmittedLocally(true);
+                      onSubmitReview();
+                    }}
+                    className="w-full text-[10.5px] lg:text-xs font-bold py-1.5 lg:py-2 rounded-lg bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-[0_4px_12px_rgba(0,180,216,0.35)] hover:opacity-90 transition cursor-pointer"
+                  >
+                    Submit for Formal Underwriting Review
+                  </button>
+                )}
               </div>
             )}
           </div>
