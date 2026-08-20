@@ -26,15 +26,21 @@ export default function AffordabilitySandboxPage() {
 
   const [income, setIncome] = useState<number>(11667); // ~$140k/yr
   const [debts, setDebts] = useState<number>(800);
+  const [statedDown, setStatedDown] = useState<number>(82500); // 15% of $550k
+  const [lockedMode, setLockedMode] = useState<boolean>(true); // Clean prequal locked mode
+  const [eligiblePrograms, setEligiblePrograms] = useState<('conventional' | 'fha' | 'va' | 'usda')[]>(['conventional', 'fha']);
 
   const panelComponent = (
     <AffordabilityPanelNew
-      key={`${transactionType}-${panelMode}-${income}-${debts}`}
+      key={`${transactionType}-${panelMode}-${income}-${debts}-${statedDown}-${lockedMode}-${eligiblePrograms.join('-')}`}
       transactionType={transactionType}
       cashOutIntent={cashOutIntent}
       dataMode={panelMode}
       income={income}
       monthlyDebts={debts}
+      statedDownPaymentDollars={statedDown}
+      lockedMode={lockedMode}
+      eligiblePrograms={eligiblePrograms}
       initialAssumptions={{
         purchase: { price: 550000, downPct: 15, rate: 6.375, term: 30, insurance: 130, hoaFee: 0 },
         refiRT: { homeValue: 500000, payoff: 300000, rate: 6.125, term: 30, insurance: 120, hoaFee: 0, currentPayment: 2204 },
@@ -246,6 +252,61 @@ export default function AffordabilitySandboxPage() {
                     />
                   </div>
                 </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/5">
+                  <div>
+                    <label className="text-[10.5px] text-gray-400 block mb-1">Stated Down Payment ($)</label>
+                    <input
+                      type="number"
+                      value={statedDown}
+                      onChange={(e) => setStatedDown(Number(e.target.value))}
+                      className="w-full bg-[#080c14] text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-gray-700 focus:border-[#00b4d8] outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10.5px] text-gray-400 block mb-1">Prequal Mode Lock</label>
+                    <button
+                      onClick={() => setLockedMode(!lockedMode)}
+                      className={`w-full py-1.5 px-2 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                        lockedMode
+                          ? 'bg-[#00b4d8]/20 text-[#00b4d8] border-[#00b4d8]/50'
+                          : 'bg-white/5 text-gray-400 border-transparent hover:bg-white/10'
+                      }`}
+                    >
+                      {lockedMode ? 'Locked (Clean UI)' : 'Unlocked (Show All Tabs)'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-white/5">
+                  <label className="text-[10.5px] text-gray-400 block mb-1">Simulate Eligible Programs</label>
+                  <div className="flex gap-1.5">
+                    {(['conventional', 'fha', 'va', 'usda'] as const).map((prog) => {
+                      const active = eligiblePrograms.includes(prog);
+                      return (
+                        <button
+                          key={prog}
+                          onClick={() => {
+                            if (active) {
+                              if (eligiblePrograms.length > 1) {
+                                setEligiblePrograms(eligiblePrograms.filter((p) => p !== prog));
+                              }
+                            } else {
+                              setEligiblePrograms([...eligiblePrograms, prog]);
+                            }
+                          }}
+                          className={`flex-1 py-1 px-1.5 rounded text-[10.5px] font-semibold uppercase border transition cursor-pointer ${
+                            active
+                              ? 'bg-[#00b4d8]/20 text-[#00b4d8] border-[#00b4d8]/40'
+                              : 'bg-white/5 text-gray-500 border-transparent hover:bg-white/10'
+                          }`}
+                        >
+                          {prog}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -309,7 +370,7 @@ export default function AffordabilitySandboxPage() {
                 </div>
 
                 {/* Panel Content (Scrollable) */}
-                <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 lg:p-2.5 custom-scrollbar flex flex-col">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden p-2.5 lg:p-3 pb-3 lg:pb-4 custom-scrollbar flex flex-col">
                   {panelComponent}
                 </div>
               </motion.div>

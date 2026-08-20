@@ -343,9 +343,13 @@ export interface AffordabilityPanelNewProps {
   dataMode?: DataMode;
   income?: number;
   monthlyDebts?: number;
+  statedDownPaymentDollars?: number;
+  lockedMode?: boolean;
+  eligiblePrograms?: ProgramId[];
   initialAssumptions?: Partial<Record<ModeId, Partial<Assumptions>>>;
   onRequestSoftPull?: () => void;
   onSubmitReview?: () => void;
+  isSubmitted?: boolean;
 }
 
 export function AffordabilityPanelNew({
@@ -354,19 +358,31 @@ export function AffordabilityPanelNew({
   dataMode = "stated",
   income = 10000,
   monthlyDebts = 800,
+  statedDownPaymentDollars,
+  lockedMode = false,
+  eligiblePrograms = ["conventional", "fha", "va", "usda"],
   initialAssumptions = {},
   onRequestSoftPull,
   onSubmitReview,
+  isSubmitted = false,
 }: AffordabilityPanelNewProps) {
   const [initialMode] = useState<ModeId>(() => resolveMode(transactionType, cashOutIntent));
   const [mode, setMode] = useState<ModeId>(initialMode);
-  const [program, setProgram] = useState<ProgramId>("conventional");
+  const [hasSubmittedLocally, setHasSubmittedLocally] = useState<boolean>(false);
+  
+  // Default program to first eligible program or conventional
+  const defaultProgram = eligiblePrograms.includes("conventional") ? "conventional" : (eligiblePrograms[0] || "conventional");
+  const [program, setProgram] = useState<ProgramId>(defaultProgram);
 
   const [assump, setAssump] = useState<Record<ModeId, Assumptions>>(() => {
     const merged: Record<ModeId, Assumptions> = JSON.parse(JSON.stringify(DEFAULTS));
     (Object.keys(initialAssumptions) as ModeId[]).forEach((modeId) => {
       if (merged[modeId]) merged[modeId] = { ...merged[modeId], ...initialAssumptions[modeId] };
     });
+    // If statedDownPaymentDollars was passed, sync downPct
+    if (statedDownPaymentDollars && merged.purchase && merged.purchase.price) {
+      merged.purchase.downPct = Math.round((statedDownPaymentDollars / merged.purchase.price) * 100 * 10) / 10;
+    }
     return merged;
   });
   const a = assump[mode];
@@ -378,7 +394,7 @@ export function AffordabilityPanelNew({
     setAssump((prev) => ({ ...prev, [mode]: { ...prev[mode], [field]: value } }));
   };
 
-  const activeProgram: ProgramConfig = mode === "heloc" ? PROGRAMS.conventional : PROGRAMS[program];
+  const activeProgram: ProgramConfig = mode === "heloc" ? PROGRAMS.conventional : (PROGRAMS[program] || PROGRAMS.conventional);
 
   const calc: CalcResult = useMemo(() => {
     if (mode === "purchase" || mode === "refiRT" || mode === "refiCO") {
@@ -419,9 +435,9 @@ export function AffordabilityPanelNew({
             : null,
         exactCash: mode === "purchase" ? ((a.price as number) * (a.downPct as number)) / 100 + (a.price as number) * 0.02 : cashOut,
         segments: [
-          { label: "Principal & Interest", value: pi },
+          { label: "P&I", value: pi },
           { label: "Property Taxes", value: tax },
-          { label: "Insurance", value: a.insurance },
+          { label: "Homeowners Ins.", value: a.insurance },
           { label: "HOA Dues", value: a.hoaFee ?? 0 },
           { label: activeProgram.miLabel, value: mi },
         ],
@@ -440,72 +456,107 @@ export function AffordabilityPanelNew({
       front: income > 0 ? (pitia / income) * 100 : 0,
       back: income > 0 ? ((pitia + effectiveDebts) / income) * 100 : 0,
       segments: [
-        { label: "1st Mortgage (P&I)", value: a.firstPI as number },
-        { label: "HELOC Draw (Interest-Only)", value: drawPI },
-        { label: "Taxes & Insurance", value: tax + a.insurance },
+        { label: "1st Mtg (P&I)", value: a.firstPI as number },
+        { label: "HELOC Draw", value: drawPI },
+        { label: "Taxes & Ins.", value: tax + a.insurance },
       ],
     };
   }, [mode, a, activeProgram, income, effectiveDebts]);
 
   const ltvGuideline = mode === "heloc" ? 85 : activeProgram.ltv.guideline;
   const ltvVal = mode === "heloc" ? (calc.cltv as number) : (calc.ltv as number);
-  const baselineText = mode === "purchase" ? `Target: $${fmt(a.price as number)}` : `Value: $${fmt(a.homeValue as number)}`;
+  
+  // Calculate down payment in exact dollar amount for Purchase
+  const currentDownDollars = mode === "purchase" ? Math.round(((a.price as number) * (a.downPct as number)) / 100) : 0;
+  
+  // Available eligible programs
+  const availablePrograms = (Object.entries(PROGRAMS) as [ProgramId, ProgramConfig][]).filter(([id]) =>
+    eligiblePrograms.includes(id)
+  );
+
+  const palette = ["#00b4d8", "#023e8a", "#10b981", "#8b5cf6", "#f59e0b"];
 
   return (
     <div className="w-full min-h-full flex flex-col justify-between font-sans text-white bg-transparent">
-      {/* Main Card with full height distribution & natural scroll */}
-      <div className="bg-[#0F172A] rounded-xl border border-white/10 shadow-lg w-full flex flex-col min-h-full justify-between shrink-0">
+      <div className="bg-[#0F172A] rounded-xl border border-white/10 shadow-lg w-full flex flex-col min-h-full justify-between shrink-0 overflow-hidden">
 
-        <div className="flex flex-col gap-1.5 lg:gap-2.5 p-2.5 lg:p-3">
-            
-            {/* Sub-Header: Income & Baseline preview */}
-            <div className="flex justify-between items-center gap-2">
-              <div className="flex items-center gap-1.5">
-                <SlidersHorizontal className="w-3 h-3 lg:w-3.5 lg:h-3.5 text-[#00b4d8]" />
-                <span className="font-mono text-[9.5px] lg:text-[11px] text-slate-300 font-medium">{baselineText}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-[11px] lg:text-xs font-bold text-white">
-                  ${fmt(income)}<span className="text-[8.5px] lg:text-[10px] text-slate-400 font-normal">/mo</span>
-                </span>
-                {dataMode === "pulled" ? (
-                  <span className="inline-flex items-center gap-1 text-emerald-400 text-[8.5px] lg:text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30">
-                    <CheckCircle2 className="w-2.5 h-2.5 lg:w-3 lg:h-3" /> Verified
-                  </span>
-                ) : (
-                  <span className="text-amber-400 text-[8.5px] lg:text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30">
-                    Stated
-                  </span>
-                )}
-              </div>
+        <div className="flex flex-col gap-2 lg:gap-2.5 p-2.5 lg:p-3">
+          
+          {/* ── 1. COMPACT HERO FINANCIAL RIBBON (Target, Stated Down $, Income) ── */}
+          <div className="bg-white/[0.02] p-2 lg:p-2.5 rounded-lg border border-white/10 flex flex-wrap items-center justify-between gap-1.5 lg:gap-2">
+            <div className="flex items-center gap-2 lg:gap-2.5 flex-wrap">
+              {mode === "purchase" ? (
+                <>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[8.5px] lg:text-[10px] text-slate-400 uppercase font-medium">Target:</span>
+                    <span className="font-mono tabular-nums tracking-tight text-[10.5px] lg:text-xs font-bold text-white">${fmt(a.price as number)}</span>
+                  </div>
+                  <span className="text-slate-600 text-xs">|</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[8.5px] lg:text-[10px] text-slate-400 uppercase font-medium">Stated Down:</span>
+                    <span className="font-mono tabular-nums tracking-tight text-[10.5px] lg:text-xs font-bold text-emerald-400">
+                      ${fmt(currentDownDollars)} <span className="text-[9px] text-slate-400 font-normal">({a.downPct}%)</span>
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[8.5px] lg:text-[10px] text-slate-400 uppercase font-medium">Home Value:</span>
+                    <span className="font-mono tabular-nums tracking-tight text-[10.5px] lg:text-xs font-bold text-white">${fmt(a.homeValue as number)}</span>
+                  </div>
+                  <span className="text-slate-600 text-xs">|</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[8.5px] lg:text-[10px] text-slate-400 uppercase font-medium">
+                      {mode === "heloc" ? "1st Balance:" : "Payoff:"}
+                    </span>
+                    <span className="font-mono tabular-nums tracking-tight text-[10.5px] lg:text-xs font-bold text-white">
+                      ${fmt(mode === "heloc" ? (a.firstBalance as number) : (a.payoff as number))}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
 
-            {/* Mode Switcher Tabs */}
-            <div>
-              <div className="flex gap-1 lg:gap-1.5 bg-white/[0.03] p-1 rounded-lg border border-white/10">
-                {MODES.map((m) => {
-                  const active = m.id === mode;
-                  return (
-                    <button
-                      key={m.id}
-                      onClick={() => setMode(m.id)}
-                      className={`flex-1 text-[8.5px] lg:text-[10.5px] font-semibold py-1 lg:py-1 px-1.5 rounded-md transition-all truncate ${
-                        active
-                          ? "bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-[0_2px_8px_rgba(0,180,216,0.35)]"
-                          : "text-slate-400 hover:text-white hover:bg-white/5"
-                      }`}
-                    >
-                      {m.label}
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="flex items-center gap-1 ml-auto">
+              <span className="text-[8.5px] lg:text-[10px] text-slate-400 uppercase font-medium">Income:</span>
+              <span className="font-mono tabular-nums tracking-tight text-[10.5px] lg:text-xs font-bold text-white">
+                ${fmt(income)}<span className="text-[8.5px] lg:text-[10px] text-slate-400 font-normal">/mo</span>
+              </span>
+            </div>
+          </div>
 
+          {/* ── 2. CONDITIONAL MODE & ELIGIBLE PROGRAM SELECTOR ── */}
+          {(!lockedMode || (mode !== "heloc" && availablePrograms.length > 1)) && (
+            <div className="flex flex-col gap-1.5">
+              {/* Only show Mode Switcher tabs if not locked to single prequal transaction */}
+              {!lockedMode && (
+                <div className="flex gap-1 lg:gap-1.5 bg-white/[0.03] p-1 rounded-lg border border-white/10">
+                  {MODES.map((m) => {
+                    const active = m.id === mode;
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={() => setMode(m.id)}
+                        className={`flex-1 text-[8.5px] lg:text-[10.5px] font-semibold py-1 px-1.5 rounded-md transition-all truncate cursor-pointer ${
+                          active
+                            ? "bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-[0_2px_8px_rgba(0,180,216,0.35)]"
+                            : "text-slate-400 hover:text-white hover:bg-white/5"
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Only show Loan Programs that are determined eligible for this borrower */}
               {mode !== "heloc" && (
-                <div className="flex items-center gap-1.5 lg:gap-2 pt-1.5 lg:pt-1.5 flex-wrap">
-                  <span className="text-[8.5px] lg:text-[10.5px] text-slate-400 font-medium">Program:</span>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {(Object.entries(PROGRAMS) as [ProgramId, ProgramConfig][]).map(([id, p]) => {
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[8.5px] lg:text-[10.5px] text-slate-400 font-medium">Eligible Programs:</span>
+                  <div className="flex gap-1 flex-wrap">
+                    {availablePrograms.map(([id, p]) => {
                       const active = id === program;
                       return (
                         <button
@@ -514,7 +565,7 @@ export function AffordabilityPanelNew({
                             setProgram(id);
                             if (mode === "purchase" && (a.downPct as number) < p.minDownPct) update("downPct", p.minDownPct);
                           }}
-                          className={`text-[8.5px] lg:text-[10px] font-semibold py-0.5 lg:py-0.5 px-1.5 lg:px-2 rounded-md border transition-all ${
+                          className={`text-[8.5px] lg:text-[10px] font-semibold py-0.5 px-2 rounded-md border transition-all cursor-pointer ${
                             active
                               ? "border-[#00b4d8] bg-[#00b4d8]/15 text-[#00b4d8]"
                               : "border-white/10 text-slate-400 hover:text-white hover:bg-white/5"
@@ -528,217 +579,248 @@ export function AffordabilityPanelNew({
                 </div>
               )}
             </div>
+          )}
 
-            <div className="h-px bg-white/10" />
-
-            {/* Payment Stats Row */}
-            <div className={`grid gap-1.5 lg:gap-2 ${calc.cashBand ? "grid-cols-3" : "grid-cols-2"}`}>
-              <div className="bg-white/[0.02] p-1.5 lg:p-2 rounded-lg border border-white/10 min-w-0 overflow-hidden">
-                <div className="text-[7.5px] lg:text-[9px] uppercase font-semibold text-slate-400 tracking-wider truncate">
-                  {mode === "heloc" ? "Monthly Obligation" : "Est. PITIA"}
+          {/* ── 3. UNIFIED PAYMENT & ITEMIZATION CARD ── */}
+          <div className="bg-gradient-to-br from-[#131E35]/80 to-[#0F172A] p-2.5 lg:p-3 rounded-lg border border-[#00b4d8]/30 shadow-md">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="text-[7.5px] lg:text-[9.5px] uppercase font-semibold text-slate-400 tracking-wider">
+                  {mode === "heloc" ? "Total Monthly Obligation" : "Est. Total Monthly Payment (PITIA)"}
                 </div>
-                <div className="text-sm lg:text-base font-mono font-bold text-[#00b4d8] mt-0.5 drop-shadow-[0_0_8px_rgba(0,180,216,0.35)] truncate">
+                <div className="text-base lg:text-xl font-mono tabular-nums tracking-tight font-bold text-[#00b4d8] drop-shadow-[0_0_10px_rgba(0,180,216,0.35)] mt-0.5">
                   ${fmt(calc.pitia)}
-                  <span className="text-[8.5px] lg:text-[10px] text-slate-400 font-normal">/mo</span>
+                  <span className="text-[9px] lg:text-xs text-slate-400 font-normal">/mo</span>
                 </div>
               </div>
 
-              <div className="bg-white/[0.02] p-1.5 lg:p-2 rounded-lg border border-white/10 min-w-0 overflow-hidden">
-                <div className="text-[7.5px] lg:text-[9px] uppercase font-semibold text-slate-400 tracking-wider truncate">
-                  {mode === "heloc" ? "Total Liens" : "Loan Amount"}
+              <div className="flex flex-col items-end gap-0.5 lg:gap-1">
+                <div className="text-right">
+                  <span className="text-[7.5px] lg:text-[9px] text-slate-400 uppercase mr-1">Loan Amount:</span>
+                  <span className="font-mono tabular-nums tracking-tight text-[10.5px] lg:text-xs font-semibold text-white">
+                    ${fmt(mode === "heloc" ? (calc.totalLiens as number) : (calc.loanAmt as number))}
+                  </span>
                 </div>
-                <div className="text-xs lg:text-sm font-mono font-semibold text-white mt-0.5 truncate">
-                  ${fmt(mode === "heloc" ? (calc.totalLiens as number) : (calc.loanAmt as number))}
-                </div>
+                {calc.cashBand && (
+                  <div className="text-right">
+                    <span className="text-[7.5px] lg:text-[9px] text-slate-400 uppercase mr-1">
+                      {mode === "purchase" ? "Est. Cash to Close:" : "Cash-Out:"}
+                    </span>
+                    <span className="font-mono tabular-nums tracking-tight text-[10px] lg:text-[11.5px] font-semibold text-emerald-400">
+                      ${fmt(calc.cashBand[0])}–${fmt(calc.cashBand[1])}
+                    </span>
+                  </div>
+                )}
+                {(mode === "refiRT" || mode === "refiCO") && typeof calc.delta === "number" && (
+                  <div className="text-right">
+                    <span className={`text-[9px] lg:text-[10.5px] font-semibold ${calc.delta >= 0 ? "text-emerald-400" : "text-amber-400"}`}>
+                      {calc.delta >= 0 ? `Saves $${fmt(Math.abs(calc.delta))}/mo` : `Adds $${fmt(Math.abs(calc.delta))}/mo`}
+                    </span>
+                  </div>
+                )}
               </div>
-
-              {calc.cashBand && (
-                <div className="bg-white/[0.02] p-1.5 lg:p-2 rounded-lg border border-white/10 min-w-0 overflow-hidden">
-                  <div className="text-[7.5px] lg:text-[9px] uppercase font-semibold text-slate-400 tracking-wider truncate">
-                    {mode === "purchase" ? "Cash to Close" : "Cash at Close"}
-                  </div>
-                  <div className="text-[11px] lg:text-sm font-mono font-semibold text-emerald-400 mt-0.5 truncate">
-                    ${fmt(calc.cashBand[0])}–${fmt(calc.cashBand[1])}
-                  </div>
-                </div>
-              )}
             </div>
 
-            {/* Payment Ledger Bar & Legend */}
-            <div>
-              <PaymentLedger
-                segments={calc.segments}
-                total={calc.pitia}
-                extraLine={calc.cashBand ? { label: mode === "purchase" ? "Cash to close" : "Cash-out", value: calc.exactCash as number } : null}
-                totalLabel={mode === "heloc" ? "Total Monthly Obligation" : "Total Housing Obligation"}
-              />
-
-              {mode !== "heloc" && (
-                <div className="mt-1 lg:mt-1.5 text-[8.5px] lg:text-[10.5px] text-slate-400 leading-normal">
-                  {(mode === "refiRT" || mode === "refiCO") && (
-                    <>
-                      <span className={(calc.delta as number) >= 0 ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold"}>
-                        {(calc.delta as number) >= 0
-                          ? `Saves $${fmt(Math.abs(calc.delta as number))}/mo`
-                          : `Adds $${fmt(Math.abs(calc.delta as number))}/mo`}
-                      </span>
-                      {" · "}
-                    </>
-                  )}
-                  {activeProgram.miNote(calc.mi as number)}
-                </div>
-              )}
-            </div>
-
-            <div className="h-px bg-white/10" />
-
-            {/* Benchmarks Section */}
-            <div>
-              <div className="text-[8.5px] lg:text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 lg:mb-1.5">
-                DTI & LTV Benchmarks — {activeProgram.label}
-              </div>
-              <div className="flex gap-1.5 lg:gap-2 w-full">
-                <BenchmarkGauge
-                  label="Front-End DTI"
-                  value={calc.front}
-                  guideline={activeProgram.dtiFront.guideline}
+            {/* Proportional Payment Bar */}
+            <div className="flex h-2 lg:h-2.5 rounded-md overflow-hidden border border-white/10 bg-slate-900 mt-2">
+              {calc.segments.map((s, i) => (
+                <div
+                  key={s.label}
+                  style={{
+                    width: `${calc.pitia > 0 ? (s.value / calc.pitia) * 100 : 0}%`,
+                    background: palette[i % palette.length],
+                    minWidth: s.value > 0 ? 2 : 0,
+                  }}
+                  className="transition-all duration-200"
+                  title={`${s.label}: $${fmt(s.value)}`}
                 />
-                <BenchmarkGauge
-                  label="Back-End DTI"
-                  value={calc.back}
-                  guideline={activeProgram.dtiBack.guideline}
-                  sublabel={`+$${fmt(effectiveDebts)}/mo`}
-                />
-                <BenchmarkGauge label={mode === "heloc" ? "CLTV" : "LTV"} value={ltvVal} guideline={ltvGuideline} />
-              </div>
-
-              {dataMode === "stated" && (
-                <div className="mt-1.5 lg:mt-2 pt-1.5 lg:pt-2 border-t border-white/10">
-                  <SliderRow
-                    label="Monthly Debts (your estimate)"
-                    value={statedDebts}
-                    min={0}
-                    max={5000}
-                    step={25}
-                    onChange={setStatedDebts}
-                    prefix="$"
-                    suffix="/mo"
-                  />
-                </div>
-              )}
+              ))}
             </div>
 
-            {/* Stated Mode Soft Pull Upgrade CTA */}
-            {dataMode === "stated" && onRequestSoftPull && (
-              <>
-                <div className="h-px bg-white/10" />
-                <div className="bg-gradient-to-r from-[#00b4d8]/10 to-[#023e8a]/20 rounded-lg p-2 lg:p-2.5 border border-[#00b4d8]/30 flex items-center justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-1.5 text-[9.5px] lg:text-[11px] font-bold text-white">
-                      <Sparkles className="w-3 h-3 text-[#00b4d8]" /> Want verified numbers?
-                    </div>
-                    <div className="text-[8px] lg:text-[10px] text-slate-400 leading-tight mt-0.5">
-                      Soft credit pull — zero credit score impact.
-                    </div>
+            {/* 2-Column Inline Cost Matrix */}
+            <div className="grid grid-cols-2 gap-x-2.5 gap-y-0.5 lg:gap-y-1 mt-1.5 pt-1.5 border-t border-white/10">
+              {calc.segments.filter(s => s.value > 0).map((s, i) => (
+                <div key={s.label} className="flex items-center justify-between text-[8px] lg:text-[10px]">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <span style={{ background: palette[i % palette.length] }} className="w-1.5 h-1.5 rounded-xs shrink-0" />
+                    <span className="text-slate-400 truncate">{s.label}</span>
                   </div>
-                  <button
-                    onClick={onRequestSoftPull}
-                    className="text-[9px] lg:text-[10.5px] font-bold py-1 lg:py-1 px-2.5 lg:px-3 rounded-md bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-[0_2px_8px_rgba(0,180,216,0.3)] hover:opacity-90 transition cursor-pointer flex items-center gap-1 shrink-0"
-                  >
-                    Upgrade <ArrowUpRight className="w-3 h-3" />
-                  </button>
+                  <span className="font-mono tabular-nums tracking-tight font-semibold text-white ml-1 shrink-0">${fmt(s.value)}</span>
                 </div>
-              </>
+              ))}
+            </div>
+
+            {mode !== "heloc" && (
+              <div className="mt-1 text-[7.5px] lg:text-[9px] text-slate-400 leading-tight">
+                {activeProgram.miNote(calc.mi as number)}
+              </div>
             )}
+          </div>
 
-            <div className="h-px bg-white/10" />
-
-            {/* Scenario Assumptions Grid */}
-            <div>
-              <div className="flex items-center justify-between mb-1 lg:mb-1.5">
-                <div className="flex items-center gap-1.5 text-[9px] lg:text-[11px] font-bold text-[#00b4d8]">
-                  <SlidersHorizontal className="w-3 h-3 lg:w-3.5 lg:h-3.5" /> Scenario Assumptions
+          {/* ── 4. INLINE DTI & LTV BENCHMARK STRIP ── */}
+          <div className="bg-white/[0.02] p-2 lg:p-2.5 rounded-lg border border-white/10">
+            <div className="text-[7.5px] lg:text-[9.5px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+              DTI & LTV Benchmarks — {activeProgram.label}
+            </div>
+            
+            <div className="grid grid-cols-3 gap-1.5 lg:gap-2">
+              {/* Front-End DTI */}
+              <div className="bg-slate-900/60 p-1.5 lg:p-2 rounded-md border border-white/5 flex flex-col justify-between">
+                <div className="text-[7.5px] lg:text-[9.5px] text-slate-400 truncate">Front-End DTI</div>
+                <div className="text-xs lg:text-sm font-mono tabular-nums tracking-tight font-bold text-white mt-0.5">{fmtPct(calc.front)}</div>
+                <div className={`text-[7px] lg:text-[9px] font-mono tabular-nums tracking-tight font-semibold mt-0.5 truncate ${calc.front <= activeProgram.dtiFront.guideline ? "text-emerald-400" : "text-amber-400"}`}>
+                  {calc.front <= activeProgram.dtiFront.guideline ? "At limit" : `+${(calc.front - activeProgram.dtiFront.guideline).toFixed(1)}%`} ({fmtPct(activeProgram.dtiFront.guideline)})
                 </div>
-                <button
-                  onClick={() => setAssump((prev) => ({ ...prev, [mode]: JSON.parse(JSON.stringify(DEFAULTS[mode])) }))}
-                  className="text-[8.5px] lg:text-[10px] text-slate-400 hover:text-white transition flex items-center gap-1 cursor-pointer"
-                >
-                  <RotateCcw className="w-2.5 h-2.5 lg:w-3 lg:h-3" /> Reset
-                </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-x-2.5 lg:gap-x-3.5 gap-y-1 lg:gap-y-1.5">
-                {mode === "purchase" && (
-                  <>
-                    <SliderRow label="Target Price" value={a.price as number} min={100000} max={1500000} step={5000} onChange={(v) => update("price", v)} prefix="$" />
-                    <SliderRow label="Down Payment" value={a.downPct as number} min={activeProgram.minDownPct} max={40} step={0.5} onChange={(v) => update("downPct", v)} suffix="%" />
-                    <SliderRow label="Interest Rate" value={a.rate as number} min={3.5} max={10} step={0.125} onChange={(v) => update("rate", v)} suffix="%" />
-                    <ToggleRow label="Loan Term" options={[15, 30]} value={a.term as number} onChange={(v) => update("term", v)} suffix="-yr" />
-                  </>
-                )}
-                {(mode === "refiRT" || mode === "refiCO") && (
-                  <>
-                    <SliderRow label="Home Value" value={a.homeValue as number} min={150000} max={1500000} step={5000} onChange={(v) => update("homeValue", v)} prefix="$" />
-                    <SliderRow label="Payoff Balance" value={a.payoff as number} min={50000} max={a.homeValue as number} step={5000} onChange={(v) => update("payoff", v)} prefix="$" />
-                    {mode === "refiCO" ? (
-                      <SliderRow label="Cash-Out" value={a.cashOut as number} min={0} max={250000} step={2500} onChange={(v) => update("cashOut", v)} prefix="$" />
-                    ) : (
-                      <div />
-                    )}
-                    <SliderRow label="Interest Rate" value={a.rate as number} min={3.5} max={10} step={0.125} onChange={(v) => update("rate", v)} suffix="%" />
-                    <ToggleRow label="Loan Term" options={[15, 30]} value={a.term as number} onChange={(v) => update("term", v)} suffix="-yr" />
-                  </>
-                )}
-                {mode === "heloc" && (
-                  <>
-                    <SliderRow label="Home Value" value={a.homeValue as number} min={150000} max={1500000} step={5000} onChange={(v) => update("homeValue", v)} prefix="$" />
-                    <SliderRow label="1st Balance" value={a.firstBalance as number} min={50000} max={a.homeValue as number} step={5000} onChange={(v) => update("firstBalance", v)} prefix="$" />
-                    <SliderRow label="Credit Line" value={a.lineAmount as number} min={10000} max={300000} step={2500} onChange={(v) => update("lineAmount", v)} prefix="$" />
-                    <SliderRow label="Draw Rate" value={a.drawRate as number} min={5} max={14} step={0.25} onChange={(v) => update("drawRate", v)} suffix="%" />
-                  </>
-                )}
-                <SliderRow label="Insurance" value={a.insurance} min={40} max={400} step={10} onChange={(v) => update("insurance", v)} prefix="$" suffix="/mo" />
-                {mode !== "heloc" && (
+              {/* Back-End DTI */}
+              <div className="bg-slate-900/60 p-1.5 lg:p-2 rounded-md border border-white/5 flex flex-col justify-between">
+                <div className="text-[7.5px] lg:text-[9.5px] text-slate-400 truncate">Back-End DTI</div>
+                <div className="text-xs lg:text-sm font-mono tabular-nums tracking-tight font-bold text-white mt-0.5">{fmtPct(calc.back)}</div>
+                <div className={`text-[7px] lg:text-[9px] font-mono tabular-nums tracking-tight font-semibold mt-0.5 truncate ${calc.back <= activeProgram.dtiBack.guideline ? "text-emerald-400" : "text-amber-400"}`}>
+                  {calc.back <= activeProgram.dtiBack.guideline ? "At limit" : `+${(calc.back - activeProgram.dtiBack.guideline).toFixed(1)}%`} ({fmtPct(activeProgram.dtiBack.guideline)})
+                </div>
+              </div>
+
+              {/* LTV / CLTV */}
+              <div className="bg-slate-900/60 p-1.5 lg:p-2 rounded-md border border-white/5 flex flex-col justify-between">
+                <div className="text-[7.5px] lg:text-[9.5px] text-slate-400 truncate">{mode === "heloc" ? "CLTV" : "LTV"}</div>
+                <div className="text-xs lg:text-sm font-mono tabular-nums tracking-tight font-bold text-white mt-0.5">{fmtPct(ltvVal)}</div>
+                <div className={`text-[7px] lg:text-[9px] font-mono tabular-nums tracking-tight font-semibold mt-0.5 truncate ${ltvVal <= ltvGuideline ? "text-emerald-400" : "text-amber-400"}`}>
+                  {ltvVal <= ltvGuideline ? "At limit" : `+${(ltvVal - ltvGuideline).toFixed(1)}%`} ({fmtPct(ltvGuideline)})
+                </div>
+              </div>
+            </div>
+
+            {dataMode === "stated" && (
+              <div className="mt-1.5 pt-1.5 border-t border-white/10">
+                <SliderRow
+                  label="Monthly Debts (your estimate)"
+                  value={statedDebts}
+                  min={0}
+                  max={5000}
+                  step={25}
+                  onChange={setStatedDebts}
+                  prefix="$"
+                  suffix="/mo"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* ── 5. STATED MODE UPGRADE RIBBON ── */}
+          {dataMode === "stated" && onRequestSoftPull && (
+            <div className="bg-gradient-to-r from-[#00b4d8]/10 to-[#023e8a]/20 rounded-lg p-1.5 lg:p-2 border border-[#00b4d8]/30 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <Sparkles className="w-3 h-3 text-[#00b4d8] shrink-0" />
+                <div className="text-[8px] lg:text-[10px] text-slate-300 leading-tight">
+                  <span className="font-bold text-white">Want verified numbers?</span> Soft credit check with zero score impact.
+                </div>
+              </div>
+              <button
+                onClick={onRequestSoftPull}
+                className="text-[8.5px] lg:text-[10.5px] font-bold py-1 px-2.5 rounded-md bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-[0_2px_8px_rgba(0,180,216,0.3)] hover:opacity-90 transition cursor-pointer flex items-center gap-1 shrink-0"
+              >
+                Upgrade <ArrowUpRight className="w-2.5 h-2.5" />
+              </button>
+            </div>
+          )}
+
+          {/* ── 6. SCENARIO ASSUMPTIONS (Compact 2-Column Grid) ── */}
+          <div className="bg-white/[0.01] p-2 lg:p-2.5 rounded-lg border border-white/5">
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-1 text-[8.5px] lg:text-[10.5px] font-bold text-[#00b4d8]">
+                <SlidersHorizontal className="w-3 h-3" /> Adjust Scenario Assumptions
+              </div>
+              <button
+                onClick={() => setAssump((prev) => ({ ...prev, [mode]: JSON.parse(JSON.stringify(DEFAULTS[mode])) }))}
+                className="text-[8px] lg:text-[10px] text-slate-400 hover:text-white transition flex items-center gap-1 cursor-pointer"
+              >
+                <RotateCcw className="w-2.5 h-2.5" /> Reset
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-x-2.5 lg:gap-x-3.5 gap-y-1 lg:gap-y-1.5">
+              {mode === "purchase" && (
+                <>
+                  <SliderRow label="Target Price" value={a.price as number} min={100000} max={1500000} step={5000} onChange={(v) => update("price", v)} prefix="$" />
+                  <SliderRow label={`Down ($${fmt(currentDownDollars)})`} value={a.downPct as number} min={activeProgram.minDownPct} max={40} step={0.5} onChange={(v) => update("downPct", v)} suffix="%" />
+                  <SliderRow label="Interest Rate" value={a.rate as number} min={3.5} max={10} step={0.125} onChange={(v) => update("rate", v)} suffix="%" />
                   <SliderRow label="HOA Dues" value={a.hoaFee as number} min={0} max={600} step={10} onChange={(v) => update("hoaFee", v)} prefix="$" suffix="/mo" />
-                )}
-              </div>
+                  <SliderRow label="Insurance" value={a.insurance} min={40} max={400} step={10} onChange={(v) => update("insurance", v)} prefix="$" suffix="/mo" />
+                  <ToggleRow label="Loan Term" options={[15, 30]} value={a.term as number} onChange={(v) => update("term", v)} suffix="-yr" />
+                </>
+              )}
+              {(mode === "refiRT" || mode === "refiCO") && (
+                <>
+                  <SliderRow label="Home Value" value={a.homeValue as number} min={150000} max={1500000} step={5000} onChange={(v) => update("homeValue", v)} prefix="$" />
+                  <SliderRow label="Payoff Balance" value={a.payoff as number} min={50000} max={a.homeValue as number} step={5000} onChange={(v) => update("payoff", v)} prefix="$" />
+                  <SliderRow label="Interest Rate" value={a.rate as number} min={3.5} max={10} step={0.125} onChange={(v) => update("rate", v)} suffix="%" />
+                  {mode === "refiCO" ? (
+                    <SliderRow label="Cash-Out" value={a.cashOut as number} min={0} max={250000} step={2500} onChange={(v) => update("cashOut", v)} prefix="$" />
+                  ) : (
+                    <SliderRow label="HOA Dues" value={a.hoaFee as number} min={0} max={600} step={10} onChange={(v) => update("hoaFee", v)} prefix="$" suffix="/mo" />
+                  )}
+                  <SliderRow label="Insurance" value={a.insurance} min={40} max={400} step={10} onChange={(v) => update("insurance", v)} prefix="$" suffix="/mo" />
+                  <ToggleRow label="Loan Term" options={[15, 30]} value={a.term as number} onChange={(v) => update("term", v)} suffix="-yr" />
+                </>
+              )}
+              {mode === "heloc" && (
+                <>
+                  <SliderRow label="Home Value" value={a.homeValue as number} min={150000} max={1500000} step={5000} onChange={(v) => update("homeValue", v)} prefix="$" />
+                  <SliderRow label="1st Balance" value={a.firstBalance as number} min={50000} max={a.homeValue as number} step={5000} onChange={(v) => update("firstBalance", v)} prefix="$" />
+                  <SliderRow label="Credit Line" value={a.lineAmount as number} min={10000} max={300000} step={2500} onChange={(v) => update("lineAmount", v)} prefix="$" />
+                  <SliderRow label="Draw Rate" value={a.drawRate as number} min={5} max={14} step={0.25} onChange={(v) => update("drawRate", v)} suffix="%" />
+                  <SliderRow label="Insurance" value={a.insurance} min={40} max={400} step={10} onChange={(v) => update("insurance", v)} prefix="$" suffix="/mo" />
+                </>
+              )}
+            </div>
 
-              {onSubmitReview && dataMode === "pulled" && (
-                <div className="pt-2 lg:pt-2.5">
+            {onSubmitReview && dataMode === "pulled" && (
+              <div className="pt-2 lg:pt-2">
+                {isSubmitted || hasSubmittedLocally ? (
                   <button
-                    onClick={onSubmitReview}
-                    className="w-full text-xs lg:text-xs font-bold py-2 lg:py-2 rounded-lg bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-[0_4px_15px_rgba(0,180,216,0.35)] hover:opacity-90 transition cursor-pointer"
+                    disabled
+                    className="w-full text-[10.5px] lg:text-xs font-bold py-1.5 lg:py-2 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 cursor-default flex items-center justify-center gap-1.5 shadow-[0_2px_8px_rgba(16,185,129,0.2)]"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Review Submitted
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setHasSubmittedLocally(true);
+                      onSubmitReview();
+                    }}
+                    className="w-full text-[10.5px] lg:text-xs font-bold py-1.5 lg:py-2 rounded-lg bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-[0_4px_12px_rgba(0,180,216,0.35)] hover:opacity-90 transition cursor-pointer"
                   >
                     Submit for Formal Underwriting Review
                   </button>
-                </div>
-              )}
-            </div>
-
-          </div>
-
-          {/* Compliance Footer */}
-          <div className="bg-[#080c14] px-2.5 lg:px-3 py-1.5 lg:py-2 border-t border-white/10 mt-auto">
-            <div className="flex gap-2 items-start">
-              <Shield className="w-3 h-3 lg:w-3.5 lg:h-3.5 text-[#00b4d8] shrink-0 mt-0.5" />
-              <div className="text-[7.5px] lg:text-[9px] text-slate-500 leading-normal">
-                Educational estimate only — not a loan commitment. Final terms subject to formal underwriting review.
+                )}
               </div>
-            </div>
+            )}
           </div>
 
         </div>
+
+        {/* ── 7. COMPLIANCE FOOTER ── */}
+        <div className="bg-[#080c14] px-3 lg:px-4 py-2 lg:py-2.5 border-t border-white/10 mt-auto">
+          <div className="flex gap-2 items-center">
+            <Shield className="w-3 h-3 text-[#00b4d8] shrink-0" />
+            <div className="text-[7.5px] lg:text-[9px] text-slate-400 leading-tight">
+              Educational estimate only — not a formal loan commitment. Final terms depend on underwriting review.
+            </div>
+          </div>
+        </div>
+
       </div>
-    );
-  }
+    </div>
+  );
+}
 
 /* ---------------------------------------------------------
    REUSABLE PRIMITIVES
 --------------------------------------------------------- */
-function Divider() {
-  return <div className="h-px bg-white/10 my-1 lg:my-2" />;
-}
-
 interface SliderRowProps {
   label: string;
   value: number;
@@ -751,11 +833,12 @@ interface SliderRowProps {
 }
 
 function SliderRow({ label, value, min, max, step, onChange, prefix = "", suffix = "" }: SliderRowProps) {
+  const pct = Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100));
   return (
-    <div className="mb-1 lg:mb-1.5">
+    <div className="mb-0.5 lg:mb-1">
       <div className="flex justify-between items-center mb-0.5">
-        <span className="text-[8.5px] lg:text-xs text-slate-400 truncate">{label}</span>
-        <span className="text-[9px] lg:text-xs font-mono font-bold text-white shrink-0 ml-1">
+        <span className="text-[7.5px] lg:text-[10px] text-slate-400 truncate">{label}</span>
+        <span className="text-[8px] lg:text-[10px] font-mono tabular-nums tracking-tight font-bold text-white shrink-0 ml-1">
           {prefix}{fmt(value, step < 1 ? 2 : 0)}{suffix}
         </span>
       </div>
@@ -766,7 +849,10 @@ function SliderRow({ label, value, min, max, step, onChange, prefix = "", suffix
         step={step}
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-full accent-[#00b4d8] h-1 lg:h-1.5 bg-slate-800 rounded-sm cursor-pointer block"
+        style={{
+          background: `linear-gradient(to right, #00b4d8 0%, #00b4d8 ${pct}%, #1e293b ${pct}%, #1e293b 100%)`,
+        }}
+        className="w-full custom-slider h-1 lg:h-1.5 cursor-pointer block"
       />
     </div>
   );
@@ -782,14 +868,14 @@ interface ToggleRowProps {
 
 function ToggleRow({ label, options, value, onChange, suffix = "" }: ToggleRowProps) {
   return (
-    <div className="mb-1 lg:mb-1.5">
-      <div className="text-[8.5px] lg:text-xs text-slate-400 mb-1">{label}</div>
-      <div className="flex gap-1.5">
+    <div className="mb-0.5 lg:mb-1">
+      <div className="text-[7.5px] lg:text-[10px] text-slate-400 mb-0.5">{label}</div>
+      <div className="flex gap-1">
         {options.map((opt) => (
           <button
             key={opt}
             onClick={() => onChange(opt)}
-            className={`text-[8.5px] lg:text-xs font-semibold py-0.5 lg:py-1 px-1.5 lg:px-3 rounded-md border transition-all cursor-pointer ${
+            className={`text-[7.5px] lg:text-[10px] font-mono tabular-nums font-semibold py-0.5 px-2 rounded-sm border transition-all cursor-pointer ${
               value === opt
                 ? "border-[#00b4d8] bg-[#00b4d8]/15 text-[#00b4d8]"
                 : "border-white/10 text-slate-400 hover:text-white hover:bg-white/5"
