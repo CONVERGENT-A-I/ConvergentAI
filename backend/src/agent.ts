@@ -78,6 +78,7 @@ function isQuestionOrCorrection(text: string | null | undefined): boolean {
   return keywords.some(k => t.includes(k));
 }
 
+
 function normalizePronunciationForTts(text: string): string {
   // Replace "VA" when used in mortgage context (VA loan, VA loans, VA mortgage, etc.) with "V-A"
   // so Cartesia / TTS text normalizers never pronounce "VA" as "Virginia" (postal code expansion)
@@ -129,11 +130,11 @@ class AilanaVoiceAgent extends voice.Agent {
     const lastUserText = typeof lastUserMsg?.content === 'string'
       ? lastUserMsg.content
       : Array.isArray(lastUserMsg?.content)
-      ? lastUserMsg.content.join(' ')
-      : '';
+        ? lastUserMsg.content.join(' ')
+        : '';
 
     const userAskedQuestion = isQuestionOrCorrection(lastUserText) || (profile as any).last_extracted_offer_val === 'explain';
-    
+
     // ── 0ms Verbal Submit Fast-Path (Stage 2.5) ──
     // Fires before LLM so the base Cerebras model never produces a UI-redirect deflection.
     // We check this BEFORE the question/correction block so that phrases like "Can you submit this?"
@@ -144,10 +145,10 @@ class AilanaVoiceAgent extends voice.Agent {
     // because this block is already scoped by the inAffordabilityStage guard above — they
     // cannot fire outside Stage 2.5 / affordability_panel_active.
     const verbalSubmitPattern = /\b(submit\s*(for\s*me|it|review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(?:and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|do\s+it\s+for\s+me|send\s+it|yes\s+submit|let'?s\s+submit|go\s+ahead|let'?s\s+go|proceed|ready\s+to\s+submit|i'?m\s+ready|yes\s+please|sounds\s+good)\b/i;
-    
+
     if (!ausAlreadyDone && inAffordabilityStage && verbalSubmitPattern.test(lastUserText)) {
       console.log(`[agent-hook]: 0ms Verbal Submit Fast-Path triggered — executing AUS findings immediately without LLM call!`);
-      
+
       // 1. Instantly update the UI to show the button as "Review Submitted ✓"
       profile.affordability_submitted = true;
       profile.affordability_panel_rendered = true;
@@ -185,7 +186,7 @@ class AilanaVoiceAgent extends voice.Agent {
       (pending === 'job_tenure_type' || pending === 'stage2_closing_offer') &&
       !this._stage2ClosingOfferDelivered &&
       (/\b(salary|salaried|hourly|self-employed|self employed|working|employed|contract|w2|1099|full-time|part-time|full time|part time)\b/i.test(lastUserText) ||
-       /(\d+|\b(one|two|three|four|five|six|seven|eight|nine|ten)\b)\s*(years?|months?)\b/i.test(lastUserText));
+        /(\d+|\b(one|two|three|four|five|six|seven|eight|nine|ten)\b)\s*(years?|months?)\b/i.test(lastUserText));
 
     if (pending === 'stage2_closing_offer' || isAnsweringJobTenure) {
       if (isAnsweringJobTenure) {
@@ -235,7 +236,7 @@ class AilanaVoiceAgent extends voice.Agent {
     if (pending === 'contact_email') {
       const attempts = this.contextManager.getFieldAttemptCount('contact_email');
       const apology = attempts >= 1 ? "I'm sorry, I didn't quite catch that. " : "";
-      
+
       let scriptText = '';
       if (profile.contact_mobile) {
         scriptText = `${apology}I have your mobile number. Could you also share the email address you'd like to use for your account?`;
@@ -517,8 +518,8 @@ class AilanaVoiceAgent extends voice.Agent {
       const currentTurnNumber = this.contextManager.triggerBackgroundExtraction(userMessage.textContent);
 
       const text = userMessage.textContent.trim();
-      const isQuestionOrHesitation = 
-        /\?$/.test(text) || 
+      const isQuestionOrHesitation =
+        /\?$/.test(text) ||
         /\b(what|why|how|can i|could i|does|is it|explain|tell me|wait|hold on|what if|who|meaning|clarify)\b/i.test(text);
 
       if (isQuestionOrHesitation) {
@@ -528,9 +529,9 @@ class AilanaVoiceAgent extends voice.Agent {
         // Deterministic fields (like OTP modal / CRS pull) get their required await
         const waitMs = isDeterministic ? 2500 : 4000;
         console.log(`[agent-hook]: Field "${activeField}" is a STAGE BOUNDARY (deterministic=${isDeterministic}). Waiting up to ${waitMs}ms for extraction to transition stage...`);
-        
+
         const completedInTime = await this.contextManager.waitForExtraction(currentTurnNumber, waitMs);
-        
+
         if (!completedInTime) {
           console.warn(`[agent-hook]: Stage boundary extraction timed out (>${waitMs}ms). Proceeding without stalling.`);
         } else {
@@ -640,7 +641,7 @@ export default defineAgent({
       try {
         const roomName = ctx.room.name ?? `room_${Date.now()}`;
         console.log(`[agent-db]: Checking for existing application with roomName="${roomName}"...`);
-        
+
         // TEMPORARY: Option 3 - Never resume (always create fresh sessions)
         // TODO: Switch to Option 1 after confirming flow with team lead
         // Option 1: Only resume IN_PROGRESS applications (production-ready)
@@ -648,7 +649,7 @@ export default defineAgent({
         //   const application = await applicationService.findApplicationByRoomName(roomName);
         // And comment out the next line:
         const application = null as Awaited<ReturnType<typeof applicationService.findApplicationByRoomName>>; // Force fresh session every time
-        
+
         if (application) {
           console.log(`[agent-db]: ✅ Found existing application (id=${application.id})`);
           contextManager.setApplicationId(application.id);
@@ -656,7 +657,7 @@ export default defineAgent({
           console.log(`[agent-db]: ✅ Context restored from database`);
         } else {
           console.log(`[agent-db]: No existing application found, creating new one...`);
-          
+
           // Create test user for now (TODO: integrate with actual user authentication)
           const testUser = await applicationService.createUser({
             email: `test_${roomName}@convergentai.com`,
@@ -664,7 +665,7 @@ export default defineAgent({
             lastName: 'User',
             phoneNumber: null,
           });
-          
+
           // Create new application only if testUser was created successfully
           if (testUser) {
             const newApplication = await applicationService.createApplication({
@@ -673,7 +674,7 @@ export default defineAgent({
               currentStage: '1',
               status: 'IN_PROGRESS',
             });
-            
+
             if (newApplication) {
               console.log(`[agent-db]: ✅ Created new application (id=${newApplication.id}) for user (id=${testUser.id})`);
               contextManager.setApplicationId(newApplication.id);
@@ -741,7 +742,7 @@ export default defineAgent({
 
     const expressiveConfig = ailanaConfig.expressiveMode
       ? {
-          ttsInstructionsAppend: `
+        ttsInstructionsAppend: `
 MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
 - Maintain a warm, composed, and confident credit union advisor demeanor.
 - For positive news (e.g. strong qualifications, savings), use subtle warm and encouraging delivery.
@@ -749,7 +750,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
 - Use natural, unhurried pacing with slight pauses when discussing numbers or financial disclosures.
 - NEVER use casual disfluencies, giggling, theatrical laughter, or dramatic sighs.
 `.trim(),
-        }
+      }
       : false;
 
     console.log(`[agent]: Expressive mode configured: ${ailanaConfig.expressiveMode ? '✅ ENABLED (Cartesia Sonic-3.5)' : '❌ DISABLED'}`);
@@ -824,26 +825,26 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
     // No flow logic here — the contextManager still owns all state transitions.
     const PENDING_FIELD_REPROMPT: Record<string, string> = {
       // Stage 1
-      borrower_name:          'I apologize — it seems there was a brief interruption. Could you tell me your name?',
-      mortgage_goal:          'I apologize for that. Are you looking to buy a new home, refinance an existing mortgage, or explore a home equity option?',
-      occupancy:              'I apologize for the interruption. Will this be for your primary residence, a second home, or an investment property?',
-      existing_relationship:  'I apologize — it seems my response did not come through. Do you currently have an account or active services with your lending institution?',
-      timeline:               'I apologize for that. When are you hoping to complete this?',
-      co_borrower:            'I apologize for the interruption. Will there be a co-borrower joining you on this application, or will you be applying on your own?',
+      borrower_name: 'I apologize — it seems there was a brief interruption. Could you tell me your name?',
+      mortgage_goal: 'I apologize for that. Are you looking to buy a new home, refinance an existing mortgage, or explore a home equity option?',
+      occupancy: 'I apologize for the interruption. Will this be for your primary residence, a second home, or an investment property?',
+      existing_relationship: 'I apologize — it seems my response did not come through. Do you currently have an account or active services with your lending institution?',
+      timeline: 'I apologize for that. When are you hoping to complete this?',
+      co_borrower: 'I apologize for the interruption. Will there be a co-borrower joining you on this application, or will you be applying on your own?',
       // Stage 2
-      gross_annual_income:    'I apologize for that. What is your gross annual household income before taxes?',
-      monthly_debt:           'I apologize for the interruption. What are your total monthly recurring debt payments — things like car loans, student loans, or credit card minimums?',
-      credit_range:           'I apologize for that. How would you describe your current credit score — either as a specific number or a general range?',
-      refinance_type:         'I apologize for the interruption. Are you considering a cash-out refinance, or are you wanting to reduce your monthly payment through a rate and term refinance?',
-      target_price:           'I apologize for that. What is your target purchase price for the home you are looking to buy?',
-      down_payment:           'I apologize for the interruption. How much do you have available for a down payment?',
-      rent_own:               'I apologize for that. Do you currently rent, or do you own your home?',
-      realtor_status:         'I apologize for the interruption. Have you connected with a real estate agent yet?',
-      property_type:          'I apologize for that. What type of property is this — a single-family home, condo, townhome, multi-family, or something else?',
-      military_rural:         'I apologize for the interruption. Do you have any military service history, or is the property in a rural area?',
-      job_tenure_type:        'I apologize for that. Could you tell me a bit about your current job tenure and the type of income you have — for example, whether you are salaried, hourly, or self-employed?',
+      gross_annual_income: 'I apologize for that. What is your gross annual household income before taxes?',
+      monthly_debt: 'I apologize for the interruption. What are your total monthly recurring debt payments — things like car loans, student loans, or credit card minimums?',
+      credit_range: 'I apologize for that. How would you describe your current credit score — either as a specific number or a general range?',
+      refinance_type: 'I apologize for the interruption. Are you considering a cash-out refinance, or are you wanting to reduce your monthly payment through a rate and term refinance?',
+      target_price: 'I apologize for that. What is your target purchase price for the home you are looking to buy?',
+      down_payment: 'I apologize for the interruption. How much do you have available for a down payment?',
+      rent_own: 'I apologize for that. Do you currently rent, or do you own your home?',
+      realtor_status: 'I apologize for the interruption. Have you connected with a real estate agent yet?',
+      property_type: 'I apologize for that. What type of property is this — a single-family home, condo, townhome, multi-family, or something else?',
+      military_rural: 'I apologize for the interruption. Do you have any military service history, or is the property in a rural area?',
+      job_tenure_type: 'I apologize for that. Could you tell me a bit about your current job tenure and the type of income you have — for example, whether you are salaried, hourly, or self-employed?',
       // Stage 2 Closing Offer — verbatim two-path choice re-prompt
-      stage2_closing_offer:   'I apologize for the interruption. Let me repeat: you have two options for your affordability summary. The most complete option is a soft credit review — no impact to your credit score — which prefills your application with your real credit data. Or I can build your summary right now from everything you have shared, and you can add the credit review whenever you are ready. Which would you prefer?',
+      stage2_closing_offer: 'I apologize for the interruption. Let me repeat: you have two options for your affordability summary. The most complete option is a soft credit review — no impact to your credit score — which prefills your application with your real credit data. Or I can build your summary right now from everything you have shared, and you can add the credit review whenever you are ready. Which would you prefer?',
       // Stage 4
       checklist_acknowledgement: 'I apologize for that interruption. Do you have these documents available, or would you like to go through any of them?',
     };
@@ -928,7 +929,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
                     session.generateReply({ userInput: 'The application has been submitted to underwriting. Please announce the result to the borrower.' });
                   } else {
                     session.say(activeReprompt, { addToChatCtx: true });
-                    contextManager.onAgentTurn(activeReprompt).catch(err => 
+                    contextManager.onAgentTurn(activeReprompt).catch(err =>
                       console.error('[agent-error]: Failed to save agent turn:', err)
                     );
                   }
@@ -967,7 +968,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           clearTimeout(silentTurnTimer);
           silentTurnTimer = null;
         }
-        contextManager.onAgentTurn(item.textContent).catch(err => 
+        contextManager.onAgentTurn(item.textContent).catch(err =>
           console.error('[agent-error]: Failed to save agent turn:', err)
         );
 
@@ -1106,7 +1107,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           console.log(`[agent-debug]: Static system instructions prepended to session.chatCtx.`);
         }
         console.log(`[agent-debug]: Instructions updated — stage=${contextManager.getActiveStage()}, pendingField=${contextManager.getPendingField()}`);
-        
+
         // Broadcast stage + profile to frontend on every turn so UI always has the latest
         // affordability flags, pending field, and login state (not just on stage changes)
         const currentStage = contextManager.getActiveStage();
@@ -1148,7 +1149,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         const reply = textCollected.text?.trim();
 
         if (reply) {
-          contextManager.onAgentTurn(reply).catch(err => 
+          contextManager.onAgentTurn(reply).catch(err =>
             console.error('[agent-error]: Failed to save agent turn:', err)
           );
           console.log(`[agent]: Text-only reply: "${reply}"`);
@@ -1199,7 +1200,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         contextManager.applyAusResult(status as any);
         updateSessionInstructions();
         await sendStageUpdate(contextManager.getActiveStage());
-        
+
         const triggerPrompt = `The eligibility review has returned with status: ${status}. Please deliver the findings to the borrower.`;
         if (voiceMuted) {
           await generateTextOnlyReply(triggerPrompt);
@@ -1246,7 +1247,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         //    With no audio input, the LLM pipeline starves and generates no further responses.
         for (const p of ctx.room.remoteParticipants.values()) {
           for (const pub of p.trackPublications.values()) {
-            try { pub.setSubscribed(false); } catch (_) {}
+            try { pub.setSubscribed(false); } catch (_) { }
           }
         }
         console.log('[agent]: 🔇 All tracks unsubscribed. User and loan officer now on direct line.');
@@ -1664,7 +1665,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             console.log(`[avatar][${ts()}] │      avatarSession.start() resolved in ${elapsed}ms                  │`);
             console.log(`[avatar][${ts()}] │      Starting AgentSession and restoring DataStreamAudioOutput...  │`);
             console.log(`[avatar][${ts()}] └─────────────────────────────────────────────────────────────┘`);
-            
+
             // Save the DataStreamAudioOutput set by LemonSlice
             const dataStreamAudio = session.output.audio;
 
