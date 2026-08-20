@@ -30,7 +30,7 @@ export function RoomControls({ onEnd, mode }: RoomControlsProps) {
     if (!localParticipant) return;
     try {
       await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled, {
-        noiseSuppression: true,
+        noiseSuppression: false,
         echoCancellation: true,
         autoGainControl: true,
       });

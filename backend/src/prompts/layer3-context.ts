@@ -75,6 +75,7 @@ export interface BorrowerProfile {
   physical_address?: string | null;
   physical_address_confirmed?: boolean;
   soft_pull_consent?: 'pending' | 'accepted' | 'declined' | null;
+  soft_pull_disclosure_delivered?: boolean;
   employer?: string | null;
   prefilled_fields_confirmed?: {
     name_address?: boolean;

@@ -1121,8 +1121,14 @@ export class SessionContextManager {
     }
 
     if (this.currentPendingField === 'soft_pull_authorization') {
+      // If the disclosure has not yet been delivered or user just finished OTP, do not evaluate consent yet
+      if (!this.profile.soft_pull_disclosure_delivered) {
+        console.log('[soft_pull_authorization] Disclosure not yet delivered or just delivered — waiting for borrower response.');
+        return;
+      }
+
       // Use classifyAuthorization: regex fast-path (0ms) + Cerebras fallback.
-      // If user asks a question ("what does soft pull mean?"), returns 'needs_explanation'
+      // If user asks a question ("what does soft pull mean?", "will it hurt my score?"), returns 'needs_explanation'
       // and we simply let the main LLM answer it — the field stays on soft_pull_authorization.
       const decision = await classifyAuthorization(text, lastQuestion);
       console.log(`[soft_pull_authorization] Authorization decision=${decision}`);

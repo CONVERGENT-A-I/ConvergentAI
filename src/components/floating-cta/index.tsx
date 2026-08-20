@@ -1182,9 +1182,19 @@ export default function FloatingCTA() {
                               key={`${sessionKey}-${roomName}`}
                               video={false}
                               audio={{
-                                noiseSuppression: true,
+                                // noiseSuppression is handled server-side by LiveKit BVC (BackgroundVoiceCancellation)
+                                // wired into every session.start() call in agent.ts.
+                                // Keeping it on client-side simultaneously causes double-processing artifacts.
+                                noiseSuppression: false,
                                 echoCancellation: true,
                                 autoGainControl: true,
+                              }}
+                              options={{
+                                audioCaptureDefaults: {
+                                  echoCancellation: true,
+                                  noiseSuppression: false,
+                                  autoGainControl: true,
+                                },
                               }}
                               token={token || ""}
                               serverUrl={lkUrl || ""}

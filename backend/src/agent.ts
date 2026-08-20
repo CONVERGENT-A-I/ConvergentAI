@@ -38,6 +38,7 @@ import { applicationService } from './services/application-service.js';
 import { isDatabaseEnabled } from './services/database.js';
 import { callCrsSoftPull } from './services/crs-service.js';
 import { classifyAuthorization } from './context/llm-extractor.js';
+import { BackgroundVoiceCancellation } from '@livekit/noise-cancellation-node';
 
 // Global error guard to catch LiveKit SDK RPC connection timeouts gracefully without crashing/stalling the agent loop
 process.on('unhandledRejection', (reason: any) => {
@@ -77,11 +78,19 @@ function isQuestionOrCorrection(text: string | null | undefined): boolean {
   return keywords.some(k => t.includes(k));
 }
 
+function normalizePronunciationForTts(text: string): string {
+  // Replace "VA" when used in mortgage context (VA loan, VA loans, VA mortgage, etc.) with "V-A"
+  // so Cartesia / TTS text normalizers never pronounce "VA" as "Virginia" (postal code expansion)
+  return text.replace(/\bVA\b(?=\s+loans?|\s+mortgage|\s+eligibility|\s+benefit|\s+financing|\s+option|\s+program|\s+approved|\s+guaranteed|\s+home|\s+buyer|\s+limit)/gi, 'V-A');
+}
+
 function createVerbatimStream(text: string): ReadableStream<string> {
-  const sanitized = text.replace(/\s*\n+\s*/g, ' ').replace(/—/g, ', ').trim();
+  const sanitized = normalizePronunciationForTts(text).replace(/\s*\n+\s*/g, ' ').replace(/—/g, ', ').trim();
   return new ReadableStream({
     start(controller) {
-      controller.enqueue(sanitized);
+      if (sanitized.length > 0) {
+        controller.enqueue(sanitized);
+      }
       controller.close();
     },
   });
@@ -131,7 +140,10 @@ class AilanaVoiceAgent extends voice.Agent {
     // trigger the submission rather than being delegated to the LLM for explanation.
     const ausAlreadyDone = !!(profile as any).aus_status;
     const inAffordabilityStage = this.contextManager.getActiveStage() === '2.5' || pending === 'affordability_panel_active';
-    const verbalSubmitPattern = /\b(submit\s*(for\s*me|it|review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|do\s+it\s+for\s+me|send\s+it|yes\s+submit|let'?s\s+submit)\b/i;
+    // NOTE: broad terms ("go ahead", "proceed", "let's go") are intentionally included here
+    // because this block is already scoped by the inAffordabilityStage guard above — they
+    // cannot fire outside Stage 2.5 / affordability_panel_active.
+    const verbalSubmitPattern = /\b(submit\s*(for\s*me|it|review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(?:and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|do\s+it\s+for\s+me|send\s+it|yes\s+submit|let'?s\s+submit|go\s+ahead|let'?s\s+go|proceed|ready\s+to\s+submit|i'?m\s+ready|yes\s+please|sounds\s+good)\b/i;
     
     if (!ausAlreadyDone && inAffordabilityStage && verbalSubmitPattern.test(lastUserText)) {
       console.log(`[agent-hook]: 0ms Verbal Submit Fast-Path triggered — executing AUS findings immediately without LLM call!`);
@@ -281,6 +293,30 @@ class AilanaVoiceAgent extends voice.Agent {
     }
 
     if (pending === 'soft_pull_authorization') {
+      const p = this.contextManager.getProfile();
+
+      // If the disclosure has NOT yet been delivered, deliver it now and WAIT for borrower answer
+      if (!p.soft_pull_disclosure_delivered) {
+        p.soft_pull_disclosure_delivered = true;
+        const scriptText = "Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry — it will not affect your credit score in any way. You are the one authorizing it, and your data is used only to process your initial eligibility review and pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?";
+        console.log('[agent-hook]: Delivering initial soft_pull_authorization disclosure via Deterministic ReadableStream (waiting for verbal response)!');
+        return createVerbatimStream(scriptText) as any;
+      }
+
+      // If the disclosure has already been delivered, the borrower is now responding!
+      const lower = lastUserText.toLowerCase().trim();
+
+      // If the user says empty/filler text or OTP leftovers (e.g. "Done", "Entered", "123456", "I'm entering now"):
+      // DUMP this input silently. Do not generate a prompt. The agent stays listening for the user's actual authorization response.
+      if (
+        !lastUserText ||
+        (/\b(done|entered|submitted|typed|typing|sent|got it|ok(ay)?|all set|finished|completed|that'?s it|\d{6})\b/i.test(lower) &&
+          !/\b(yes|authorize|consent|agree|pull|review|no|decline|why|what|how|sure|proceed|go ahead)\b/i.test(lower))
+      ) {
+        console.log(`[agent-hook]: DUMPED OTP leftover input ("${lastUserText}"). Remaining silent and waiting for borrower authorization.`);
+        return createVerbatimStream("") as any;
+      }
+
       const decision = await classifyAuthorization(lastUserText, null);
       console.log(`[agent-hook]: soft_pull_authorization classification decision="${decision}" (userText="${lastUserText}")`);
 
@@ -288,27 +324,52 @@ class AilanaVoiceAgent extends voice.Agent {
         profile.soft_pull_consent = 'accepted';
         profile.prefilled_fields_confirmed = {};
 
-        console.log(`[agent-hook]: Soft pull accepted! Executing CRS soft pull...`);
-        const crsResult = await callCrsSoftPull(profile);
-        if (crsResult) {
-          profile.credit_range = crsResult.creditRange;
-          (profile as any).crs_open_accounts = crsResult.openAccounts;
-          (profile as any).crs_late_payments = crsResult.latePaymentsLast24Mo;
-          if (crsResult.employer) profile.employer = crsResult.employer;
-          profile.legal_name = profile.contact_name || profile.borrower_name || crsResult.legalName || 'Valued Borrower';
-          if (crsResult.physicalAddress) profile.physical_address = crsResult.physicalAddress;
-          console.log(`[agent-hook]: CRS soft pull complete. Name: ${profile.legal_name}, Address: ${crsResult.physicalAddress}`);
-        } else {
-          console.log(`[agent-hook]: CRS soft pull fallback.`);
-        }
+        // ── CRS Verbal Bridge ────────────────────────────────────────────────
+        // Fire an immediate acknowledgement so the user hears audio within ~300ms.
+        // The actual CRS API call is slow (5–8 seconds); running it BEFORE returning
+        // the stream caused dead silence for the entire duration.
+        // Strategy: return the bridge line as a verbatim stream immediately,
+        // then await the CRS call, populate the profile, and deliver the prefill
+        // result via the sayCallback that is already wired to session.say().
+        console.log('[agent-hook]: Soft pull explicitly accepted by borrower. Firing verbal bridge immediately, then awaiting CRS...');
 
-        this.contextManager.advanceWorkflow();
+        // We must capture sayCallback before the async IIFE so it is in scope.
+        const _sayCallback = this.sayCallback;
+        const _contextManager = this.contextManager;
 
-        const name = profile.contact_name || profile.legal_name || profile.borrower_name || 'Valued Borrower';
-        const address = profile.physical_address || (profile.zip_code ? `address on file in zip code ${profile.zip_code}` : 'address on file');
-        const scriptText = `Thank you. I've processed that soft pull. First, I have your name listed as ${name}, and your physical address as ${address}. Does that look right or is anything out of date?`;
-        console.log('[agent-hook]: Delivering prefill_name_address script directly after soft pull consent!');
-        return createVerbatimStream(scriptText) as any;
+        // Kick off the CRS call + prefill delivery asynchronously.
+        // This is NOT fire-and-forget: the promise is awaited inside the IIFE
+        // and will fully complete before the next user turn.
+        (async () => {
+          console.log(`[agent-hook]: CRS soft pull started (background, after bridge)...`);
+          const crsResult = await callCrsSoftPull(profile);
+          if (crsResult) {
+            profile.credit_range = crsResult.creditRange;
+            (profile as any).crs_open_accounts = crsResult.openAccounts;
+            (profile as any).crs_late_payments = crsResult.latePaymentsLast24Mo;
+            if (crsResult.employer) profile.employer = crsResult.employer;
+            profile.legal_name = profile.contact_name || profile.borrower_name || crsResult.legalName || 'Valued Borrower';
+            if (crsResult.physicalAddress) profile.physical_address = crsResult.physicalAddress;
+            console.log(`[agent-hook]: CRS soft pull complete. Name: ${profile.legal_name}, Address: ${crsResult.physicalAddress}`);
+          } else {
+            console.log(`[agent-hook]: CRS soft pull fallback.`);
+          }
+
+          _contextManager.advanceWorkflow();
+
+          const name = profile.contact_name || profile.legal_name || profile.borrower_name || 'Valued Borrower';
+          const address = profile.physical_address || (profile.zip_code ? `address on file in zip code ${profile.zip_code}` : 'address on file');
+          const prefillScript = `Thank you — that's all done. I have your name listed as ${name}, and your physical address as ${address}. Does that look right or is anything out of date?`;
+          console.log('[agent-hook]: CRS complete. Delivering prefill_name_address via sayCallback.');
+          if (_sayCallback) {
+            await _sayCallback(prefillScript);
+          }
+        })();
+
+        // Return the verbal bridge immediately — TTS starts in ~0ms.
+        const bridgeScript = `Perfect — I'm pulling that up for you right now. Just a moment please.`;
+        console.log('[agent-hook]: Returning CRS bridge stream immediately.');
+        return createVerbatimStream(bridgeScript) as any;
       }
 
       if (decision === 'no') {
@@ -318,16 +379,7 @@ class AilanaVoiceAgent extends voice.Agent {
         return createVerbatimStream("Absolutely — we can explore your affordability summary using the information you've already shared.") as any;
       }
 
-      // If leftover text from OTP entry, deliver the initial disclosure disclosure
-      const lower = lastUserText.toLowerCase().trim();
-      const isOtpTurn = /\b(done|entered|submitted|typed|sent|got it|ok(ay)?|all set|finished|completed|that'?s it|\d{6})\b/i.test(lower) || !lastUserText;
-      if (isOtpTurn) {
-        const scriptText = "Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry — it will not affect your credit score in any way. You are the one authorizing it, and your data is used only to process your initial eligibility review and pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?";
-        console.log('[agent-hook]: Delivering initial soft_pull_authorization disclosure via Deterministic ReadableStream!');
-        return createVerbatimStream(scriptText) as any;
-      }
-
-      // Otherwise user asked a question — delegate to LLM to answer naturally
+      // Otherwise user asked a question or needs explanation — delegate to LLM to answer naturally and re-ask
       console.log('[agent-hook]: User asked a question about soft pull — delegating to Cerebras LLM.');
       return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
     }
@@ -402,7 +454,21 @@ class AilanaVoiceAgent extends voice.Agent {
   override async ttsNode(text: any, modelSettings: any) {
     this.metrics.markTtsStart();
     this.metrics.markAvatarRenderStart();
-    return super.ttsNode(text, modelSettings);
+
+    let processedText = text;
+    if (typeof text === 'string') {
+      processedText = normalizePronunciationForTts(text);
+    } else if (text && typeof (text as any).pipeThrough === 'function') {
+      processedText = (text as ReadableStream<string>).pipeThrough(
+        new TransformStream<string, string>({
+          transform(chunk, controller) {
+            controller.enqueue(normalizePronunciationForTts(chunk));
+          },
+        })
+      );
+    }
+
+    return super.ttsNode(processedText, modelSettings);
   }
 
   override async onUserTurnCompleted(chatCtx: any, userMessage: any): Promise<void> {
@@ -1232,7 +1298,11 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         try {
           if (!(session as any)._started) {
             sessionStarted = true;
-            await session.start({ agent: vadAgent, room: ctx.room });
+            await session.start({
+              agent: vadAgent,
+              room: ctx.room,
+              inputOptions: { noiseCancellation: BackgroundVoiceCancellation() },
+            });
             console.log(`[agent]: Session started on SYSTEM_CHANNEL_START.`);
           }
 
@@ -1256,7 +1326,11 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       try {
         console.log(`[agent]: Generating reply for: "${messageText}"`);
         if (!(session as any)._started) {
-          await session.start({ agent: vadAgent, room: ctx.room });
+          await session.start({
+            agent: vadAgent,
+            room: ctx.room,
+            inputOptions: { noiseCancellation: BackgroundVoiceCancellation() },
+          });
         }
 
         metrics.startTurn();
@@ -1332,7 +1406,11 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       sessionStarted = true;
       console.log(`[agent]: User mic unmuted (identity: ${participant?.identity}). Starting AgentSession now...`);
       try {
-        await session.start({ agent: vadAgent, room: ctx.room });
+        await session.start({
+          agent: vadAgent,
+          room: ctx.room,
+          inputOptions: { noiseCancellation: BackgroundVoiceCancellation() },
+        });
         console.log(`[agent]: Realtime session started successfully.`);
 
         const readyPayload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_AGENT_READY" }));
@@ -1355,6 +1433,25 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       }
     });
 
+    const deliverSoftPullDisclosureOnce = (reason: string) => {
+      const p = contextManager.getProfile();
+      if (p.soft_pull_disclosure_delivered) {
+        console.log(`[agent]: Soft pull disclosure ALREADY delivered (ignoring duplicate trigger from ${reason}).`);
+        return;
+      }
+      p.soft_pull_disclosure_delivered = true;
+      const scriptText = "Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry — it will not affect your credit score in any way. You are the one authorizing it, and your data is used only to process your initial eligibility review and pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?";
+      console.log(`[agent]: Delivering soft pull disclosure via session.say() [triggered by ${reason}].`);
+      if (voiceMuted) {
+        generateTextOnlyReply(scriptText).catch(err => console.error(err));
+      } else {
+        metrics.startTurn();
+        metrics.markAgentSpeaking();
+        session.say(scriptText, { addToChatCtx: true });
+        contextManager.onAgentTurn(scriptText).catch(err => console.error('[agent-error]: Failed to save agent turn:', err));
+      }
+    };
+
     ctx.room.on(RoomEvent.DataReceived, async (payload, participant, _kind, topic) => {
       try {
         const identity = participant?.identity;
@@ -1363,15 +1460,11 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           try {
             const parsed = JSON.parse(str);
             if (parsed.type === 'otp_submit') {
-              contextManager.handleOtpSubmission(parsed.code);
-              updateSessionInstructions();
-              const triggerPrompt = `The borrower has entered the OTP code ${parsed.code} into the modal. Please verify it and proceed.`;
-              if (voiceMuted) {
-                await generateTextOnlyReply(triggerPrompt);
-              } else {
-                metrics.startTurn();
-                session.generateReply({ userInput: triggerPrompt });
+              if (!contextManager.getProfile().otp_verified) {
+                contextManager.handleOtpSubmission(parsed.code);
+                updateSessionInstructions();
               }
+              deliverSoftPullDisclosureOnce('DataReceived:otp_submit');
               return;
             }
             await handleSystemMessages(parsed.message ?? str, identity);
@@ -1394,15 +1487,11 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             try {
               const parsed = JSON.parse(fullText);
               if (parsed.type === 'otp_submit') {
-                contextManager.handleOtpSubmission(parsed.code);
-                updateSessionInstructions();
-                const triggerPrompt = `The borrower has entered the OTP code ${parsed.code} into the modal. Please verify it and proceed.`;
-                if (voiceMuted) {
-                  await generateTextOnlyReply(triggerPrompt);
-                } else {
-                  metrics.startTurn();
-                  session.generateReply({ userInput: triggerPrompt });
+                if (!contextManager.getProfile().otp_verified) {
+                  contextManager.handleOtpSubmission(parsed.code);
+                  updateSessionInstructions();
                 }
+                deliverSoftPullDisclosureOnce(`TextStreamHandler:${topic}:otp_submit`);
                 return;
               }
               await handleSystemMessages(parsed.message ?? fullText, participant?.identity);
@@ -1565,7 +1654,11 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
 
             // Start the AgentSession (audioEnabled: true creates the audio track for transcription)
             sessionStarted = true;
-            await session.start({ agent: vadAgent, room: ctx.room });
+            await session.start({
+              agent: vadAgent,
+              room: ctx.room,
+              inputOptions: { noiseCancellation: BackgroundVoiceCancellation() },
+            });
 
             // Save the newly created RoomAudioOutput for fallback
             const roomAudioOutput = session.output?.audio;
@@ -1665,7 +1758,11 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           if (session.output) {
             (session.output as any).audio = undefined;
           }
-          await session.start({ agent: vadAgent, room: ctx.room });
+          await session.start({
+            agent: vadAgent,
+            room: ctx.room,
+            inputOptions: { noiseCancellation: BackgroundVoiceCancellation() },
+          });
 
           isAvatarInitDone = true;
           resolveAvatarReady();

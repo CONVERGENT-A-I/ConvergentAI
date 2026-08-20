@@ -210,10 +210,22 @@ export async function classifyAuthorization(
 ): Promise<'yes' | 'no' | 'needs_explanation'> {
   const lowerText = userInput.toLowerCase().trim();
 
-  // ── Tier 0: Leftover Audio Guard ──────────────────────────────────────────
+  // ── Tier 0: Synthetic Trigger Prompt & Leftover Audio Guard ─────────────────
+  // Guard against synthetic system / trigger prompts being classified as user authorization
+  if (
+    lowerText.includes('the borrower has entered') ||
+    lowerText.includes('otp code') ||
+    lowerText.includes('modal') ||
+    lowerText.includes('system_') ||
+    lowerText.includes('please verify it and proceed')
+  ) {
+    console.log(`[classifyAuthorization] Intercepted synthetic trigger prompt ("${userInput}"). Ignoring.`);
+    return 'needs_explanation';
+  }
+
   // Guard against legacy audio from the OTP modal entry bleeding into this step.
   // Common phrases spoken while typing/entering the code: "done", "submitted", "okay", "entered", "all set", "finished"
-  if (/\b(done|entered|submitted|typed|sent|got it|ok(ay)?|all set|finished|completed|that'?s it)\b/i.test(lowerText) && !/\b(yes|authorize|consent|agree|proceed|pull|review|go ahead)\b/i.test(lowerText)) {
+  if (/\b(done|entered|submitted|typed|sent|got it|ok(ay)?|all set|finished|completed|that'?s it|\d{6})\b/i.test(lowerText) && !/\b(yes|authorize|consent|agree|pull|review)\b/i.test(lowerText)) {
     console.log(`[classifyAuthorization] Intercepted likely OTP leftover text ("${userInput}"). Ignoring.`);
     return 'needs_explanation';
   }
