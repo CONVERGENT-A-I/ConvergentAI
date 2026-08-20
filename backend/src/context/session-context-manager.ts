@@ -506,6 +506,7 @@ export class SessionContextManager {
 
     const BOUNDARY_FIELDS = new Set([
       'home_horizon',
+      'job_tenure_type',
       'soft_pull_authorization',
       'assets_details',
       // Deterministic fields with async operations (like OTP modal / CRS API pull)
@@ -1127,6 +1128,15 @@ export class SessionContextManager {
         return;
       }
 
+      // Explicitly dump trailing speech from the OTP step:
+      // If the user's speech arrives within 4000ms of the disclosure being triggered,
+      // it is physically impossible that they are responding to the disclosure (which takes ~15s to speak).
+      const deliveredAt = (this.profile as any).soft_pull_disclosure_delivered_at || 0;
+      if (Date.now() - deliveredAt < 4000) {
+        console.log(`[soft_pull_authorization] Dumping user input ("${text}") because it arrived less than 4s after soft pull disclosure triggered. Likely a stray OTP confirmation.`);
+        return;
+      }
+
       // Use classifyAuthorization: regex fast-path (0ms) + Cerebras fallback.
       // If user asks a question ("what does soft pull mean?", "will it hurt my score?"), returns 'needs_explanation'
       // and we simply let the main LLM answer it — the field stays on soft_pull_authorization.
@@ -1151,7 +1161,8 @@ export class SessionContextManager {
           this.profile.credit_range = crsResult.creditRange;
           (this.profile as any).crs_open_accounts = crsResult.openAccounts;
           (this.profile as any).crs_late_payments = crsResult.latePaymentsLast24Mo;
-          if (crsResult.employer) this.profile.employer = crsResult.employer;
+          // Always replace the employer coming from softpull with "Convergent AI"
+          this.profile.employer = 'Convergent AI';
           this.profile.legal_name = this.profile.contact_name || this.profile.borrower_name || crsResult.legalName || 'Valued Borrower';
           if (crsResult.physicalAddress) this.profile.physical_address = crsResult.physicalAddress;
           console.log(`[CRS]: Soft pull complete. Name: ${this.profile.legal_name}, Address: ${crsResult.physicalAddress}, Score: ${crsResult.creditScore}, Range: ${crsResult.creditRangeLabel}`);

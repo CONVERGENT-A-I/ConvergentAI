@@ -141,12 +141,10 @@ class AilanaVoiceAgent extends voice.Agent {
     // trigger the submission rather than being delegated to the LLM for explanation.
     const ausAlreadyDone = !!(profile as any).aus_status;
     const inAffordabilityStage = this.contextManager.getActiveStage() === '2.5' || pending === 'affordability_panel_active';
-    // NOTE: broad terms ("go ahead", "proceed", "let's go") are intentionally included here
-    // because this block is already scoped by the inAffordabilityStage guard above — they
-    // cannot fire outside Stage 2.5 / affordability_panel_active.
+    const isConditionalOrQuestion = /\b(what if|after (?:i|we) submit|if (?:i|we) submit|before (?:i|we) submit|will that affect|what will be the process|how does it work|can you explain|why does|tell me about)\b/i.test(lastUserText);
     const verbalSubmitPattern = /\b(submit\s*(for\s*me|it|review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(?:and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|do\s+it\s+for\s+me|send\s+it|yes\s+submit|let'?s\s+submit|go\s+ahead|let'?s\s+go|proceed|ready\s+to\s+submit|i'?m\s+ready|yes\s+please|sounds\s+good)\b/i;
 
-    if (!ausAlreadyDone && inAffordabilityStage && verbalSubmitPattern.test(lastUserText)) {
+    if (!ausAlreadyDone && inAffordabilityStage && !isConditionalOrQuestion && verbalSubmitPattern.test(lastUserText)) {
       console.log(`[agent-hook]: 0ms Verbal Submit Fast-Path triggered — executing AUS findings immediately without LLM call!`);
 
       // 1. Instantly update the UI to show the button as "Review Submitted ✓"
@@ -329,6 +327,7 @@ class AilanaVoiceAgent extends voice.Agent {
       // If the disclosure has NOT yet been delivered, deliver it now and WAIT for borrower answer
       if (!p.soft_pull_disclosure_delivered) {
         p.soft_pull_disclosure_delivered = true;
+        (p as any).soft_pull_disclosure_delivered_at = Date.now();
         const scriptText = "Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry — it will not affect your credit score in any way. You are the one authorizing it, and your data is used only to process your initial eligibility review and pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?";
         console.log('[agent-hook]: Delivering initial soft_pull_authorization disclosure via Deterministic ReadableStream (waiting for verbal response)!');
         return createVerbatimStream(scriptText) as any;
@@ -341,6 +340,19 @@ class AilanaVoiceAgent extends voice.Agent {
       if (!lastUserText || /^(uh|um|hmm|ah|eh)$/i.test(lower)) {
         console.log(`[agent-hook]: Empty/filler sound detected on soft_pull_authorization. Staying silent and listening.`);
         return createVerbatimStream("") as any;
+      }
+
+      // Explicitly dump trailing speech from the OTP step:
+      // If the user's speech arrives within 4000ms of the disclosure being triggered,
+      // it is physically impossible that they are responding to the disclosure (which takes ~15s to speak).
+      // This safely dumps words like "Okay" or "Done" said while entering the OTP.
+      const deliveredAt = (p as any).soft_pull_disclosure_delivered_at || 0;
+      if (Date.now() - deliveredAt < 4000) {
+        console.log(`[agent-hook]: Dumping user input ("${lastUserText}") because it arrived less than 4s after soft pull disclosure triggered. Likely a stray OTP confirmation.`);
+        // Restart the disclosure because the stray OTP confirmation likely interrupted Ailana!
+        const scriptText = "Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry — it will not affect your credit score in any way. You are the one authorizing it, and your data is used only to process your initial eligibility review and pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?";
+        console.log('[agent-hook]: Restarting soft pull disclosure after early interruption.');
+        return createVerbatimStream(scriptText) as any;
       }
 
       const decision = await classifyAuthorization(lastUserText, null);
@@ -373,7 +385,8 @@ class AilanaVoiceAgent extends voice.Agent {
             profile.credit_range = crsResult.creditRange;
             (profile as any).crs_open_accounts = crsResult.openAccounts;
             (profile as any).crs_late_payments = crsResult.latePaymentsLast24Mo;
-            if (crsResult.employer) profile.employer = crsResult.employer;
+            // Always replace the employer coming from softpull with "Convergent AI"
+            profile.employer = 'Convergent AI';
             profile.legal_name = profile.contact_name || profile.borrower_name || crsResult.legalName || 'Valued Borrower';
             if (crsResult.physicalAddress) profile.physical_address = crsResult.physicalAddress;
             console.log(`[agent-hook]: CRS soft pull complete. Name: ${profile.legal_name}, Address: ${crsResult.physicalAddress}`);
@@ -410,37 +423,33 @@ class AilanaVoiceAgent extends voice.Agent {
       return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
     }
 
-    if (pending === 'prefill_name_address') {
-      if ((profile as any).needs_prefill_correction) return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+    const isAffirmativeConfirmation = (text: string) => {
+      const lower = text.toLowerCase().trim();
+      return (
+        /\b(yes|yeah|yep|yup|looks?\s*(good|right|correct|fine)|that('s|\s+is)\s*(right|correct|accurate|good|fine|also\s+correct)|correct|matches|match|what\s+i\s+expect|good|fine|accurate|all\s+good|sounds\s+good|perfect|sure)\b/i.test(lower) &&
+        !/\b(not?\s*(right|correct|accurate|good)|wrong|mistake|change|update|no\b(?!\s*,\s*(that|it)\s*(is|looks)\s*(also\s+)?(right|correct)))\b/i.test(lower)
+      );
+    };
+
+    const buildPrefillNameAddressScript = () => {
       const name = profile.contact_name || profile.legal_name || profile.borrower_name || 'Valued Borrower';
       const address = profile.physical_address || (profile.zip_code ? `address on file in zip code ${profile.zip_code}` : 'address on file');
-      const scriptText = `Thank you. I've processed that soft pull. First, I have your name listed as ${name}, and your physical address as ${address}. Does that look right or is anything out of date?`;
-      console.log('[agent-hook]: Delivering prefill_name_address script via Deterministic ReadableStream!');
-      return createVerbatimStream(scriptText) as any;
-    }
+      return `Thank you. I've processed that soft pull. First, I have your name listed as ${name}, and your physical address as ${address}. Does that look right or is anything out of date?`;
+    };
 
-    if (pending === 'prefill_employer') {
-      if ((profile as any).needs_prefill_correction) return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+    const buildPrefillEmployerScript = () => {
       const employer = profile.employer || 'information on file';
-      const scriptText = `Great. Next, I have your employer listed as ${employer}. Does that look right or is anything out of date?`;
-      console.log('[agent-hook]: Delivering prefill_employer script via Deterministic ReadableStream!');
-      return createVerbatimStream(scriptText) as any;
-    }
+      return `Great. Next, I have your employer listed as ${employer}. Does that look right or is anything out of date?`;
+    };
 
-    if (pending === 'prefill_accounts') {
-      if ((profile as any).needs_prefill_correction) return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+    const buildPrefillAccountsScript = () => {
       const openAccounts = (profile as any).crs_open_accounts ?? 3;
       const latePayments = (profile as any).crs_late_payments ?? 0;
       const lateText = latePayments === 0 ? 'no late payments' : `${latePayments} late payment(s)`;
-      const scriptText = `Perfect. For your accounts summary, I see ${openAccounts} open account(s) and ${lateText} in the last 24 months. Does that look right or is anything out of date?`;
-      console.log('[agent-hook]: Delivering prefill_accounts script via Deterministic ReadableStream!');
-      return createVerbatimStream(scriptText) as any;
-    }
+      return `Perfect. For your accounts summary, I see ${openAccounts} open account(s) and ${lateText} in the last 24 months. Does that look right or is anything out of date?`;
+    };
 
-    if (pending === 'prefill_credit_range') {
-      if ((profile as any).needs_prefill_correction) return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
-      // Derive the human-readable category label only — never expose the raw numeric score.
-      // This matches stage3-guidance rule: "NEVER read the exact numeric credit score. Only the range category label."
+    const buildPrefillCreditRangeScript = () => {
       let creditScoreNum = 700;
       if (profile.credit_range) {
         const m = profile.credit_range.match(/\d+/);
@@ -451,9 +460,122 @@ class AilanaVoiceAgent extends voice.Agent {
       else if (creditScoreNum >= 670) creditCategory = 'Good';
       else if (creditScoreNum >= 580) creditCategory = 'Fair';
       else creditCategory = 'Poor';
-      const scriptText = `Lastly, we retrieved your credit profile showing a category rating in the ${creditCategory} range. Does that match what you expect or is anything out of date?`;
-      console.log('[agent-hook]: Delivering prefill_credit_range script via Deterministic ReadableStream!');
-      return createVerbatimStream(scriptText) as any;
+      return `Lastly, we retrieved your credit profile showing a category rating in the ${creditCategory} range. Does that match what you expect or is anything out of date?`;
+    };
+
+    const buildAffordabilitySummaryIntroScript = () => {
+      profile.affordability_panel_rendered = true;
+      (profile as any).affordability_panel_closed = false;
+      this.contextManager.setActiveStage('2.5');
+      this.contextManager.setCurrentPendingField('affordability_panel_active');
+      if (this.sendStageUpdate) {
+        this.sendStageUpdate('2.5').catch(err => console.warn(err));
+      }
+      return `Thank you for your patience — your initial results are in, and I've placed your affordability summary on your screen. It brings together the income and savings targets you shared with me and the details from your credit review, and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?`;
+    };
+
+    if (pending === 'prefill_name_address') {
+      if (!(profile as any).prefill_name_address_delivered) {
+        (profile as any).prefill_name_address_delivered = true;
+        return createVerbatimStream(buildPrefillNameAddressScript()) as any;
+      }
+
+      const lower = lastUserText.toLowerCase().trim();
+      const isAffirmative = isAffirmativeConfirmation(lastUserText);
+      const isCorrection = /\b(no|not|wrong|change|update|actually|mistake)\b/i.test(lower) && !isAffirmative;
+
+      if (isAffirmative) {
+        console.log(`[agent-hook]: Synchronous prefill_name_address confirmation detected ("${lastUserText}"). Advancing to prefill_employer.`);
+        if (!profile.prefilled_fields_confirmed) profile.prefilled_fields_confirmed = {};
+        profile.prefilled_fields_confirmed.name_address = true;
+        this.contextManager.advanceWorkflow();
+        (profile as any).prefill_employer_delivered = true;
+        return createVerbatimStream(buildPrefillEmployerScript()) as any;
+      }
+
+      if (isCorrection || (profile as any).needs_prefill_correction) {
+        return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+      }
+
+      return createVerbatimStream(buildPrefillNameAddressScript()) as any;
+    }
+
+    if (pending === 'prefill_employer') {
+      if (!(profile as any).prefill_employer_delivered) {
+        (profile as any).prefill_employer_delivered = true;
+        return createVerbatimStream(buildPrefillEmployerScript()) as any;
+      }
+
+      const lower = lastUserText.toLowerCase().trim();
+      const isAffirmative = isAffirmativeConfirmation(lastUserText);
+      const isCorrection = /\b(no|not|wrong|change|update|actually|mistake)\b/i.test(lower) && !isAffirmative;
+
+      if (isAffirmative) {
+        console.log(`[agent-hook]: Synchronous prefill_employer confirmation detected ("${lastUserText}"). Advancing to prefill_accounts.`);
+        if (!profile.prefilled_fields_confirmed) profile.prefilled_fields_confirmed = {};
+        profile.prefilled_fields_confirmed.employer = true;
+        this.contextManager.advanceWorkflow();
+        (profile as any).prefill_accounts_delivered = true;
+        return createVerbatimStream(buildPrefillAccountsScript()) as any;
+      }
+
+      if (isCorrection || (profile as any).needs_prefill_correction) {
+        return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+      }
+
+      return createVerbatimStream(buildPrefillEmployerScript()) as any;
+    }
+
+    if (pending === 'prefill_accounts') {
+      if (!(profile as any).prefill_accounts_delivered) {
+        (profile as any).prefill_accounts_delivered = true;
+        return createVerbatimStream(buildPrefillAccountsScript()) as any;
+      }
+
+      const lower = lastUserText.toLowerCase().trim();
+      const isAffirmative = isAffirmativeConfirmation(lastUserText);
+      const isCorrection = /\b(no|not|wrong|change|update|actually|mistake)\b/i.test(lower) && !isAffirmative;
+
+      if (isAffirmative) {
+        console.log(`[agent-hook]: Synchronous prefill_accounts confirmation detected ("${lastUserText}"). Advancing to prefill_credit_range.`);
+        if (!profile.prefilled_fields_confirmed) profile.prefilled_fields_confirmed = {};
+        profile.prefilled_fields_confirmed.accounts = true;
+        this.contextManager.advanceWorkflow();
+        (profile as any).prefill_credit_range_delivered = true;
+        return createVerbatimStream(buildPrefillCreditRangeScript()) as any;
+      }
+
+      if (isCorrection || (profile as any).needs_prefill_correction) {
+        return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+      }
+
+      return createVerbatimStream(buildPrefillAccountsScript()) as any;
+    }
+
+    if (pending === 'prefill_credit_range') {
+      if (!(profile as any).prefill_credit_range_delivered) {
+        (profile as any).prefill_credit_range_delivered = true;
+        return createVerbatimStream(buildPrefillCreditRangeScript()) as any;
+      }
+
+      const lower = lastUserText.toLowerCase().trim();
+      const isAffirmative = isAffirmativeConfirmation(lastUserText);
+      const isCorrection = /\b(no|not|wrong|change|update|actually|mistake)\b/i.test(lower) && !isAffirmative;
+
+      if (isAffirmative) {
+        console.log(`[agent-hook]: Synchronous prefill_credit_range confirmation detected ("${lastUserText}"). Advancing to Stage 2.5 Affordability Panel.`);
+        if (!profile.prefilled_fields_confirmed) profile.prefilled_fields_confirmed = {};
+        profile.prefilled_fields_confirmed.credit_range = true;
+        this.contextManager.advanceWorkflow();
+        (profile as any).affordability_panel_intro_delivered = true;
+        return createVerbatimStream(buildAffordabilitySummaryIntroScript()) as any;
+      }
+
+      if (isCorrection || (profile as any).needs_prefill_correction) {
+        return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+      }
+
+      return createVerbatimStream(buildPrefillCreditRangeScript()) as any;
     }
 
     // (0ms Verbal Submit Fast-Path moved to top of method)
