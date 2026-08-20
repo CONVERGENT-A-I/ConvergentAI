@@ -225,3 +225,53 @@ body {
     transform: translateX(-50%);
   }
 }
+
+/* ── Custom Sleek Range Slider (Compact Thumb Ball & Blue Active Line) ── */
+input[type="range"].custom-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 9999px;
+  outline: none;
+}
+
+input[type="range"].custom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #00b4d8;
+  border: 1.5px solid #0f172a;
+  box-shadow: 0 0 5px rgba(0, 180, 216, 0.6);
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+input[type="range"].custom-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 8px rgba(0, 180, 216, 0.8);
+}
+
+@media (min-width: 1024px) {
+  input[type="range"].custom-slider::-webkit-slider-thumb {
+    width: 13px;
+    height: 13px;
+  }
+}
+
+input[type="range"].custom-slider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #00b4d8;
+  border: 1.5px solid #0f172a;
+  box-shadow: 0 0 5px rgba(0, 180, 216, 0.6);
+  cursor: pointer;
+}
+
+@media (min-width: 1024px) {
+  input[type="range"].custom-slider::-moz-range-thumb {
+    width: 13px;
+    height: 13px;
+  }
+}
