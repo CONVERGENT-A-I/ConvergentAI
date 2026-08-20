@@ -1,51 +1,67 @@
-# 📋 Ailana Project Checklist: What To Do
 
-This document outlines the active and upcoming tasks to finalize the Ailana conversational agent, incorporating feedback from David and structural improvements.
+6:16:00 start time 
 
----
-
-## ✅ Completed Tasks
-
-- [x] **TTS Engine Migration (ElevenLabs ➔ Cartesia)**
-  * Migrated the Text-to-Speech engine from ElevenLabs to Cartesia to match the Cartesia STT pipeline.
-  * Created a custom `LoggedCartesiaTTS` wrapper class to preserve latency tracking (stream start, text push, and time-to-first-audio-frame logs).
-  * Removed ElevenLabs credentials checks and updated backend configurations.
-  * Verified compile-time safety and verified zero TypeScript warnings.
-- [x] **Refinancing Conversational Flow Refinement**
-  * Added goal-specific Stage 2 prompting instructions that re-phrase home buying questions to refinance-specific terms (Down Payment ➔ Cash/Equity, Rent/Own ➔ Own property check, Realtor ➔ Independent check, Target Price ➔ Estimated home value).
-  * Passed the borrower profile variables to the Stage 2 instruction builder to toggle rules dynamically.
-  * Tested the refinance flow successfully, confirming natural dialogue flow and correct confirmations.
-- [x] **Change Cartesia Voice ID to Skylar**
-  * Retrieved Cartesia Voice ID for "Skylar - Friendly Guide" (`db6b0ed5-d5d3-463d-ae85-518a07d3c2b4`).
-  * Updated `cartesiaVoiceId` config fallback value in `ailana-config.ts` to use Skylar's voice ID.
-- [x] **Collect Legal Name & Address Prior to Soft Pull**
-  * Rearranged the conversational flow so that Ailana explicitly collects the user's legal name and physical address *before* the soft pull consent disclosure is delivered.
-  * Injected these values into the subsequent pre-filled profile verification steps dynamically.
-- [x] **Remove HMDA Demographics Questions from Stage 3B**
-  * Completely removed the voluntary HMDA questions (ethnicity, race, sex) from the conversational stages.
-  * Configured the workflow to transition directly from declarations (bankruptcy/foreclosure) to the submit confirmation prompt.
-  * Updated the testing guide (`Ailana_Test_Flow_Guide.md`) to align with the revised flow.
-- [x] **Customize Refinancing Stage 2 Pre-qualification Flow**
-  * Tailored Stage 2 discovery sequence for refinance goals.
-  * Bypassed down payment, rent/own check, and realtor status questions.
-  * Added refinance type (cash-out vs rate and term) collection.
-  * Re-worded estimated property value questions and updated confirmation scripts.
-
----
-
-## 🚀 Upcoming & Pending Tasks
-
-### 🏛️ Loan Program Enhancements
-- [ ] **Implement HELOC (Home Equity Line of Credit) Support**
-  * Members 1st Federal Credit Union handles a large volume of HELOCs.
-  * *Task*: Integrate the HELOC product recommendation rules and prompt scripts once David provides the specific HELOC prompting guidelines.
-
-### 🧠 General Prompting & Future Scope
-- [ ] **Complete Generic Prompting / Out-of-Sequence Support**
-  * Improve robustness when users ask general mortgage questions (e.g., interest rate queries, escrow, amortization) or engage in chitchat mid-stage.
-- [ ] **Review Flow Flexibility for Future Releases**
-  * *Feedback*: The current strict sequential stage flow is excellent for the immediate milestone demo, but needs to be restructured in the future to allow more open-ended/non-linear conversations.
-
-### 🎬 User Experience & Latency Masking
-- [ ] **Integrate Intro Greeting Video**
-  * *Goal*: Add a pre-rendered intro video/greeting playing in the UI to cover the initial start-up delay (the time taken for the room connection and LemonSlice avatar to load and initialize).
+Hi!, I'm Ailana, your AI mortgage assistant. Whether you are purchasing a home or refinancing an existing mortgage, I’m here to make your journey clearer and smoother. You can connect with me via text chat or AI-voice, and I can bridge you directly to a licensed loan officer whenever you’re ready. To get started, what mortgage questions do you have for me today?
+18:18
+You know Hey Lana, I'm looking to buy a home.
+18:18
+That's exciting! Just to make sure I've got it right, your main goal is purchasing a new home, correct?
+18:18
+Yes, that is correct.
+18:18
+Got it. Will this be a home you plan to live in yourself, or are you looking at this as an investment property?
+18:19
+Uh, this will be an investment property.
+18:19
+That makes sense. Do you already have a relationship with your lending institution, or would this be your first time working with them?
+18:19
+Uh, this will be the first time working with them.
+18:19
+Thanks for letting me know. Thinking about your timeline, how soon are you looking to close on this investment property?
+18:19
+Uh, before December.
+18:19
+That's a clear goal to work toward. And just one more thing for now — will you be applying on your own, or with a co-borrower?
+18:19
+I will be applying on my own.
+18:19
+Understood, thank you. That gives me a great starting point. Now I would like to spend a few minutes exploring your financial picture — income, current debts, credit profile, and a few other details — so I can map out the loan programs that may be most relevant to your situation. To start, what's your gross annual household income before taxes? A general range is perfectly fine.
+18:20
+Ma'am,
+18:20
+my annual household income is around 180000.
+18:20
+That's a strong position to be in! Got it, thank you. Moving on, could you tell me about your recurring monthly debt payments? Things like car loans, student loans, or credit card minimums.
+18:20
+Yeah, I pay around 300 dollars per month in debt.
+18:20
+Got it, thanks for sharing that. Now, do you have a general idea of your current credit score, or perhaps a tier like good or excellent, that you could share?
+18:21
+Yeah, my credit score is 735.
+18:21
+Got it, thank you. Next, how much cash do you have available for a down payment and the initial closing costs?
+18:21
+Uh, I pay, I have around 65000 for the closing cost.
+18:21
+Got it, thank you. Now, do you currently rent or own your home? And if you do own, are you planning to sell it as part of this process?
+18:21
+Uh, yeah.
+18:21
+I will be selling it.
+18:21
+Got it, thank you for clarifying that you'll be selling your current home. Next, have you already connected with a real estate agent to help with your search?
+18:21
+Yes, I have connected with a few.
+18:22
+Got it, thank you. Now, do you have a general target purchase price range in mind for the home?
+18:22
+Uh, can you ask that again?
+18:22
+Of course! I was just wondering if you have a general target purchase price range in mind for the home you're looking for?
+18:22
+Yeah, around half a million dollars.
+18:22
+Got it, thank you. What type of home are you looking for — such as a single-family home, condo, townhome, or multi-family — and what city or zip code are you looking in?
+18:22
+hello
+18:23

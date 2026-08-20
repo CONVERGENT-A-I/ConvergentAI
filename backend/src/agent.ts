@@ -262,6 +262,36 @@ class AilanaVoiceAgent extends voice.Agent {
       return createVerbatimStream(scriptText) as any;
     }
 
+    if (pending === 'property_type') {
+      const lower = lastUserText.toLowerCase().trim();
+      const ptMatch = lower.match(/\b(single\s*family|condo(minium)?|town\s*home|townhouse|multi\s*family|duplex|triplex|fourplex|manufactured|mobile\s*home)\b/i);
+      const zipMatch = lower.match(/\b\d{5}\b/);
+
+      if (ptMatch) {
+        let detectedType: 'single_family' | 'condo' | 'townhome' | 'multi_family' | 'other' = 'single_family';
+        const raw = ptMatch[0].toLowerCase();
+        if (raw.includes('condo')) detectedType = 'condo';
+        else if (raw.includes('town')) detectedType = 'townhome';
+        else if (raw.includes('multi') || raw.includes('duplex') || raw.includes('triplex') || raw.includes('fourplex')) detectedType = 'multi_family';
+        else if (raw.includes('single')) detectedType = 'single_family';
+        else detectedType = 'other';
+
+        profile.property_type = detectedType;
+        profile.property_type_confirmed = true;
+        if (zipMatch && !profile.zip_code) {
+          profile.zip_code = zipMatch[0];
+        }
+
+        console.log(`[agent-hook]: Synchronous property_type answer detected ("${lastUserText}" -> ${detectedType}). Advancing to military_rural.`);
+        this.contextManager.advanceWorkflow();
+
+        const hasCoBorrower = profile.co_borrower === 'yes';
+        const coBorrowerPhrase = hasCoBorrower ? 'you or a co-borrower' : 'you';
+        const scriptText = `Got it, thank you. Do ${coBorrowerPhrase} have any military service history — such as being on active duty, a veteran, or part of the Reserve or National Guard?`;
+        return createVerbatimStream(scriptText) as any;
+      }
+    }
+
     if (pending === 'military_rural') {
       const lower = lastUserText.toLowerCase().trim();
       const isAnsweringMilitary = /\b(yes|yeah|yep|yup|sure|no|never|none|n\/a|not really|veteran|active|guard|reserve|duty|spouse|military|served|army|navy|air force|marines|coast guard|space force)\b/i.test(lower);
@@ -306,14 +336,9 @@ class AilanaVoiceAgent extends voice.Agent {
       // If the disclosure has already been delivered, the borrower is now responding!
       const lower = lastUserText.toLowerCase().trim();
 
-      // If the user says empty/filler text or OTP leftovers (e.g. "Done", "Entered", "123456", "I'm entering now"):
-      // DUMP this input silently. Do not generate a prompt. The agent stays listening for the user's actual authorization response.
-      if (
-        !lastUserText ||
-        (/\b(done|entered|submitted|typed|typing|sent|got it|ok(ay)?|all set|finished|completed|that'?s it|\d{6})\b/i.test(lower) &&
-          !/\b(yes|authorize|consent|agree|pull|review|no|decline|why|what|how|sure|proceed|go ahead)\b/i.test(lower))
-      ) {
-        console.log(`[agent-hook]: DUMPED OTP leftover input ("${lastUserText}"). Remaining silent and waiting for borrower authorization.`);
+      // If pure empty audio or background filler (e.g. "uh", "um"), stay silent and continue listening
+      if (!lastUserText || /^(uh|um|hmm|ah|eh)$/i.test(lower)) {
+        console.log(`[agent-hook]: Empty/filler sound detected on soft_pull_authorization. Staying silent and listening.`);
         return createVerbatimStream("") as any;
       }
 
@@ -1439,16 +1464,12 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         console.log(`[agent]: Soft pull disclosure ALREADY delivered (ignoring duplicate trigger from ${reason}).`);
         return;
       }
-      p.soft_pull_disclosure_delivered = true;
-      const scriptText = "Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry — it will not affect your credit score in any way. You are the one authorizing it, and your data is used only to process your initial eligibility review and pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?";
-      console.log(`[agent]: Delivering soft pull disclosure via session.say() [triggered by ${reason}].`);
+      console.log(`[agent]: Triggering clean agent turn to deliver soft pull disclosure [triggered by ${reason}].`);
       if (voiceMuted) {
+        const scriptText = "Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry — it will not affect your credit score in any way. You are the one authorizing it, and your data is used only to process your initial eligibility review and pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?";
         generateTextOnlyReply(scriptText).catch(err => console.error(err));
       } else {
-        metrics.startTurn();
-        metrics.markAgentSpeaking();
-        session.say(scriptText, { addToChatCtx: true });
-        contextManager.onAgentTurn(scriptText).catch(err => console.error('[agent-error]: Failed to save agent turn:', err));
+        session.generateReply({ userInput: "OTP verified. Deliver the soft credit inquiry disclosure to the borrower." });
       }
     };
 

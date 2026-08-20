@@ -336,7 +336,14 @@ export function buildLayer3TurnContext(
       }
       taskLine = `CURRENT TASK:\nConfirm the value of "${profile.pending_confirm_value}" for ${label}. Do NOT ask for the next field yet.`;
     } else if (pendingField === 'property_type') {
-      taskLine = `CURRENT TASK:\nCollect property_type and zip_code\n\nAsk EXACTLY this: "What type of home are you looking for — such as a single-family home, condo, townhome, or multi-family — and what city or zip code are you looking in?"\nDO NOT ASK FOR ANY OTHER FIELD.`;
+      if (profile.property_type && !profile.zip_code) {
+        taskLine = `CURRENT TASK:\nCollect zip_code (borrower already specified ${profile.property_type})\n\nAsk: "What city or zip code are you looking in?"\nDO NOT repeat the property type choices.`;
+      } else {
+        const questionText = isRef
+          ? 'What type of home is this — such as a single-family home, condo, townhome, or multi-family — and in what city or zip code?'
+          : 'What type of home are you looking for — such as a single-family home, condo, townhome, or multi-family — and what city or zip code are you looking in?';
+        taskLine = `CURRENT TASK:\nCollect property_type and zip_code\n\nAsk: "${questionText}"\nDO NOT ASK FOR ANY OTHER FIELD.`;
+      }
     } else if (pendingField === 'military_rural') {
       const hasCoBorrower = profile.co_borrower === 'yes';
       const coBorrowerPhrase = hasCoBorrower ? 'you or a co-borrower' : 'you';

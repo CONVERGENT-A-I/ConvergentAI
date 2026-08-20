@@ -5,13 +5,6 @@ import type { BorrowerProfile } from './layer3-context.js';
  *
  * Collected in order: gross_annual_income → monthly_debt → credit_range →
  *                     down_payment → rent_own → realtor_status →
-import type { BorrowerProfile } from './layer3-context.js';
-
-/**
- * Layer 2 Stage 2: Pre-Qualification Discovery
- *
- * Collected in order: gross_annual_income → monthly_debt → credit_range →
- *                     down_payment → rent_own → realtor_status →
  *                     target_price → property_type → military_rural → job_tenure_type
  *
  * KEY DESIGN RULES:
@@ -29,7 +22,7 @@ export function buildStage2Instructions(profile: BorrowerProfile = {}): string {
   3. credit_range          — credit score estimate as a number or general tier/range
   4. refinance_type        — whether they want a cash-out refinance or rate and term refinance
   5. target_price          — estimated current market value of the home they wish to refinance (MV)
-  6. property_type         — single-family home, condo, townhome, multi-family, or other
+  6. property_type         — type of property (single-family home, condo, townhome, multi-family) and city or zip code
   7. military_rural        — military service history (active duty, veteran, Reserve/Guard, surviving spouse)
   8. job_tenure_type       — current job tenure and income type (salary, hourly, self-employed, etc.)`
     : `  1. gross_annual_income   — gross annual household income before taxes (a range is fine)
@@ -39,7 +32,7 @@ export function buildStage2Instructions(profile: BorrowerProfile = {}): string {
   5. rent_own              — whether they currently rent or own; if owning, whether they plan to sell
   6. realtor_status        — whether they have connected with a real estate agent
   7. target_price          — general target purchase price range for the home
-  8. property_type         — single-family home, condo, townhome, multi-family, or other
+  8. property_type         — type of property (single-family home, condo, townhome, multi-family) and city or zip code
   9. military_rural        — military service history (active duty, veteran, Reserve/Guard, surviving spouse)
   10. job_tenure_type      — current job tenure and income type (salary, hourly, self-employed, etc.)`;
 
@@ -50,8 +43,10 @@ export function buildStage2Instructions(profile: BorrowerProfile = {}): string {
   const questionWordingRules = isRefinance
     ? `- Refinance Specific Wording Rules (Crucial for sounding natural):
       * For refinance_type: Ask "Are you considering a 'cash-out' refinance, or are you wanting to reduce your monthly payment through a rate and term refinance?"
-      * For target_price (Estimated Market Value): Ask "What is the estimated market value of your home you wish to refinance?" (Do NOT ask for "target price" or "purchase price").`
-    : "";
+      * For target_price (Estimated Market Value): Ask "What is the estimated market value of your home you wish to refinance?" (Do NOT ask for "target price" or "purchase price").
+      * For property_type: Ask "What type of home is this — such as a single-family home, condo, townhome, or multi-family — and in what city or zip code?"`
+    : `- Purchase Specific Wording Rules:
+      * For property_type: Ask "What type of home are you looking for — such as a single-family home, condo, townhome, or multi-family — and what city or zip code are you looking in?" (If the borrower already stated their property type or location, do NOT repeat the choices; confirm what they said and move on).`;
 
   return `
 STAGE: Pre-qualification discovery.

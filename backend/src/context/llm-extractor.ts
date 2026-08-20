@@ -210,7 +210,7 @@ export async function classifyAuthorization(
 ): Promise<'yes' | 'no' | 'needs_explanation'> {
   const lowerText = userInput.toLowerCase().trim();
 
-  // ── Tier 0: Synthetic Trigger Prompt & Leftover Audio Guard ─────────────────
+  // ── Tier 0: Synthetic System Trigger Prompt Guard ─────────────────────────
   // Guard against synthetic system / trigger prompts being classified as user authorization
   if (
     lowerText.includes('the borrower has entered') ||
@@ -223,19 +223,14 @@ export async function classifyAuthorization(
     return 'needs_explanation';
   }
 
-  // Guard against legacy audio from the OTP modal entry bleeding into this step.
-  // Common phrases spoken while typing/entering the code: "done", "submitted", "okay", "entered", "all set", "finished"
-  if (/\b(done|entered|submitted|typed|sent|got it|ok(ay)?|all set|finished|completed|that'?s it|\d{6})\b/i.test(lowerText) && !/\b(yes|authorize|consent|agree|pull|review)\b/i.test(lowerText)) {
-    console.log(`[classifyAuthorization] Intercepted likely OTP leftover text ("${userInput}"). Ignoring.`);
-    return 'needs_explanation';
-  }
-
   // ── Tier 1: Regex fast-path ─────────────────────────────────────────────────
   const AUTHORIZE_PATTERNS = [
     /\byes\b/, /\bauthorize\b/, /\bconsent\b/, /\bagree\b/, /\bapprove\b/,
     /\bgo ahead\b/, /\bproceed\b/, /\bsure\b/, /\bfine\b/, /\bok(ay)?\b/,
     /\ballow\b/, /\bthat('s| is) fine\b/, /\bi('m| am) ok\b/, /\bdo it\b/,
     /\brun it\b/, /\blet('s| us) go\b/, /\bsounds good\b/, /\bno problem\b/,
+    /\bdone\b/, /\ball set\b/, /\bfinished\b/, /\bcompleted\b/, /\bplease do\b/,
+    /\bentered\b/, /\bsubmitted\b/, /\bi did\b/,
   ];
   const DECLINE_PATTERNS = [
     /\bno\b/, /\bdecline\b/, /\brefuse\b/, /\bdon'?t\b/, /\bdo not\b/,
