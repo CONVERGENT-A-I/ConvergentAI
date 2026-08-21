@@ -40,7 +40,6 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
   const [status, setStatus] = useState<"connecting" | "connected" | "error" | "voice_only">("connecting");
   const [isSpeaking, setIsSpeaking] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
 
   // Listen for platform error signals from backend
   useEffect(() => {
@@ -201,19 +200,6 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
     };
   }, [videoTrack]);
 
-  // Attach audio track
-  useEffect(() => {
-    const audioEl = audioRef.current;
-    if (!audioEl || !audioTrack) return;
-
-    audioTrack.attach(audioEl);
-    audioEl.play().catch((e) => console.warn("[LemonsliceAvatar] audio play failed:", e));
-
-    return () => {
-      audioTrack.detach(audioEl);
-    };
-  }, [audioTrack]);
-
   return (
     <div className={`relative w-full h-full bg-black overflow-hidden ${className ?? ""}`}>
       {/* HTML Video Element for rendering LemonSlice video stream */}
@@ -224,8 +210,9 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
         className="absolute inset-0 w-full h-full object-contain z-10"
       />
 
-      {/* HTML Audio Element for playing LemonSlice audio stream */}
-      <audio ref={audioRef} autoPlay />
+      {/* Note: Audio playout is handled globally by RoomAudioRenderer in LiveKitRoom.
+          Manual audio element attachment is omitted to prevent double audio playback
+          and browser pipeline stalls that cause video jitter/desync. */}
 
       {/* Connecting overlay — phased messaging during backend retry window */}
       {status === "connecting" && (
