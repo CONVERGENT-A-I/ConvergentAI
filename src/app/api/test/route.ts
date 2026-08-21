@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(request: Request) {
   return NextResponse.json({ status: "success", message: "Next.js internal API is working!" });
 }

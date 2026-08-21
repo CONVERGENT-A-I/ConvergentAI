@@ -4,7 +4,7 @@
 
 import { NextResponse } from "next/server";
 
-export async function POST() {
+export async function POST(request: Request) {
   return NextResponse.json(
     { error: "Endpoint legacy. All chat communication streams through the LiveKit agent worker instead." },
     { status: 410 }

@@ -4,7 +4,7 @@
 
 import { NextResponse } from "next/server";
 
-export async function POST() {
+export async function POST(request: Request) {
   return NextResponse.json(
     { error: "Endpoint consolidated. Please use the Express backend token endpoint instead." },
     { status: 410 }

@@ -16,7 +16,7 @@ export default function BackendConnectionTest() {
           console.warn("⚠️ [ConvergentAI] Backend Connection: Unexpected Response", data);
         }
       } catch (error) {
-        console.error("❌ [ConvergentAI] Backend Connection: FAILED");
+        console.error("❌ [ConvergentAI] Backend Connection: FAILED", error);
         console.log("Make sure your Next.js server is running properly.");
       }
     };

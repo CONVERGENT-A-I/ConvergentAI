@@ -10,7 +10,7 @@ import path from "path";
  * browser security extensions that distrust untyped static-file
  * downloads initiated via programmatic anchor clicks.
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const filePath = path.join(process.cwd(), "public", "the-phygital-imperative.docx");
     const fileBuffer = await fs.readFile(filePath);
