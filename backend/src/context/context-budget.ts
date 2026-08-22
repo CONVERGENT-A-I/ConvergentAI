@@ -1,4 +1,4 @@
-import { ailanaConfig } from '../config/ailana-config.js';
+import { ailanaConfig } from "../config/ailana-config.js";
 
 /** gpt-realtime-mini hard limit (input). Latency degrades well before this. */
 export const REALTIME_CONTEXT_LIMIT = 32_000;
@@ -17,8 +17,8 @@ export function logPromptBudget(label: string, instructions: string): void {
   const pctOfLimit = ((tokens / REALTIME_CONTEXT_LIMIT) * 100).toFixed(1);
   console.log(
     JSON.stringify({
-      type: 'ailana-context-budget',
-      event: 'prompt_size',
+      type: "ailana-context-budget",
+      event: "prompt_size",
       label,
       estimatedTokens: tokens,
       contextLimit: REALTIME_CONTEXT_LIMIT,
@@ -38,11 +38,10 @@ export function logContextBudget(details: {
   const overLatencyThreshold = input >= getForceCompactTokenThreshold();
   const nearHardLimit = input >= REALTIME_CONTEXT_LIMIT * 0.85;
 
-
   console.log(
     JSON.stringify({
-      type: 'ailana-context-budget',
-      event: 'session_context',
+      type: "ailana-context-budget",
+      event: "session_context",
       inputTokens: details.inputTokens ?? null,
       estimatedTextTokens: details.estimatedTextTokens ?? null,
       itemCount: details.itemCount ?? null,
