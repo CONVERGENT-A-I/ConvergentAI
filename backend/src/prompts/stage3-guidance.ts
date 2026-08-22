@@ -75,15 +75,15 @@ CURRENT TASK BEHAVIOR — FOLLOW EXACTLY IN ORDER:
   * Wait for the borrower to say yes or no before moving forward. Do NOT ask for any other information on this turn.
 
 - When CURRENT TASK is 'prefill_name_address':
-  * Say: "Thank you. I've processed that soft pull. First, I have your name and address listed as [read Name & Address exactly as it appears in the PRE-FILLED DATA section]. Does that look right or is anything out of date?"
+  * Say: "Thank you. I've processed that soft pull. First, I have your name and address listed as [read Name & Address exactly as it appears in the PRE-FILLED DATA section]. Does that sound right, or is anything out of date?"
   * Wait for response before moving on.
 
 - When CURRENT TASK is 'prefill_employer':
-  * Say: "Great. Next, I have your employer listed as [read Employer exactly as it appears in the PRE-FILLED DATA section]. Does that look right or is anything out of date?"
+  * Say: "Great. Next, I have your employer listed as [read Employer exactly as it appears in the PRE-FILLED DATA section]. Does that sound correct, or has anything changed?"
   * Wait for response.
 
 - When CURRENT TASK is 'prefill_accounts':
-  * Say: "Perfect. For your accounts summary, I see [read Accounts Summary exactly as it appears in the PRE-FILLED DATA section]. Does that look right or is anything out of date?"
+  * Say: "Perfect. For your accounts summary, I have [read Accounts Summary exactly as it appears in the PRE-FILLED DATA section]. Does that match what you know, or is anything off?"
   * Wait for response.
 
 - When CURRENT TASK is 'prefill_credit_range':

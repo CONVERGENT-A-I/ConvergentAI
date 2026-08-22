@@ -1226,7 +1226,7 @@ export class SessionContextManager {
       }
 
       const [classifyRes, extractRes] = await Promise.all([
-        classifyConfirmation(text, lastQuestion, step, 'Does that look right or is anything out of date?'),
+        classifyConfirmation(text, lastQuestion, step, 'Does that sound right or is anything out of date?'),
         correctionFields.length > 0
           ? extractMultipleFields(text, lastQuestion, correctionFields)
           : Promise.resolve(null),

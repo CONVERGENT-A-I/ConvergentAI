@@ -398,7 +398,7 @@ class AilanaVoiceAgent extends voice.Agent {
 
           const name = profile.contact_name || profile.legal_name || profile.borrower_name || 'Valued Borrower';
           const address = profile.physical_address || (profile.zip_code ? `address on file in zip code ${profile.zip_code}` : 'address on file');
-          const prefillScript = `Thank you — that's all done. I have your name listed as ${name}, and your physical address as ${address}. Does that look right or is anything out of date?`;
+          const prefillScript = `Thank you — that's all done. I have your name listed as ${name}, and your physical address as ${address}. Does that sound right, or is anything out of date?`;
           console.log('[agent-hook]: CRS complete. Delivering prefill_name_address via sayCallback.');
           if (_sayCallback) {
             await _sayCallback(prefillScript);
@@ -434,19 +434,19 @@ class AilanaVoiceAgent extends voice.Agent {
     const buildPrefillNameAddressScript = () => {
       const name = profile.contact_name || profile.legal_name || profile.borrower_name || 'Valued Borrower';
       const address = profile.physical_address || (profile.zip_code ? `address on file in zip code ${profile.zip_code}` : 'address on file');
-      return `Thank you. I've processed that soft pull. First, I have your name listed as ${name}, and your physical address as ${address}. Does that look right or is anything out of date?`;
+      return `Thank you. I've processed that soft pull. First, I have your name listed as ${name}, and your physical address as ${address}. Does that sound right, or is anything out of date?`;
     };
 
     const buildPrefillEmployerScript = () => {
       const employer = profile.employer || 'information on file';
-      return `Great. Next, I have your employer listed as ${employer}. Does that look right or is anything out of date?`;
+      return `Great. Next, I have your employer listed as ${employer}. Does that sound correct, or has anything changed?`;
     };
 
     const buildPrefillAccountsScript = () => {
       const openAccounts = (profile as any).crs_open_accounts ?? 3;
       const latePayments = (profile as any).crs_late_payments ?? 0;
       const lateText = latePayments === 0 ? 'no late payments' : `${latePayments} late payment(s)`;
-      return `Perfect. For your accounts summary, I see ${openAccounts} open account(s) and ${lateText} in the last 24 months. Does that look right or is anything out of date?`;
+      return `Perfect. For your accounts summary, I have ${openAccounts} open account(s) and ${lateText} in the last 24 months. Does that match what you know, or is anything off?`;
     };
 
     const buildPrefillCreditRangeScript = () => {
@@ -950,7 +950,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       borrower_name: 'I apologize — it seems there was a brief interruption. Could you tell me your name?',
       mortgage_goal: 'I apologize for that. Are you looking to buy a new home, refinance an existing mortgage, or explore a home equity option?',
       occupancy: 'I apologize for the interruption. Will this be for your primary residence, a second home, or an investment property?',
-      existing_relationship: 'I apologize — it seems my response did not come through. Do you currently have an account or active services with your lending institution?',
+      existing_relationship: 'I apologize — it seems my response did not come through. Have you worked with your lending institution before for a mortgage, or is this your first time exploring this with us?',
       timeline: 'I apologize for that. When are you hoping to complete this?',
       co_borrower: 'I apologize for the interruption. Will there be a co-borrower joining you on this application, or will you be applying on your own?',
       // Stage 2
