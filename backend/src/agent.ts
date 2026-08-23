@@ -1100,7 +1100,12 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         // and therefore never fires transcriptionReceived events on the frontend.
         // Publishing the text explicitly as a chat message ensures Ailana's
         // responses always appear in the chat panel, regardless of audio routing.
-        const msgText = item.textContent;
+        //
+        // Strip any XML/expression control tags (e.g. <expr type="happy">) that
+        // Cartesia Sonic-3.5 uses internally before displaying in the chat UI.
+        // These tags are consumed by the TTS engine in its own pipeline —
+        // this strip is ONLY for the chat display text and has zero effect on audio.
+        const msgText = item.textContent.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
         (async () => {
           try {
             await ctx.room.localParticipant?.sendText(msgText, { topic: 'lk.chat' });

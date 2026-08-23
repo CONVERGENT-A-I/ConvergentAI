@@ -665,8 +665,18 @@ export function AffordabilityPanelNew({
             
             <div className="grid grid-cols-3 gap-1.5 lg:gap-2">
               {/* Front-End DTI */}
-              <div className="bg-slate-900/60 p-1.5 lg:p-2 rounded-md border border-white/5 flex flex-col justify-between">
-                <div className="text-[7.5px] lg:text-[9.5px] text-slate-400 truncate">Front-End DTI</div>
+              <div
+                className="bg-slate-900/60 p-1.5 lg:p-2 rounded-md flex flex-col justify-between transition-all"
+                style={{
+                  border: calc.front <= activeProgram.dtiFront.guideline
+                    ? '1px solid rgba(16,185,129,0.40)'
+                    : '1px solid rgba(245,158,11,0.40)',
+                  animation: calc.front <= activeProgram.dtiFront.guideline
+                    ? 'dti-pulse-ok 2.8s ease-in-out infinite'
+                    : 'dti-pulse-warn 2.8s ease-in-out infinite',
+                }}
+              >
+                <div className="text-[7.5px] lg:text-[9.5px] font-bold text-slate-300 truncate">Front-End DTI</div>
                 <div className="text-xs lg:text-sm font-mono tabular-nums tracking-tight font-bold text-white mt-0.5">{fmtPct(calc.front)}</div>
                 <div className={`text-[7px] lg:text-[9px] font-mono tabular-nums tracking-tight font-semibold mt-0.5 truncate ${calc.front <= activeProgram.dtiFront.guideline ? "text-emerald-400" : "text-amber-400"}`}>
                   {calc.front <= activeProgram.dtiFront.guideline ? "At limit" : `+${(calc.front - activeProgram.dtiFront.guideline).toFixed(1)}%`} ({fmtPct(activeProgram.dtiFront.guideline)})
@@ -674,8 +684,18 @@ export function AffordabilityPanelNew({
               </div>
 
               {/* Back-End DTI */}
-              <div className="bg-slate-900/60 p-1.5 lg:p-2 rounded-md border border-white/5 flex flex-col justify-between">
-                <div className="text-[7.5px] lg:text-[9.5px] text-slate-400 truncate">Back-End DTI</div>
+              <div
+                className="bg-slate-900/60 p-1.5 lg:p-2 rounded-md flex flex-col justify-between transition-all"
+                style={{
+                  border: calc.back <= activeProgram.dtiBack.guideline
+                    ? '1px solid rgba(16,185,129,0.40)'
+                    : '1px solid rgba(245,158,11,0.40)',
+                  animation: calc.back <= activeProgram.dtiBack.guideline
+                    ? 'dti-pulse-ok 2.8s ease-in-out infinite'
+                    : 'dti-pulse-warn 2.8s ease-in-out infinite',
+                }}
+              >
+                <div className="text-[7.5px] lg:text-[9.5px] font-bold text-slate-300 truncate">Back-End DTI</div>
                 <div className="text-xs lg:text-sm font-mono tabular-nums tracking-tight font-bold text-white mt-0.5">{fmtPct(calc.back)}</div>
                 <div className={`text-[7px] lg:text-[9px] font-mono tabular-nums tracking-tight font-semibold mt-0.5 truncate ${calc.back <= activeProgram.dtiBack.guideline ? "text-emerald-400" : "text-amber-400"}`}>
                   {calc.back <= activeProgram.dtiBack.guideline ? "At limit" : `+${(calc.back - activeProgram.dtiBack.guideline).toFixed(1)}%`} ({fmtPct(activeProgram.dtiBack.guideline)})

@@ -91,6 +91,30 @@
       transform: scale(1.02);
     }
   }
+
+  @keyframes dti-pulse-ok {
+    0%, 100% {
+      box-shadow: 0 0 0px rgba(16, 185, 129, 0),
+                  0 0 4px rgba(16, 185, 129, 0);
+    }
+    50% {
+      box-shadow: 0 0 8px rgba(16, 185, 129, 0.55),
+                  0 0 18px rgba(16, 185, 129, 0.25),
+                  inset 0 0 6px rgba(16, 185, 129, 0.08);
+    }
+  }
+
+  @keyframes dti-pulse-warn {
+    0%, 100% {
+      box-shadow: 0 0 0px rgba(245, 158, 11, 0),
+                  0 0 4px rgba(245, 158, 11, 0);
+    }
+    50% {
+      box-shadow: 0 0 8px rgba(245, 158, 11, 0.55),
+                  0 0 18px rgba(245, 158, 11, 0.25),
+                  inset 0 0 6px rgba(245, 158, 11, 0.08);
+    }
+  }
 }
 
 :root {
