@@ -369,7 +369,7 @@ export function AffordabilityPanelNew({
   const [initialMode] = useState<ModeId>(() => resolveMode(transactionType, cashOutIntent));
   const [mode, setMode] = useState<ModeId>(initialMode);
   const [hasSubmittedLocally, setHasSubmittedLocally] = useState<boolean>(false);
-  
+
   // Default program to first eligible program or conventional
   const defaultProgram = eligiblePrograms.includes("conventional") ? "conventional" : (eligiblePrograms[0] || "conventional");
   const [program, setProgram] = useState<ProgramId>(defaultProgram);
@@ -427,12 +427,12 @@ export function AffordabilityPanelNew({
         cashBand:
           mode === "purchase"
             ? [
-                Math.round(((a.price as number) * (a.downPct as number)) / 100 * 0.9 / 500) * 500,
-                Math.round(((a.price as number) * (a.downPct as number)) / 100 * 1.15 / 500) * 500,
-              ]
+              Math.round(((a.price as number) * (a.downPct as number)) / 100 * 0.9 / 500) * 500,
+              Math.round(((a.price as number) * (a.downPct as number)) / 100 * 1.15 / 500) * 500,
+            ]
             : mode === "refiCO"
-            ? [Math.round((cashOut * 0.92) / 500) * 500, Math.round((cashOut * 1.05) / 500) * 500]
-            : null,
+              ? [Math.round((cashOut * 0.92) / 500) * 500, Math.round((cashOut * 1.05) / 500) * 500]
+              : null,
         exactCash: mode === "purchase" ? ((a.price as number) * (a.downPct as number)) / 100 + (a.price as number) * 0.02 : cashOut,
         segments: [
           { label: "P&I", value: pi },
@@ -465,10 +465,10 @@ export function AffordabilityPanelNew({
 
   const ltvGuideline = mode === "heloc" ? 85 : activeProgram.ltv.guideline;
   const ltvVal = mode === "heloc" ? (calc.cltv as number) : (calc.ltv as number);
-  
+
   // Calculate down payment in exact dollar amount for Purchase
   const currentDownDollars = mode === "purchase" ? Math.round(((a.price as number) * (a.downPct as number)) / 100) : 0;
-  
+
   // Available eligible programs
   const availablePrograms = (Object.entries(PROGRAMS) as [ProgramId, ProgramConfig][]).filter(([id]) =>
     eligiblePrograms.includes(id)
@@ -481,7 +481,7 @@ export function AffordabilityPanelNew({
       <div className="bg-[#0F172A] rounded-xl border border-white/10 shadow-lg w-full flex flex-col min-h-full justify-between shrink-0 overflow-hidden">
 
         <div className="flex flex-col gap-2 lg:gap-2.5 p-2.5 lg:p-3">
-          
+
           {/* ── 1. COMPACT HERO FINANCIAL RIBBON (Target, Stated Down $, Income) ── */}
           <div className="bg-white/[0.02] p-2 lg:p-2.5 rounded-lg border border-white/10 flex flex-wrap items-center justify-between gap-1.5 lg:gap-2">
             <div className="flex items-center gap-2 lg:gap-2.5 flex-wrap">
@@ -538,11 +538,10 @@ export function AffordabilityPanelNew({
                       <button
                         key={m.id}
                         onClick={() => setMode(m.id)}
-                        className={`flex-1 text-[8.5px] lg:text-[10.5px] font-semibold py-1 px-1.5 rounded-md transition-all truncate cursor-pointer ${
-                          active
+                        className={`flex-1 text-[8.5px] lg:text-[10.5px] font-semibold py-1 px-1.5 rounded-md transition-all truncate cursor-pointer ${active
                             ? "bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-[0_2px_8px_rgba(0,180,216,0.35)]"
                             : "text-slate-400 hover:text-white hover:bg-white/5"
-                        }`}
+                          }`}
                       >
                         {m.label}
                       </button>
@@ -565,11 +564,10 @@ export function AffordabilityPanelNew({
                             setProgram(id);
                             if (mode === "purchase" && (a.downPct as number) < p.minDownPct) update("downPct", p.minDownPct);
                           }}
-                          className={`text-[8.5px] lg:text-[10px] font-semibold py-0.5 px-2 rounded-md border transition-all cursor-pointer ${
-                            active
+                          className={`text-[8.5px] lg:text-[10px] font-semibold py-0.5 px-2 rounded-md border transition-all cursor-pointer ${active
                               ? "border-[#00b4d8] bg-[#00b4d8]/15 text-[#00b4d8]"
                               : "border-white/10 text-slate-400 hover:text-white hover:bg-white/5"
-                          }`}
+                            }`}
                         >
                           {p.label}
                         </button>
@@ -662,7 +660,7 @@ export function AffordabilityPanelNew({
             <div className="text-[7.5px] lg:text-[9.5px] font-bold uppercase tracking-wider text-slate-400 mb-1">
               DTI & LTV Benchmarks — {activeProgram.label}
             </div>
-            
+
             <div className="grid grid-cols-3 gap-1.5 lg:gap-2">
               {/* Front-End DTI */}
               <div
@@ -895,11 +893,10 @@ function ToggleRow({ label, options, value, onChange, suffix = "" }: ToggleRowPr
           <button
             key={opt}
             onClick={() => onChange(opt)}
-            className={`text-[7.5px] lg:text-[10px] font-mono tabular-nums font-semibold py-0.5 px-2 rounded-sm border transition-all cursor-pointer ${
-              value === opt
+            className={`text-[7.5px] lg:text-[10px] font-mono tabular-nums font-semibold py-0.5 px-2 rounded-sm border transition-all cursor-pointer ${value === opt
                 ? "border-[#00b4d8] bg-[#00b4d8]/15 text-[#00b4d8]"
                 : "border-white/10 text-slate-400 hover:text-white hover:bg-white/5"
-            }`}
+              }`}
           >
             {opt}{suffix}
           </button>
