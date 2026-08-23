@@ -16,6 +16,7 @@ export default function StrategicImpact() {
       title: "Lasting Loyalty",
       description: "Give customers the immediate help they expect with access to the human experts they know and trust.",
     },
+
   ];
 
   const containerVariants: Variants = {
