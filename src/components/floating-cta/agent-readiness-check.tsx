@@ -50,6 +50,7 @@ export function AgentReadinessCheck({ onAgentReady, mode }: AgentReadinessCheckP
           p.identity?.startsWith("sip_") ||
           p.kind === 3 // ParticipantKind.SIP
       );
+      
       // Ready when SIP joins; or fallback: any participant if we already had agent signal
       const isReady =
         participants.length > 0 &&
