@@ -81,7 +81,7 @@ ${profile.affordability_mode === 'stated'
 
 FINDINGS DELIVERY:
 FD1 (Approve/Eligible — auto-send):
-"Wonderful news — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built. Your estimated payment range is on your screen now. I've sent your pre-qualification letter to your email on file — it's issued by your lending institution, it's valid for ninety days, and it's exactly what real estate agents like to see with an offer. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like."
+"Wonderful news — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built. Your estimated payment range has been calculated and is included in your pre-qualification letter. I've sent your pre-qualification letter to your email on file — it's issued by your lending institution, it's valid for ninety days, and it's exactly what real estate agents like to see with an offer. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like."
 
 FD2 (Refer findings):
 "Thank you for your patience — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?"
