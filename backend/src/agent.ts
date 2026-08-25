@@ -445,8 +445,10 @@ class AilanaVoiceAgent extends voice.Agent {
     const buildPrefillAccountsScript = () => {
       const openAccounts = (profile as any).crs_open_accounts ?? 3;
       const latePayments = (profile as any).crs_late_payments ?? 0;
-      const lateText = latePayments === 0 ? 'no late payments' : `${latePayments} late payment(s)`;
-      return `Perfect. For your accounts summary, I have ${openAccounts} open account(s) and ${lateText} in the last 24 months. Does that match what you know, or is anything off?`;
+      const accountWord = openAccounts === 1 ? 'account' : 'accounts';
+      const paymentWord = latePayments === 1 ? 'payment' : 'payments';
+      const lateText = latePayments === 0 ? 'no late payments' : `${latePayments} late ${paymentWord}`;
+      return `Perfect. For your accounts summary, I have ${openAccounts} open ${accountWord} and ${lateText} in the last 24 months. Does that match what you know, or is anything off?`;
     };
 
     const buildPrefillCreditRangeScript = () => {
@@ -1393,6 +1395,21 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         return;
       }
 
+      if (messageText === 'SYSTEM_LOAN_OFFICER_CANCELLED') {
+        console.log(`[agent]: 🚫 User cancelled MLO transfer. Triggering fallback.`);
+        const scriptText = "I see you closed the transfer window. Are you still deciding, or is there another question I can help you with first?";
+        if (voiceMuted) {
+          await generateTextOnlyReply(scriptText);
+        } else {
+          metrics.startTurn();
+          session.say(scriptText, { addToChatCtx: true });
+          contextManager.onAgentTurn(scriptText).catch(err =>
+            console.error('[agent-error]: Failed to save agent turn:', err)
+          );
+        }
+        return;
+      }
+
       if (messageText === 'SYSTEM_RESUME_AGENT') {
         isHibernating = false;
         console.log(`[agent]: Agent waking up from hibernation.`);
@@ -1426,6 +1443,13 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       if (messageText.startsWith('SYSTEM_CHANNEL_START')) {
         const targetMode = messageText.split(':')[1] || 'video';
         console.log(`[agent]: Channel started (${targetMode}).`);
+
+        if (targetMode === 'video' || targetMode === 'voice') {
+          if (voiceMuted) {
+            voiceMuted = false;
+            console.log(`[agent]: Avatar voice auto-enabled on channel switch to ${targetMode}.`);
+          }
+        }
 
         if (greetingGenerated) {
           return;

@@ -271,7 +271,7 @@ export function buildLayer3TurnContext(
       `PRE-FILLED DATA RETRIEVED VIA SOFT PULL (CRS API):`,
       `  - Full Name & Address to confirm: ${profile.contact_name || profile.legal_name || profile.borrower_name || 'Valued Borrower'}, ${profile.physical_address || (profile.zip_code ? ('address on file in zip code ' + profile.zip_code) : 'address on file')}`,
       `  - Employer to confirm: ${profile.employer || 'information on file'}`,
-      `  - Accounts Summary to confirm: ${(profile as any).crs_open_accounts !== undefined ? `${(profile as any).crs_open_accounts} open account(s), ${(profile as any).crs_late_payments === 0 ? 'no late payments' : (profile as any).crs_late_payments + ' late payment(s)'} in the last 24 months` : '2 open active credit cards, 1 auto loan, no negative accounts'}`,
+      `  - Accounts Summary to confirm: ${(profile as any).crs_open_accounts !== undefined ? `${(profile as any).crs_open_accounts} open ${(profile as any).crs_open_accounts === 1 ? 'account' : 'accounts'}, ${(profile as any).crs_late_payments === 0 ? 'no late payments' : (profile as any).crs_late_payments + ' late ' + ((profile as any).crs_late_payments === 1 ? 'payment' : 'payments')} in the last 24 months` : '2 open active credit cards, 1 auto loan, no negative accounts'}`,
       `  - Credit Range Category to confirm: ${profile.credit_range ? (creditRangeCategory + ' range (' + profile.credit_range + ')') : (creditRangeCategory + ' range (' + creditRangeLimits + ')')}`,
     ].join('\n') : '',
     `Prefilled fields confirmed:`,

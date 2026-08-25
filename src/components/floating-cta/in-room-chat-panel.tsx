@@ -8,9 +8,10 @@ import { MessageCircle, Sparkles, Send, VolumeX, Bot } from "lucide-react";
 
 interface InRoomChatPanelProps {
   isActive?: boolean;
+  onTriggerLoanOfficer?: () => void;
 }
 
-export function InRoomChatPanel({ isActive }: InRoomChatPanelProps) {
+export function InRoomChatPanel({ isActive, onTriggerLoanOfficer }: InRoomChatPanelProps) {
   const { chatMessages, send } = useChat();
   const room = useRoomContext();
   const [input, setInput] = useState("");
@@ -18,19 +19,39 @@ export function InRoomChatPanel({ isActive }: InRoomChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [avatarVoiceEnabled, setAvatarVoiceEnabled] = useState(true);
+  // Guard: track the ID of the last message that triggered the LO popup so it only fires once
+  const lastTriggeredMsgIdRef = useRef<string | null>(null);
 
-  // Toggle avatar voice on/off: mutes client-side audio AND tells the backend
+  // Monitor transcript for automated Loan Officer handoff trigger
+  // lastTriggeredMsgIdRef ensures we only fire once per unique agent message,
+  // even as subsequent chat messages cause this effect to re-run.
+  useEffect(() => {
+    const lastMsg = chatMessages[chatMessages.length - 1];
+    if (!lastMsg) return;
+    if (lastMsg.from?.identity === room?.localParticipant?.identity) return;
+    if (lastMsg.message?.includes("transfer you to the available Loan Officer")) {
+      const msgId = (lastMsg as any).id ?? lastMsg.timestamp;
+      if (msgId !== lastTriggeredMsgIdRef.current) {
+        lastTriggeredMsgIdRef.current = msgId;
+        console.log("[ui-chat]: Detected Loan Officer transfer trigger in agent speech.");
+        onTriggerLoanOfficer?.();
+      }
+    }
+  }, [chatMessages, room, onTriggerLoanOfficer]);
+
+  // Set avatar voice state: mutes/unmutes client-side audio AND tells the backend
   // to switch between voice (Realtime API) and text-only (Chat Completions API)
-  const toggleAvatarVoice = async () => {
-    const nextState = !avatarVoiceEnabled;
+  const setAvatarVoiceState = async (nextState: boolean) => {
     setAvatarVoiceEnabled(nextState);
 
     // 1. Client-side: mute/unmute remote audio tracks immediately
     try {
-      for (const participant of room.remoteParticipants.values()) {
-        for (const pub of participant.trackPublications.values()) {
-          if (pub.track && pub.track.kind === "audio") {
-            (pub.track as any).setVolume?.(nextState ? 1 : 0);
+      if (room) {
+        for (const participant of room.remoteParticipants.values()) {
+          for (const pub of participant.trackPublications.values()) {
+            if (pub.track && pub.track.kind === "audio") {
+              (pub.track as any).setVolume?.(nextState ? 1 : 0);
+            }
           }
         }
       }
@@ -40,20 +61,34 @@ export function InRoomChatPanel({ isActive }: InRoomChatPanelProps) {
 
     // 2. Backend: tell the agent to switch response mode
     try {
-      const signal = nextState ? "SYSTEM_VOICE_UNMUTED" : "SYSTEM_VOICE_MUTED";
-      const encoder = new TextEncoder();
-      const payload = encoder.encode(JSON.stringify({ message: signal }));
-      await room.localParticipant.publishData(payload, {
-        topic: "lk-chat",
-        reliable: true,
-      });
-      console.log(
-        `[ui]: 🔊 Avatar voice ${nextState ? "ENABLED (voice mode)" : "DISABLED (text-only mode)"}`
-      );
+      if (room?.localParticipant) {
+        const signal = nextState ? "SYSTEM_VOICE_UNMUTED" : "SYSTEM_VOICE_MUTED";
+        const encoder = new TextEncoder();
+        const payload = encoder.encode(JSON.stringify({ message: signal }));
+        await room.localParticipant.publishData(payload, {
+          topic: "lk-chat",
+          reliable: true,
+        });
+        console.log(
+          `[ui]: 🔊 Avatar voice ${nextState ? "ENABLED (voice mode)" : "DISABLED (text-only mode)"}`
+        );
+      }
     } catch (err) {
       console.warn("[ui]: Failed to send voice toggle signal:", err);
     }
   };
+
+  const toggleAvatarVoice = async () => {
+    await setAvatarVoiceState(!avatarVoiceEnabled);
+  };
+
+  // When user navigates away from chat mode (e.g. to video or voice),
+  // automatically revert discrete mode back to normal Ailana speaking mode.
+  useEffect(() => {
+    if (!isActive && !avatarVoiceEnabled) {
+      setAvatarVoiceState(true);
+    }
+  }, [isActive, avatarVoiceEnabled]);
 
   // When voice is toggled off, also apply to newly subscribed remote audio tracks
   useEffect(() => {

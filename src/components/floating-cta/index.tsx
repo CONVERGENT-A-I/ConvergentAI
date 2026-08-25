@@ -312,6 +312,17 @@ export default function FloatingCTA() {
     }
   };
 
+  const handleCancelLoanOfficerTransfer = async () => {
+    setShowLoanOfficerConfirm(false);
+    try {
+      const payload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_LOAN_OFFICER_CANCELLED" }));
+      await (window as any).lkPublishData?.(payload, { topic: 'lk-chat', reliable: true });
+      console.log("[ui-loan-officer]: 🚫 Transfer cancelled. Notified backend.");
+    } catch (e) {
+      console.warn("[ui-loan-officer]: Failed to notify backend of cancel", e);
+    }
+  };
+
   const confirmLoanOfficerTransfer = () => {
     setShowLoanOfficerConfirm(false);
     const mode = "loan-officer";
@@ -857,7 +868,7 @@ export default function FloatingCTA() {
                         {/* Action Buttons */}
                         <div className="mt-7 flex flex-col sm:flex-row items-center justify-center gap-3 w-full">
                           <button
-                            onClick={() => setShowLoanOfficerConfirm(false)}
+                            onClick={handleCancelLoanOfficerTransfer}
                             className="w-full sm:w-auto px-6 py-2.5 rounded-xl border border-white/10 text-gray-300 text-xs md:text-sm font-semibold hover:bg-white/10 hover:text-white transition-all cursor-pointer whitespace-nowrap"
                           >
                             Stay with Ailana
@@ -1441,6 +1452,7 @@ export default function FloatingCTA() {
                                   >
                                     <InRoomChatPanel
                                       isActive={pendingMode === "avatar-chat"}
+                                      onTriggerLoanOfficer={() => handleAIAction("loan-officer")}
                                     />
                                   </div>
                                 </div>
