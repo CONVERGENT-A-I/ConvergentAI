@@ -1275,8 +1275,8 @@ export default function FloatingCTA() {
                                   }
                                 }}
                                 onTriggerMloTransfer={() => {
-                                  console.log("[ui-stage]: 📞 Voice-triggered automatic Loan Officer handoff executing!");
-                                  confirmLoanOfficerTransfer();
+                                  console.log("[ui-stage]: 📞 Voice-triggered automatic Loan Officer handoff — showing confirmation popup!");
+                                  handleAIAction("loan-officer");
                                 }}
                               />
                               {/* AffordabilityModal removed — panel is now inline split-screen */}

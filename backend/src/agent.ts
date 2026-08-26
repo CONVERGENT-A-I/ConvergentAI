@@ -37,7 +37,7 @@ import { sendPrequalLetterEmail } from './utils/email-sender.js';
 import { applicationService } from './services/application-service.js';
 import { isDatabaseEnabled } from './services/database.js';
 import { callCrsSoftPull } from './services/crs-service.js';
-import { classifyAuthorization } from './context/llm-extractor.js';
+import { classifyAuthorization, classifyLoanOfficerTransferIntent } from './context/llm-extractor.js';
 import { BackgroundVoiceCancellation } from '@livekit/noise-cancellation-node';
 
 // Global error guard to catch LiveKit SDK RPC connection timeouts gracefully without crashing/stalling the agent loop
@@ -176,46 +176,35 @@ class AilanaVoiceAgent extends voice.Agent {
 
     // ── Comprehensive Voice-Triggered Loan Officer Handoff Fast-Path ──
     const activeStage = this.contextManager.getActiveStage();
-    const userUtterance = lastUserText.toLowerCase().trim();
 
-    // 1. Exclude any clear scheduling / callback intents
-    const isSchedulingIntent = /\b(call\s*back|callback|schedule|schedule\s*a\s*call|later|tomorrow|next\s*week|after|days?|pm|am|morning|afternoon|evening|hour|hours|minutes|at\s+\d+|on\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b/i.test(userUtterance);
+    // ── Loan Officer Transfer Fast-Path ──────────────────────────────────────
+    // Use LLM classification — no regex. Pass the user utterance and the last
+    // agent message so the classifier has context (e.g. Ailana just offered the LO).
+    const lastAgentMsg = [...(chatCtx?.items || [])]
+      .reverse()
+      .find((item: any) => item.role === 'assistant' || item.type === 'assistant');
+    const lastAgentText = typeof lastAgentMsg?.content === 'string'
+      ? lastAgentMsg.content
+      : Array.isArray(lastAgentMsg?.content)
+        ? lastAgentMsg.content.join(' ')
+        : null;
 
-    // 2. Direct transfer action keywords (connect, transfer, speak, talk, patch, bridge, put through, get me, pass me, reach)
-    const hasTransferVerb = /\b(connect\s*(me|us)?|transfer\s*(me|us)?|speak\s*(with|to)|talk\s*(with|to)|patch\s*(me|us)?\s*(through|in)?|bridge\s*(me|us)?|put\s*(me|us)?\s*through|get\s*(me|us)?|pass\s*(me|us)?\s*to|reach\s*(out\s*to)?|switch\s*(me|us)?\s*to|call)\b/i.test(userUtterance);
+    const loIntent = await classifyLoanOfficerTransferIntent(lastUserText, lastAgentText);
+    console.log(`[agent-hook]: LO transfer classification → "${loIntent}" for: "${lastUserText}"`);
 
-    // 3. Human / loan officer target keywords
-    const hasHumanTarget = /\b((loan|mortgage|licensed)?\s*(officer|advisor|originator|specialist|expert|representative|agent|rep|consultant)|human|real\s*person|live\s*person|someone|mlo|person)\b/i.test(userUtterance);
-
-    // 4. Standalone live transfer phrases
-    const isExplicitLivePhrase = /\b(live\s*(transfer|call|bridge|connection|handoff)|connect\s*(me)?\s*now|transfer\s*(me)?\s*now|talk\s*now|speak\s*now|connect\s*officer|yes\s*connect\s*officer|put\s*me\s*through|patch\s*me\s*through)\b/i.test(userUtterance);
-
-    // 5. Affirmative responses when prompted in Stage 5 or escalation
-    const isStage5Affirmative = (activeStage === '5' || pending === 'escalation_preference') &&
-      /\b(yes\s*(please|connect|transfer|now|officer|do\s*that)?|yeah\s*(connect|now|please)?|yep|sure\s*(connect|now|thing)?|right\s*now|now\s*please|connect\s*(me)?|transfer\s*(me)?|let'?s\s*(do\s*that|connect|talk\s*now|transfer)|i\s*prefer\s*(to\s*)?(connect|talk|speak)(\s*now)?|i\s*want\s*to\s*(talk|speak|connect)(\s*now)?|go\s*ahead\s*(and\s*)?(connect|transfer)?)\b/i.test(userUtterance);
-
-    const isLiveTransferIntent = !isSchedulingIntent && (
-      (hasTransferVerb && hasHumanTarget) ||
-      isExplicitLivePhrase ||
-      isStage5Affirmative
-    );
-
-    if (
-      (activeStage === '5' || pending === 'escalation_preference' || hasHumanTarget || isExplicitLivePhrase) &&
-      isLiveTransferIntent
-    ) {
-      console.log(`[agent-hook]: 📞 Voice-triggered Loan Officer handoff detected ("${lastUserText}") — executing transfer automatically!`);
+    if (loIntent === 'yes') {
+      console.log(`[agent-hook]: 📞 LLM-classified Loan Officer transfer — showing popup via SYSTEM_TRIGGER_MLO_TRANSFER.`);
       profile.escalation_preference = 'live_transfer';
       this.contextManager.advanceWorkflow();
 
-      // Trigger the handoff after brief delay to let the spoken confirmation stream begin
-      setTimeout(() => {
-        if (this.triggerMloTransfer) {
-          this.triggerMloTransfer().catch(err => console.error('[agent-error]: Failed to trigger MLO transfer:', err));
-        }
-      }, 1200);
+      // Send SYSTEM_TRIGGER_MLO_TRANSFER so the frontend shows the confirmation popup.
+      // The actual SIP dial only happens AFTER the user clicks "Continue" in the popup.
+      if (this.triggerMloTransfer) {
+        this.triggerMloTransfer().catch(err => console.error('[agent-error]: Failed to send MLO trigger:', err));
+      }
 
-      const scriptText = `Connecting you with a licensed loan officer now — one moment please.`;
+      // Use the shared trigger phrase so the chat-transcript watcher also detects it.
+      const scriptText = `Wait, let me transfer you to the available Loan Officer.`;
       return createVerbatimStream(scriptText) as any;
     }
 
@@ -918,6 +907,21 @@ export default defineAgent({
       }
     };
 
+    // Lightweight signal: ONLY sends the popup trigger to the frontend.
+    // Does NOT hibernate or dial SIP. The voice fast-path uses this so the user
+    // sees the confirmation popup before anything is connected.
+    // The actual SIP transfer only fires when the user clicks "Continue" in the popup
+    // (which sends SYSTEM_TRANSFER_MLO → performMloTransfer).
+    const sendMloPopupTrigger = async () => {
+      try {
+        const payload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_TRIGGER_MLO_TRANSFER" }));
+        await ctx.room.localParticipant?.publishData(payload, { reliable: true, topic: 'lk-chat' });
+        console.log(`[agent]: 📞 Sent SYSTEM_TRIGGER_MLO_TRANSFER (popup only) — waiting for user confirmation.`);
+      } catch (err) {
+        console.warn('[agent]: Failed to send popup trigger:', err);
+      }
+    };
+
     const createVadAgent = () => {
       console.log('[agent]: Creating LiveKit Inference agent (Gemma 4 31B LLM + Cartesia Ink-2 STT + Cartesia Sonic-3.5 TTS + TurnDetector)...');
       return new AilanaVoiceAgent({
@@ -941,7 +945,7 @@ export default defineAgent({
             enabled: false,
           },
         } as any,
-      }, contextManager, updateSessionInstructions, metrics, (stage: string) => sendStageUpdate(stage), performMloTransfer);
+      }, contextManager, updateSessionInstructions, metrics, (stage: string) => sendStageUpdate(stage), sendMloPopupTrigger);
     };
 
     let vadAgent = createVadAgent();

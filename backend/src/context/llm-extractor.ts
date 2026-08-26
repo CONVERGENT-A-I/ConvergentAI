@@ -441,3 +441,69 @@ User response: "${userInput}"`;
 
   return 'no_content';
 }
+
+/**
+ * Classifies whether the user is requesting an immediate live transfer to a Loan Officer.
+ * Uses LLM to handle any phrasing — direct requests, affirmatives after an offer, etc.
+ *
+ * Returns:
+ *   'yes'        — user wants to be transferred now
+ *   'no'         — user declined / wants to stay / wants to schedule instead
+ *   'uncertain'  — unclear, let the LLM handle it naturally
+ */
+export async function classifyLoanOfficerTransferIntent(
+  userInput: string,
+  lastAssistantUtterance: string | null,
+): Promise<'yes' | 'no' | 'uncertain'> {
+  const systemPrompt = `You are a classification agent for a mortgage AI assistant named Ailana.
+Your job is to determine whether the user's latest message is requesting an IMMEDIATE live transfer to a human Loan Officer.
+
+Rules:
+- Answer "yes" if the user clearly wants to be connected/transferred to a loan officer right now, or is affirming an offer Ailana just made to connect them to one.
+- Answer "no" if the user is declining the transfer, wants to stay with Ailana, wants to schedule a callback for later instead, or is asking an unrelated question.
+- Answer "uncertain" if you genuinely cannot tell from the message alone.
+
+Only return a JSON object with a single key "intent" set to "yes", "no", or "uncertain".
+
+Examples:
+- "yes please connect me" → "yes"
+- "connect me to a loan officer" → "yes"
+- "I'd like to speak with someone" → "yes"
+- "yes, go ahead" (after Ailana offers the loan officer) → "yes"
+- "sure, connect me" → "yes"
+- "let's do that" (in response to Ailana's offer) → "yes"
+- "no, I'll think about it" → "no"
+- "maybe later" → "no"
+- "can you schedule a call for tomorrow?" → "no"
+- "what is a loan officer?" → "uncertain"
+
+You MUST reply with a JSON object only. Example: {"intent": "yes"}`;
+
+  const userPrompt = `Ailana's last message: ${lastAssistantUtterance ?? '(not available)'}
+User's response: "${userInput}"`;
+
+  try {
+    const chatCtx = new llm.ChatContext();
+    chatCtx.addMessage({ role: 'system', content: systemPrompt });
+    chatCtx.addMessage({ role: 'user', content: userPrompt });
+
+    const stream = extractorLlm.chat({ chatCtx });
+    const collected = await stream.collect();
+    const content = collected.text || null;
+
+    console.log(`[classifyLoanOfficerTransferIntent] LLM raw response:`, content);
+
+    if (content) {
+      const cleanJson = content.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+      const parsed = JSON.parse(cleanJson);
+      const intent = parsed.intent;
+      if (intent === 'yes' || intent === 'no' || intent === 'uncertain') {
+        return intent;
+      }
+    }
+  } catch (err: any) {
+    console.error(`[classifyLoanOfficerTransferIntent] LLM call failed:`, err?.message ?? err);
+  }
+
+  return 'uncertain';
+}
