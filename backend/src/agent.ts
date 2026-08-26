@@ -107,7 +107,8 @@ class AilanaVoiceAgent extends voice.Agent {
     private contextManager: SessionContextManager,
     private updateInstructionsCallback: () => void,
     private metrics: LatencyTracker,
-    public sendStageUpdate?: (stage: string) => Promise<void>
+    public sendStageUpdate?: (stage: string) => Promise<void>,
+    public triggerMloTransfer?: () => Promise<void>
   ) {
     super(options);
   }
@@ -170,6 +171,51 @@ class AilanaVoiceAgent extends voice.Agent {
       }, 3000);
 
       const scriptText = `Thank you for your patience — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    // ── Comprehensive Voice-Triggered Loan Officer Handoff Fast-Path ──
+    const activeStage = this.contextManager.getActiveStage();
+    const userUtterance = lastUserText.toLowerCase().trim();
+
+    // 1. Exclude any clear scheduling / callback intents
+    const isSchedulingIntent = /\b(call\s*back|callback|schedule|schedule\s*a\s*call|later|tomorrow|next\s*week|after|days?|pm|am|morning|afternoon|evening|hour|hours|minutes|at\s+\d+|on\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b/i.test(userUtterance);
+
+    // 2. Direct transfer action keywords (connect, transfer, speak, talk, patch, bridge, put through, get me, pass me, reach)
+    const hasTransferVerb = /\b(connect\s*(me|us)?|transfer\s*(me|us)?|speak\s*(with|to)|talk\s*(with|to)|patch\s*(me|us)?\s*(through|in)?|bridge\s*(me|us)?|put\s*(me|us)?\s*through|get\s*(me|us)?|pass\s*(me|us)?\s*to|reach\s*(out\s*to)?|switch\s*(me|us)?\s*to|call)\b/i.test(userUtterance);
+
+    // 3. Human / loan officer target keywords
+    const hasHumanTarget = /\b((loan|mortgage|licensed)?\s*(officer|advisor|originator|specialist|expert|representative|agent|rep|consultant)|human|real\s*person|live\s*person|someone|mlo|person)\b/i.test(userUtterance);
+
+    // 4. Standalone live transfer phrases
+    const isExplicitLivePhrase = /\b(live\s*(transfer|call|bridge|connection|handoff)|connect\s*(me)?\s*now|transfer\s*(me)?\s*now|talk\s*now|speak\s*now|connect\s*officer|yes\s*connect\s*officer|put\s*me\s*through|patch\s*me\s*through)\b/i.test(userUtterance);
+
+    // 5. Affirmative responses when prompted in Stage 5 or escalation
+    const isStage5Affirmative = (activeStage === '5' || pending === 'escalation_preference') &&
+      /\b(yes\s*(please|connect|transfer|now|officer|do\s*that)?|yeah\s*(connect|now|please)?|yep|sure\s*(connect|now|thing)?|right\s*now|now\s*please|connect\s*(me)?|transfer\s*(me)?|let'?s\s*(do\s*that|connect|talk\s*now|transfer)|i\s*prefer\s*(to\s*)?(connect|talk|speak)(\s*now)?|i\s*want\s*to\s*(talk|speak|connect)(\s*now)?|go\s*ahead\s*(and\s*)?(connect|transfer)?)\b/i.test(userUtterance);
+
+    const isLiveTransferIntent = !isSchedulingIntent && (
+      (hasTransferVerb && hasHumanTarget) ||
+      isExplicitLivePhrase ||
+      isStage5Affirmative
+    );
+
+    if (
+      (activeStage === '5' || pending === 'escalation_preference' || hasHumanTarget || isExplicitLivePhrase) &&
+      isLiveTransferIntent
+    ) {
+      console.log(`[agent-hook]: 📞 Voice-triggered Loan Officer handoff detected ("${lastUserText}") — executing transfer automatically!`);
+      profile.escalation_preference = 'live_transfer';
+      this.contextManager.advanceWorkflow();
+
+      // Trigger the handoff after brief delay to let the spoken confirmation stream begin
+      setTimeout(() => {
+        if (this.triggerMloTransfer) {
+          this.triggerMloTransfer().catch(err => console.error('[agent-error]: Failed to trigger MLO transfer:', err));
+        }
+      }, 1200);
+
+      const scriptText = `Connecting you with a licensed loan officer now — one moment please.`;
       return createVerbatimStream(scriptText) as any;
     }
 
@@ -829,6 +875,49 @@ export default defineAgent({
       sampleRate: 16000,
     });
 
+    const performMloTransfer = async () => {
+      isHibernating = true;
+      console.log(`[agent]: 🛌 Agent hibernating for MLO transfer. Shutting down audio pipeline...`);
+
+      // 1. Send data channel trigger to frontend so UI switches to Loan Officer queue mode automatically
+      try {
+        const payload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_TRIGGER_MLO_TRANSFER" }));
+        await ctx.room.localParticipant?.publishData(payload, { reliable: true, topic: 'lk-chat' });
+        console.log(`[agent]: 📞 Sent SYSTEM_TRIGGER_MLO_TRANSFER to frontend over DataChannel.`);
+      } catch (err) {
+        console.warn('[agent]: Failed to send SYSTEM_TRIGGER_MLO_TRANSFER:', err);
+      }
+
+      // 2. Interrupt any in-progress LLM/TTS generation immediately
+      try {
+        if ((session as any)._started) {
+          session.interrupt();
+        }
+      } catch (e) {
+        console.warn('[agent]: Failed to interrupt session:', e);
+      }
+
+      // 3. Unsubscribe from ALL remote participant tracks so VAD receives no audio
+      for (const p of ctx.room.remoteParticipants.values()) {
+        for (const pub of p.trackPublications.values()) {
+          try { pub.setSubscribed(false); } catch (_) { }
+        }
+      }
+      console.log('[agent]: 🔇 All tracks unsubscribed. User and loan officer now on direct line.');
+
+      // 4. Dial the SIP trunk to bring the loan officer into the room
+      try {
+        const { transferRoomToMloQueue } = await import('./utils/sipTransfer.js');
+        transferRoomToMloQueue({
+          roomName: ctx.room.name || '',
+        }).then((res) => {
+          console.log(`[agent]: 📞 SIP Transfer initiated successfully:`, res);
+        }).catch((err) => console.error(`[agent]: SIP Transfer failed:`, err));
+      } catch (err) {
+        console.error(`[agent]: SIP Transfer setup failed:`, err);
+      }
+    };
+
     const createVadAgent = () => {
       console.log('[agent]: Creating LiveKit Inference agent (Gemma 4 31B LLM + Cartesia Ink-2 STT + Cartesia Sonic-3.5 TTS + TurnDetector)...');
       return new AilanaVoiceAgent({
@@ -852,7 +941,7 @@ export default defineAgent({
             enabled: false,
           },
         } as any,
-      }, contextManager, updateSessionInstructions, metrics, (stage: string) => sendStageUpdate(stage));
+      }, contextManager, updateSessionInstructions, metrics, (stage: string) => sendStageUpdate(stage), performMloTransfer);
     };
 
     let vadAgent = createVadAgent();
@@ -1359,39 +1448,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       }
 
       if (messageText === 'SYSTEM_TRANSFER_MLO') {
-        isHibernating = true;
-        console.log(`[agent]: 🛌 Agent hibernating for MLO transfer. Shutting down audio pipeline...`);
-
-        // 1. Interrupt any in-progress LLM/TTS generation immediately
-        try {
-          if ((session as any)._started) {
-            session.interrupt();
-          }
-        } catch (e) {
-          console.warn('[agent]: Failed to interrupt session:', e);
-        }
-
-        // 2. Unsubscribe from ALL remote participant tracks so VAD receives no audio.
-        //    This prevents the agent from hearing/responding to the SIP IVR or the loan officer.
-        //    With no audio input, the LLM pipeline starves and generates no further responses.
-        for (const p of ctx.room.remoteParticipants.values()) {
-          for (const pub of p.trackPublications.values()) {
-            try { pub.setSubscribed(false); } catch (_) { }
-          }
-        }
-        console.log('[agent]: 🔇 All tracks unsubscribed. User and loan officer now on direct line.');
-
-        // 3. Dial the SIP trunk to bring the loan officer into the room
-        try {
-          const { transferRoomToMloQueue } = await import('./utils/sipTransfer.js');
-          transferRoomToMloQueue({
-            roomName: ctx.room.name || '',
-          }).then((res) => {
-            console.log(`[agent]: 📞 SIP Transfer initiated successfully:`, res);
-          }).catch((err) => console.error(`[agent]: SIP Transfer failed:`, err));
-        } catch (err) {
-          console.error(`[agent]: SIP Transfer setup failed:`, err);
-        }
+        await performMloTransfer();
         return;
       }
 

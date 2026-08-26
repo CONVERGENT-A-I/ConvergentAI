@@ -1274,6 +1274,10 @@ export default function FloatingCTA() {
                                     }
                                   }
                                 }}
+                                onTriggerMloTransfer={() => {
+                                  console.log("[ui-stage]: 📞 Voice-triggered automatic Loan Officer handoff executing!");
+                                  confirmLoanOfficerTransfer();
+                                }}
                               />
                               {/* AffordabilityModal removed — panel is now inline split-screen */}
                               <OtpVerificationModal
@@ -1577,9 +1581,21 @@ export default function FloatingCTA() {
                         {/* Action Buttons */}
                         <div className="flex flex-col gap-2.5 sm:gap-3 w-full">
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               setMloClosingCountdown(null);
-                              restartSession("video");
+                              if (isLkConnected) {
+                                console.log("[ui]: ☀️ Returning to Ailana from Loan Officer call. Waking up agent in existing session...");
+                                setFlowPhase("live");
+                                setPendingMode("video");
+                                try {
+                                  const payload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_RESUME_AGENT" }));
+                                  await (window as any).lkPublishData?.(payload, { topic: "lk-chat", reliable: true });
+                                } catch (e) {
+                                  console.warn("[ui]: Failed to send SYSTEM_RESUME_AGENT", e);
+                                }
+                              } else {
+                                restartSession("video");
+                              }
                             }}
                             className="w-full py-2.5 sm:py-3.5 rounded-xl bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white text-sm sm:text-base font-bold hover:shadow-[0_0_20px_rgba(0,180,216,0.4)] transition-all flex items-center justify-center gap-2 cursor-pointer relative overflow-hidden group"
                           >

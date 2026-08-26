@@ -158,5 +158,5 @@ export const GREETING_USER_INPUT =
   `Please say exactly: "${GREETING_TEXT}" Do not add any other text.`;
 
 export const RESUME_USER_INPUT =
-  'Say something brief indicating you are back and ready to continue helping with their mortgage questions. Keep it concise and short, between 1-2 sentences max, then wait.';
+  'The borrower has returned to the conversation after finishing their call with the Loan Officer. Say a brief, warm welcome back (e.g. "Welcome back! I hope your conversation with the loan officer went well. Do you have any other questions for me or anything else you would like to explore?"). Keep it concise and natural, 1-2 sentences.';
 

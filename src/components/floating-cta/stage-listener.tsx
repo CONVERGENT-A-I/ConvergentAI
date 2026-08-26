@@ -6,9 +6,10 @@ import { RoomEvent } from "livekit-client";
 
 interface StageListenerProps {
   onStageUpdate: (stage: string, profile?: any) => void;
+  onTriggerMloTransfer?: () => void;
 }
 
-export function StageListener({ onStageUpdate }: StageListenerProps) {
+export function StageListener({ onStageUpdate, onTriggerMloTransfer }: StageListenerProps) {
   const room = useRoomContext();
 
   useEffect(() => {
@@ -28,6 +29,9 @@ export function StageListener({ onStageUpdate }: StageListenerProps) {
         if (msg === "SYSTEM_STAGE_UPDATE") {
           console.log("[ui-stage]: ✅ Received stage update from backend:", parsed.stage, parsed.profile);
           onStageUpdate(parsed.stage, parsed.profile);
+        } else if (msg === "SYSTEM_TRIGGER_MLO_TRANSFER") {
+          console.log("[ui-stage]: 📞 Received automatic MLO transfer trigger from backend voice command!");
+          onTriggerMloTransfer?.();
         }
       } catch {
         // ignore non-JSON messages
