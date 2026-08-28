@@ -204,7 +204,7 @@ class AilanaVoiceAgent extends voice.Agent {
       }
 
       // Use the shared trigger phrase so the chat-transcript watcher also detects it.
-      const scriptText = `Wait, let me transfer you to the available Loan Officer.`;
+      const scriptText = `Connecting you with a licensed loan officer now — one moment please.`;
       return createVerbatimStream(scriptText) as any;
     }
 
