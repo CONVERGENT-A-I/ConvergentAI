@@ -148,7 +148,7 @@ class AilanaVoiceAgent extends voice.Agent {
     if (!ausAlreadyDone && inAffordabilityStage && !isConditionalOrQuestion && verbalSubmitPattern.test(lastUserText)) {
       console.log(`[agent-hook]: 0ms Verbal Submit Fast-Path triggered — executing AUS findings immediately without LLM call!`);
 
-      // 1. Instantly update the UI to show the button as "Review Submitted ✓"
+      // 1. Instantly update the UI to show the button as "Review Submitted ✓" and ensure panel stays rendered
       profile.affordability_submitted = true;
       profile.affordability_panel_rendered = true;
       (profile as any).affordability_panel_closed = false;
@@ -156,19 +156,8 @@ class AilanaVoiceAgent extends voice.Agent {
         this.sendStageUpdate('2.5').catch(err => console.warn(err));
       }
 
-      // 2. Delay the backend state transition by 3 seconds so the user can visually see the button state change
-      // before the panel closes.
-      setTimeout(() => {
-        (profile as any).affordability_aus_status = 'refer';
-        profile.aus_status = 'refer';
-        profile.affordability_panel_rendered = false;
-        (profile as any).affordability_panel_closed = true;
-        this.contextManager.setActiveStage('5');
-        this.contextManager.setCurrentPendingField('escalation_preference');
-        if (this.sendStageUpdate) {
-          this.sendStageUpdate('5').catch(err => console.warn(err));
-        }
-      }, 3000);
+      // 2. Mark stage 5 transition as deferred until avatar finishes reading the AUS findings speech.
+      (profile as any).pendingStage5Transition = true;
 
       const scriptText = `Thank you for your patience — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;
       return createVerbatimStream(scriptText) as any;
@@ -195,6 +184,7 @@ class AilanaVoiceAgent extends voice.Agent {
     if (loIntent === 'yes') {
       console.log(`[agent-hook]: 📞 LLM-classified Loan Officer transfer — showing popup via SYSTEM_TRIGGER_MLO_TRANSFER.`);
       profile.escalation_preference = 'live_transfer';
+      (profile as any).escalation_preference_confirmed = true;
       this.contextManager.advanceWorkflow();
 
       // Send SYSTEM_TRIGGER_MLO_TRANSFER so the frontend shows the confirmation popup.
@@ -390,8 +380,9 @@ class AilanaVoiceAgent extends voice.Agent {
         return createVerbatimStream(scriptText) as any;
       }
 
-      const decision = await classifyAuthorization(lastUserText, null);
-      console.log(`[agent-hook]: soft_pull_authorization classification decision="${decision}" (userText="${lastUserText}")`);
+      const explanationAttempts = this.contextManager.getSoftPullExplanationCount();
+      const decision = await classifyAuthorization(lastUserText, null, explanationAttempts);
+      console.log(`[agent-hook]: soft_pull_authorization classification decision="${decision}" (userText="${lastUserText}", explanationAttempts=${explanationAttempts})`);
 
       if (decision === 'yes') {
         profile.soft_pull_consent = 'accepted';
@@ -1108,6 +1099,22 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           backchannelEngine.reset();
           prepareContext().catch(err => console.error('[agent-error]: Idle prepareContext failed:', err));
 
+          // ── Deferred Stage 5 Transition Guard ─────────────────────────────────
+          // If the avatar was delivering the Stage 2.5 AUS findings speech, transition
+          // to Stage 5 only AFTER speaking is completely finished.
+          const activeProf = contextManager.getProfile();
+          if ((activeProf as any)?.pendingStage5Transition) {
+            delete (activeProf as any).pendingStage5Transition;
+            (activeProf as any).affordability_aus_status = 'refer';
+            activeProf.aus_status = 'refer';
+            activeProf.affordability_panel_rendered = false;
+            (activeProf as any).affordability_panel_closed = true;
+            contextManager.setActiveStage('5');
+            contextManager.setCurrentPendingField('escalation_preference');
+            sendStageUpdate('5').catch(err => console.warn(err));
+            console.log('[agent-hook]: Avatar speech finished — executed deferred transition to Stage 5 with aus_status=refer.');
+          }
+
           // ── Silent-turn guard: thinking → listening with no speech produced
           // Fires when LLM generation was aborted mid-stream (Ailana goes silent).
           // We wait 2s then re-ask the pending question.
@@ -1512,11 +1519,11 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           }
         }
 
+        // Atomic guard: claim greeting generation immediately before any async boundary
         if (greetingGenerated) {
           return;
         }
-
-        // Flag pendingGreeting so TrackUnmuted or avatarReady handler knows a greeting is queued
+        greetingGenerated = true;
         pendingGreeting = true;
 
         if (!isAvatarInitDone) {
@@ -1525,11 +1532,6 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           console.log(`[agent]: Avatar ready. Resuming deferred SYSTEM_CHANNEL_START handler.`);
         }
 
-        if (greetingGenerated) {
-          return;
-        }
-
-        greetingGenerated = true;
         pendingGreeting = false;
         const greetingText = GREETING_TEXT;
 

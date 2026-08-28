@@ -31,8 +31,12 @@ interface SessionContextManagerSnapshot {
 function isLikelyQuestion(text: string): boolean {
   const t = text.toLowerCase().trim();
   if (t.includes('?')) return true;
-  if (/^(what|why|how|where|who|which|can|could|would|should|is|does|will|do i)\b/.test(t)) return true;
-  const keywords = ['explain', 'detail', 'meaning', 'difference', 'tell me', 'what does', 'what is'];
+  if (/^(what|why|how|where|who|which|can|could|would|should|is|does|will|do i|did|are|was|were)\b/.test(t)) return true;
+  const keywords = [
+    'explain', 'detail', 'meaning', 'difference', 'tell me', 'what does', 'what is',
+    'i thought', 'i was wondering', 'i assumed', 'had to', 'thought it would',
+    'wait', 'hold on', 'just to clarify', 'confused', 'not sure', 'well i'
+  ];
   return keywords.some(k => t.includes(k));
 }
 
@@ -53,6 +57,7 @@ export class SessionContextManager {
   private lastProcessedInput: string | null = null;
   private lowConfidence = false;
   private fieldAttempts: Record<string, number> = {};
+  private softPullExplanationCount = 0;
 
   // Parallel asynchronous extraction state
   private nextExtractionTurn = 1;
@@ -481,6 +486,10 @@ export class SessionContextManager {
 
   getPendingField(): string | null {
     return this.currentPendingField;
+  }
+
+  getSoftPullExplanationCount(): number {
+    return this.softPullExplanationCount;
   }
 
   getFieldAttemptCount(field: string): number {
@@ -1140,12 +1149,13 @@ export class SessionContextManager {
       // Use classifyAuthorization: regex fast-path (0ms) + Cerebras fallback.
       // If user asks a question ("what does soft pull mean?", "will it hurt my score?"), returns 'needs_explanation'
       // and we simply let the main LLM answer it — the field stays on soft_pull_authorization.
-      const decision = await classifyAuthorization(text, lastQuestion);
+      const decision = await classifyAuthorization(text, lastQuestion, this.softPullExplanationCount);
       console.log(`[soft_pull_authorization] Authorization decision=${decision}`);
 
       if (decision === 'needs_explanation') {
+        this.softPullExplanationCount++;
         // User is asking for more info — don't advance or re-ask, let the LLM answer naturally.
-        console.log('[soft_pull_authorization] User asked for explanation — staying on field, LLM will answer.');
+        console.log(`[soft_pull_authorization] User asked for explanation (count=${this.softPullExplanationCount}) — staying on field, LLM will answer.`);
         return;
       }
 

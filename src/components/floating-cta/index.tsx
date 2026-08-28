@@ -1248,13 +1248,13 @@ export default function FloatingCTA() {
                                   setActiveStage(stage);
                                   if (profile) setBorrowerProfile(profile);
 
-                                  // Auto-OPEN the panel at Stage 2.5 — never auto-close it (user controls that)
-                                  const isPanelClosed = panelClosedByUser || (profile as any)?.affordability_panel_closed || Boolean(profile?.aus_status);
-                                  if (stage === "2.5" && profile?.affordability_panel_rendered && !isPanelClosed) {
+                                  // Auto-OPEN the panel at Stage 2.5 — reset panelClosedByUser when entering Stage 2.5
+                                  if (stage === "2.5" && profile?.affordability_panel_rendered && !(profile as any)?.affordability_panel_closed) {
+                                    setPanelClosedByUser(false);
                                     setIsAffordabilityPanelOpen(true);
                                   }
                                   // Only auto-close after AUS submission completes
-                                  if (Boolean(profile?.aus_status) && !panelClosedByUser) {
+                                  if (Boolean(profile?.aus_status) && isAffordabilityPanelOpen) {
                                     setIsAffordabilityPanelOpen(false);
                                     setPanelClosedByUser(true);
                                   }

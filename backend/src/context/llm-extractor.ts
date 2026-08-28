@@ -207,6 +207,7 @@ export async function extractMultipleFields(
 export async function classifyAuthorization(
   userInput: string,
   lastAssistantUtterance: string | null,
+  explanationAttempts: number = 0,
 ): Promise<'yes' | 'no' | 'needs_explanation'> {
   const lowerText = userInput.toLowerCase().trim();
 
@@ -228,10 +229,23 @@ export async function classifyAuthorization(
     /\byes\b/, /\bauthorize\b/, /\bconsent\b/, /\bagree\b/, /\bapprove\b/,
     /\bgo ahead\b/, /\bproceed\b/, /\bsure\b/, /\bfine\b/, /\bok(ay)?\b/,
     /\ballow\b/, /\bthat('s| is) fine\b/, /\bi('m| am) ok\b/, /\bdo it\b/,
-    /\brun it\b/, /\blet('s| us) go\b/, /\bsounds good\b/, /\bno problem\b/,
+    /\brun it\b/, /\blet('s| us) (go|proceed|do it|run it)\b/, /\bsounds good\b/, /\bno problem\b/,
     /\bdone\b/, /\ball set\b/, /\bfinished\b/, /\bcompleted\b/, /\bplease do\b/,
-    /\bentered\b/, /\bsubmitted\b/, /\bi did\b/,
+    /\bentered\b/, /\bsubmitted\b/, /\bi did\b/, /\byep\b/, /\byeah\b/, /\bready\b/,
+    /\bcertainly\b/, /\babsolutely\b/, /\bdefinitely\b/,
   ];
+
+  if (explanationAttempts >= 1) {
+    AUTHORIZE_PATTERNS.push(
+      /\blet('s| us)\b/,
+      /\bgo\b/,
+      /\bdo\b/,
+      /\b(already|just) (asked|said|told|answered)\b/,
+      /\b(same thing|like i said)\b/,
+      /\b(sounds great|sure thing)\b/
+    );
+  }
+
   const DECLINE_PATTERNS = [
     /\bno\b/, /\bdecline\b/, /\brefuse\b/, /\bdon'?t\b/, /\bdo not\b/,
     /\bnot (now|yet|today)\b/, /\bskip\b/, /\bwithout\b/, /\bprefer not\b/,
@@ -242,7 +256,7 @@ export async function classifyAuthorization(
   // If both match (e.g., "no, that's okay"), prioritize authorization unless
   // "no" appears at the very start (e.g., "no, thank you").
   if (isAuthorized && (!isDeclined || lowerText.search(/\bno\b/) > 5)) {
-    console.log(`[classifyAuthorization] Regex fast-path → YES`);
+    console.log(`[classifyAuthorization] Regex fast-path → YES (explanationAttempts=${explanationAttempts})`);
     return 'yes';
   }
   if (isDeclined && !isAuthorized) {
@@ -251,7 +265,11 @@ export async function classifyAuthorization(
   }
 
   // ── Tier 2: LiveKit Inference fallback (handles questions, indirect phrasing) ─────────
-  console.log(`[classifyAuthorization] Regex inconclusive (auth=${isAuthorized}, dec=${isDeclined}) → falling back to LiveKit Inference`);
+  console.log(`[classifyAuthorization] Regex inconclusive (auth=${isAuthorized}, dec=${isDeclined}, attempts=${explanationAttempts}) → falling back to LiveKit Inference`);
+
+  const explanationGuidance = explanationAttempts >= 1
+    ? `\nNOTE: The assistant has already explained the soft credit inquiry. If the user indicates acquiescence, mild agreement, readiness, or frustration that they were asked again, classify as "yes". Only classify as "needs_explanation" if they are asking an explicit new question.`
+    : '';
 
   const systemPrompt = `You are analyzing a user's response to a soft credit inquiry authorization request.
 The mortgage assistant asked the user to authorize a soft credit inquiry (which does NOT affect credit score).
@@ -260,6 +278,7 @@ The user responded. Classify their response into one of three categories:
 - "yes": They clearly authorize, consent, agree, or want to proceed.
 - "no": They clearly decline, refuse, or don't want to proceed.  
 - "needs_explanation": They are asking a question, requesting more information, or are uncertain.
+${explanationGuidance}
 
 Return a JSON object with a single key:
 - "decision": one of "yes", "no", or "needs_explanation"
@@ -268,6 +287,7 @@ Examples:
 - "yes I authorize" → "yes"
 - "go ahead" → "yes"
 - "sounds good" → "yes"
+- "let's proceed" → "yes"
 - "no thank you" → "no"
 - "I'd rather not" → "no"
 - "what does this involve?" → "needs_explanation"
