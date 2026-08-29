@@ -183,7 +183,7 @@ const PROGRAMS: Record<ProgramId, ProgramConfig> = {
     compensating: "residual income, cash reserves, or minimal payment shock",
   },
   va: {
-    label: "VA",
+    label: "Veteran Affairs Loan",
     minDownPct: 0,
     upfrontFeePct: 2.15,
     upfrontFeeLabel: "VA funding fee",
@@ -370,8 +370,8 @@ export function AffordabilityPanelNew({
   const [mode, setMode] = useState<ModeId>(initialMode);
   const [hasSubmittedLocally, setHasSubmittedLocally] = useState<boolean>(false);
 
-  // Default program to first eligible program or conventional
-  const defaultProgram = eligiblePrograms.includes("conventional") ? "conventional" : (eligiblePrograms[0] || "conventional");
+  // Default program: Rule R1 (service-eligible = VA, else conventional/FHA)
+  const defaultProgram = eligiblePrograms.includes("va") ? "va" : eligiblePrograms.includes("conventional") ? "conventional" : (eligiblePrograms[0] || "conventional");
   const [program, setProgram] = useState<ProgramId>(defaultProgram);
 
   const [assump, setAssump] = useState<Record<ModeId, Assumptions>>(() => {
@@ -599,6 +599,11 @@ export function AffordabilityPanelNew({
                     ${fmt(mode === "heloc" ? (calc.totalLiens as number) : (calc.loanAmt as number))}
                   </span>
                 </div>
+                {calc.upfrontFee! > 0 && activeProgram.upfrontFeeLabel && (
+                  <div className="text-[7.5px] lg:text-[9px] text-slate-400 mt-0.5 ml-2 text-right">
+                    Includes ${fmt(calc.upfrontFee as number)} {activeProgram.upfrontFeeLabel}
+                  </div>
+                )}
                 {calc.cashBand && (
                   <div className="text-right">
                     <span className="text-[7.5px] lg:text-[9px] text-slate-400 uppercase mr-1">

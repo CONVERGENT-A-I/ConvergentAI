@@ -732,7 +732,13 @@ export class SessionContextManager {
   // ──────────────────────────────────────────────────────────────────────────
   private async runStage25Extraction(text: string): Promise<void> {
     const lastQuestion = this.getLastAssistantUtterance();
-    const field = this.currentPendingField;
+    let field = this.currentPendingField;
+
+    // Clear AUS delivery state and return to active panel interaction
+    if (field === 'fd1_delivery' || field === 'fd2_delivery') {
+      this.currentPendingField = 'affordability_panel_active';
+      field = 'affordability_panel_active';
+    }
 
     if (field === 'affordability_panel_active') {
       const res = await extractProfileField(
