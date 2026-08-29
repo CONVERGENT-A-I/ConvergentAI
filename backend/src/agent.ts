@@ -121,8 +121,8 @@ class AilanaVoiceAgent extends voice.Agent {
   override async llmNode(chatCtx: any, toolCtx: any, modelSettings: any): ReturnType<typeof voice.Agent.prototype.llmNode> {
     this.metrics.markLlmStart();
 
-    const pending = this.contextManager.getPendingField();
-    const profile = this.contextManager.getProfile();
+    // We only need profile for a flag check initially.
+    const initialProfile = this.contextManager.getProfile();
 
     // Check if the user's last turn was a question, correction, or explanation request
     const lastUserMsg = [...(chatCtx?.items || [])]
@@ -133,15 +133,22 @@ class AilanaVoiceAgent extends voice.Agent {
       : Array.isArray(lastUserMsg?.content)
         ? lastUserMsg.content.join(' ')
         : '';
+    const userAskedQuestion = isQuestionOrCorrection(lastUserText) || (initialProfile as any).last_extracted_offer_val === 'explain';
 
-    const userAskedQuestion = isQuestionOrCorrection(lastUserText) || (profile as any).last_extracted_offer_val === 'explain';
+    // ── Ignore Empty Turns ──
+    // If the VAD triggered on pure noise and the STT transcribed nothing, stay silent.
+    // This prevents noise from triggering fallbacks (e.g. military_rural fallback).
+    if (!lastUserText.trim()) {
+      console.log('[agent-hook]: Ignored empty user turn (likely background noise). Staying silent.');
+      return createVerbatimStream('') as any;
+    }
 
     // ── 0ms Verbal Submit Fast-Path (Stage 2.5) ──
     // Fires before LLM so the base Cerebras model never produces a UI-redirect deflection.
     // We check this BEFORE the question/correction block so that phrases like "Can you submit this?"
     // trigger the submission rather than being delegated to the LLM for explanation.
-    const ausAlreadyDone = !!(profile as any).aus_status;
-    const inAffordabilityStage = this.contextManager.getActiveStage() === '2.5' || pending === 'affordability_panel_active';
+    const ausAlreadyDone = !!(this.contextManager.getProfile() as any).aus_status;
+    const inAffordabilityStage = this.contextManager.getActiveStage() === '2.5' || this.contextManager.getPendingField() === 'affordability_panel_active';
     const isConditionalOrQuestion = /\b(what if|after (?:i|we) submit|if (?:i|we) submit|before (?:i|we) submit|will that affect|what will be the process|how does it work|can you explain|why does|tell me about)\b/i.test(lastUserText);
     const verbalSubmitPattern = /\b(submit\s*(for\s*me|it|review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(?:and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|do\s+it\s+for\s+me|send\s+it|yes\s+submit|let'?s\s+submit|go\s+ahead|let'?s\s+go|proceed|ready\s+to\s+submit|i'?m\s+ready|yes\s+please|sounds\s+good)\b/i;
 
@@ -149,15 +156,16 @@ class AilanaVoiceAgent extends voice.Agent {
       console.log(`[agent-hook]: 0ms Verbal Submit Fast-Path triggered — executing AUS findings immediately without LLM call!`);
 
       // 1. Instantly update the UI to show the button as "Review Submitted ✓" and ensure panel stays rendered
-      profile.affordability_submitted = true;
-      profile.affordability_panel_rendered = true;
-      (profile as any).affordability_panel_closed = false;
+      const p = this.contextManager.getProfile();
+      p.affordability_submitted = true;
+      p.affordability_panel_rendered = true;
+      (p as any).affordability_panel_closed = false;
       if (this.sendStageUpdate) {
         this.sendStageUpdate('2.5').catch(err => console.warn(err));
       }
 
       // 2. Mark stage 5 transition as deferred until avatar finishes reading the AUS findings speech.
-      (profile as any).pendingStage5Transition = true;
+      (p as any).pendingStage5Transition = true;
 
       const scriptText = `Thank you for your patience — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;
       return createVerbatimStream(scriptText) as any;
@@ -180,6 +188,13 @@ class AilanaVoiceAgent extends voice.Agent {
 
     const loIntent = await classifyLoanOfficerTransferIntent(lastUserText, lastAgentText);
     console.log(`[agent-hook]: LO transfer classification → "${loIntent}" for: "${lastUserText}"`);
+
+    // ?? CRITICAL RACE CONDITION FIX: 
+    // We MUST read the profile and pending fields AFTER the await above.
+    // If the STT triggers multiple rapid concurrent llmNode calls, they would all read the same
+    // state at the top, await the intent, and then all execute the same state transition (e.g. printing a bridge line twice).
+    const pending = this.contextManager.getPendingField();
+    const profile = this.contextManager.getProfile();
 
     if (loIntent === 'yes') {
       console.log(`[agent-hook]: 📞 LLM-classified Loan Officer transfer — showing popup via SYSTEM_TRIGGER_MLO_TRANSFER.`);
