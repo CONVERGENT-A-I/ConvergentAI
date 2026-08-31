@@ -803,6 +803,13 @@ export default defineAgent({
       model: 'google/gemma-4-31b-it',
     });
     const contextManager = new SessionContextManager(summarizationLlm, metrics);
+    
+    let sendStageUpdateFn: ((stage: string) => Promise<void>) | null = null;
+    contextManager.onStateReconciled = (manager) => {
+      if (sendStageUpdateFn) {
+        sendStageUpdateFn(manager.getActiveStage()).catch(err => console.warn(`[agent]: Failed to send reconciled stage update:`, err));
+      }
+    };
 
     // ── DATABASE PERSISTENCE: Create or load application ─────────────────────
     // Each room session maps to a single application in the database.
@@ -1292,6 +1299,17 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             militaryRural: prof.military_rural,
             zipCode: prof.zip_code,
             propertyType: prof.property_type,
+            // ── Track Isolating Fields (Refinance & HELOC) ──────────
+            transaction_type: prof.transaction_type,
+            mortgage_goal: prof.mortgage_goal,
+            refinance_type: prof.refinance_type,
+            property_value: prof.property_value,
+            first_mortgage_balance: prof.first_mortgage_balance,
+            cash_out_amount: prof.cash_out_amount,
+            heloc_line_amount: prof.heloc_line_amount,
+            current_mortgage_rate: prof.current_mortgage_rate,
+            current_mortgage_payment: prof.current_mortgage_payment,
+            remaining_term_years: prof.remaining_term_years,
             // ── Affordability Panel state ────────────────────────────
             affordability_panel_rendered: prof.affordability_panel_rendered,
             affordability_mode: prof.affordability_mode,
@@ -1325,7 +1343,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         console.warn(`[agent-debug]: Failed to send stage update:`, e?.message);
       }
     };
-
+    sendStageUpdateFn = sendStageUpdate;
 
     function updateSessionInstructions() {
       try {

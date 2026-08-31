@@ -19,7 +19,7 @@ async function runHelocFlowTests() {
   const helocInstructions = buildStage2HelocInstructions(helocProfile);
   if (
     helocInstructions.includes('STAGE: Home Equity Line of Credit Pre-Qualification Discovery (TT-HEL)') &&
-    helocInstructions.includes('MANDATORY RISK DISCLOSURE (HQ16)') &&
+    helocInstructions.includes('MANDATORY RISK & REPAYMENT DISCLOSURE (HQ16/HQ19)') &&
     helocInstructions.includes('property_value') &&
     helocInstructions.includes('first_mortgage_balance') &&
     helocInstructions.includes('heloc_line_amount')
@@ -69,14 +69,22 @@ async function runHelocFlowTests() {
   p.credit_range_confirmed = true;
   manager.advanceWorkflow();
   if (manager.getPendingField() === 'heloc_risk_acknowledged') {
-    console.log('✅ HELOC - Test 2d Passed: Advances to heloc_risk_acknowledged (HQ16).');
+    console.log('✅ HELOC - Test 2d Passed: Advances to heloc_risk_acknowledged (HQ16/HQ19).');
   }
 
-  // Confirm risk disclosure -> property_value
+  // Confirm risk disclosure -> heloc_rate_comfort (HQ24)
   p.heloc_risk_acknowledged = true;
   manager.advanceWorkflow();
+  if (manager.getPendingField() === 'heloc_rate_comfort') {
+    console.log('✅ HELOC - Test 2e Passed: Advances to heloc_rate_comfort (HQ24).');
+  }
+
+  // Confirm rate comfort -> property_value
+  p.heloc_rate_comfort = 'variable';
+  (p as any).heloc_rate_comfort_confirmed = true;
+  manager.advanceWorkflow();
   if (manager.getPendingField() === 'property_value') {
-    console.log('✅ HELOC - Test 2e Passed: Advances to property_value (HQ20).');
+    console.log('✅ HELOC - Test 2f Passed: Advances to property_value (HQ20).');
   }
 
   // Confirm property_value -> first_mortgage_balance
@@ -84,7 +92,7 @@ async function runHelocFlowTests() {
   (p as any).property_value_confirmed = true;
   manager.advanceWorkflow();
   if (manager.getPendingField() === 'first_mortgage_balance') {
-    console.log('✅ HELOC - Test 2f Passed: Advances to first_mortgage_balance (HQ21).');
+    console.log('✅ HELOC - Test 2g Passed: Advances to first_mortgage_balance (HQ21).');
   }
 
   // Confirm 1st balance -> heloc_line_amount
@@ -92,7 +100,7 @@ async function runHelocFlowTests() {
   (p as any).first_mortgage_balance_confirmed = true;
   manager.advanceWorkflow();
   if (manager.getPendingField() === 'heloc_line_amount') {
-    console.log('✅ HELOC - Test 2g Passed: Advances to heloc_line_amount (HQ22).');
+    console.log('✅ HELOC - Test 2h Passed: Advances to heloc_line_amount (HQ22).');
   }
 
   // Confirm line amount -> heloc_draw_use
@@ -100,14 +108,14 @@ async function runHelocFlowTests() {
   (p as any).heloc_line_amount_confirmed = true;
   manager.advanceWorkflow();
   if (manager.getPendingField() === 'heloc_draw_use') {
-    console.log('✅ HELOC - Test 2h Passed: Advances to heloc_draw_use (HQ23).');
+    console.log('✅ HELOC - Test 2i Passed: Advances to heloc_draw_use (HQ23).');
   }
 
   // Confirm draw use -> job_tenure_type
   p.heloc_draw_use = 'Kitchen and bath remodel';
   manager.advanceWorkflow();
   if (manager.getPendingField() === 'job_tenure_type') {
-    console.log('✅ HELOC - Test 2i Passed: Advances to job_tenure_type.');
+    console.log('✅ HELOC - Test 2j Passed: Advances to job_tenure_type.');
   }
 
   // Confirm job tenure -> stage2_closing_offer
@@ -115,7 +123,7 @@ async function runHelocFlowTests() {
   p.job_tenure_type_confirmed = true;
   manager.advanceWorkflow();
   if (manager.getPendingField() === 'stage2_closing_offer') {
-    console.log('✅ HELOC - Test 2j Passed: Advances to stage2_closing_offer (Two-Path Choice).');
+    console.log('✅ HELOC - Test 2k Passed: Advances to stage2_closing_offer (Two-Path Choice).');
   }
 
   console.log('\n🎉 ALL HELOC FLOW TESTS PASSED!\n');

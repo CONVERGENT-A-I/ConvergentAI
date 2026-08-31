@@ -43,15 +43,17 @@ This document is the **single source of truth** for implementing and verifying t
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 1: Stage 1 Multi-Track Intent Routing (TT-PUR, TT-REF, TT-HEL)                   │
+│ PHASE 1: Stage 1 Multi-Track Intent Routing (TT-PUR, TT-REF, TT-HEL)       ✅ COMPLETE │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
-│ PHASE 2: Stage 2 Conversational Discovery Prompts & State Machine for Refi & HELOC     │
+│ PHASE 2: Stage 2 Conversational Discovery Prompts & State Machine           ✅ COMPLETE │
+│          (with confirmed gaps — see Gap Analysis section below)                        │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
-│ PHASE 3: Stage 2.5 Dynamic Affordability Panel Binding (refiRT, refiCO, heloc)        │
+│ PHASE 3: Stage 2.5 Dynamic Affordability Panel Binding                      ✅ COMPLETE │
+│          (with confirmed gaps — see Gap Analysis section below)                        │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
-│ PHASE 4: Stage 3 Findings Delivery (RFD1/2, HFD1/2) & Loan Officer Handoff Integration │
+│ PHASE 4: Stage 3/4 Findings Delivery (RFD1/2, HFD1/2) & LO Handoff         ⏳ PENDING  │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
-│ PHASE 5: End-to-End Regression & Quality Assurance Testing Across All 3 Tracks         │
+│ PHASE 5: End-to-End Regression & Quality Assurance Testing                  ⏳ PENDING  │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -61,9 +63,9 @@ This document is the **single source of truth** for implementing and verifying t
 
 #### Objective
 Ensure that on the very first question (`Q9`), Ailana correctly classifies borrower intent and locks the session state machine to the correct track:
-- *"I want to buy a new home"* $\rightarrow$ `transaction_type = 'TT-PUR'` (sets `mortgage_goal = 'purchase'`)
-- *"I want to refinance my current mortgage"* $\rightarrow$ `transaction_type = 'TT-REF'` (sets `mortgage_goal = 'refinance'`)
-- *"I want to tap my equity with a HELOC"* $\rightarrow$ `transaction_type = 'TT-HEL'` (sets `mortgage_goal = 'heloc'`)
+- *"I want to buy a new home"* → `transaction_type = 'TT-PUR'` (sets `mortgage_goal = 'purchase'`)
+- *"I want to refinance my current mortgage"* → `transaction_type = 'TT-REF'` (sets `mortgage_goal = 'refinance'`)
+- *"I want to tap my equity with a HELOC"* → `transaction_type = 'TT-HEL'` (sets `mortgage_goal = 'heloc'`)
 
 #### Status
 - ✅ **`BorrowerProfile` updated in `layer3-context.ts`** with `transaction_type: 'TT-PUR' | 'TT-REF' | 'TT-HEL' | ...`.
@@ -72,25 +74,25 @@ Ensure that on the very first question (`Q9`), Ailana correctly classifies borro
 - ✅ **TypeScript compilation**: 0 errors on both frontend and backend.
 
 #### How to Test Phase 1
-1. Start session, say `I want to refinance my mortgage.` $\rightarrow$ Confirm Ailana answers: *"Got it — let's take a look at your refinance options."* Check backend logs for `transaction_type: TT-REF`.
-2. Start session, say `I want a home equity line of credit.` $\rightarrow$ Confirm Ailana answers: *"A home equity line of credit is a great way to put your equity to work."* Check backend logs for `transaction_type: TT-HEL`.
-3. Start session, say `I want to buy a home.` $\rightarrow$ Confirm Purchase track continues normally.
+1. Start session, say `I want to refinance my mortgage.` → Confirm Ailana answers: *"Got it — let's take a look at your refinance options."* Check backend logs for `transaction_type: TT-REF`.
+2. Start session, say `I want a home equity line of credit.` → Confirm Ailana answers: *"A home equity line of credit is a great way to put your equity to work."* Check backend logs for `transaction_type: TT-HEL`.
+3. Start session, say `I want to buy a home.` → Confirm Purchase track continues normally.
 
 ---
 
-### 🔹 PHASE 2: Stage 2 Conversational Discovery Prompts & Field Extraction (✅ COMPLETE)
+### 🔹 PHASE 2: Stage 2 Conversational Discovery Prompts & Field Extraction (✅ COMPLETE — with gaps)
 
 #### Objective
 Refactor and isolate Stage 2 question flows for Refinance (`RQ14–RQ29`) and HELOC (`HQ14–HQ26`), matching the v8.7 specification without touching or disrupting the purchase flow.
 
 #### Status
-- ✅ **Created [`backend/src/prompts/stage2-refinance.ts`](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/prompts/stage2-refinance.ts)** (`RQ14–RQ29`):
+- ✅ **Created `backend/src/prompts/stage2-refinance.ts`** (`RQ14–RQ29`):
   - Refinance intent (`rate_term` vs `cash_out`), estimated market value, remaining balance, current rate, monthly payment baseline, current loan type (Conventional, FHA, VA, USDA), remaining term in years, closing costs preference (out-of-pocket vs. rolled-in), cash-out amount, and employer/job tenure.
-- ✅ **Created [`backend/src/prompts/stage2-heloc.ts`](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/prompts/stage2-heloc.ts)** (`HQ14–HQ26`):
+- ✅ **Created `backend/src/prompts/stage2-heloc.ts`** (`HQ14–HQ26`):
   - HELOC mechanics (10-yr draw vs. repayment), mandatory variable rate & foreclosure risk disclosure (`HQ16`), home value, 1st mortgage balance, requested credit line amount, draw use, and employer/job tenure.
-- ✅ **Updated [`backend/src/prompts/ailana-system.ts`](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/prompts/ailana-system.ts)**:
+- ✅ **Updated `backend/src/prompts/ailana-system.ts`**:
   - Dynamically dispatches the right Stage 2 prompt module based on `profile.transaction_type` / `profile.mortgage_goal`.
-- ✅ **Updated [`backend/src/context/session-context-manager.ts`](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/context/session-context-manager.ts)**:
+- ✅ **Updated `backend/src/context/session-context-manager.ts`**:
   - Added deterministic extraction, validation, and state machine sequencing for all Refinance and HELOC fields.
 - ✅ **Created Dedicated Test Suites**:
   - `refinance-flow.test.ts` (100% Passed)
@@ -103,27 +105,27 @@ Refactor and isolate Stage 2 question flows for Refinance (`RQ14–RQ29`) and HE
 
 ---
 
-### 🔹 PHASE 3: Stage 2.5 Dynamic Affordability Panel Binding (✅ COMPLETE)
+### 🔹 PHASE 3: Stage 2.5 Dynamic Affordability Panel Binding (✅ COMPLETE — with gaps)
 
 #### Objective
-Connect the extracted Refinance and HELOC profile data into [`AffordabilityPanelNew`](file:///c:/Users/Sameer/Desktop/ConvergentAI/src/components/affordability-panel-new.tsx) on the frontend.
+Connect the extracted Refinance and HELOC profile data into `AffordabilityPanelNew` on the frontend.
 
 #### Status
-- ✅ **Updated [`src/components/floating-cta/index.tsx`](file:///c:/Users/Sameer/Desktop/ConvergentAI/src/components/floating-cta/index.tsx)**:
+- ✅ **Updated `src/components/floating-cta/index.tsx`**:
   - Dynamically derives `transactionType` (`TT-PUR` / `TT-REF` / `TT-HEL`) from `borrowerProfile.transaction_type` / `mortgage_goal`.
   - Derives `cashOutIntent` from `borrowerProfile.refinance_type === 'cash_out'` to distinguish `refiRT` vs `refiCO`.
   - Builds mode-appropriate `initialAssumptions` (purchase, refiRT, refiCO, or heloc) from profile fields.
   - Updates panel header labels: "Affordability Summary" / "Refinance Summary" / "Cash-Out Refinance Summary" / "HELOC Summary" (both desktop inline + mobile modal).
-- ✅ **Updated [`src/components/floating-cta/affordability-modal.tsx`](file:///c:/Users/Sameer/Desktop/ConvergentAI/src/components/floating-cta/affordability-modal.tsx)**:
+- ✅ **Updated `src/components/floating-cta/affordability-modal.tsx`**:
   - Same dynamic derivation applied to the standalone modal component.
 - ✅ **TypeScript compilation**: 0 source errors on both frontend and backend.
 - ✅ **Backend test suite**: All 10 test files passed (100% — zero regressions).
 
 #### Files to Touch
-* [`src/components/floating-cta/index.tsx`](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/src/components/floating-cta/index.tsx):
+* `src/components/floating-cta/index.tsx`:
   - Pass dynamic `transactionType`:
     ```tsx
-    const apTransactionType = 
+    const apTransactionType =
       borrowerProfile?.transaction_type ||
       (borrowerProfile?.mortgage_goal === 'refinance' ? 'TT-REF' :
        borrowerProfile?.mortgage_goal === 'equity' || borrowerProfile?.mortgage_goal === 'heloc' ? 'TT-HEL' :
@@ -141,29 +143,232 @@ Connect the extracted Refinance and HELOC profile data into [`AffordabilityPanel
 
 ---
 
-### 🔹 PHASE 4: Findings Delivery & Loan Officer Handoff
+### 🔹 PHASE 4: Findings Delivery & Loan Officer Handoff (⏳ PENDING)
 
 #### Objective
 Tailor the Stage 3/4 findings scripts and Stage 5 loan officer handoff for Refinance (`RFD1`/`RFD2`) and HELOC (`HFD1`/`HFD2`).
 
 #### Files to Touch
-* [`backend/src/prompts/stage4-underwriting.ts`](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/prompts/stage4-underwriting.ts)
-* [`backend/src/agent.ts`](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/agent.ts)
+* `backend/src/prompts/stage4-underwriting.ts` — add track-aware findings scripts
+* `backend/src/agent.ts` — ensure AUS submission flow routes correctly for TT-REF and TT-HEL
+
+#### Specific Implementation Requirements
+
+`stage4-underwriting.ts` must be updated to branch on `profile.transaction_type` and deliver the correct findings formulation per the v8.7 spec.
+
+**1. `RFD-LOADING`** — Deliver if AUS hasn't returned within ~10-15 seconds for any non-purchase track (Compliance Item 28, mandatory):
+> *"Your eligibility review is processing right now — these reviews typically take just a moment, but occasionally take a little longer depending on system volume. Please hold on — I'll have your results for you shortly and we'll go through everything together."*
+
+**2. `RFD1`** — Refinance conditional eligibility (when `TT-REF`, replaces generic `approve` script):
+> *"Good news, [Name] — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for the refinance scenario you built. Your estimated payment comparison is on your screen now — it shows your estimated new payment alongside your current payment reference point. Your licensed loan officer will reach out to walk you through next steps and lock in your rate — or I can connect you right now if you'd like."*
+
+**3. `RFD2`** — Refinance refer (when `TT-REF`, replaces generic `refer` script):
+> *"Thank you for your patience, [Name] — your review is back, and your refinance scenario warrants a closer look from a licensed loan officer rather than an automated decision. That is common in refinance situations, and it is often where the best solutions are found — your loan officer can evaluate options like streamline programs or specific equity structures the automated review does not fully cover. Can I connect you to a licensed loan officer now, or schedule a callback?"*
+
+**4. `HFD1`** — HELOC conditional eligibility (when `TT-HEL`, replaces generic `approve` script):
+> *"Good news, [Name] — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity line of credit. Your estimated available credit line is on your screen now. Your licensed loan officer will reach out to walk you through the next steps — including the formal application, appraisal scheduling, and the terms of your line — or I can connect you right now if you'd like."*
+
+**5. `HFD2`** — HELOC refer (when `TT-HEL`, replaces generic `refer` script):
+> *"Thank you for your patience, [Name] — your review is back, and your HELOC scenario warrants a closer look from a licensed loan officer. Equity-based lending depends on several factors that an automated review can only partially assess, and a licensed loan officer may identify options or programs the initial review didn't capture. Can I connect you now, or schedule a callback?"*
+
+**Compliance constraints for Phase 4:**
+- `RFD1` / `HFD1`: Always *"conditionally eligible"* — NEVER "approved" or "rate confirmed".
+- `RFD2` / `HFD2`: Never cite a specific reason for referral. Never use denial language.
+- No pre-qualification letter for Refinance or HELOC tracks (purchase-only per Compliance Item 15).
+- `RFD-LOADING` must not speculate about the result before it arrives.
 
 #### How to Test Phase 4
-1. Click/Say `Submit for review` on a Refinance scenario $\rightarrow$ Confirm `RFD1` conditional eligibility delivery.
-2. Click/Say `Submit for review` on a HELOC scenario $\rightarrow$ Confirm `HFD1` credit line eligibility delivery.
-3. Verbally request loan officer handoff $\rightarrow$ Confirm automatic SIP queue and call handoff.
+1. Click/Say `Submit for review` on a Refinance scenario → Confirm `RFD1` conditional eligibility delivery.
+2. Click/Say `Submit for review` on a HELOC scenario → Confirm `HFD1` credit line eligibility delivery.
+3. Verbally request loan officer handoff → Confirm automatic SIP queue and call handoff.
 
 ---
 
-### 🔹 PHASE 5: Regression & Quality Assurance Testing
+### 🔹 PHASE 5: Regression & Quality Assurance Testing (⏳ PENDING)
 
 #### Objective
 Perform full end-to-end regression testing across all 3 tracks to ensure 100% stability.
 
 #### Verification Suite
-* ✅ **Home Purchase Track (`TT-PUR`)**: Run complete flow with Path A (Verified) and Path B (Stated).
-* ✅ **Refinance Track (`TT-REF`)**: Run Rate & Term and Cash-Out.
-* ✅ **HELOC Track (`TT-HEL`)**: Run Equity Line discovery and panel.
-* ✅ **TypeScript Check**: Run `npx tsc --noEmit` on both frontend and backend.
+* **Home Purchase Track (`TT-PUR`)**: Run complete flow with Path A (Verified) and Path B (Stated).
+* **Refinance Track (`TT-REF`)**: Run Rate & Term and Cash-Out.
+* **HELOC Track (`TT-HEL`)**: Run Equity Line discovery and panel.
+* **TypeScript Check**: Run `npx tsc --noEmit` on both frontend and backend.
+
+---
+
+## 🐛 Confirmed Gap Analysis (Post Phase 1–3 Review)
+
+> Gaps confirmed by cross-referencing the v8.7 master spec against the actual implementation files. All must be resolved before Phase 5 QA.
+
+---
+
+### GAP-1 — HELOC HQ19 Repayment Transition Disclosure Missing
+**Severity: 🔴 HIGH — Compliance Item 30**
+**File:** `backend/src/prompts/stage2-heloc.ts`
+
+The draw-period-to-repayment payment shock warning (HQ19) is a **proactive compliance requirement** — it must be delivered as part of normal Stage 2 discovery flow, not only if the borrower asks. The current field sequence jumps directly from the risk disclosure (`heloc_risk_acknowledged`) to data collection with no mention of the repayment transition payment increase.
+
+**Fix:** Add `heloc_repayment_transition_acknowledged` field after `heloc_risk_acknowledged` with this mandatory wording:
+> *"When the draw period ends — typically after 10 years — the repayment period begins and your monthly payment will increase to cover both principal and interest on whatever balance remains. This can be a significant payment increase, especially if you've only been paying interest. It is one of the most important things to plan for — does this change anything about how you're thinking about a HELOC?"*
+
+---
+
+### GAP-2 — Refinance Loan-Type Sub-Tracks Not Implemented
+**Severity: 🔴 HIGH — Compliance Item 26 (USDA cash-out prohibition)**
+**Files:** `backend/src/prompts/stage2-refinance.ts`, `backend/src/context/session-context-manager.ts`
+
+The master spec requires that once `current_mortgage_type` is captured, the agent activates the correct sub-track and delivers a brief overview:
+- **VA loan** → deliver `VA-REF-OVERVIEW` → ask IRRRL vs Cash-Out
+- **FHA loan** → deliver `FHA-REF-OVERVIEW` → ask Streamline vs Rate-Term vs Cash-Out
+- **USDA loan** → deliver `USDA-REF-OVERVIEW` → **explicitly state: cash-out is NOT available** on USDA
+- **Conventional** → deliver `CONV-REF-OVERVIEW`
+
+Currently `current_mortgage_type` is collected but nothing branches on it. A USDA borrower requesting cash-out will never be told it's prohibited — a Compliance Item 27 violation.
+
+**Fix:** After `current_mortgage_type` extraction in `session-context-manager.ts`, set a `refinance_subtrack` field and inject the correct overview block into Stage 2 prompt rendering.
+
+---
+
+### GAP-3 — `refinance_type` Asked Before Loan Type Is Known (Field Order Bug)
+**Severity: 🟡 MEDIUM**
+**File:** `backend/src/prompts/stage2-refinance.ts`
+
+The current sequence asks `refinance_type` (cash-out vs rate-term) as field **#4**, but `current_mortgage_type` isn't asked until field **#9**. Per the v8.5 routing rule, the sub-track overview determines `refinance_type` — RQ26 should only fire standalone if loan type is `unknown`.
+
+**Fix — Corrected field sequence:**
+```
+1. gross_annual_income
+2. monthly_debt
+3. credit_range
+4. current_mortgage_type  ← MOVED UP (triggers sub-track overview which captures intent)
+5. refinance_type         ← Only if loan type is unknown/general track
+6. property_value
+7. first_mortgage_balance
+8. current_mortgage_rate
+9. current_mortgage_payment
+10. remaining_term_years
+11. closing_costs_preference
+12. cash_out_amount       ← Only if cash-out
+13. job_tenure_type
+```
+
+---
+
+### GAP-4 — HELOC HQ24 (Variable Rate Comfort / TT-HEQ Gate) Missing
+**Severity: 🟡 MEDIUM**
+**File:** `backend/src/prompts/stage2-heloc.ts`
+
+The master spec (Section H-2B, HQ24) requires:
+> *"Are you comfortable with a variable interest rate, or is payment predictability important to you?"*
+
+If the borrower strongly prefers fixed rates, Ailana must introduce the home equity loan comparison and offer to switch to `TT-HEQ`. This question is entirely absent from the HELOC field sequence.
+
+**Fix:** Add `heloc_rate_comfort` field between `heloc_line_amount` and `heloc_draw_use`. If the extracted response indicates strong fixed-rate preference, trigger the TT-HEQ equity disambiguation flow.
+
+---
+
+### GAP-5 — HELOC HQ25 and HQ26 Missing From Field Sequence
+**Severity: 🟡 MEDIUM**
+**File:** `backend/src/prompts/stage2-heloc.ts`
+
+Two data-collection questions from the master spec (Section H-2B) are absent:
+- **HQ25**: *"Have you had a HELOC on this property before?"* — surfaces prior equity lines and seasoning context.
+- **HQ26**: *"How quickly are you hoping to access the funds?"* — timeline awareness (HELOC approval takes 2–6 weeks).
+
+**Fix:** Add `heloc_prior_history` and `heloc_timeline` fields to the sequence before `job_tenure_type`.
+
+---
+
+### GAP-6 — Equity Disambiguation (TT-HEL vs TT-HEQ) Not Implemented
+**Severity: 🟡 MEDIUM**
+**File:** `backend/src/context/session-context-manager.ts`
+
+The master spec (Section 0) requires: when intent is general equity access without HELOC-specific language, Ailana must ask whether the borrower wants a HELOC (revolving line) or a home equity loan (fixed lump sum) before routing.
+
+Currently, the classifier maps any equity/HELOC keyword directly to `TT-HEL`. `TT-HEQ` is defined in `layer3-context.ts` but **is completely unreachable** — no code path ever sets it.
+
+**Fix:** Add an `equity_ambiguous` intermediate `mortgage_goal` state. When active in Stage 1, inject the disambiguation question and hold Stage 1 open until the borrower chooses HELOC or Home Equity Loan, then route accordingly.
+
+---
+
+### GAP-7 — Profile Propagation Verification in `stage25-affordability.ts` Q46
+**Severity: 🟢 LOW**
+**File:** `backend/src/prompts/stage25-affordability.ts`, Line 24
+
+Q46 was updated to use `${profile.borrower_name || 'there'}`. Since this is inside the outer template literal of `buildStage25Instructions`, it should evaluate at runtime. However, verification is needed that `buildStage25Instructions(profile)` in `ailana-system.ts` is always called with a fully populated profile and not the default empty `{}`. If profile is empty, the agent will say *"there"* instead of the borrower's name.
+
+**Fix:** Confirm that `buildLayer2(stage, profile)` in `ailana-system.ts` propagates the populated profile into `buildStage25Instructions(profile)` at stage `'2.5'`.
+
+---
+
+### GAP-8 — Phase 4 Findings Delivery Entirely Missing
+**Severity: 🔴 HIGH**
+**File:** `backend/src/prompts/stage4-underwriting.ts`
+
+The file contains only generic purchase-track AUS scripts with no branching on `profile.transaction_type`. When `TT-REF` or `TT-HEL` borrowers reach Stage 4, they receive the purchase-track *"Excellent news! The system has returned a conditional approval for your loan application"* script — not `RFD1`/`HFD1`.
+
+**Fix:** See Phase 4 Specific Implementation Requirements above.
+
+---
+
+### GAP-9 — 80% LTV Ceiling Not Enforced on Cash-Out Panel (`refiCO`)
+**Severity: 🟡 MEDIUM — Compliance accuracy**
+**File:** `src/components/affordability-panel-new.tsx`
+
+The panel calculates `loanAmt = payoff + cashOut` without enforcing the 80% LTV cap required by the master spec (CONV-REF-CASHOUT):
+> *"maximum cash payout = appraised value × 80% − current mortgage payoff − closing costs"*
+
+Currently a borrower can set `cashOut` to any amount — the LTV gauge turns amber but **no cap is applied and no explanatory warning is shown** distinguishing "LTV is high" from "this amount exceeds the conventional 80% limit." The Phase 3 test plan says *"checks the 80% LTV ceiling"* — this test would fail against the current code.
+
+**Fix:** In the `refiCO` calc block, add:
+```ts
+const maxLoanAt80 = a.homeValue * 0.80;
+const maxCashOut = Math.max(0, maxLoanAt80 - a.payoff);
+const effectiveCashOut = Math.min(a.cashOut, maxCashOut);
+```
+Surface a warning line in the panel when `a.cashOut > maxCashOut`: *"Cash-out capped at 80% LTV limit — max available: $X"*
+
+---
+
+### GAP-10 — HELOC Repayment Period Payment Not Calculated or Displayed
+**Severity: 🟢 LOW — Consumer disclosure**
+**File:** `src/components/affordability-panel-new.tsx`
+
+The HELOC panel shows only the **draw period** interest-only payment. It does not calculate or display the **repayment period payment** (principal + interest once the draw period ends after 10 years). This connects directly to GAP-1 (HQ19 mandatory disclosure) — the spec emphasizes this payment shock is a material consumer risk.
+
+**Fix (deferred):** Add a secondary display line showing estimated repayment period payment: `monthlyPI(lineAmount, drawRate, 20)`. Label it clearly as *"After draw period (yr 11+): ~$X/mo P&I"*. This reinforces the HQ19 disclosure visually.
+
+---
+
+### GAP-11 — VA Funding Fee Hardcoded at 2.15% (First-Use Only)
+**Severity: 🟢 LOW — Accuracy for returning VA borrowers**
+**File:** `src/components/affordability-panel-new.tsx` L188
+
+The panel hardcodes `upfrontFeePct: 2.15` for all VA borrowers. The master spec (VA-REF-CASHOUT) states:
+> *"VA Funding Fee of 2.15% for first-time use or 3.3% for subsequent use"*
+
+A VA borrower doing a subsequent cash-out refinance would see a funding fee 1.15% lower than reality, understating their loan amount by roughly $5,750 on a $500K loan.
+
+**Fix:** Add a `vaSubsequentUse?: boolean` prop or infer from profile. Update the VA program config:
+```ts
+upfrontFeePct: profile.va_subsequent_use ? 3.3 : 2.15,
+```
+
+---
+
+## 📊 Gap Summary Table
+
+| ID | Description | Severity | Phase | Status |
+|---|---|---|---|---|
+| GAP-1 | HELOC HQ19 repayment transition disclosure missing | 🔴 HIGH | Phase 2 | ✅ Resolved |
+| GAP-2 | Refi loan-type sub-tracks (VA/FHA/USDA/Conv) not implemented | 🔴 HIGH | Phase 2 | ✅ Resolved |
+| GAP-3 | `refinance_type` asked before `current_mortgage_type` (wrong order) | 🟡 MEDIUM | Phase 2 | ✅ Resolved |
+| GAP-4 | HELOC HQ24 (variable rate comfort / TT-HEQ gate) missing | 🟡 MEDIUM | Phase 2 | ✅ Resolved |
+| GAP-5 | HELOC HQ25 & HQ26 missing from field sequence | 🟡 MEDIUM | Phase 2 | ✅ Resolved |
+| GAP-6 | No equity disambiguation for TT-HEL vs TT-HEQ | 🟡 MEDIUM | Phase 1 | ✅ Resolved |
+| GAP-7 | Profile propagation check for Q46 borrower name in `stage25-affordability.ts` | 🟢 LOW | Phase 3 | ✅ Resolved |
+| GAP-8 | Phase 4 findings delivery (RFD1/2, HFD1/2, RFD-LOADING) missing | 🔴 HIGH | Phase 4 | ⏳ Pending (Phase 4) |
+| GAP-9 | 80% LTV ceiling not enforced on cash-out panel (`refiCO`) | 🟡 MEDIUM | Phase 3 | ✅ Resolved |
+| GAP-10 | HELOC repayment period payment (post–draw) not calculated or displayed | 🟢 LOW | Phase 3 | ✅ Resolved |
+| GAP-11 | VA funding fee hardcoded at 2.15%; 3.3% subsequent-use not handled | 🟢 LOW | Phase 3 | ✅ Resolved |

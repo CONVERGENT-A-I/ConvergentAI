@@ -188,6 +188,7 @@ export function AffordabilityModal({
               eligiblePrograms={eligiblePrograms}
               isSubmitted={isSubmitted}
               initialAssumptions={initialAssumptions}
+              vaSubsequentUse={!!borrowerProfile?.va_subsequent_use}
               onRequestSoftPull={onUpgrade}
               onSubmitReview={() => onSubmitSuccess?.('approve_eligible')}
             />

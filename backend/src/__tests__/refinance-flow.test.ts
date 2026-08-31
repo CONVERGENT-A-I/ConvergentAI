@@ -65,12 +65,19 @@ async function runRefinanceFlowTests() {
     console.log('✅ Refinance - Test 2c Passed: Advances to credit_range.');
   }
 
-  // Confirm credit -> refinance_type
+  // Confirm credit -> current_mortgage_type (GAP-3 fix)
   p.credit_range = '740';
   p.credit_range_confirmed = true;
   manager.advanceWorkflow();
+  if (manager.getPendingField() === 'current_mortgage_type') {
+    console.log('✅ Refinance - Test 2d Passed: Advances to current_mortgage_type (RQ-LOANTYPE).');
+  }
+
+  // Confirm current_mortgage_type -> refinance_type
+  p.current_mortgage_type = 'conventional';
+  manager.advanceWorkflow();
   if (manager.getPendingField() === 'refinance_type') {
-    console.log('✅ Refinance - Test 2d Passed: Advances to refinance_type (RQ14/RQ26).');
+    console.log('✅ Refinance - Test 2e Passed: Advances to refinance_type (RQ14/RQ26).');
   }
 
   // Confirm refinance_type -> property_value
@@ -78,7 +85,7 @@ async function runRefinanceFlowTests() {
   p.refinance_type_confirmed = true;
   manager.advanceWorkflow();
   if (manager.getPendingField() === 'property_value') {
-    console.log('✅ Refinance - Test 2e Passed: Advances to property_value (RQ23).');
+    console.log('✅ Refinance - Test 2f Passed: Advances to property_value (RQ23).');
   }
 
   // Confirm property_value -> first_mortgage_balance
@@ -86,7 +93,7 @@ async function runRefinanceFlowTests() {
   (p as any).property_value_confirmed = true;
   manager.advanceWorkflow();
   if (manager.getPendingField() === 'first_mortgage_balance') {
-    console.log('✅ Refinance - Test 2f Passed: Advances to first_mortgage_balance (RQ22).');
+    console.log('✅ Refinance - Test 2g Passed: Advances to first_mortgage_balance (RQ22).');
   }
 
   // Confirm first_mortgage_balance -> current_mortgage_rate
@@ -94,7 +101,7 @@ async function runRefinanceFlowTests() {
   (p as any).first_mortgage_balance_confirmed = true;
   manager.advanceWorkflow();
   if (manager.getPendingField() === 'current_mortgage_rate') {
-    console.log('✅ Refinance - Test 2g Passed: Advances to current_mortgage_rate (RQ21).');
+    console.log('✅ Refinance - Test 2h Passed: Advances to current_mortgage_rate (RQ21).');
   }
 
   // Confirm current_mortgage_rate -> current_mortgage_payment
@@ -102,19 +109,12 @@ async function runRefinanceFlowTests() {
   (p as any).current_mortgage_rate_confirmed = true;
   manager.advanceWorkflow();
   if (manager.getPendingField() === 'current_mortgage_payment') {
-    console.log('✅ Refinance - Test 2h Passed: Advances to current_mortgage_payment (RQ24).');
+    console.log('✅ Refinance - Test 2i Passed: Advances to current_mortgage_payment (RQ24).');
   }
 
-  // Confirm payment -> current_mortgage_type
+  // Confirm payment -> remaining_term_years
   p.current_mortgage_payment = 2400;
   (p as any).current_mortgage_payment_confirmed = true;
-  manager.advanceWorkflow();
-  if (manager.getPendingField() === 'current_mortgage_type') {
-    console.log('✅ Refinance - Test 2i Passed: Advances to current_mortgage_type (RQ-LOANTYPE).');
-  }
-
-  // Confirm loan type -> remaining_term_years
-  p.current_mortgage_type = 'conventional';
   manager.advanceWorkflow();
   if (manager.getPendingField() === 'remaining_term_years') {
     console.log('✅ Refinance - Test 2j Passed: Advances to remaining_term_years (RQ25).');

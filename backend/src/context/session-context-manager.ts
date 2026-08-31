@@ -70,6 +70,8 @@ export class SessionContextManager {
     durationMs?: number;
   }>();
 
+  public onStateReconciled?: (manager: SessionContextManager) => void;
+
   // Database persistence (optional - only if DATABASE_URL is set)
   private applicationId: string | null = null;
   private lastSyncAt = Date.now();
@@ -427,6 +429,10 @@ export class SessionContextManager {
 
       this.lastAppliedTurn = turnNum;
       this.pendingExtractions.delete(turnNum);
+      
+      if (this.onStateReconciled) {
+        this.onStateReconciled(this);
+      }
     }
   }
 
@@ -1709,7 +1715,7 @@ export class SessionContextManager {
         name: 'mortgage_goal',
         description: 'Whether they want to purchase/buy a new home, refinance an existing mortgage, or explore a home equity / HELOC option',
         expectedType: 'string',
-        additionalInstructions: 'Extract "purchase", "refinance", or "heloc" (all lowercase). If they say they want to buy, purchase, acquire, or look for a new home or property, return "purchase". If they want to refinance, refi, lower their rate or payment, get cash out, or change existing mortgage terms, return "refinance". If they want a home equity line of credit, HELOC, tap equity, or equity loan, return "heloc". Return null if not mentioned at all.',
+        additionalInstructions: 'Extract "purchase", "refinance", "heloc", or "heq" (all lowercase). If they say they want to buy, purchase, acquire, or look for a new home or property, return "purchase". If they want to refinance, refi, lower their rate or payment, get cash out, or change existing mortgage terms, return "refinance". If they want a home equity line of credit, HELOC, or flexible equity draw, return "heloc". If they specifically want a fixed home equity loan, lump sum equity loan, or fixed rate second mortgage (not a line of credit), return "heq". Return null if not mentioned at all.',
       },
       {
         name: 'occupancy',
@@ -1742,10 +1748,13 @@ export class SessionContextManager {
 
     const mgRaw = extractionResults.mortgage_goal?.value;
     const mgVal = typeof mgRaw === 'string' ? mgRaw.toLowerCase().trim() : null;
-    if (mgVal && (mgVal.includes('purchase') || mgVal.includes('buy') || mgVal.includes('refinance') || mgVal.includes('refi') || mgVal.includes('equity') || mgVal.includes('heloc'))) {
+    if (mgVal && (mgVal.includes('purchase') || mgVal.includes('buy') || mgVal.includes('refinance') || mgVal.includes('refi') || mgVal.includes('equity') || mgVal.includes('heloc') || mgVal.includes('heq'))) {
       if (mgVal.includes('refinance') || mgVal.includes('refi')) {
         this.profile.mortgage_goal = 'refinance';
         this.profile.transaction_type = 'TT-REF';
+      } else if (mgVal === 'heq' || mgVal.includes('fixed') || mgVal.includes('lump sum')) {
+        this.profile.mortgage_goal = 'heloc';
+        this.profile.transaction_type = 'TT-HEQ';
       } else if (mgVal.includes('equity') || mgVal.includes('heloc')) {
         this.profile.mortgage_goal = 'heloc';
         this.profile.transaction_type = 'TT-HEL';
@@ -1858,9 +1867,17 @@ export class SessionContextManager {
     if (isHel && !this.profile.heloc_risk_acknowledged) {
       allFields.push({
         name: 'heloc_risk_acknowledged',
-        description: 'Borrower acknowledgment of variable rate & foreclosure risk (HQ16)',
+        description: 'Borrower acknowledgment of variable rate, foreclosure risk, and 10-year draw to 20-year repayment transition (HQ16/HQ19)',
         expectedType: 'string',
         additionalInstructions: 'Extract "yes" or "acknowledged" if borrower acknowledges or understands the disclosure. Return null if not mentioned.',
+      });
+    }
+    if (isHel && !this.profile.heloc_rate_comfort) {
+      allFields.push({
+        name: 'heloc_rate_comfort',
+        description: 'Whether borrower is comfortable with a variable interest rate or prefers fixed payment predictability (HQ24)',
+        expectedType: 'string',
+        additionalInstructions: 'Extract "variable" if comfortable with variable rates/fluctuations. Extract "fixed" if they prioritize predictability, fixed rate, or set payments. Extract "either" if neutral. Return null if not mentioned.',
       });
     }
     if (isHel && !this.profile.heloc_draw_use) {
@@ -2080,6 +2097,14 @@ export class SessionContextManager {
       this.profile.heloc_risk_acknowledged = true;
       anyUpdates = true;
       console.log(`[context-manager] Stage2: heloc_risk_acknowledged=true`);
+    }
+
+    if (results.heloc_rate_comfort?.value && !this.profile.heloc_rate_comfort) {
+      const hrc = String(results.heloc_rate_comfort.value).toLowerCase().trim();
+      this.profile.heloc_rate_comfort = hrc.includes('fixed') || hrc.includes('predict') ? 'fixed' : hrc.includes('variable') ? 'variable' : 'either';
+      this.profile.heloc_rate_comfort_confirmed = true;
+      anyUpdates = true;
+      console.log(`[context-manager] Stage2: heloc_rate_comfort=${this.profile.heloc_rate_comfort}`);
     }
 
     if (results.heloc_draw_use?.value && !this.profile.heloc_draw_use) {
@@ -2456,8 +2481,10 @@ export class SessionContextManager {
       } else if (!this.profile.credit_range_confirmed) {
         this.currentPendingField = 'credit_range';
       } else if (isRef) {
-        // Refinance Sequence: refinance_type -> property_value -> first_mortgage_balance -> current_mortgage_rate -> current_mortgage_payment -> current_mortgage_type -> remaining_term_years -> closing_costs_preference -> [cash_out_amount] -> job_tenure_type
-        if (!this.profile.refinance_type_confirmed) {
+        // Refinance Sequence: current_mortgage_type -> refinance_type -> property_value -> first_mortgage_balance -> current_mortgage_rate -> current_mortgage_payment -> remaining_term_years -> closing_costs_preference -> [cash_out_amount] -> job_tenure_type
+        if (!this.profile.current_mortgage_type) {
+          this.currentPendingField = 'current_mortgage_type';
+        } else if (!this.profile.refinance_type_confirmed) {
           this.currentPendingField = 'refinance_type';
         } else if (!(this.profile as any).property_value_confirmed && !this.profile.property_value) {
           this.currentPendingField = 'property_value';
@@ -2467,8 +2494,6 @@ export class SessionContextManager {
           this.currentPendingField = 'current_mortgage_rate';
         } else if (!(this.profile as any).current_mortgage_payment_confirmed && !this.profile.current_mortgage_payment) {
           this.currentPendingField = 'current_mortgage_payment';
-        } else if (!this.profile.current_mortgage_type) {
-          this.currentPendingField = 'current_mortgage_type';
         } else if (!(this.profile as any).remaining_term_years_confirmed && !this.profile.remaining_term_years) {
           this.currentPendingField = 'remaining_term_years';
         } else if (!this.profile.closing_costs_preference) {
@@ -2483,9 +2508,11 @@ export class SessionContextManager {
           console.log('[context-manager]: Transitioning to STAGE 2 Closing Transition (Refinance)!');
         }
       } else if (isHel) {
-        // HELOC Sequence: heloc_risk_acknowledged -> property_value -> first_mortgage_balance -> heloc_line_amount -> heloc_draw_use -> job_tenure_type
+        // HELOC Sequence: heloc_risk_acknowledged -> heloc_rate_comfort -> property_value -> first_mortgage_balance -> heloc_line_amount -> heloc_draw_use -> job_tenure_type
         if (!this.profile.heloc_risk_acknowledged) {
           this.currentPendingField = 'heloc_risk_acknowledged';
+        } else if (!this.profile.heloc_rate_comfort) {
+          this.currentPendingField = 'heloc_rate_comfort';
         } else if (!(this.profile as any).property_value_confirmed && !this.profile.property_value) {
           this.currentPendingField = 'property_value';
         } else if (!(this.profile as any).first_mortgage_balance_confirmed && !this.profile.first_mortgage_balance) {

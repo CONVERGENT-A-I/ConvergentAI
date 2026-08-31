@@ -58,11 +58,17 @@ export interface BorrowerProfile {
   cash_out_amount?: number | null;
   cash_out_amount_confirmed?: boolean;
   cash_out_use?: string | null;
+  refinance_subtrack?: 'va' | 'fha' | 'usda' | 'conventional' | null;
+  va_subsequent_use?: boolean | null;
 
   heloc_line_amount?: number | null;
   heloc_line_amount_confirmed?: boolean;
   heloc_draw_use?: string | null;
   heloc_risk_acknowledged?: boolean;
+  heloc_rate_comfort?: 'variable' | 'fixed' | 'either' | null;
+  heloc_rate_comfort_confirmed?: boolean;
+  heloc_draw_period_understood?: boolean;
+  heloc_repayment_period_understood?: boolean;
 
   target_price?: number | null;
   target_price_confirmed?: boolean;

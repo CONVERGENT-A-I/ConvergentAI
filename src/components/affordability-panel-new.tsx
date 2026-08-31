@@ -94,6 +94,10 @@ export interface CalcResult {
   delta?: number | null;
   cashBand?: [number, number] | null;
   exactCash?: number;
+  maxCashOutAt80?: number;
+  isCashOutCapped?: boolean;
+  repaymentPI?: number;
+  repaymentTotal?: number;
   pi?: number;
   tax?: number;
 }
@@ -350,6 +354,7 @@ export interface AffordabilityPanelNewProps {
   onRequestSoftPull?: () => void;
   onSubmitReview?: () => void;
   isSubmitted?: boolean;
+  vaSubsequentUse?: boolean;
 }
 
 export function AffordabilityPanelNew({
@@ -365,6 +370,7 @@ export function AffordabilityPanelNew({
   onRequestSoftPull,
   onSubmitReview,
   isSubmitted = false,
+  vaSubsequentUse = false,
 }: AffordabilityPanelNewProps) {
   const [initialMode] = useState<ModeId>(() => resolveMode(transactionType, cashOutIntent));
   const [mode, setMode] = useState<ModeId>(initialMode);
@@ -394,7 +400,17 @@ export function AffordabilityPanelNew({
     setAssump((prev) => ({ ...prev, [mode]: { ...prev[mode], [field]: value } }));
   };
 
-  const activeProgram: ProgramConfig = mode === "heloc" ? PROGRAMS.conventional : (PROGRAMS[program] || PROGRAMS.conventional);
+  const activeProgram: ProgramConfig = useMemo(() => {
+    const base = mode === "heloc" ? PROGRAMS.conventional : (PROGRAMS[program] || PROGRAMS.conventional);
+    if (program === "va") {
+      return {
+        ...PROGRAMS.va,
+        upfrontFeePct: vaSubsequentUse ? 3.3 : 2.15,
+        upfrontFeeLabel: vaSubsequentUse ? "VA funding fee (subsequent use 3.3%)" : "VA funding fee (first use 2.15%)",
+      };
+    }
+    return base;
+  }, [mode, program, vaSubsequentUse]);
 
   const calc: CalcResult = useMemo(() => {
     if (mode === "purchase" || mode === "refiRT" || mode === "refiCO") {
@@ -411,6 +427,8 @@ export function AffordabilityPanelNew({
       const mi = activeProgram.monthlyMi(loanAmt, ltv);
       const pitia = pi + tax + a.insurance + (a.hoaFee ?? 0) + mi;
       const cashOut = mode === "refiCO" ? (a.cashOut as number) : 0;
+      const maxCashOutAt80 = mode === "refiCO" ? Math.max(0, Math.round((valueBasis * 0.80) - (a.payoff as number))) : undefined;
+      const isCashOutCapped = mode === "refiCO" && typeof maxCashOutAt80 === "number" && cashOut > maxCashOutAt80;
       const delta = mode !== "purchase" ? (a.currentPayment as number) - pitia : null;
       return {
         pi,
@@ -424,6 +442,8 @@ export function AffordabilityPanelNew({
         front: income > 0 ? (pitia / income) * 100 : 0,
         back: income > 0 ? ((pitia + effectiveDebts) / income) * 100 : 0,
         delta,
+        maxCashOutAt80,
+        isCashOutCapped,
         cashBand:
           mode === "purchase"
             ? [
@@ -446,11 +466,15 @@ export function AffordabilityPanelNew({
 
     // HELOC
     const drawPI = ((a.lineAmount as number) * ((a.drawRate as number) / 100)) / 12;
+    const repaymentPI = monthlyPI(a.lineAmount as number, a.drawRate as number, 20);
     const tax = ((a.homeValue as number) * (a.taxRatePct / 100)) / 12;
     const pitia = (a.firstPI as number) + drawPI + tax + a.insurance;
+    const repaymentTotal = (a.firstPI as number) + repaymentPI + tax + a.insurance;
     const cltv = (a.homeValue as number) > 0 ? (((a.firstBalance as number) + (a.lineAmount as number)) / (a.homeValue as number)) * 100 : 0;
     return {
       pitia,
+      repaymentPI,
+      repaymentTotal,
       cltv,
       totalLiens: (a.firstBalance as number) + (a.lineAmount as number),
       front: income > 0 ? (pitia / income) * 100 : 0,
@@ -656,6 +680,22 @@ export function AffordabilityPanelNew({
             {mode !== "heloc" && (
               <div className="mt-1 text-[7.5px] lg:text-[9px] text-slate-400 leading-tight">
                 {activeProgram.miNote(calc.mi as number)}
+              </div>
+            )}
+
+            {mode === "refiCO" && calc.isCashOutCapped && (
+              <div className="mt-1.5 p-1.5 rounded bg-amber-500/10 border border-amber-500/30 text-[7.5px] lg:text-[9px] text-amber-300 flex items-center gap-1.5">
+                <span className="shrink-0 font-bold">⚠️ Notice:</span>
+                <span>Requested cash-out exceeds the conventional 80% LTV guideline (maximum guideline cash-out: ${fmt(calc.maxCashOutAt80 || 0)}).</span>
+              </div>
+            )}
+
+            {mode === "heloc" && typeof calc.repaymentTotal === "number" && (
+              <div className="mt-1.5 pt-1.5 border-t border-white/10 flex items-center justify-between text-[7.5px] lg:text-[9px]">
+                <span className="text-slate-400">After 10-yr draw period (yr 11–30):</span>
+                <span className="font-mono font-semibold text-slate-200">
+                  ~${fmt(calc.repaymentTotal)}/mo <span className="text-[7px] text-slate-400 font-normal">(includes ${fmt(calc.repaymentPI || 0)} P&I repayment)</span>
+                </span>
               </div>
             )}
           </div>
