@@ -6,6 +6,7 @@ import { Minus, X, SlidersHorizontal } from 'lucide-react';
 import {
   AffordabilityPanelNew,
   type DataMode as AffordabilityDataMode,
+  type TransactionType,
 } from '../affordability-panel-new';
 
 export interface AffordabilityModalProps {
@@ -52,6 +53,71 @@ export function AffordabilityModal({
     borrowerProfile?.stage === '4'
   );
 
+  // ── Phase 3: Dynamic transaction type derivation ──
+  const transactionType: TransactionType =
+    borrowerProfile?.transaction_type ||
+    (borrowerProfile?.mortgage_goal === 'refinance' ? 'TT-REF' :
+     borrowerProfile?.mortgage_goal === 'equity' || borrowerProfile?.mortgage_goal === 'heloc' ? 'TT-HEL' :
+     'TT-PUR');
+  const cashOutIntent = borrowerProfile?.refinance_type === 'cash_out';
+
+  // ── Phase 3: Build mode-appropriate initial assumptions ──
+  const initialAssumptions = (() => {
+    if (transactionType === 'TT-REF') {
+      const homeValue = borrowerProfile?.property_value ?? 500000;
+      const payoff = borrowerProfile?.first_mortgage_balance ?? 300000;
+      const currentPayment = borrowerProfile?.current_mortgage_payment ?? 2204;
+      const rate = borrowerProfile?.current_mortgage_rate ?? 6.125;
+      const termYears = borrowerProfile?.remaining_term_years ?? 30;
+      if (cashOutIntent) {
+        return {
+          refiCO: {
+            homeValue,
+            payoff,
+            cashOut: borrowerProfile?.cash_out_amount ?? 30000,
+            rate,
+            term: termYears,
+            currentPayment,
+          },
+        };
+      }
+      return {
+        refiRT: {
+          homeValue,
+          payoff,
+          rate,
+          term: termYears,
+          currentPayment,
+        },
+      };
+    }
+    if (transactionType === 'TT-HEL') {
+      return {
+        heloc: {
+          homeValue: borrowerProfile?.property_value ?? 500000,
+          firstBalance: borrowerProfile?.first_mortgage_balance ?? 300000,
+          lineAmount: borrowerProfile?.heloc_line_amount ?? 50000,
+          drawRate: 8.5,
+        },
+      };
+    }
+    // Default: Purchase
+    return {
+      purchase: {
+        price: targetPrice,
+        downPct: downPct,
+      },
+    };
+  })();
+
+  // ── Phase 3: Track-specific header label ──
+  const headerLabel =
+    transactionType === 'TT-REF'
+      ? (cashOutIntent ? 'Cash-Out Refinance Summary' : 'Refinance Summary')
+      : transactionType === 'TT-HEL'
+        ? 'HELOC Summary'
+        : 'Affordability Summary';
+
   return (
     <AnimatePresence>
       <motion.div
@@ -78,7 +144,7 @@ export function AffordabilityModal({
             <div className="flex items-center gap-2.5">
               <SlidersHorizontal className="w-4 h-4 text-[#00b4d8]" />
               <span className="text-sm font-bold text-white tracking-wide">
-                Affordability Summary
+                {headerLabel}
               </span>
               <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
                 mode === 'stated'
@@ -112,7 +178,8 @@ export function AffordabilityModal({
           {/* Content */}
           <div className="flex-1 overflow-y-auto">
             <AffordabilityPanelNew
-              transactionType="TT-PUR"
+              transactionType={transactionType}
+              cashOutIntent={cashOutIntent}
               dataMode={dataMode}
               income={monthlyIncome}
               monthlyDebts={debt}
@@ -120,12 +187,7 @@ export function AffordabilityModal({
               lockedMode={true}
               eligiblePrograms={eligiblePrograms}
               isSubmitted={isSubmitted}
-              initialAssumptions={{
-                purchase: {
-                  price: targetPrice,
-                  downPct: downPct,
-                },
-              }}
+              initialAssumptions={initialAssumptions}
               onRequestSoftPull={onUpgrade}
               onSubmitReview={() => onSubmitSuccess?.('approve_eligible')}
             />

@@ -51,6 +51,7 @@ import { StageListener } from "./stage-listener";
 import {
   AffordabilityPanelNew,
   type DataMode as AffordabilityDataMode,
+  type TransactionType,
 } from "../affordability-panel-new";
 import { OtpVerificationModal } from "./otp-verification-modal";
 import VideoStage from "../video-stage";
@@ -1672,6 +1673,71 @@ export default function FloatingCTA() {
                         const apDownPayment = borrowerProfile?.down_payment ?? borrowerProfile?.downPayment ?? borrowerProfile?.affordability_down_payment ?? 70000;
                         const apDownPct = apTargetPrice > 0 ? Math.round((apDownPayment / apTargetPrice) * 100 * 10) / 10 : 20;
 
+                        // ── Phase 3: Dynamic transaction type derivation ──
+                        const apTransactionType: TransactionType =
+                          borrowerProfile?.transaction_type ||
+                          (borrowerProfile?.mortgage_goal === 'refinance' ? 'TT-REF' :
+                           borrowerProfile?.mortgage_goal === 'equity' || borrowerProfile?.mortgage_goal === 'heloc' ? 'TT-HEL' :
+                           'TT-PUR');
+                        const apCashOutIntent = borrowerProfile?.refinance_type === 'cash_out';
+
+                        // ── Phase 3: Build mode-appropriate initial assumptions ──
+                        const apInitialAssumptions = (() => {
+                          if (apTransactionType === 'TT-REF') {
+                            const homeValue = borrowerProfile?.property_value ?? 500000;
+                            const payoff = borrowerProfile?.first_mortgage_balance ?? 300000;
+                            const currentPayment = borrowerProfile?.current_mortgage_payment ?? 2204;
+                            const rate = borrowerProfile?.current_mortgage_rate ?? 6.125;
+                            const termYears = borrowerProfile?.remaining_term_years ?? 30;
+                            if (apCashOutIntent) {
+                              return {
+                                refiCO: {
+                                  homeValue,
+                                  payoff,
+                                  cashOut: borrowerProfile?.cash_out_amount ?? 30000,
+                                  rate,
+                                  term: termYears,
+                                  currentPayment,
+                                },
+                              };
+                            }
+                            return {
+                              refiRT: {
+                                homeValue,
+                                payoff,
+                                rate,
+                                term: termYears,
+                                currentPayment,
+                              },
+                            };
+                          }
+                          if (apTransactionType === 'TT-HEL') {
+                            return {
+                              heloc: {
+                                homeValue: borrowerProfile?.property_value ?? 500000,
+                                firstBalance: borrowerProfile?.first_mortgage_balance ?? 300000,
+                                lineAmount: borrowerProfile?.heloc_line_amount ?? 50000,
+                                drawRate: 8.5,
+                              },
+                            };
+                          }
+                          // Default: Purchase
+                          return {
+                            purchase: {
+                              price: apTargetPrice,
+                              downPct: apDownPct,
+                            },
+                          };
+                        })();
+
+                        // ── Phase 3: Track-specific header label ──
+                        const apHeaderLabel =
+                          apTransactionType === 'TT-REF'
+                            ? (apCashOutIntent ? 'Cash-Out Refinance Summary' : 'Refinance Summary')
+                            : apTransactionType === 'TT-HEL'
+                              ? 'HELOC Summary'
+                              : 'Affordability Summary';
+
                         const apIsSubmitted = !!(
                           hasSubmittedAus ||
                           borrowerProfile?.affordability_submitted ||
@@ -1714,7 +1780,8 @@ export default function FloatingCTA() {
 
                         const panelNode = (
                           <AffordabilityPanelNew
-                            transactionType="TT-PUR"
+                            transactionType={apTransactionType}
+                            cashOutIntent={apCashOutIntent}
                             dataMode={apDataMode}
                             income={apMonthlyIncome}
                             monthlyDebts={apMonthlyDebts}
@@ -1722,12 +1789,7 @@ export default function FloatingCTA() {
                             lockedMode={true}
                             eligiblePrograms={apEligiblePrograms}
                             isSubmitted={apIsSubmitted}
-                            initialAssumptions={{
-                              purchase: {
-                                price: apTargetPrice,
-                                downPct: apDownPct,
-                              },
-                            }}
+                            initialAssumptions={apInitialAssumptions}
                             onRequestSoftPull={handleSoftPull}
                             onSubmitReview={handleSubmitReview}
                           />
@@ -1748,7 +1810,7 @@ export default function FloatingCTA() {
                               <div className="flex items-center justify-between px-5 py-3.5 bg-[#131b2e]/90 border-b border-gray-800/80 shrink-0">
                                 <div className="flex items-center gap-2.5">
                                   <SlidersHorizontal className="w-4 h-4 text-[#00b4d8]" />
-                                  <span className="text-sm font-bold text-white tracking-wide">Affordability Summary</span>
+                                  <span className="text-sm font-bold text-white tracking-wide">{apHeaderLabel}</span>
                                   <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
                                     apRawMode === 'stated'
                                       ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
@@ -1803,7 +1865,7 @@ export default function FloatingCTA() {
                                 <div className="flex items-center justify-between px-5 py-3.5 bg-[#131b2e]/90 border-b border-gray-800/80 shrink-0">
                                   <div className="flex items-center gap-2.5">
                                     <SlidersHorizontal className="w-4 h-4 text-[#00b4d8]" />
-                                    <span className="text-sm font-bold text-white tracking-wide">Affordability Summary</span>
+                                    <span className="text-sm font-bold text-white tracking-wide">{apHeaderLabel}</span>
                                     <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
                                       apRawMode === 'stated'
                                         ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'

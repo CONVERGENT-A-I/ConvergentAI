@@ -103,10 +103,21 @@ Refactor and isolate Stage 2 question flows for Refinance (`RQ14–RQ29`) and HE
 
 ---
 
-### 🔹 PHASE 3: Stage 2.5 Dynamic Affordability Panel Binding
+### 🔹 PHASE 3: Stage 2.5 Dynamic Affordability Panel Binding (✅ COMPLETE)
 
 #### Objective
-Connect the extracted Refinance and HELOC profile data into [`AffordabilityPanelNew`](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/src/components/affordability-panel-new.tsx) on the frontend.
+Connect the extracted Refinance and HELOC profile data into [`AffordabilityPanelNew`](file:///c:/Users/Sameer/Desktop/ConvergentAI/src/components/affordability-panel-new.tsx) on the frontend.
+
+#### Status
+- ✅ **Updated [`src/components/floating-cta/index.tsx`](file:///c:/Users/Sameer/Desktop/ConvergentAI/src/components/floating-cta/index.tsx)**:
+  - Dynamically derives `transactionType` (`TT-PUR` / `TT-REF` / `TT-HEL`) from `borrowerProfile.transaction_type` / `mortgage_goal`.
+  - Derives `cashOutIntent` from `borrowerProfile.refinance_type === 'cash_out'` to distinguish `refiRT` vs `refiCO`.
+  - Builds mode-appropriate `initialAssumptions` (purchase, refiRT, refiCO, or heloc) from profile fields.
+  - Updates panel header labels: "Affordability Summary" / "Refinance Summary" / "Cash-Out Refinance Summary" / "HELOC Summary" (both desktop inline + mobile modal).
+- ✅ **Updated [`src/components/floating-cta/affordability-modal.tsx`](file:///c:/Users/Sameer/Desktop/ConvergentAI/src/components/floating-cta/affordability-modal.tsx)**:
+  - Same dynamic derivation applied to the standalone modal component.
+- ✅ **TypeScript compilation**: 0 source errors on both frontend and backend.
+- ✅ **Backend test suite**: All 10 test files passed (100% — zero regressions).
 
 #### Files to Touch
 * [`src/components/floating-cta/index.tsx`](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/src/components/floating-cta/index.tsx):
