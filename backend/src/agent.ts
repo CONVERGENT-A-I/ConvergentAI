@@ -80,9 +80,14 @@ function isQuestionOrCorrection(text: string | null | undefined): boolean {
 
 
 function normalizePronunciationForTts(text: string): string {
-  // Replace all instances of "VA" as a whole word with "Veterans Affairs"
-  // so Cartesia / TTS text normalizers never pronounce "VA" as "Virginia" (postal code expansion)
-  return text.replace(/\bVA\b/g, 'Veterans Affairs');
+  return text
+    // Replace all instances of "VA" as a whole word with "Veterans Affairs"
+    // so Cartesia / TTS text normalizers never pronounce "VA" as "Virginia" (postal code expansion)
+    .replace(/\bVA\b/g, 'Veterans Affairs')
+    // Fix "W-2s" / "W2s" -> pronounced smoothly as "W-twos"
+    .replace(/\bW-?2'?s\b/gi, 'W-twos')
+    // Fix singular "W-2" / "W2" -> pronounced smoothly as "W-two"
+    .replace(/\bW-?2\b/gi, 'W-two');
 }
 
 function createVerbatimStream(text: string): ReadableStream<string> {
