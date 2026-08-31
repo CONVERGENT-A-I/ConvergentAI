@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { calculateAffordability } from '../utils/affordability-calculator.js';
 import { buildAusPayload, submitToAus } from '../utils/aus-submission.js';
 import type { BorrowerProfile } from '../prompts/layer3-context.js';

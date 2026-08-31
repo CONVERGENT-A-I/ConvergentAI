@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { generatePrequalLetter } from '../utils/prequal-letter.js';
 import { sendPrequalLetterEmail } from '../utils/email-sender.js';
 

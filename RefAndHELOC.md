@@ -57,17 +57,19 @@ This document is the **single source of truth** for implementing and verifying t
 
 ---
 
-### 🔹 PHASE 1: Stage 1 Multi-Track Intent Routing
+### 🔹 PHASE 1: Stage 1 Multi-Track Intent Routing (✅ COMPLETE)
 
 #### Objective
 Ensure that on the very first question (`Q9`), Ailana correctly classifies borrower intent and locks the session state machine to the correct track:
-- *"I want to buy a new home"* $\rightarrow$ `transaction_type = 'TT-PUR'`
-- *"I want to refinance my current mortgage"* $\rightarrow$ `transaction_type = 'TT-REF'`
-- *"I want to tap my equity with a HELOC"* $\rightarrow$ `transaction_type = 'TT-HEL'`
+- *"I want to buy a new home"* $\rightarrow$ `transaction_type = 'TT-PUR'` (sets `mortgage_goal = 'purchase'`)
+- *"I want to refinance my current mortgage"* $\rightarrow$ `transaction_type = 'TT-REF'` (sets `mortgage_goal = 'refinance'`)
+- *"I want to tap my equity with a HELOC"* $\rightarrow$ `transaction_type = 'TT-HEL'` (sets `mortgage_goal = 'heloc'`)
 
-#### Files to Touch
-* [`backend/src/prompts/stage1-greeting.ts`](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/prompts/stage1-greeting.ts)
-* [`backend/src/context/session-context-manager.ts`](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/context/session-context-manager.ts)
+#### Status
+- ✅ **`BorrowerProfile` updated in `layer3-context.ts`** with `transaction_type: 'TT-PUR' | 'TT-REF' | 'TT-HEL' | ...`.
+- ✅ **`session-context-manager.ts` updated** with intent classification for all 3 goals.
+- ✅ **`stage1-greeting.ts` updated** with natural track acknowledgments.
+- ✅ **TypeScript compilation**: 0 errors on both frontend and backend.
 
 #### How to Test Phase 1
 1. Start session, say `I want to refinance my mortgage.` $\rightarrow$ Confirm Ailana answers: *"Got it — let's take a look at your refinance options."* Check backend logs for `transaction_type: TT-REF`.

@@ -1,8 +1,4 @@
-/**
- * Stage 8 Unit Tests — v8.7 Specification Features
- * Tests zip-lookup tax/USDA automation, calculator integration, Stated vs Verified modes, and OTP gate logic.
- */
-
+import 'dotenv/config';
 import { lookupZipData } from '../utils/zip-lookup.js';
 import { calculateAffordability } from '../utils/affordability-calculator.js';
 import { buildStage25Instructions } from '../prompts/stage25-affordability.js';

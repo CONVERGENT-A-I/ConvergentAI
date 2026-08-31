@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { calculateAffordability } from '../utils/affordability-calculator.js';
 
 function runStage4Tests() {

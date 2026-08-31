@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { SessionContextManager } from '../context/session-context-manager.js';
 import { calculateAffordability } from '../utils/affordability-calculator.js';
 import { buildAusPayload, submitToAus } from '../utils/aus-submission.js';

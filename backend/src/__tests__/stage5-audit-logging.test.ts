@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { logAffordabilityEvent, type AffordabilityAuditEvent } from '../utils/affordability-audit.js';
 
 async function runStage5Tests() {

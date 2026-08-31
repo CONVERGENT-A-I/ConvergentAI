@@ -1707,9 +1707,9 @@ export class SessionContextManager {
     const fieldsToExtract: FieldToExtract[] = [
       {
         name: 'mortgage_goal',
-        description: 'Whether they want to purchase/buy a new home, refinance an existing mortgage, or explore a home equity option',
+        description: 'Whether they want to purchase/buy a new home, refinance an existing mortgage, or explore a home equity / HELOC option',
         expectedType: 'string',
-        additionalInstructions: 'Extract "purchase", "refinance", or "equity" (all lowercase). If they say they want to buy, purchase, or acquire a home or property, return "purchase". If they want to refinance, lower their rate, or change their existing loan terms, return "refinance". If they want a home equity loan or HELOC, return "equity". Return null if not mentioned at all.',
+        additionalInstructions: 'Extract "purchase", "refinance", or "heloc" (all lowercase). If they say they want to buy, purchase, acquire, or look for a new home or property, return "purchase". If they want to refinance, refi, lower their rate or payment, get cash out, or change existing mortgage terms, return "refinance". If they want a home equity line of credit, HELOC, tap equity, or equity loan, return "heloc". Return null if not mentioned at all.',
       },
       {
         name: 'occupancy',
@@ -1742,10 +1742,20 @@ export class SessionContextManager {
 
     const mgRaw = extractionResults.mortgage_goal?.value;
     const mgVal = typeof mgRaw === 'string' ? mgRaw.toLowerCase().trim() : null;
-    if (mgVal && (mgVal.includes('purchase') || mgVal.includes('refinance') || mgVal.includes('equity'))) {
-      this.profile.mortgage_goal = mgVal.includes('purchase') ? 'purchase' : mgVal.includes('refinance') ? 'refinance' : 'equity';
+    if (mgVal && (mgVal.includes('purchase') || mgVal.includes('buy') || mgVal.includes('refinance') || mgVal.includes('refi') || mgVal.includes('equity') || mgVal.includes('heloc'))) {
+      if (mgVal.includes('refinance') || mgVal.includes('refi')) {
+        this.profile.mortgage_goal = 'refinance';
+        this.profile.transaction_type = 'TT-REF';
+      } else if (mgVal.includes('equity') || mgVal.includes('heloc')) {
+        this.profile.mortgage_goal = 'heloc';
+        this.profile.transaction_type = 'TT-HEL';
+      } else {
+        this.profile.mortgage_goal = 'purchase';
+        this.profile.transaction_type = 'TT-PUR';
+      }
       this.profile.mortgage_goal_confirmed = true;
       anyUpdates = true;
+      console.log(`[context-manager]: 🎯 Stage 1 Goal Classified: ${this.profile.mortgage_goal} -> transaction_type=${this.profile.transaction_type}`);
     }
     const occRaw = extractionResults.occupancy?.value;
     const occVal = typeof occRaw === 'string' ? occRaw.toLowerCase().trim() : null;
@@ -2917,6 +2927,7 @@ If no correction/change is found, return null.`
 
     if (field === 'mortgage_goal') {
       this.profile.mortgage_goal = 'purchase';
+      this.profile.transaction_type = 'TT-PUR';
       this.profile.mortgage_goal_confirmed = true;
     } else if (field === 'occupancy') {
       this.profile.occupancy = 'primary';

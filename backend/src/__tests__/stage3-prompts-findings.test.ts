@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { buildStage25Instructions } from '../prompts/stage25-affordability.js';
 import type { BorrowerProfile } from '../prompts/layer3-context.js';
 

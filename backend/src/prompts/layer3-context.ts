@@ -5,6 +5,7 @@ export interface BorrowerProfile {
   borrower_name?: string | null;
   borrower_name_confirmed?: boolean;
 
+  transaction_type?: 'TT-PUR' | 'TT-REF' | 'TT-HEL' | 'TT-HEQ' | 'TT-CON' | 'TT-HECM' | null;
   mortgage_goal?: string | null;
   mortgage_goal_confirmed?: boolean;
 
@@ -41,6 +42,27 @@ export interface BorrowerProfile {
 
   refinance_type?: 'cash_out' | 'rate_term' | 'other' | null;
   refinance_type_confirmed?: boolean;
+
+  property_value?: number | null;
+  property_value_confirmed?: boolean;
+
+  first_mortgage_balance?: number | null;
+  first_mortgage_balance_confirmed?: boolean;
+
+  current_mortgage_rate?: number | null;
+  current_mortgage_payment?: number | null;
+  current_mortgage_type?: 'conventional' | 'fha' | 'va' | 'usda' | 'unknown' | null;
+  remaining_term_years?: number | null;
+  closing_costs_preference?: 'out_of_pocket' | 'rolled_in' | null;
+
+  cash_out_amount?: number | null;
+  cash_out_amount_confirmed?: boolean;
+  cash_out_use?: string | null;
+
+  heloc_line_amount?: number | null;
+  heloc_line_amount_confirmed?: boolean;
+  heloc_draw_use?: string | null;
+  heloc_risk_acknowledged?: boolean;
 
   target_price?: number | null;
   target_price_confirmed?: boolean;

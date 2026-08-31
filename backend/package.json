@@ -11,7 +11,7 @@
     "start": "node dist/index.js",
     "start:agent": "node dist/agent.js dev",
     "start:full": "npm run build && node dist/agent.js dev",
-    "test": "tsx src/__tests__/affordability-calculator.test.ts",
+    "test": "tsx src/__tests__/run-all-tests.ts",
     "prisma:generate": "node scripts/prisma-generate-safe.js",
     "prisma:migrate": "prisma migrate dev",
     "postinstall": "npm run prisma:generate"
