@@ -64,6 +64,8 @@ AVATAR EXPRESSION GUIDANCE:
 }
 
 import { buildStage2Instructions } from './stage2-prequalification.js';
+import { buildStage2RefinanceInstructions } from './stage2-refinance.js';
+import { buildStage2HelocInstructions } from './stage2-heloc.js';
 import { buildStage25Instructions } from './stage25-affordability.js';
 import { buildStage3Instructions, buildStage3AInstructions } from './stage3-guidance.js';
 import { buildStage3BInstructions } from './stage3b-completion.js';
@@ -78,6 +80,12 @@ export function buildLayer2(stage: string = '1', profile: BorrowerProfile = {}):
     return buildStage1Instructions();
   }
   if (stage === '2') {
+    if (profile.transaction_type === 'TT-REF' || profile.mortgage_goal === 'refinance') {
+      return buildStage2RefinanceInstructions(profile);
+    }
+    if (profile.transaction_type === 'TT-HEL' || profile.mortgage_goal === 'heloc') {
+      return buildStage2HelocInstructions(profile);
+    }
     return buildStage2Instructions(profile);
   }
   if (stage === '2.5') {

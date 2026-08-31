@@ -78,29 +78,28 @@ Ensure that on the very first question (`Q9`), Ailana correctly classifies borro
 
 ---
 
-### 🔹 PHASE 2: Stage 2 Conversational Discovery (Refi & HELOC Prompts)
+### 🔹 PHASE 2: Stage 2 Conversational Discovery Prompts & Field Extraction (✅ COMPLETE)
 
 #### Objective
-Build the prompt instructions and state machine field extractions for Refinance (`RQ14`–`RQ29`) and HELOC (`HQ14`–`HQ26`).
+Refactor and isolate Stage 2 question flows for Refinance (`RQ14–RQ29`) and HELOC (`HQ14–HQ26`), matching the v8.7 specification without touching or disrupting the purchase flow.
 
-#### Files to Touch
-* **NEW**: [`backend/src/prompts/stage2-refinance.ts`](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/prompts/stage2-refinance.ts)
-  - `RQ14`: Refinance goal (Rate & Term vs. Cash-out).
-  - `RQ-LOANTYPE`: Conventional, FHA, VA, USDA.
-  - `RQ21`–`RQ25`: Current rate, remaining balance, property value, current payment, remaining years.
-  - `RQ-CLOSINGCOSTS`: Out of pocket vs. rolled into loan.
-  - `RQ26` / `RQ27`: Cash-out amount and use.
-  - `RQ-EMPLOYER`: Employer name, annual income, monthly debts, credit score.
-* **NEW**: [`backend/src/prompts/stage2-heloc.ts`](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/prompts/stage2-heloc.ts)
-  - `HQ14`: HELOC 10-yr draw vs. 15–20 yr repayment mechanics.
-  - `HQ16`: Mandatory variable rate & foreclosure risk disclosure.
-  - `HQ20`–`HQ24`: Home value, 1st mortgage balance, desired line amount, use of funds, variable rate comfort.
-  - Income, debts, and credit tier.
-* [`backend/src/context/session-context-manager.ts`](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/context/session-context-manager.ts) (Add field extractors for `refinance_type`, `property_value`, `first_mortgage_balance`, `cash_out_amount`, `heloc_line_amount`).
+#### Status
+- ✅ **Created [`backend/src/prompts/stage2-refinance.ts`](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/prompts/stage2-refinance.ts)** (`RQ14–RQ29`):
+  - Refinance intent (`rate_term` vs `cash_out`), estimated market value, remaining balance, current rate, monthly payment baseline, current loan type (Conventional, FHA, VA, USDA), remaining term in years, closing costs preference (out-of-pocket vs. rolled-in), cash-out amount, and employer/job tenure.
+- ✅ **Created [`backend/src/prompts/stage2-heloc.ts`](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/prompts/stage2-heloc.ts)** (`HQ14–HQ26`):
+  - HELOC mechanics (10-yr draw vs. repayment), mandatory variable rate & foreclosure risk disclosure (`HQ16`), home value, 1st mortgage balance, requested credit line amount, draw use, and employer/job tenure.
+- ✅ **Updated [`backend/src/prompts/ailana-system.ts`](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/prompts/ailana-system.ts)**:
+  - Dynamically dispatches the right Stage 2 prompt module based on `profile.transaction_type` / `profile.mortgage_goal`.
+- ✅ **Updated [`backend/src/context/session-context-manager.ts`](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/context/session-context-manager.ts)**:
+  - Added deterministic extraction, validation, and state machine sequencing for all Refinance and HELOC fields.
+- ✅ **Created Dedicated Test Suites**:
+  - `refinance-flow.test.ts` (100% Passed)
+  - `heloc-flow.test.ts` (100% Passed)
+  - Full suite `npm test` passing with 100% success across all 10 test files.
 
 #### How to Test Phase 2
 1. Test Refinance conversation flow following Track 2 in `NewConversationGuide.md`. Verify all numbers are extracted cleanly into `profile`.
-2. Test HELOC conversation flow following Track 3 in `NewConversationGuide.md`. Verify property value and line amount are extracted cleanly.
+2. Test HELOC conversation flow following Track 3 in `NewConversationGuide.md`. Verify risk disclosure is delivered and line amount extracted cleanly.
 
 ---
 

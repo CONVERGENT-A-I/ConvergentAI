@@ -15,6 +15,8 @@ const testFiles = [
   'stage6-prequal-letter.test.ts',
   'stage7-e2e-flow.test.ts',
   'stage8-v87-features.test.ts',
+  'refinance-flow.test.ts',
+  'heloc-flow.test.ts',
 ];
 
 console.log('🚀 Running Complete ConvergentAI Multi-Track Test Suite...\n');
@@ -34,6 +36,6 @@ for (const file of testFiles) {
 
 if (allPassed) {
   console.log('\n======================================================');
-  console.log('✨ ALL 8 CONVERGENTAI UNIT & INTEGRATION TEST SUITES PASSED!');
+  console.log('✨ ALL 10 CONVERGENTAI UNIT & INTEGRATION TEST SUITES PASSED!');
   console.log('======================================================\n');
 }

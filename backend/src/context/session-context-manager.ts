@@ -1812,9 +1812,10 @@ export class SessionContextManager {
         additionalInstructions: 'Extract the credit score number (e.g. 720) or range/tier/rating (e.g. "Excellent", "Very Good", "Good", "Fair", "Poor", "680-700", "740+"). If the user says their credit is "very good", "good", "great", "excellent", "fair", "poor", or "bad", extract that exact phrase or tier. Do NOT return null if a tier or descriptive rating is provided. Do NOT include dollar signs or extra thousand zeroes. Credit scores are 3-digit numbers between 300 and 850. If STT transcribed "$710000" or "$710,000" or "710000", extract 710. If they decline, skip, or say they don\'t know, set "declined" to true. If not mentioned at all, return null.',
       });
     }
-    const isRef = this.profile.mortgage_goal === 'refinance';
+    const isRef = this.profile.transaction_type === 'TT-REF' || this.profile.mortgage_goal === 'refinance';
+    const isHel = this.profile.transaction_type === 'TT-HEL' || this.profile.mortgage_goal === 'heloc';
 
-    if (!isRef && !this.profile.rent_own_confirmed) {
+    if (!isRef && !isHel && !this.profile.rent_own_confirmed) {
       allFields.push({
         name: 'rent_own',
         description: 'Whether they rent, own, or own and plan to sell their current home',
@@ -1822,7 +1823,7 @@ export class SessionContextManager {
         additionalInstructions: 'Extract "rent", "own", or "own_selling". If they own and plan to sell, return "own_selling". If they own but do not mention selling, return "own". If they rent, return "rent". If their response is ambiguous or does not fit these choices, return "other". If not found, return null.',
       });
     }
-    if (!isRef && !this.profile.realtor_status_confirmed) {
+    if (!isRef && !isHel && !this.profile.realtor_status_confirmed) {
       allFields.push({
         name: 'realtor_status',
         description: 'Whether they have connected with a real estate agent',
@@ -1838,7 +1839,39 @@ export class SessionContextManager {
         additionalInstructions: 'Extract "cash_out" or "rate_term". If they say cash out, equity draw, take cash out, return "cash_out". If they say rate and term, lower monthly payment, reduce rate, change terms, return "rate_term". If their response is ambiguous or does not fit these choices, return "other". If not found, return null.',
       });
     }
-    if (!this.profile.property_type_confirmed) {
+    if (isRef && !this.profile.current_mortgage_type) {
+      allFields.push({
+        name: 'current_mortgage_type',
+        description: 'Current mortgage program type: Conventional, FHA, VA, or USDA (RQ-LOANTYPE)',
+        expectedType: 'string',
+        additionalInstructions: 'Extract "conventional", "fha", "va", "usda", or "other". If not found, return null.',
+      });
+    }
+    if (isRef && !this.profile.closing_costs_preference) {
+      allFields.push({
+        name: 'closing_costs_preference',
+        description: 'Whether they prefer to pay closing costs out of pocket or roll them into the new mortgage',
+        expectedType: 'string',
+        additionalInstructions: 'Extract "out_of_pocket" or "rolled_in". If they say roll in, finance, include in loan, return "rolled_in". If out of pocket or pay cash, return "out_of_pocket". If not found, return null.',
+      });
+    }
+    if (isHel && !this.profile.heloc_risk_acknowledged) {
+      allFields.push({
+        name: 'heloc_risk_acknowledged',
+        description: 'Borrower acknowledgment of variable rate & foreclosure risk (HQ16)',
+        expectedType: 'string',
+        additionalInstructions: 'Extract "yes" or "acknowledged" if borrower acknowledges or understands the disclosure. Return null if not mentioned.',
+      });
+    }
+    if (isHel && !this.profile.heloc_draw_use) {
+      allFields.push({
+        name: 'heloc_draw_use',
+        description: 'Planned use for the HELOC credit line funds (e.g. renovations, debt consolidation, emergency)',
+        expectedType: 'string',
+        additionalInstructions: 'Extract a concise summary of the planned use. If not found, return null.',
+      });
+    }
+    if (!isRef && !isHel && !this.profile.property_type_confirmed) {
       allFields.push({
         name: 'property_type',
         description: 'The type of property they are considering',
@@ -1855,7 +1888,7 @@ export class SessionContextManager {
         });
       }
     }
-    if (!this.profile.military_rural_confirmed) {
+    if (!isRef && !isHel && !this.profile.military_rural_confirmed) {
       allFields.push({
         name: 'military_rural',
         description: 'Whether borrower or co-borrower has military service history (active duty, veteran, Reserve/Guard, surviving spouse)',
@@ -1879,14 +1912,34 @@ export class SessionContextManager {
     }
 
     // Add the specific numeric pending field if not already in the list
-    const numericFields = ['gross_annual_income', 'monthly_debt', 'down_payment', 'target_price'];
+    const numericFields = [
+      'gross_annual_income',
+      'monthly_debt',
+      'down_payment',
+      'target_price',
+      'property_value',
+      'first_mortgage_balance',
+      'current_mortgage_rate',
+      'current_mortgage_payment',
+      'remaining_term_years',
+      'cash_out_amount',
+      'heloc_line_amount',
+    ];
     const pendingIsNumeric = field !== null && numericFields.includes(field);
     if (pendingIsNumeric && field && !allFields.some(f => f.name === field)) {
-      const fieldDesc = field === 'gross_annual_income' ? 'gross annual household income'
+      const fieldDesc =
+        field === 'gross_annual_income' ? 'gross annual household income'
         : field === 'monthly_debt' ? 'total monthly recurring debt obligations (sum all debts)'
-          : field === 'down_payment' ? 'down payment savings amount'
-            : 'target purchase price';
-      let instruction = 'Extract the dollar amount as a plain integer (e.g. 80000). If the user declines, skips, or says they don\'t know, set "declined" to true. If not mentioned, return null.';
+        : field === 'down_payment' ? 'down payment savings amount'
+        : field === 'target_price' ? 'target purchase price'
+        : field === 'property_value' ? 'estimated current market value of home'
+        : field === 'first_mortgage_balance' ? 'current balance owed on mortgage'
+        : field === 'current_mortgage_rate' ? 'current approximate interest rate (e.g. 7.25)'
+        : field === 'current_mortgage_payment' ? 'current monthly mortgage payment'
+        : field === 'remaining_term_years' ? 'remaining years on current mortgage'
+        : field === 'cash_out_amount' ? 'desired cash-out dollar amount'
+        : 'desired HELOC credit line amount';
+      let instruction = 'Extract the dollar amount or numeric value as a plain number (e.g. 80000 or 7.25). If the user declines, skips, or says they don\'t know, set "declined" to true. If not mentioned, return null.';
       if (field === 'down_payment' && this.profile.target_price) {
         instruction += ` If the user specifies a percentage, calculate it against the target price ($${this.profile.target_price}) and return the integer dollar amount.`;
       }
@@ -1999,7 +2052,7 @@ export class SessionContextManager {
     if (typeof rt === 'string') {
       rt = rt.toLowerCase().trim();
       if (rt.includes('cash')) rt = 'cash_out';
-      else if (rt.includes('rate') || rt.includes('term')) rt = 'rate_term';
+      else if (rt.includes('rate') || rt.includes('term') || rt.includes('lower') || rt.includes('payment')) rt = 'rate_term';
       else if (rt !== 'cash_out' && rt !== 'rate_term') rt = 'other';
     }
     if ((rt === 'cash_out' || rt === 'rate_term' || rt === 'other') && !this.profile.refinance_type_confirmed) {
@@ -2007,6 +2060,32 @@ export class SessionContextManager {
       this.profile.refinance_type_confirmed = true;
       anyUpdates = true;
       console.log(`[context-manager] Stage2: refinance_type=${rt}`);
+    }
+
+    if (results.current_mortgage_type?.value && !this.profile.current_mortgage_type) {
+      const cmt = String(results.current_mortgage_type.value).toLowerCase().trim();
+      this.profile.current_mortgage_type = cmt.includes('fha') ? 'fha' : cmt.includes('va') ? 'va' : cmt.includes('usda') ? 'usda' : 'conventional';
+      anyUpdates = true;
+      console.log(`[context-manager] Stage2: current_mortgage_type=${this.profile.current_mortgage_type}`);
+    }
+
+    if (results.closing_costs_preference?.value && !this.profile.closing_costs_preference) {
+      const ccp = String(results.closing_costs_preference.value).toLowerCase().trim();
+      this.profile.closing_costs_preference = ccp.includes('pocket') || ccp.includes('cash') ? 'out_of_pocket' : 'rolled_in';
+      anyUpdates = true;
+      console.log(`[context-manager] Stage2: closing_costs_preference=${this.profile.closing_costs_preference}`);
+    }
+
+    if (results.heloc_risk_acknowledged?.value && !this.profile.heloc_risk_acknowledged) {
+      this.profile.heloc_risk_acknowledged = true;
+      anyUpdates = true;
+      console.log(`[context-manager] Stage2: heloc_risk_acknowledged=true`);
+    }
+
+    if (results.heloc_draw_use?.value && !this.profile.heloc_draw_use) {
+      this.profile.heloc_draw_use = String(results.heloc_draw_use.value).trim();
+      anyUpdates = true;
+      console.log(`[context-manager] Stage2: heloc_draw_use=${this.profile.heloc_draw_use}`);
     }
 
     const rawPt = results.property_type?.value;
@@ -2197,6 +2276,29 @@ export class SessionContextManager {
     } else if (field === 'target_price') {
       this.profile.target_price = (declined || !numVal) ? 350000 : numVal;
       this.profile.target_price_confirmed = true;
+    } else if (field === 'property_value') {
+      this.profile.property_value = (declined || !numVal) ? (this.profile.target_price ?? 450000) : numVal;
+      if (!this.profile.target_price) this.profile.target_price = this.profile.property_value;
+      (this.profile as any).property_value_confirmed = true;
+    } else if (field === 'first_mortgage_balance') {
+      this.profile.first_mortgage_balance = (declined || !numVal) ? 250000 : numVal;
+      (this.profile as any).first_mortgage_balance_confirmed = true;
+    } else if (field === 'current_mortgage_rate') {
+      const rawRate = rawValue ? parseFloat(rawValue.replace(/[^\d.]/g, '')) : null;
+      this.profile.current_mortgage_rate = (declined || !rawRate) ? 7.0 : (rawRate > 1 ? rawRate : rawRate * 100);
+      (this.profile as any).current_mortgage_rate_confirmed = true;
+    } else if (field === 'current_mortgage_payment') {
+      this.profile.current_mortgage_payment = (declined || !numVal) ? 2400 : numVal;
+      (this.profile as any).current_mortgage_payment_confirmed = true;
+    } else if (field === 'remaining_term_years') {
+      this.profile.remaining_term_years = (declined || !numVal) ? 25 : numVal;
+      (this.profile as any).remaining_term_years_confirmed = true;
+    } else if (field === 'cash_out_amount') {
+      this.profile.cash_out_amount = (declined || !numVal) ? 50000 : numVal;
+      (this.profile as any).cash_out_amount_confirmed = true;
+    } else if (field === 'heloc_line_amount') {
+      this.profile.heloc_line_amount = (declined || !numVal) ? 75000 : numVal;
+      (this.profile as any).heloc_line_amount_confirmed = true;
     }
 
     this.advanceWorkflow();
@@ -2216,13 +2318,20 @@ export class SessionContextManager {
       credit_range: 'credit score',
       down_payment: 'down payment',
       target_price: 'target purchase price',
+      property_value: 'estimated property value',
+      first_mortgage_balance: 'current mortgage balance',
+      current_mortgage_rate: 'current interest rate',
+      current_mortgage_payment: 'current monthly payment',
+      remaining_term_years: 'remaining loan term',
+      cash_out_amount: 'cash out amount',
+      heloc_line_amount: 'HELOC credit line amount',
     };
     return labels[field] ?? field;
   }
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
-  // Workflow advancement Ã¢â‚¬â€ backend owns ALL stage/field transitions
-  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  // Workflow advancement — backend owns ALL stage/field transitions
+  // ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
   /**
    * Calculate borrower eligibility for loan products.
@@ -2231,7 +2340,7 @@ export class SessionContextManager {
     const products: string[] = [];
     const income = (this.profile.gross_annual_income ?? 0) / 12;
     const debt = this.profile.monthly_debt ?? 0;
-    const propertyValue = this.profile.target_price ?? 0;
+    const propertyValue = this.profile.property_value ?? this.profile.target_price ?? 0;
     const downPayment = this.profile.down_payment ?? 0;
 
     // Estimate credit score as a number
@@ -2267,7 +2376,7 @@ export class SessionContextManager {
       (this.profile.military_rural === 'military' || this.profile.military_rural === 'both') &&
       dti <= 50
     ) {
-      products.push('VA Loan (Zero down payment, no PMI Ã¢â‚¬â€ for eligible service members)');
+      products.push('VA Loan (Zero down payment, no PMI — for eligible service members)');
     }
     // USDA Loan (assume rural or fallback): Credit Score >= 640, DTI <= 41%
     if (
@@ -2292,7 +2401,7 @@ export class SessionContextManager {
     if (this.currentPendingField) {
       this.fieldAttempts[this.currentPendingField] = 0;
     }
-    // Ã¢â€â‚¬Ã¢â€â‚¬ Stage 1 Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+    // ── Stage 1 ──────────────────────────────────────────────────────────────────────────
     if (this.activeStage === '1') {
 
       if (!this.profile.mortgage_goal_confirmed) {
@@ -2312,7 +2421,8 @@ export class SessionContextManager {
         console.log('[context-manager]: Transitioning to STAGE 2 Pre-Qualification Discovery!');
       }
     } else if (this.activeStage === '2') {
-      const isRef = this.profile.mortgage_goal === 'refinance';
+      const isRef = this.profile.transaction_type === 'TT-REF' || this.profile.mortgage_goal === 'refinance';
+      const isHel = this.profile.transaction_type === 'TT-HEL' || this.profile.mortgage_goal === 'heloc';
 
       // ── Auto-Recovery & Desync Protection ──
       // If we have reached or confirmed the final Stage 2 question (job_tenure_type),
@@ -2330,26 +2440,13 @@ export class SessionContextManager {
           this.profile.credit_range_confirmed = true;
           this.profile.credit_range = this.profile.credit_range ?? 'Good';
         }
-        if (!this.profile.down_payment_confirmed) {
-          this.profile.down_payment_confirmed = true;
-        }
-        if (!this.profile.rent_own_confirmed) {
-          this.profile.rent_own_confirmed = true;
-        }
-        if (!this.profile.realtor_status_confirmed) {
-          this.profile.realtor_status_confirmed = true;
-        }
-        if (!this.profile.target_price_confirmed) {
-          this.profile.target_price_confirmed = true;
-        }
-        if (!this.profile.property_type_confirmed) {
-          this.profile.property_type_confirmed = true;
-          this.profile.property_type = this.profile.property_type ?? 'single_family';
-        }
-        if (!this.profile.military_rural_confirmed) {
-          this.profile.military_rural_confirmed = true;
-          this.profile.military_rural = this.profile.military_rural ?? 'neither';
-        }
+        this.profile.down_payment_confirmed = true;
+        this.profile.rent_own_confirmed = true;
+        this.profile.realtor_status_confirmed = true;
+        this.profile.target_price_confirmed = true;
+        this.profile.property_type_confirmed = true;
+        this.profile.military_rural_confirmed = true;
+        this.profile.refinance_type_confirmed = true;
       }
 
       if (!this.profile.gross_annual_income_confirmed) {
@@ -2358,26 +2455,73 @@ export class SessionContextManager {
         this.currentPendingField = 'monthly_debt';
       } else if (!this.profile.credit_range_confirmed) {
         this.currentPendingField = 'credit_range';
-      } else if (isRef && !this.profile.refinance_type_confirmed) {
-        this.currentPendingField = 'refinance_type';
-      } else if (!isRef && !this.profile.down_payment_confirmed) {
-        this.currentPendingField = 'down_payment';
-      } else if (!isRef && !this.profile.rent_own_confirmed) {
-        this.currentPendingField = 'rent_own';
-      } else if (!isRef && !this.profile.realtor_status_confirmed) {
-        this.currentPendingField = 'realtor_status';
-      } else if (!this.profile.target_price_confirmed) {
-        this.currentPendingField = 'target_price';
-      } else if (!this.profile.property_type_confirmed) {
-        this.currentPendingField = 'property_type';
-      } else if (!this.profile.military_rural_confirmed) {
-        this.currentPendingField = 'military_rural';
-      } else if (!this.profile.job_tenure_type_confirmed) {
-        this.currentPendingField = 'job_tenure_type';
+      } else if (isRef) {
+        // Refinance Sequence: refinance_type -> property_value -> first_mortgage_balance -> current_mortgage_rate -> current_mortgage_payment -> current_mortgage_type -> remaining_term_years -> closing_costs_preference -> [cash_out_amount] -> job_tenure_type
+        if (!this.profile.refinance_type_confirmed) {
+          this.currentPendingField = 'refinance_type';
+        } else if (!(this.profile as any).property_value_confirmed && !this.profile.property_value) {
+          this.currentPendingField = 'property_value';
+        } else if (!(this.profile as any).first_mortgage_balance_confirmed && !this.profile.first_mortgage_balance) {
+          this.currentPendingField = 'first_mortgage_balance';
+        } else if (!(this.profile as any).current_mortgage_rate_confirmed && !this.profile.current_mortgage_rate) {
+          this.currentPendingField = 'current_mortgage_rate';
+        } else if (!(this.profile as any).current_mortgage_payment_confirmed && !this.profile.current_mortgage_payment) {
+          this.currentPendingField = 'current_mortgage_payment';
+        } else if (!this.profile.current_mortgage_type) {
+          this.currentPendingField = 'current_mortgage_type';
+        } else if (!(this.profile as any).remaining_term_years_confirmed && !this.profile.remaining_term_years) {
+          this.currentPendingField = 'remaining_term_years';
+        } else if (!this.profile.closing_costs_preference) {
+          this.currentPendingField = 'closing_costs_preference';
+        } else if (this.profile.refinance_type === 'cash_out' && !(this.profile as any).cash_out_amount_confirmed && !this.profile.cash_out_amount) {
+          this.currentPendingField = 'cash_out_amount';
+        } else if (!this.profile.job_tenure_type_confirmed) {
+          this.currentPendingField = 'job_tenure_type';
+        } else {
+          this.calculateEligibility();
+          this.currentPendingField = 'stage2_closing_offer';
+          console.log('[context-manager]: Transitioning to STAGE 2 Closing Transition (Refinance)!');
+        }
+      } else if (isHel) {
+        // HELOC Sequence: heloc_risk_acknowledged -> property_value -> first_mortgage_balance -> heloc_line_amount -> heloc_draw_use -> job_tenure_type
+        if (!this.profile.heloc_risk_acknowledged) {
+          this.currentPendingField = 'heloc_risk_acknowledged';
+        } else if (!(this.profile as any).property_value_confirmed && !this.profile.property_value) {
+          this.currentPendingField = 'property_value';
+        } else if (!(this.profile as any).first_mortgage_balance_confirmed && !this.profile.first_mortgage_balance) {
+          this.currentPendingField = 'first_mortgage_balance';
+        } else if (!(this.profile as any).heloc_line_amount_confirmed && !this.profile.heloc_line_amount) {
+          this.currentPendingField = 'heloc_line_amount';
+        } else if (!this.profile.heloc_draw_use) {
+          this.currentPendingField = 'heloc_draw_use';
+        } else if (!this.profile.job_tenure_type_confirmed) {
+          this.currentPendingField = 'job_tenure_type';
+        } else {
+          this.calculateEligibility();
+          this.currentPendingField = 'stage2_closing_offer';
+          console.log('[context-manager]: Transitioning to STAGE 2 Closing Transition (HELOC)!');
+        }
       } else {
-        this.calculateEligibility();
-        this.currentPendingField = 'stage2_closing_offer';
-        console.log('[context-manager]: Transitioning to STAGE 2 Closing Transition!');
+        // Home Purchase Sequence
+        if (!this.profile.down_payment_confirmed) {
+          this.currentPendingField = 'down_payment';
+        } else if (!this.profile.rent_own_confirmed) {
+          this.currentPendingField = 'rent_own';
+        } else if (!this.profile.realtor_status_confirmed) {
+          this.currentPendingField = 'realtor_status';
+        } else if (!this.profile.target_price_confirmed) {
+          this.currentPendingField = 'target_price';
+        } else if (!this.profile.property_type_confirmed) {
+          this.currentPendingField = 'property_type';
+        } else if (!this.profile.military_rural_confirmed) {
+          this.currentPendingField = 'military_rural';
+        } else if (!this.profile.job_tenure_type_confirmed) {
+          this.currentPendingField = 'job_tenure_type';
+        } else {
+          this.calculateEligibility();
+          this.currentPendingField = 'stage2_closing_offer';
+          console.log('[context-manager]: Transitioning to STAGE 2 Closing Transition (Purchase)!');
+        }
       }
     } else if (this.activeStage === '3') {
       if (!this.profile.program_comparison_interest_confirmed) {
@@ -2941,12 +3085,51 @@ If no correction/change is found, return null.`
     } else if (field === 'co_borrower') {
       this.profile.co_borrower = 'no';
       this.profile.co_borrower_confirmed = true;
-    } else if (['gross_annual_income', 'monthly_debt', 'credit_range', 'refinance_type', 'down_payment', 'target_price', 'rent_own', 'realtor_status', 'property_type', 'military_rural', 'job_tenure_type'].includes(field)) {
-      if (['gross_annual_income', 'monthly_debt', 'down_payment', 'target_price'].includes(field)) {
+    } else if ([
+      'gross_annual_income',
+      'monthly_debt',
+      'credit_range',
+      'refinance_type',
+      'down_payment',
+      'target_price',
+      'rent_own',
+      'realtor_status',
+      'property_type',
+      'military_rural',
+      'job_tenure_type',
+      'property_value',
+      'first_mortgage_balance',
+      'current_mortgage_rate',
+      'current_mortgage_payment',
+      'current_mortgage_type',
+      'remaining_term_years',
+      'closing_costs_preference',
+      'cash_out_amount',
+      'heloc_line_amount',
+      'heloc_risk_acknowledged',
+      'heloc_draw_use',
+    ].includes(field)) {
+      if ([
+        'gross_annual_income',
+        'monthly_debt',
+        'down_payment',
+        'target_price',
+        'property_value',
+        'first_mortgage_balance',
+        'current_mortgage_rate',
+        'current_mortgage_payment',
+        'remaining_term_years',
+        'cash_out_amount',
+        'heloc_line_amount',
+      ].includes(field)) {
         this.commitStage2Value(field, null, true);
       } else {
         if (field === 'credit_range') this.profile.credit_range = null;
         if (field === 'refinance_type') this.profile.refinance_type = 'rate_term';
+        if (field === 'current_mortgage_type') this.profile.current_mortgage_type = 'conventional';
+        if (field === 'closing_costs_preference') this.profile.closing_costs_preference = 'rolled_in';
+        if (field === 'heloc_risk_acknowledged') this.profile.heloc_risk_acknowledged = true;
+        if (field === 'heloc_draw_use') this.profile.heloc_draw_use = 'home improvement';
         if (field === 'rent_own') this.profile.rent_own = 'rent';
         if (field === 'realtor_status') this.profile.realtor_status = 'no';
         if (field === 'property_type') this.profile.property_type = 'single_family';
