@@ -143,39 +143,28 @@ Connect the extracted Refinance and HELOC profile data into `AffordabilityPanelN
 
 ---
 
-### 🔹 PHASE 4: Findings Delivery & Loan Officer Handoff (⏳ PENDING)
+### 🔹 PHASE 4: Findings Delivery & Loan Officer Handoff (✅ COMPLETE)
 
 #### Objective
 Tailor the Stage 3/4 findings scripts and Stage 5 loan officer handoff for Refinance (`RFD1`/`RFD2`) and HELOC (`HFD1`/`HFD2`).
 
-#### Files to Touch
-* `backend/src/prompts/stage4-underwriting.ts` — add track-aware findings scripts
-* `backend/src/agent.ts` — ensure AUS submission flow routes correctly for TT-REF and TT-HEL
-
-#### Specific Implementation Requirements
-
-`stage4-underwriting.ts` must be updated to branch on `profile.transaction_type` and deliver the correct findings formulation per the v8.7 spec.
-
-**1. `RFD-LOADING`** — Deliver if AUS hasn't returned within ~10-15 seconds for any non-purchase track (Compliance Item 28, mandatory):
-> *"Your eligibility review is processing right now — these reviews typically take just a moment, but occasionally take a little longer depending on system volume. Please hold on — I'll have your results for you shortly and we'll go through everything together."*
-
-**2. `RFD1`** — Refinance conditional eligibility (when `TT-REF`, replaces generic `approve` script):
-> *"Good news, [Name] — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for the refinance scenario you built. Your estimated payment comparison is on your screen now — it shows your estimated new payment alongside your current payment reference point. Your licensed loan officer will reach out to walk you through next steps and lock in your rate — or I can connect you right now if you'd like."*
-
-**3. `RFD2`** — Refinance refer (when `TT-REF`, replaces generic `refer` script):
-> *"Thank you for your patience, [Name] — your review is back, and your refinance scenario warrants a closer look from a licensed loan officer rather than an automated decision. That is common in refinance situations, and it is often where the best solutions are found — your loan officer can evaluate options like streamline programs or specific equity structures the automated review does not fully cover. Can I connect you to a licensed loan officer now, or schedule a callback?"*
-
-**4. `HFD1`** — HELOC conditional eligibility (when `TT-HEL`, replaces generic `approve` script):
-> *"Good news, [Name] — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity line of credit. Your estimated available credit line is on your screen now. Your licensed loan officer will reach out to walk you through the next steps — including the formal application, appraisal scheduling, and the terms of your line — or I can connect you right now if you'd like."*
-
-**5. `HFD2`** — HELOC refer (when `TT-HEL`, replaces generic `refer` script):
-> *"Thank you for your patience, [Name] — your review is back, and your HELOC scenario warrants a closer look from a licensed loan officer. Equity-based lending depends on several factors that an automated review can only partially assess, and a licensed loan officer may identify options or programs the initial review didn't capture. Can I connect you now, or schedule a callback?"*
-
-**Compliance constraints for Phase 4:**
-- `RFD1` / `HFD1`: Always *"conditionally eligible"* — NEVER "approved" or "rate confirmed".
-- `RFD2` / `HFD2`: Never cite a specific reason for referral. Never use denial language.
-- No pre-qualification letter for Refinance or HELOC tracks (purchase-only per Compliance Item 15).
-- `RFD-LOADING` must not speculate about the result before it arrives.
+#### Status
+- ✅ **Updated [`backend/src/prompts/stage25-affordability.ts`](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/prompts/stage25-affordability.ts)**:
+  - Dynamically renders `RFD1` and `RFD2` for `TT-REF`.
+  - Dynamically renders `HFD1` and `HFD2` for `TT-HEL` and `TT-HEQ`.
+  - Dynamically renders `FD1` and `FD2` for `TT-PUR`.
+  - Added `RFD-LOADING` / `FD-LOADING` (>10-15s processing delay formulation).
+- ✅ **Updated [`backend/src/prompts/stage4-underwriting.ts`](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/prompts/stage4-underwriting.ts)**:
+  - Added track-aware underwriting outcome dispatch with `RFD1`/`RFD2` and `HFD1`/`HFD2`.
+- ✅ **Updated [`backend/src/agent.ts`](file:///c:/Users/SOHAIL/Downloads/ConvergentAI/backend/src/agent.ts)**:
+  - Updated 0ms verbal submit fast-path with personalized borrower name and track-aware formulations (`RFD1`, `HFD1`, `FD1`).
+- ✅ **Compliance Verification**:
+  - Gated pre-qualification letter email generation exclusively to `TT-PUR` (Refinance and HELOC findings are delivered on-screen without pre-qual letters per Compliance Item 11).
+- ✅ **Automated Tests**:
+  - `stage3-prompts-findings.test.ts` (100% Passed)
+  - `refinance-flow.test.ts` (100% Passed)
+  - `heloc-flow.test.ts` (100% Passed)
+  - All 10 test suites in `npm test` passing with 100% success.
 
 #### How to Test Phase 4
 1. Click/Say `Submit for review` on a Refinance scenario → Confirm `RFD1` conditional eligibility delivery.

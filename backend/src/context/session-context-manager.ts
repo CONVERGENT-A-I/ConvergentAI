@@ -766,6 +766,9 @@ export class SessionContextManager {
           // Voice submit in stated mode -> triggers upgrade flow
           this.activeStage = '3A';
           this.currentPendingField = 'contact_name';
+          this.profile.affordability_submitted = false;
+          this.profile.aus_status = null;
+          this.profile.affordability_aus_status = null;
           console.log('[context-manager]: Voice submit in stated mode -> triggering upgrade (Stage 3A contact_name).');
         } else {
           // Voice submit in verified mode -> executes AUS submission
@@ -777,6 +780,9 @@ export class SessionContextManager {
         // Trigger upgrade to verified mode — set pending to OTP gate
         this.activeStage = '3A';
         this.currentPendingField = 'contact_name';
+        this.profile.affordability_submitted = false;
+        this.profile.aus_status = null;
+        this.profile.affordability_aus_status = null;
         console.log('[context-manager]: Affordability panel upgrade to verified mode requested via voice. Going to OTP gate (contact_name).');
       } else if (res.value === 'update_profile') {
         this.currentPendingField = 'affordability_profile_correction';
@@ -861,6 +867,9 @@ export class SessionContextManager {
     this.activeStage = '3A';
     this.currentPendingField = 'contact_name';
     this.profile.transition_pitch_delivered = true;
+    this.profile.affordability_submitted = false;
+    this.profile.aus_status = null;
+    this.profile.affordability_aus_status = null;
     console.log('[context-manager]: Explicit upgrade to verified mode triggered! Active stage set to 3A, pending field set to contact_name.');
   }
 
@@ -1978,11 +1987,12 @@ export class SessionContextManager {
           '"I authorize", "I authorized", "I consent", "I give consent", "authorized", "that one". ' +
           'Extract "explore_first" (Path B) for: "affordability summary", "the summary", ' +
           '"I would like the affordability summary", "build my summary", "build from what I shared", ' +
-          '"explore first", "stated mode", "second option", "without the review", "skip the review", ' +
-          '"no review", "not yet", "no", "not right now", "I would rather not". ' +
+          '"build it with what I shared", "what I shared", "use what I shared", "stated", "stated mode", ' +
+          '"give me the stated mode", "explore first", "second option", "without the review", "skip the review", ' +
+          '"no review", "not yet", "no", "not right now", "I would rather not", "build my affordability summary of Heloc". ' +
           'Extract "explain" if borrower asks what the credit review or soft pull involves. ' +
           'Return null if completely off-topic (wants a loan officer, asks about rates or programs). ' +
-          'KEY: "I would like the affordability summary" = explore_first. "Licensed loan officer" = null. ' +
+          'KEY: "I would like the affordability summary" = explore_first. "build it with what I shared" = explore_first. "Licensed loan officer" = null. ' +
           'Prefer "soft_pull" over null when affirmation is ambiguous.',
       });
     }
@@ -2213,10 +2223,11 @@ export class SessionContextManager {
         this.activeStage = '2.5';
         this.profile.affordability_mode = 'stated';
         this.profile.affordability_panel_rendered = true;
-        this.profile.affordability_purchase_price = this.profile.target_price ?? 350000;
-        this.profile.affordability_down_payment = this.profile.down_payment ?? 70000;
+        (this.profile as any).affordability_panel_closed = false;
         if (!this.profile.target_price) this.profile.target_price = 350000;
         if (!this.profile.down_payment) this.profile.down_payment = 70000;
+        if (!this.profile.affordability_purchase_price) this.profile.affordability_purchase_price = this.profile.target_price;
+        if (!this.profile.affordability_down_payment) this.profile.affordability_down_payment = this.profile.down_payment;
         this.currentPendingField = 'affordability_panel_active';
         console.log('[context-manager]: Path B chosen via LLM — Stated-Data Mode. Transitioning directly to Stage 2.5 (Affordability Panel)!');
         return;

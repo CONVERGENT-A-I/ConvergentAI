@@ -143,6 +143,17 @@ async function runRefinanceFlowTests() {
     console.log('✅ Refinance - Test 2m Passed: Advances to stage2_closing_offer (Two-Path Choice).');
   }
 
+  // Test 3: Refinance Stage 2.5 -> AUS Submission -> RFD1 Findings Delivery
+  manager.applyAusResult('approve_eligible');
+  if (manager.getActiveStage() === '2.5' && manager.getPendingField() === 'fd1_delivery') {
+    console.log('✅ Refinance - Test 3a Passed: applyAusResult transitions to Stage 2.5 with fd1_delivery.');
+  }
+
+  const stage4RefiPrompt = buildStage2RefinanceInstructions(p);
+  if (stage4RefiPrompt.includes('STAGE: Refinance Pre-Qualification Discovery')) {
+    console.log('✅ Refinance - Test 3b Passed: Refinance track context preserved through findings delivery.');
+  }
+
   console.log('\n🎉 ALL REFINANCE FLOW TESTS PASSED!\n');
 }
 

@@ -153,11 +153,11 @@ class AilanaVoiceAgent extends voice.Agent {
     // We check this BEFORE the question/correction block so that phrases like "Can you submit this?"
     // trigger the submission rather than being delegated to the LLM for explanation.
     const ausAlreadyDone = !!(this.contextManager.getProfile() as any).aus_status;
-    const inAffordabilityStage = this.contextManager.getActiveStage() === '2.5' || this.contextManager.getPendingField() === 'affordability_panel_active';
+    const inAffordabilityStage = this.contextManager.getActiveStage() === '2.5' || this.contextManager.getPendingField() === 'affordability_panel_active' || !!this.contextManager.getProfile().affordability_panel_rendered;
     const isConditionalOrQuestion = /\b(what if|after (?:i|we) submit|if (?:i|we) submit|before (?:i|we) submit|will that affect|what will be the process|how does it work|can you explain|why does|tell me about)\b/i.test(lastUserText);
-    const verbalSubmitPattern = /\b(submit\s*(for\s*me|it|review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(?:and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|do\s+it\s+for\s+me|send\s+it|yes\s+submit|let'?s\s+submit|go\s+ahead|let'?s\s+go|proceed|ready\s+to\s+submit|i'?m\s+ready|yes\s+please|sounds\s+good)\b/i;
+    const verbalSubmitPattern = /\b(submit\s*(for\s*me|it|review|my\s*review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(?:and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|do\s+it\s+for\s+me|send\s+it|yes\s+submit|let'?s\s+submit|go\s+ahead|let'?s\s+go|proceed|ready\s+to\s+submit|i'?m\s+ready|yes\s+please|sounds\s+good)\b/i;
 
-    if (!ausAlreadyDone && inAffordabilityStage && !isConditionalOrQuestion && verbalSubmitPattern.test(lastUserText)) {
+    if (inAffordabilityStage && !isConditionalOrQuestion && verbalSubmitPattern.test(lastUserText)) {
       console.log(`[agent-hook]: 0ms Verbal Submit Fast-Path triggered — executing AUS findings immediately without LLM call!`);
 
       // 1. Instantly update the UI to show the button as "Review Submitted ✓" and ensure panel stays rendered
@@ -172,7 +172,19 @@ class AilanaVoiceAgent extends voice.Agent {
       // 2. Mark stage 5 transition as deferred until avatar finishes reading the AUS findings speech.
       (p as any).pendingStage5Transition = true;
 
-      const scriptText = `Thank you for your patience — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;
+      const borrowerName = p.borrower_name || p.contact_name || p.legal_name || 'there';
+      const isRef = p.transaction_type === 'TT-REF' || p.mortgage_goal === 'refinance';
+      const isHel = p.transaction_type === 'TT-HEL' || p.transaction_type === 'TT-HEQ' || p.mortgage_goal === 'heloc';
+
+      let scriptText = '';
+      if (isRef) {
+        scriptText = `Good news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for the refinance scenario you built. Your estimated payment comparison is on your screen now — it shows your estimated new payment alongside your current payment reference point. Your licensed loan officer will reach out to walk you through next steps and lock in your rate — or I can connect you right now if you'd like.`;
+      } else if (isHel) {
+        scriptText = `Good news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity line of credit. Your estimated available credit line is on your screen now. Your licensed loan officer will reach out to walk you through the next steps — including the formal application, appraisal scheduling, and the terms of your line — or I can connect you right now if you'd like.`;
+      } else {
+        scriptText = `Wonderful news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built. Your estimated payment range has been calculated and is included in your pre-qualification letter. I've sent your pre-qualification letter to your email on file — it's issued by your lending institution, it's valid for ninety days, and it's exactly what real estate agents like to see with an offer. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like.`;
+      }
+
       return createVerbatimStream(scriptText) as any;
     }
 
@@ -225,41 +237,56 @@ class AilanaVoiceAgent extends voice.Agent {
     }
 
     // ── 0ms Parallel Fast-Path for Stage 2 Completion ──
+    // ── 0ms Parallel Fast-Path for Stage 2 Completion ──
     const isAnsweringJobTenure =
       (pending === 'job_tenure_type' || pending === 'stage2_closing_offer') &&
       !this._stage2ClosingOfferDelivered &&
       (/\b(salary|salaried|hourly|self-employed|self employed|working|employed|contract|w2|1099|full-time|part-time|full time|part time)\b/i.test(lastUserText) ||
         /(\d+|\b(one|two|three|four|five|six|seven|eight|nine|ten)\b)\s*(years?|months?)\b/i.test(lastUserText));
 
-    if (pending === 'stage2_closing_offer' || isAnsweringJobTenure) {
+    const isExplicitPathB = /\b(build.*(?:shared|summary|stated|info|heloc|refinance|options)|what\s+i\s+shared|from\s+what\s+i\s+shared|use\s+what\s+i\s+shared|summary|explore|stated|second|without|no\s+review|skip)\b/i.test(lastUserText);
+    const isExplicitPathA = !isExplicitPathB && /\b(soft\s*pull|credit\s*review|first(?:\s*option)?|most\s*complete|yes|sure|okay|go\s*ahead|proceed|run\s*it|run\s*the\s*review)\b/i.test(lastUserText);
+
+    if (pending === 'stage2_closing_offer' || isAnsweringJobTenure || isExplicitPathB) {
       if (isAnsweringJobTenure) {
         console.log('[agent-hook]: Parallel 0ms Fast-Path — job_tenure_type answer detected. Triggering STAGE2_CLOSING_OFFER_SCRIPT!');
         this.contextManager.setCurrentPendingField('stage2_closing_offer');
       }
 
       let scriptText = '';
-      if (!this._stage2ClosingOfferDelivered) {
+      if (!this._stage2ClosingOfferDelivered && !isExplicitPathB && !isExplicitPathA) {
         this._stage2ClosingOfferDelivered = true;
         scriptText = STAGE2_CLOSING_OFFER_SCRIPT();
         console.log('[agent-hook]: Delivering initial STAGE2_CLOSING_OFFER_SCRIPT via Deterministic ReadableStream (0ms LLM)!');
       } else {
         // User is answering stage2_closing_offer:
-        const isPathA = /\b(soft pull|review|eligibility|first|most complete|yes|sure|okay|go ahead|proceed|run it)\b/i.test(lastUserText);
-        const isPathB = /\b(summary|explore|stated|second|without|no review|skip)\b/i.test(lastUserText);
+        if (isExplicitPathB) {
+          console.log('[agent-hook]: Parallel 0ms Fast-Path — Path B (Stated Mode) chosen! Transitioning directly to Stage 2.5 Stated Mode!');
+          this.contextManager.setActiveStage('2.5');
+          const prof = this.contextManager.getProfile();
+          prof.affordability_mode = 'stated';
+          prof.affordability_panel_rendered = true;
+          (prof as any).affordability_panel_closed = false;
+          prof.affordability_submitted = false;
+          prof.aus_status = null;
+          prof.affordability_aus_status = null;
+          this.contextManager.setCurrentPendingField('affordability_panel_active');
+          if (this.sendStageUpdate) {
+            this.sendStageUpdate('2.5').catch(err => console.warn(err));
+          }
 
-        if (isPathA) {
-          console.log('[agent-hook]: Parallel 0ms Fast-Path — Path A chosen! Transitioning directly to STAGE 3A OTP gate (contact_name)!');
+          const borrowerName = prof.borrower_name || prof.contact_name || prof.legal_name || 'there';
+          const q46s = `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your initial results are in, and I've placed your affordability summary on your screen. It brings together the income and savings targets you shared with me and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?`;
+          return createVerbatimStream(q46s) as any;
+        } else if (isExplicitPathA) {
+          console.log('[agent-hook]: Parallel 0ms Fast-Path — Path A (Soft Pull) chosen! Transitioning directly to STAGE 3A OTP gate (contact_name)!');
           this.contextManager.setActiveStage('3A');
           this.contextManager.setCurrentPendingField('contact_name');
+          if (this.sendStageUpdate) {
+            this.sendStageUpdate('3A').catch(err => console.warn(err));
+          }
           const script = "Perfect. Before we run your review, I'll need a few details to set up your secure login. First, what's your name?";
           return createVerbatimStream(script) as any;
-        } else if (isPathB) {
-          console.log('[agent-hook]: Parallel 0ms Fast-Path — Path B chosen! Transitioning directly to Stage 2.5 Stated Mode!');
-          this.contextManager.setActiveStage('2.5');
-          profile.affordability_mode = 'stated';
-          profile.affordability_panel_rendered = true;
-          this.contextManager.setCurrentPendingField('affordability_panel_active');
-          return createVerbatimStream("Got it! I've built your affordability summary right here on your screen based on what you shared. Take a moment to review it, and when you're ready, click submit to run your review.") as any;
         }
 
         scriptText = 'Which would you prefer — the soft credit review with no impact to your credit score, or building your affordability summary from the information you shared today?';
@@ -514,12 +541,16 @@ class AilanaVoiceAgent extends voice.Agent {
     const buildAffordabilitySummaryIntroScript = () => {
       profile.affordability_panel_rendered = true;
       (profile as any).affordability_panel_closed = false;
+      profile.affordability_submitted = false;
+      profile.aus_status = null;
+      profile.affordability_aus_status = null;
       this.contextManager.setActiveStage('2.5');
       this.contextManager.setCurrentPendingField('affordability_panel_active');
       if (this.sendStageUpdate) {
         this.sendStageUpdate('2.5').catch(err => console.warn(err));
       }
-      return `Thank you for your patience — your initial results are in, and I've placed your affordability summary on your screen. It brings together the income and savings targets you shared with me and the details from your credit review, and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?`;
+      const borrowerName = profile.borrower_name || profile.contact_name || profile.legal_name || 'there';
+      return `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your initial results are in, and I've placed your affordability summary on your screen. It brings together the income and savings targets you shared with me and the details from your credit review, and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?`;
     };
 
     if (pending === 'prefill_name_address') {

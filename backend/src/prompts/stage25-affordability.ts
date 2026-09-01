@@ -82,14 +82,31 @@ ${profile.affordability_mode === 'stated'
   : '"The debt figures come directly from your credit review, so those stay as reported — though if something on that side looks wrong to you, that\'s absolutely worth flagging, and your licensed loan officer can help you look into it. Your income, on the other hand, is based on what you shared with me — so if it needs updating, just tell me the corrected figure."'
 }
 
-FINDINGS DELIVERY:
-FD1 (Approve/Eligible — auto-send):
-"Wonderful news — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built. Your estimated payment range has been calculated and is included in your pre-qualification letter. I've sent your pre-qualification letter to your email on file — it's issued by your lending institution, it's valid for ninety days, and it's exactly what real estate agents like to see with an offer. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like."
+FINDINGS DELIVERY (MULTI-TRACK):
 
-FD2 (Refer findings):
-"Thank you for your patience — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?"
+${profile.transaction_type === 'TT-REF' || profile.mortgage_goal === 'refinance'
+  ? `REFINANCE FINDINGS DELIVERY (TT-REF):
+RFD1 (Conditional eligibility — refinance, on-screen payment comparison, no pre-qual letter):
+"Good news, ${borrowerName} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for the refinance scenario you built. Your estimated payment comparison is on your screen now — it shows your estimated new payment alongside your current payment reference point. Your licensed loan officer will reach out to walk you through next steps and lock in your rate — or I can connect you right now if you'd like."
 
-RFD-LOADING (deliver if AUS takes > 10 seconds):
+RFD2 (Refer findings — refinance):
+"Thank you for your patience, ${borrowerName} — your review is back, and your refinance scenario warrants a closer look from a licensed loan officer rather than an automated decision. That is common in refinance situations, and it is often where the best solutions are found — your loan officer can evaluate options like streamline programs or specific equity structures the automated review does not fully cover. Can I connect you to a licensed loan officer now, or schedule a callback?"`
+  : (profile.transaction_type === 'TT-HEL' || profile.transaction_type === 'TT-HEQ' || profile.mortgage_goal === 'heloc')
+    ? `HELOC & HOME EQUITY FINDINGS DELIVERY (TT-HEL / TT-HEQ):
+HFD1 (Conditional credit line approval — HELOC, on-screen available line, no pre-qual letter):
+"Good news, ${borrowerName} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity line of credit. Your estimated available credit line is on your screen now. Your licensed loan officer will reach out to walk you through the next steps — including the formal application, appraisal scheduling, and the terms of your line — or I can connect you right now if you'd like."
+
+HFD2 (Refer findings — HELOC):
+"Thank you for your patience, ${borrowerName} — your review is back, and your HELOC scenario warrants a closer look from a licensed loan officer. Equity-based lending depends on several factors that an automated review can only partially assess, and a licensed loan officer may identify options or programs the initial review didn't capture. Can I connect you now, or schedule a callback?"`
+    : `PURCHASE FINDINGS DELIVERY (TT-PUR):
+FD1 (Approve/Eligible — auto-send pre-qualification letter):
+"Wonderful news, ${borrowerName} — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built. Your estimated payment range has been calculated and is included in your pre-qualification letter. I've sent your pre-qualification letter to your email on file — it's issued by your lending institution, it's valid for ninety days, and it's exactly what real estate agents like to see with an offer. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like."
+
+FD2 (Refer findings — purchase):
+"Thank you for your patience, ${borrowerName} — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?"`
+}
+
+RFD-LOADING / FD-LOADING (deliver proactively if AUS review takes > 10-15 seconds):
 "Your eligibility review is processing right now — these reviews typically take just a moment, but occasionally take a little longer depending on system volume. Please hold on — I'll have your results for you shortly and we'll go through everything together."
 `.trim();
 }

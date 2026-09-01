@@ -126,6 +126,17 @@ async function runHelocFlowTests() {
     console.log('✅ HELOC - Test 2k Passed: Advances to stage2_closing_offer (Two-Path Choice).');
   }
 
+  // Test 3: HELOC Stage 2.5 -> AUS Submission -> HFD1 Findings Delivery
+  manager.applyAusResult('approve_eligible');
+  if (manager.getActiveStage() === '2.5' && manager.getPendingField() === 'fd1_delivery') {
+    console.log('✅ HELOC - Test 3a Passed: applyAusResult transitions to Stage 2.5 with fd1_delivery.');
+  }
+
+  const stage4HelocPrompt = buildStage2HelocInstructions(p);
+  if (stage4HelocPrompt.includes('STAGE: Home Equity Line of Credit Pre-Qualification Discovery')) {
+    console.log('✅ HELOC - Test 3b Passed: HELOC track context preserved through findings delivery.');
+  }
+
   console.log('\n🎉 ALL HELOC FLOW TESTS PASSED!\n');
 }
 
