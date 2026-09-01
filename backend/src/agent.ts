@@ -29,6 +29,7 @@ import {
   GREETING_USER_INPUT,
   RESUME_USER_INPUT,
 } from './prompts/index.js';
+import type { BorrowerProfile } from './prompts/layer3-context.js';
 import { logPromptBudget } from './context/context-budget.js';
 import { AvatarSession } from '@livekit/agents-plugin-lemonslice';
 import { BackchannelEngine } from './utils/backchannel-engine.js';
@@ -53,8 +54,20 @@ process.on('unhandledRejection', (reason: any) => {
 
 // Verbatim Stage 2 Closing Offer text — delivered via session.say() bypassing the LLM.
 // This guarantees the exact two-path script is spoken regardless of LLM instruction-following.
-const STAGE2_CLOSING_OFFER_SCRIPT = () =>
-  `Great work exploring your numbers. You have two good ways to see your affordability picture. First, with your authorization, I can perform a soft credit review to pre-populate your application with your actual credit data, saving you time and ensuring accurate information, all with no impact to your credit score. Alternatively, I can build your affordability summary right now using just the details you've already shared, and you can add the credit review whenever you're ready. Which path would you prefer?`;
+const STAGE2_CLOSING_OFFER_SCRIPT = (profile?: BorrowerProfile) => {
+  const name = profile?.borrower_name || profile?.contact_name || profile?.legal_name;
+  const namePrefix = name ? `, ${name}` : '';
+  const isRef = profile?.transaction_type === 'TT-REF' || profile?.mortgage_goal === 'refinance';
+  const isHel = profile?.transaction_type === 'TT-HEL' || profile?.transaction_type === 'TT-HEQ' || profile?.mortgage_goal === 'heloc';
+
+  if (isRef) {
+    return `Great work exploring your numbers${namePrefix}. You've got two good ways to see your refinance scenario, and the choice is yours. The most complete option: with your authorization, a soft credit review — no impact to your credit score — prefills your application and builds your refinance scenario with your real credit data. Or, if you'd rather not run the review just yet, I can build your refinance scenario right now from everything you've shared with me, and you can add the credit review whenever you're ready. Which would you like?`;
+  }
+  if (isHel) {
+    return `Great work exploring your numbers${namePrefix}. You've got two good ways to see your home equity options, and the choice is yours. The most complete option: with your authorization, a soft credit review — no impact to your credit score — prefills your application and builds your home equity summary with your real credit data. Or, if you'd rather not run the review just yet, I can build your home equity summary right now from everything you've shared with me, and you can add the credit review whenever you're ready. Which would you like?`;
+  }
+  return `Great work exploring your numbers${namePrefix}. You have two good ways to see your affordability picture. First, with your authorization, I can perform a soft credit review to pre-populate your application with your actual credit data, saving you time and ensuring accurate information, all with no impact to your credit score. Alternatively, I can build your affordability summary right now using just the details you've already shared, and you can add the credit review whenever you're ready. Which path would you prefer?`;
+};
 
 function isQuestionOrCorrection(text: string | null | undefined): boolean {
   if (!text) return false;
@@ -165,6 +178,8 @@ class AilanaVoiceAgent extends voice.Agent {
       p.affordability_submitted = true;
       p.affordability_panel_rendered = true;
       (p as any).affordability_panel_closed = false;
+      p.aus_status = 'approve_eligible';
+      p.affordability_aus_status = 'approve_eligible';
       if (this.sendStageUpdate) {
         this.sendStageUpdate('2.5').catch(err => console.warn(err));
       }
@@ -256,7 +271,7 @@ class AilanaVoiceAgent extends voice.Agent {
       let scriptText = '';
       if (!this._stage2ClosingOfferDelivered && !isExplicitPathB && !isExplicitPathA) {
         this._stage2ClosingOfferDelivered = true;
-        scriptText = STAGE2_CLOSING_OFFER_SCRIPT();
+        scriptText = STAGE2_CLOSING_OFFER_SCRIPT(profile);
         console.log('[agent-hook]: Delivering initial STAGE2_CLOSING_OFFER_SCRIPT via Deterministic ReadableStream (0ms LLM)!');
       } else {
         // User is answering stage2_closing_offer:
@@ -293,6 +308,19 @@ class AilanaVoiceAgent extends voice.Agent {
         console.log('[agent-hook]: Delivering STAGE2_CLOSING_OFFER re-ask via Deterministic ReadableStream (0ms LLM)!');
       }
       return createVerbatimStream(scriptText) as any;
+    }
+
+    if (pending === 'cash_out_amount') {
+      const lower = lastUserText.toLowerCase().trim();
+      const isMaxOut = /\b(as much as (?:i can get|possible)|whatever (?:i can get|i can pull out)|the most possible|maximize it|max(?:imize| out)?)\b/i.test(lower);
+      if (isMaxOut) {
+        console.log(`[agent-hook]: RQ27-MAXOUT detected for cash_out_amount ("${lastUserText}"). Advancing workflow.`);
+        profile.cash_out_amount = 0;
+        profile.cash_out_amount_confirmed = true;
+        this.contextManager.advanceWorkflow();
+        const maxOutScript = `Since you're looking to maximize your cash-out, the exact amount will depend on your home's current appraised value and your loan program's maximum allowable Loan-to-Value limits — which is typically 80% for conventional loans, less the amount currently owed on your present mortgage. To give you a realistic picture, we need to work from an estimated home value. Should we run the initial qualification analysis based on a conservative estimate of your home's current value to see what that maximum net payout could look like? You can share a rough figure — even a general range is fine.`;
+        return createVerbatimStream(maxOutScript) as any;
+      }
     }
 
     if (pending === 'contact_name') {
@@ -664,14 +692,42 @@ class AilanaVoiceAgent extends voice.Agent {
       console.log(`[agent-hook]: LLM-classified submission request detected — executing submission and delivering findings!`);
       profile.affordability_panel_rendered = false;
       (profile as any).affordability_panel_closed = true;
-      profile.aus_status = 'refer';
+      if (!profile.aus_status) {
+        profile.aus_status = 'refer';
+      }
+      (profile as any).affordability_aus_status = profile.aus_status;
       this.contextManager.setActiveStage('5');
       this.contextManager.setCurrentPendingField('escalation_preference');
       if (this.sendStageUpdate) {
         this.sendStageUpdate('5').catch(err => console.warn(err));
       }
 
-      const scriptText = `Thank you for your patience — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;
+      const borrowerName = profile.borrower_name || profile.contact_name || profile.legal_name || 'there';
+      const isRef = profile.transaction_type === 'TT-REF' || profile.mortgage_goal === 'refinance';
+      const isHel = profile.transaction_type === 'TT-HEL' || profile.transaction_type === 'TT-HEQ' || profile.mortgage_goal === 'heloc';
+      const isApprove = profile.aus_status === 'approve' || profile.aus_status === 'approve_eligible';
+
+      let scriptText = '';
+      if (isRef) {
+        if (isApprove) {
+          scriptText = `Good news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for the refinance scenario you built. Your estimated payment comparison is on your screen now — it shows your estimated new payment alongside your current payment reference point. Your licensed loan officer will reach out to walk you through next steps and lock in your rate — or I can connect you right now if you'd like.`;
+        } else {
+          scriptText = `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your review is back, and your refinance scenario warrants a closer look from a licensed loan officer rather than an automated decision. That is common in refinance situations, and it is often where the best solutions are found — your loan officer can evaluate options like streamline programs or specific equity structures the automated review does not fully cover. Can I connect you to a licensed loan officer now, or schedule a callback?`;
+        }
+      } else if (isHel) {
+        if (isApprove) {
+          scriptText = `Good news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity line of credit. Your estimated available credit line is on your screen now. Your licensed loan officer will reach out to walk you through the next steps — including the formal application, appraisal scheduling, and the terms of your line — or I can connect you right now if you'd like.`;
+        } else {
+          scriptText = `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your review is back, and your HELOC scenario warrants a closer look from a licensed loan officer. Equity-based lending depends on several factors that an automated review can only partially assess, and a licensed loan officer may identify options or programs the initial review didn't capture. Can I connect you now, or schedule a callback?`;
+        }
+      } else {
+        if (isApprove) {
+          scriptText = `Wonderful news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built. Your estimated payment range has been calculated and is included in your pre-qualification letter. I've sent your pre-qualification letter to your email on file — it's issued by your lending institution, it's valid for ninety days, and it's exactly what real estate agents like to see with an offer. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like.`;
+        } else {
+          scriptText = `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;
+        }
+      }
+
       return createVerbatimStream(scriptText) as any;
     }
 
@@ -1163,14 +1219,14 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           const activeProf = contextManager.getProfile();
           if ((activeProf as any)?.pendingStage5Transition) {
             delete (activeProf as any).pendingStage5Transition;
-            (activeProf as any).affordability_aus_status = 'refer';
-            activeProf.aus_status = 'refer';
-            activeProf.affordability_panel_rendered = false;
-            (activeProf as any).affordability_panel_closed = true;
+            if (!activeProf.aus_status) {
+              activeProf.aus_status = 'approve_eligible';
+              (activeProf as any).affordability_aus_status = 'approve_eligible';
+            }
             contextManager.setActiveStage('5');
             contextManager.setCurrentPendingField('escalation_preference');
             sendStageUpdate('5').catch(err => console.warn(err));
-            console.log('[agent-hook]: Avatar speech finished — executed deferred transition to Stage 5 with aus_status=refer.');
+            console.log(`[agent-hook]: Avatar speech finished — executed deferred transition to Stage 5 with aus_status=${activeProf.aus_status}.`);
           }
 
           // ── Silent-turn guard: thinking → listening with no speech produced

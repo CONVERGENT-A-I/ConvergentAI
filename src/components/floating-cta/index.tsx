@@ -1677,6 +1677,7 @@ export default function FloatingCTA() {
                         const apTransactionType: TransactionType =
                           borrowerProfile?.transaction_type ||
                           (borrowerProfile?.mortgage_goal === 'refinance' ? 'TT-REF' :
+                           borrowerProfile?.transaction_type === 'TT-HEQ' ? 'TT-HEQ' :
                            borrowerProfile?.mortgage_goal === 'equity' || borrowerProfile?.mortgage_goal === 'heloc' ? 'TT-HEL' :
                            'TT-PUR');
                         const apCashOutIntent = borrowerProfile?.refinance_type === 'cash_out';
@@ -1721,6 +1722,17 @@ export default function FloatingCTA() {
                               },
                             };
                           }
+                          if (apTransactionType === 'TT-HEQ') {
+                            return {
+                              heq: {
+                                homeValue: borrowerProfile?.property_value ?? 500000,
+                                firstBalance: borrowerProfile?.first_mortgage_balance ?? 300000,
+                                lineAmount: borrowerProfile?.heloc_line_amount ?? 50000,
+                                rate: 7.5,
+                                term: 15,
+                              },
+                            };
+                          }
                           // Default: Purchase
                           return {
                             purchase: {
@@ -1736,7 +1748,9 @@ export default function FloatingCTA() {
                             ? (apCashOutIntent ? 'Cash-Out Refinance Summary' : 'Refinance Summary')
                             : apTransactionType === 'TT-HEL'
                               ? 'HELOC Summary'
-                              : 'Affordability Summary';
+                              : apTransactionType === 'TT-HEQ'
+                                ? 'Home Equity Loan Summary'
+                                : 'Affordability Summary';
 
                         const apIsSubmitted = !!(
                           hasSubmittedAus ||

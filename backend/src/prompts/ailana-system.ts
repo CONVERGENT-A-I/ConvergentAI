@@ -83,7 +83,7 @@ export function buildLayer2(stage: string = '1', profile: BorrowerProfile = {}):
     if (profile.transaction_type === 'TT-REF' || profile.mortgage_goal === 'refinance') {
       return buildStage2RefinanceInstructions(profile);
     }
-    if (profile.transaction_type === 'TT-HEL' || profile.mortgage_goal === 'heloc') {
+    if (profile.transaction_type === 'TT-HEL' || profile.transaction_type === 'TT-HEQ' || profile.mortgage_goal === 'heloc') {
       return buildStage2HelocInstructions(profile);
     }
     return buildStage2Instructions(profile);
@@ -92,7 +92,7 @@ export function buildLayer2(stage: string = '1', profile: BorrowerProfile = {}):
     return buildStage25Instructions(profile);
   }
   if (stage === '3') {
-    return buildStage3Instructions();
+    return buildStage3Instructions(profile);
   }
   if (stage === '3A') {
     return buildStage3AInstructions();

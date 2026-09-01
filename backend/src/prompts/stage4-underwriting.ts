@@ -13,6 +13,7 @@ export function buildStage4Instructions(profile: BorrowerProfile): string {
   const borrowerName = profile.borrower_name || profile.contact_name || profile.legal_name || 'there';
   const isRef = profile.transaction_type === 'TT-REF' || profile.mortgage_goal === 'refinance';
   const isHel = profile.transaction_type === 'TT-HEL' || profile.transaction_type === 'TT-HEQ' || profile.mortgage_goal === 'heloc';
+  const isHeq = profile.transaction_type === 'TT-HEQ';
 
   // Document checklist — included in approve and refer outcomes
   const documentChecklist = [
@@ -30,8 +31,20 @@ CURRENT SUB-STAGE: Refinance Conditional Eligibility (RFD1)
 GOAL: Announce conditional eligibility for the refinance scenario and present next steps.
 RULES:
 - Deliver RFD1: "Good news, ${borrowerName} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for the refinance scenario you built. Your estimated payment comparison is on your screen now — it shows your estimated new payment alongside your current payment reference point. Your licensed loan officer will reach out to walk you through next steps and lock in your rate — or I can connect you right now if you'd like."
-- Note: Do NOT mention a pre-qualification letter (pre-qual letters are exclusively for purchase).
 - Offer to connect with a licensed loan officer now or schedule a callback.`;
+    } else if (status === 'timeout' || status === 'waiting') {
+      subPrompt = `
+CURRENT SUB-STAGE: System Processing Delay (FD-LOADING / RFD-LOADING)
+GOAL: Apologize for the delay and reassure the borrower their application is safe.
+RULES:
+- Deliver: "Your eligibility review is processing right now — these reviews typically take just a moment, but occasionally take a little longer depending on system volume. Please hold on — I'll have your results for you shortly and we'll go through everything together."`;
+    } else if (status === 'suspend') {
+      subPrompt = `
+CURRENT SUB-STAGE: Advisor Intervention Required (Refer/Ineligible — Suspend)
+GOAL: Deliver this result with compassion — never use "denied" or "rejected".
+RULES:
+- Deliver: "Thank you for walking through this with me. Based on the information provided, the automated system has returned a result that requires additional advisor guidance before we can determine the best path forward."
+- Close with: "One of our licensed advisors will reach out to you. Is there anything specific you would like me to note for them?"`;
     } else {
       subPrompt = `
 CURRENT SUB-STAGE: Refinance Manual Review Referral (RFD2)
@@ -42,15 +55,37 @@ RULES:
     }
   } else if (isHel) {
     if (status === 'approve' || status === 'approve_with_conditions') {
-      subPrompt = `
+      subPrompt = isHeq ? `
+CURRENT SUB-STAGE: Home Equity Loan Conditional Approval (EFD1)
+GOAL: Announce conditional home equity loan approval and present next steps.
+RULES:
+- Deliver EFD1: "Good news, ${borrowerName} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity loan. Your estimated loan amount and monthly payment range are on your screen now. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like."
+- Offer to connect with a licensed loan officer now or schedule a callback.` : `
 CURRENT SUB-STAGE: HELOC Conditional Line Approval (HFD1)
 GOAL: Announce conditional credit line approval and present next steps.
 RULES:
 - Deliver HFD1: "Good news, ${borrowerName} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity line of credit. Your estimated available credit line is on your screen now. Your licensed loan officer will reach out to walk you through the next steps — including the formal application, appraisal scheduling, and the terms of your line — or I can connect you right now if you'd like."
-- Note: Do NOT mention a pre-qualification letter.
 - Offer to connect with a licensed loan officer now or schedule a callback.`;
-    } else {
+    } else if (status === 'timeout' || status === 'waiting') {
       subPrompt = `
+CURRENT SUB-STAGE: System Processing Delay (FD-LOADING / HFD-LOADING)
+GOAL: Apologize for the delay and reassure the borrower their application is safe.
+RULES:
+- Deliver: "Your eligibility review is processing right now — these reviews typically take just a moment, but occasionally take a little longer depending on system volume. Please hold on — I'll have your results for you shortly and we'll go through everything together."`;
+    } else if (status === 'suspend') {
+      subPrompt = `
+CURRENT SUB-STAGE: Advisor Intervention Required (Refer/Ineligible — Suspend)
+GOAL: Deliver this result with compassion — never use "denied" or "rejected".
+RULES:
+- Deliver: "Thank you for walking through this with me. Based on the information provided, the automated system has returned a result that requires additional advisor guidance before we can determine the best path forward."
+- Close with: "One of our licensed advisors will reach out to you. Is there anything specific you would like me to note for them?"`;
+    } else {
+      subPrompt = isHeq ? `
+CURRENT SUB-STAGE: Home Equity Loan Manual Review Referral (EFD2)
+GOAL: Explain the referral with empathy — this is NOT a denial.
+RULES:
+- Deliver EFD2: "Thank you for your patience, ${borrowerName} — your review is back, and your home equity loan scenario warrants a closer look from a licensed loan officer. There are a number of factors in equity lending that a licensed loan officer can review in more detail. Can I connect you now, or schedule a callback?"
+- Do NOT cite specific reasons or use denial language.` : `
 CURRENT SUB-STAGE: HELOC Manual Review Referral (HFD2)
 GOAL: Explain the referral with empathy — this is NOT a denial.
 RULES:

@@ -60,10 +60,18 @@ export interface BorrowerProfile {
   cash_out_use?: string | null;
   refinance_subtrack?: 'va' | 'fha' | 'usda' | 'conventional' | null;
   va_subsequent_use?: boolean | null;
+  prior_refinance?: 'yes' | 'no' | 'unknown' | null;
+  prior_refinance_confirmed?: boolean;
+  stay_duration_years?: number | string | null;
+  stay_duration_years_confirmed?: boolean;
 
   heloc_line_amount?: number | null;
   heloc_line_amount_confirmed?: boolean;
   heloc_draw_use?: string | null;
+  heloc_prior?: 'yes' | 'no' | 'unknown' | null;
+  heloc_prior_confirmed?: boolean;
+  heloc_timeline?: string | null;
+  heloc_timeline_confirmed?: boolean;
   heloc_risk_acknowledged?: boolean;
   heloc_rate_comfort?: 'variable' | 'fixed' | 'either' | null;
   heloc_rate_comfort_confirmed?: boolean;
@@ -155,7 +163,7 @@ export interface BorrowerProfile {
   dti_above_hard_ceiling?: boolean;
 
   // ── Stage 4 ──────────────────────────────────────────────────────────────
-  aus_status?: 'waiting' | 'approve' | 'approve_with_conditions' | 'refer' | 'suspend' | 'timeout' | null;
+  aus_status?: 'waiting' | 'approve' | 'approve_eligible' | 'approve_with_conditions' | 'refer' | 'suspend' | 'timeout' | null;
   aus_confirmed?: boolean;
   checklist_discussed?: boolean;
 
@@ -198,6 +206,8 @@ const FIELD_LABELS: Record<string, string> = {
   affordability_purchase_price: 'target purchase price (affordability panel)',
   affordability_down_payment: 'down payment (affordability panel)',
   affordability_aus_status: 'AUS eligibility review result',
+  prior_refinance: 'prior refinance history on this property',
+  stay_duration_years: 'planned duration to stay in the home',
   contact_name: 'preferred name for account setup',
   contact_email: 'email address for secure login',
   contact_mobile: 'mobile phone number for OTP verification',
@@ -227,20 +237,27 @@ export function buildLayer3TurnContext(
   const fmt = (val?: number | null) =>
     val != null ? `$${val.toLocaleString()}` : 'not yet collected';
 
-  const isRefinanceGoal = profile.mortgage_goal === 'refinance';
+  const isRefinanceGoal = profile.mortgage_goal === 'refinance' || profile.transaction_type === 'TT-REF';
 
   const stage2Block = isRefinanceGoal ? [
     '=== BORROWER PROFILE (Stage 2 — Pre-Qualification Discovery) ===',
     `Gross annual income:   ${fmt(profile.gross_annual_income)} (Confirmed: ${!!profile.gross_annual_income_confirmed})`,
     `Monthly debt:          ${fmt(profile.monthly_debt)} (Confirmed: ${!!profile.monthly_debt_confirmed})`,
     `Credit score:          ${profile.credit_range ?? 'not yet collected'} (Confirmed: ${!!profile.credit_range_confirmed})`,
+    `Current loan type:     ${profile.current_mortgage_type ?? 'not yet collected'}`,
     `Refinance type:        ${profile.refinance_type ?? 'not yet collected'} (Confirmed: ${!!profile.refinance_type_confirmed})`,
-    `Est property value:    ${fmt(profile.target_price)} (Confirmed: ${!!profile.target_price_confirmed})`,
-    `Property type:         ${profile.property_type ?? 'not yet collected'} (Confirmed: ${!!profile.property_type_confirmed})`,
-    `Military/Rural status: ${profile.military_rural ?? 'not yet collected'} (Confirmed: ${!!profile.military_rural_confirmed})`,
+    `Est property value:    ${fmt(profile.property_value ?? profile.target_price)} (Confirmed: ${!!profile.property_value_confirmed || !!profile.target_price_confirmed})`,
+    `First mortgage balance:${fmt(profile.first_mortgage_balance)} (Confirmed: ${!!profile.first_mortgage_balance_confirmed})`,
+    `Current interest rate: ${profile.current_mortgage_rate ? profile.current_mortgage_rate + '%' : 'not yet collected'}`,
+    `Current monthly payment:${fmt(profile.current_mortgage_payment)}`,
+    `Remaining term years:  ${profile.remaining_term_years ?? 'not yet collected'}`,
+    `Closing costs pref:    ${profile.closing_costs_preference ?? 'not yet collected'}`,
+    profile.refinance_type === 'cash_out' ? `Cash out amount:       ${fmt(profile.cash_out_amount)} (Confirmed: ${!!profile.cash_out_amount_confirmed})` : '',
+    `Prior refinance:       ${profile.prior_refinance ?? 'not yet collected'} (Confirmed: ${!!profile.prior_refinance_confirmed})`,
+    `Stay duration:         ${profile.stay_duration_years ?? 'not yet collected'} (Confirmed: ${!!profile.stay_duration_years_confirmed})`,
     `Job tenure/type:       ${profile.job_tenure_type ?? 'not yet collected'} (Confirmed: ${!!profile.job_tenure_type_confirmed})`,
     '=== END STAGE 2 ===',
-  ].join('\n') : [
+  ].filter(Boolean).join('\n') : [
     '=== BORROWER PROFILE (Stage 2 — Pre-Qualification Discovery) ===',
     `Gross annual income:   ${fmt(profile.gross_annual_income)} (Confirmed: ${!!profile.gross_annual_income_confirmed})`,
     `Monthly debt:          ${fmt(profile.monthly_debt)} (Confirmed: ${!!profile.monthly_debt_confirmed})`,

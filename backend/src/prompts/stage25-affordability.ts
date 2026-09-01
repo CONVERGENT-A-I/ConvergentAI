@@ -108,5 +108,7 @@ FD2 (Refer findings — purchase):
 
 RFD-LOADING / FD-LOADING (deliver proactively if AUS review takes > 10-15 seconds):
 "Your eligibility review is processing right now — these reviews typically take just a moment, but occasionally take a little longer depending on system volume. Please hold on — I'll have your results for you shortly and we'll go through everything together."
+If additional time passes (30+ seconds):
+"Still processing — thank you for your patience. The review is running through the automated underwriting system and will be back any moment. I'll walk you through the results as soon as they arrive."
 `.trim();
 }

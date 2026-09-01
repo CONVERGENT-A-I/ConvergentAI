@@ -606,6 +606,38 @@ export class SessionContextManager {
       return;
     }
 
+    if (field === 'prior_refinance') {
+      this.profile.prior_refinance = 'no'; // Default fallback value
+      this.profile.prior_refinance_confirmed = true;
+      this.currentPendingField = 'stay_duration_years';
+      console.log(`[agent-hook][fallback] Optimistically advanced field "prior_refinance" -> "stay_duration_years" (default="no").`);
+      return;
+    }
+
+    if (field === 'stay_duration_years') {
+      this.profile.stay_duration_years = '5 years'; // Default fallback value
+      this.profile.stay_duration_years_confirmed = true;
+      this.currentPendingField = 'job_tenure_type';
+      console.log(`[agent-hook][fallback] Optimistically advanced field "stay_duration_years" -> "job_tenure_type" (default="5 years").`);
+      return;
+    }
+
+    if (field === 'heloc_prior') {
+      this.profile.heloc_prior = 'no'; // Default fallback value
+      this.profile.heloc_prior_confirmed = true;
+      this.currentPendingField = 'heloc_timeline';
+      console.log(`[agent-hook][fallback] Optimistically advanced field "heloc_prior" -> "heloc_timeline" (default="no").`);
+      return;
+    }
+
+    if (field === 'heloc_timeline') {
+      this.profile.heloc_timeline = 'as soon as possible'; // Default fallback value
+      this.profile.heloc_timeline_confirmed = true;
+      this.currentPendingField = 'job_tenure_type';
+      console.log(`[agent-hook][fallback] Optimistically advanced field "heloc_timeline" -> "job_tenure_type" (default="as soon as possible").`);
+      return;
+    }
+
     if (field === 'job_tenure_type') {
       this.profile.job_tenure_type = 'salaried'; // Default fallback value
       this.profile.job_tenure_type_confirmed = true;
@@ -1873,6 +1905,22 @@ export class SessionContextManager {
         additionalInstructions: 'Extract "out_of_pocket" or "rolled_in". If they say roll in, finance, include in loan, return "rolled_in". If out of pocket or pay cash, return "out_of_pocket". If not found, return null.',
       });
     }
+    if (isRef && !this.profile.prior_refinance_confirmed) {
+      allFields.push({
+        name: 'prior_refinance',
+        description: 'Whether they have refinanced this property before (RQ28)',
+        expectedType: 'string',
+        additionalInstructions: 'Extract "yes" or "no". If they have refinanced before, return "yes". If first time or no prior refinance, return "no". If unsure, return "unknown". Return null if not mentioned.',
+      });
+    }
+    if (isRef && !this.profile.stay_duration_years_confirmed) {
+      allFields.push({
+        name: 'stay_duration_years',
+        description: 'How long they plan to stay in the home in years (RQ29)',
+        expectedType: 'string',
+        additionalInstructions: 'Extract the number of years or duration phrase (e.g. 5, "10 years", "long-term", "forever", "short-term", "few years"). Return null if not mentioned.',
+      });
+    }
     if (isHel && !this.profile.heloc_risk_acknowledged) {
       allFields.push({
         name: 'heloc_risk_acknowledged',
@@ -1895,6 +1943,22 @@ export class SessionContextManager {
         description: 'Planned use for the HELOC credit line funds (e.g. renovations, debt consolidation, emergency)',
         expectedType: 'string',
         additionalInstructions: 'Extract a concise summary of the planned use. If not found, return null.',
+      });
+    }
+    if (isHel && !this.profile.heloc_prior_confirmed && !this.profile.heloc_prior) {
+      allFields.push({
+        name: 'heloc_prior',
+        description: 'Whether borrower has had a HELOC or home equity loan on this property before',
+        expectedType: 'string',
+        additionalInstructions: 'Extract "yes", "no", or "unknown". If not found, return null.',
+      });
+    }
+    if (isHel && !this.profile.heloc_timeline_confirmed && !this.profile.heloc_timeline) {
+      allFields.push({
+        name: 'heloc_timeline',
+        description: 'How quickly the borrower is hoping to access the funds (timeline / urgency)',
+        expectedType: 'string',
+        additionalInstructions: 'Extract a concise description of their timeline (e.g. "immediately", "within a month", "flexible"). If not found, return null.',
       });
     }
     if (!isRef && !isHel && !this.profile.property_type_confirmed) {
@@ -2103,6 +2167,21 @@ export class SessionContextManager {
       console.log(`[context-manager] Stage2: closing_costs_preference=${this.profile.closing_costs_preference}`);
     }
 
+    if (results.prior_refinance?.value && !this.profile.prior_refinance_confirmed) {
+      const pr = String(results.prior_refinance.value).toLowerCase().trim();
+      this.profile.prior_refinance = pr.includes('yes') ? 'yes' : pr.includes('no') ? 'no' : 'unknown';
+      this.profile.prior_refinance_confirmed = true;
+      anyUpdates = true;
+      console.log(`[context-manager] Stage2: prior_refinance=${this.profile.prior_refinance}`);
+    }
+
+    if (results.stay_duration_years?.value && !this.profile.stay_duration_years_confirmed) {
+      this.profile.stay_duration_years = results.stay_duration_years.value as any;
+      this.profile.stay_duration_years_confirmed = true;
+      anyUpdates = true;
+      console.log(`[context-manager] Stage2: stay_duration_years=${this.profile.stay_duration_years}`);
+    }
+
     if (results.heloc_risk_acknowledged?.value && !this.profile.heloc_risk_acknowledged) {
       this.profile.heloc_risk_acknowledged = true;
       anyUpdates = true;
@@ -2113,6 +2192,10 @@ export class SessionContextManager {
       const hrc = String(results.heloc_rate_comfort.value).toLowerCase().trim();
       this.profile.heloc_rate_comfort = hrc.includes('fixed') || hrc.includes('predict') ? 'fixed' : hrc.includes('variable') ? 'variable' : 'either';
       this.profile.heloc_rate_comfort_confirmed = true;
+      if (this.profile.heloc_rate_comfort === 'fixed' && this.profile.transaction_type === 'TT-HEL') {
+        this.profile.transaction_type = 'TT-HEQ';
+        console.log(`[context-manager] Stage2: Switched transaction_type to TT-HEQ due to fixed rate preference`);
+      }
       anyUpdates = true;
       console.log(`[context-manager] Stage2: heloc_rate_comfort=${this.profile.heloc_rate_comfort}`);
     }
@@ -2121,6 +2204,21 @@ export class SessionContextManager {
       this.profile.heloc_draw_use = String(results.heloc_draw_use.value).trim();
       anyUpdates = true;
       console.log(`[context-manager] Stage2: heloc_draw_use=${this.profile.heloc_draw_use}`);
+    }
+
+    if (results.heloc_prior?.value && !this.profile.heloc_prior) {
+      const hp = String(results.heloc_prior.value).toLowerCase().trim();
+      this.profile.heloc_prior = hp.includes('yes') ? 'yes' : hp.includes('no') ? 'no' : 'unknown';
+      this.profile.heloc_prior_confirmed = true;
+      anyUpdates = true;
+      console.log(`[context-manager] Stage2: heloc_prior=${this.profile.heloc_prior}`);
+    }
+
+    if (results.heloc_timeline?.value && !this.profile.heloc_timeline) {
+      this.profile.heloc_timeline = String(results.heloc_timeline.value).trim();
+      this.profile.heloc_timeline_confirmed = true;
+      anyUpdates = true;
+      console.log(`[context-manager] Stage2: heloc_timeline=${this.profile.heloc_timeline}`);
     }
 
     const rawPt = results.property_type?.value;
@@ -2483,6 +2581,10 @@ export class SessionContextManager {
         this.profile.property_type_confirmed = true;
         this.profile.military_rural_confirmed = true;
         this.profile.refinance_type_confirmed = true;
+        this.profile.prior_refinance_confirmed = true;
+        this.profile.stay_duration_years_confirmed = true;
+        this.profile.heloc_prior_confirmed = true;
+        this.profile.heloc_timeline_confirmed = true;
       }
 
       if (!this.profile.gross_annual_income_confirmed) {
@@ -2492,10 +2594,37 @@ export class SessionContextManager {
       } else if (!this.profile.credit_range_confirmed) {
         this.currentPendingField = 'credit_range';
       } else if (isRef) {
-        // Refinance Sequence: current_mortgage_type -> refinance_type -> property_value -> first_mortgage_balance -> current_mortgage_rate -> current_mortgage_payment -> remaining_term_years -> closing_costs_preference -> [cash_out_amount] -> job_tenure_type
+        // Refinance Sequence: current_mortgage_type -> refinance_type (only if unknown) -> property_value -> first_mortgage_balance -> current_mortgage_rate -> current_mortgage_payment -> remaining_term_years -> closing_costs_preference -> [cash_out_amount] -> prior_refinance -> stay_duration_years -> job_tenure_type
         if (!this.profile.current_mortgage_type) {
           this.currentPendingField = 'current_mortgage_type';
-        } else if (!this.profile.refinance_type_confirmed) {
+        } else if (this.profile.current_mortgage_type === 'usda') {
+          // USDA does not allow cash-out under any circumstance — auto set rate_term
+          this.profile.refinance_type = 'rate_term';
+          this.profile.refinance_type_confirmed = true;
+          if (!(this.profile as any).property_value_confirmed && !this.profile.property_value) {
+            this.currentPendingField = 'property_value';
+          } else if (!(this.profile as any).first_mortgage_balance_confirmed && !this.profile.first_mortgage_balance) {
+            this.currentPendingField = 'first_mortgage_balance';
+          } else if (!(this.profile as any).current_mortgage_rate_confirmed && !this.profile.current_mortgage_rate) {
+            this.currentPendingField = 'current_mortgage_rate';
+          } else if (!(this.profile as any).current_mortgage_payment_confirmed && !this.profile.current_mortgage_payment) {
+            this.currentPendingField = 'current_mortgage_payment';
+          } else if (!(this.profile as any).remaining_term_years_confirmed && !this.profile.remaining_term_years) {
+            this.currentPendingField = 'remaining_term_years';
+          } else if (!this.profile.closing_costs_preference) {
+            this.currentPendingField = 'closing_costs_preference';
+          } else if (!this.profile.prior_refinance_confirmed && !this.profile.prior_refinance) {
+            this.currentPendingField = 'prior_refinance';
+          } else if (!this.profile.stay_duration_years_confirmed && !this.profile.stay_duration_years) {
+            this.currentPendingField = 'stay_duration_years';
+          } else if (!this.profile.job_tenure_type_confirmed) {
+            this.currentPendingField = 'job_tenure_type';
+          } else {
+            this.calculateEligibility();
+            this.currentPendingField = 'stage2_closing_offer';
+            console.log('[context-manager]: Transitioning to STAGE 2 Closing Transition (Refinance - USDA)!');
+          }
+        } else if (this.profile.current_mortgage_type === 'unknown' && !this.profile.refinance_type_confirmed) {
           this.currentPendingField = 'refinance_type';
         } else if (!(this.profile as any).property_value_confirmed && !this.profile.property_value) {
           this.currentPendingField = 'property_value';
@@ -2511,6 +2640,10 @@ export class SessionContextManager {
           this.currentPendingField = 'closing_costs_preference';
         } else if (this.profile.refinance_type === 'cash_out' && !(this.profile as any).cash_out_amount_confirmed && !this.profile.cash_out_amount) {
           this.currentPendingField = 'cash_out_amount';
+        } else if (!this.profile.prior_refinance_confirmed && !this.profile.prior_refinance) {
+          this.currentPendingField = 'prior_refinance';
+        } else if (!this.profile.stay_duration_years_confirmed && !this.profile.stay_duration_years) {
+          this.currentPendingField = 'stay_duration_years';
         } else if (!this.profile.job_tenure_type_confirmed) {
           this.currentPendingField = 'job_tenure_type';
         } else {
@@ -2519,7 +2652,7 @@ export class SessionContextManager {
           console.log('[context-manager]: Transitioning to STAGE 2 Closing Transition (Refinance)!');
         }
       } else if (isHel) {
-        // HELOC Sequence: heloc_risk_acknowledged -> heloc_rate_comfort -> property_value -> first_mortgage_balance -> heloc_line_amount -> heloc_draw_use -> job_tenure_type
+        // HELOC Sequence: heloc_risk_acknowledged -> heloc_rate_comfort -> property_value -> first_mortgage_balance -> heloc_line_amount -> heloc_draw_use -> heloc_prior -> heloc_timeline -> job_tenure_type
         if (!this.profile.heloc_risk_acknowledged) {
           this.currentPendingField = 'heloc_risk_acknowledged';
         } else if (!this.profile.heloc_rate_comfort) {
@@ -2532,6 +2665,10 @@ export class SessionContextManager {
           this.currentPendingField = 'heloc_line_amount';
         } else if (!this.profile.heloc_draw_use) {
           this.currentPendingField = 'heloc_draw_use';
+        } else if (!this.profile.heloc_prior_confirmed && !this.profile.heloc_prior) {
+          this.currentPendingField = 'heloc_prior';
+        } else if (!this.profile.heloc_timeline_confirmed && !this.profile.heloc_timeline) {
+          this.currentPendingField = 'heloc_timeline';
         } else if (!this.profile.job_tenure_type_confirmed) {
           this.currentPendingField = 'job_tenure_type';
         } else {
@@ -3146,6 +3283,8 @@ If no correction/change is found, return null.`
       'heloc_line_amount',
       'heloc_risk_acknowledged',
       'heloc_draw_use',
+      'heloc_prior',
+      'heloc_timeline',
     ].includes(field)) {
       if ([
         'gross_annual_income',
@@ -3168,6 +3307,8 @@ If no correction/change is found, return null.`
         if (field === 'closing_costs_preference') this.profile.closing_costs_preference = 'rolled_in';
         if (field === 'heloc_risk_acknowledged') this.profile.heloc_risk_acknowledged = true;
         if (field === 'heloc_draw_use') this.profile.heloc_draw_use = 'home improvement';
+        if (field === 'heloc_prior') this.profile.heloc_prior = 'no';
+        if (field === 'heloc_timeline') this.profile.heloc_timeline = 'not specified';
         if (field === 'rent_own') this.profile.rent_own = 'rent';
         if (field === 'realtor_status') this.profile.realtor_status = 'no';
         if (field === 'property_type') this.profile.property_type = 'single_family';

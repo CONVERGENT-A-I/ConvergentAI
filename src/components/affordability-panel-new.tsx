@@ -37,7 +37,7 @@ const FONT_MONO = `'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospa
 /* ---------------------------------------------------------
    TYPES
 --------------------------------------------------------- */
-export type ModeId = "purchase" | "refiRT" | "refiCO" | "heloc";
+export type ModeId = "purchase" | "refiRT" | "refiCO" | "heloc" | "heq";
 export type ProgramId = "conventional" | "fha" | "va" | "usda";
 export type TransactionType = "TT-PUR" | "TT-REF" | "TT-HEL" | "TT-HEQ" | "TT-CON";
 export type DataMode = "stated" | "pulled";
@@ -128,11 +128,13 @@ const MODES: { id: ModeId; label: string }[] = [
   { id: "refiRT", label: "Refi: Rate & Term" },
   { id: "refiCO", label: "Refi: Cash-Out" },
   { id: "heloc", label: "HELOC" },
+  { id: "heq", label: "Home Equity Loan" },
 ];
 
 function resolveMode(transactionType: TransactionType, cashOutIntent: boolean): ModeId {
   if (transactionType === "TT-PUR") return "purchase";
   if (transactionType === "TT-HEL") return "heloc";
+  if (transactionType === "TT-HEQ") return "heq";
   if (transactionType === "TT-REF") return cashOutIntent ? "refiCO" : "refiRT";
   return "purchase";
 }
@@ -142,6 +144,7 @@ const DEFAULTS: Record<ModeId, Assumptions> = {
   refiRT: { homeValue: 500000, payoff: 300000, rate: 6.125, term: 30, taxRatePct: 0.84, insurance: 120, hoaFee: 0, currentPayment: 2204 },
   refiCO: { homeValue: 500000, payoff: 300000, cashOut: 30000, rate: 6.375, term: 30, taxRatePct: 0.84, insurance: 120, hoaFee: 0, currentPayment: 2204 },
   heloc: { homeValue: 500000, firstBalance: 300000, lineAmount: 50000, drawRate: 8.5, taxRatePct: 0.84, insurance: 120, firstPI: 1895 },
+  heq: { homeValue: 500000, firstBalance: 300000, lineAmount: 50000, rate: 7.5, term: 15, taxRatePct: 0.84, insurance: 120, firstPI: 1895 },
 };
 
 function annualPmiRatePct(ltv: number): number {
@@ -464,6 +467,26 @@ export function AffordabilityPanelNew({
       };
     }
 
+    if (mode === "heq") {
+      const fixedPI = monthlyPI(a.lineAmount as number, a.rate as number, a.term as number);
+      const tax = ((a.homeValue as number) * (a.taxRatePct / 100)) / 12;
+      const pitia = (a.firstPI as number) + fixedPI + tax + a.insurance;
+      const cltv = (a.homeValue as number) > 0 ? (((a.firstBalance as number) + (a.lineAmount as number)) / (a.homeValue as number)) * 100 : 0;
+      return {
+        pitia,
+        cltv,
+        loanAmt: a.lineAmount as number,
+        totalLiens: (a.firstBalance as number) + (a.lineAmount as number),
+        front: income > 0 ? (pitia / income) * 100 : 0,
+        back: income > 0 ? ((pitia + effectiveDebts) / income) * 100 : 0,
+        segments: [
+          { label: "1st Mtg (P&I)", value: a.firstPI as number },
+          { label: "HE Loan (Fixed P&I)", value: fixedPI },
+          { label: "Taxes & Ins.", value: tax + a.insurance },
+        ],
+      };
+    }
+
     // HELOC
     const drawPI = ((a.lineAmount as number) * ((a.drawRate as number) / 100)) / 12;
     const repaymentPI = monthlyPI(a.lineAmount as number, a.drawRate as number, 20);
@@ -487,8 +510,8 @@ export function AffordabilityPanelNew({
     };
   }, [mode, a, activeProgram, income, effectiveDebts]);
 
-  const ltvGuideline = mode === "heloc" ? 85 : activeProgram.ltv.guideline;
-  const ltvVal = mode === "heloc" ? (calc.cltv as number) : (calc.ltv as number);
+  const ltvGuideline = mode === "heloc" || mode === "heq" ? 85 : activeProgram.ltv.guideline;
+  const ltvVal = mode === "heloc" || mode === "heq" ? (calc.cltv as number) : (calc.ltv as number);
 
   // Calculate down payment in exact dollar amount for Purchase
   const currentDownDollars = mode === "purchase" ? Math.round(((a.price as number) * (a.downPct as number)) / 100) : 0;
@@ -551,7 +574,7 @@ export function AffordabilityPanelNew({
           </div>
 
           {/* ── 2. CONDITIONAL MODE & ELIGIBLE PROGRAM SELECTOR ── */}
-          {(!lockedMode || (mode !== "heloc" && availablePrograms.length > 1)) && (
+          {(!lockedMode || (mode !== "heloc" && mode !== "heq" && availablePrograms.length > 1)) && (
             <div className="flex flex-col gap-1.5">
               {/* Only show Mode Switcher tabs if not locked to single prequal transaction */}
               {!lockedMode && (
@@ -575,7 +598,7 @@ export function AffordabilityPanelNew({
               )}
 
               {/* Only show Loan Programs that are determined eligible for this borrower */}
-              {mode !== "heloc" && (
+              {mode !== "heloc" && mode !== "heq" && (
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="text-[8.5px] lg:text-[10.5px] text-slate-400 font-medium">Eligible Programs:</span>
                   <div className="flex gap-1 flex-wrap">
@@ -608,7 +631,7 @@ export function AffordabilityPanelNew({
             <div className="flex items-start justify-between gap-2">
               <div>
                 <div className="text-[7.5px] lg:text-[9.5px] uppercase font-semibold text-slate-400 tracking-wider">
-                  {mode === "heloc" ? "Total Monthly Obligation" : "Est. Total Monthly Payment (PITIA)"}
+                  {mode === "heloc" || mode === "heq" ? "Total Monthly Obligation" : "Est. Total Monthly Payment (PITIA)"}
                 </div>
                 <div className="text-base lg:text-xl font-mono tabular-nums tracking-tight font-bold text-[#00b4d8] drop-shadow-[0_0_10px_rgba(0,180,216,0.35)] mt-0.5">
                   ${fmt(calc.pitia)}
@@ -618,7 +641,7 @@ export function AffordabilityPanelNew({
 
               <div className="flex flex-col items-end gap-0.5 lg:gap-1">
                 <div className="text-right">
-                  <span className="text-[7.5px] lg:text-[9px] text-slate-400 uppercase mr-1">Loan Amount:</span>
+                  <span className="text-[7.5px] lg:text-[9px] text-slate-400 uppercase mr-1">{mode === "heq" ? "2nd Loan Amount:" : "Loan Amount:"}</span>
                   <span className="font-mono tabular-nums tracking-tight text-[10.5px] lg:text-xs font-semibold text-white">
                     ${fmt(mode === "heloc" ? (calc.totalLiens as number) : (calc.loanAmt as number))}
                   </span>
@@ -677,7 +700,7 @@ export function AffordabilityPanelNew({
               ))}
             </div>
 
-            {mode !== "heloc" && (
+            {mode !== "heloc" && mode !== "heq" && (
               <div className="mt-1 text-[7.5px] lg:text-[9px] text-slate-400 leading-tight">
                 {activeProgram.miNote(calc.mi as number)}
               </div>
@@ -747,7 +770,7 @@ export function AffordabilityPanelNew({
 
               {/* LTV / CLTV */}
               <div className="bg-slate-900/60 p-1.5 lg:p-2 rounded-md border border-white/5 flex flex-col justify-between">
-                <div className="text-[7.5px] lg:text-[9.5px] text-slate-400 truncate">{mode === "heloc" ? "CLTV" : "LTV"}</div>
+                <div className="text-[7.5px] lg:text-[9.5px] text-slate-400 truncate">{mode === "heloc" || mode === "heq" ? "CLTV" : "LTV"}</div>
                 <div className="text-xs lg:text-sm font-mono tabular-nums tracking-tight font-bold text-white mt-0.5">{fmtPct(ltvVal)}</div>
                 <div className={`text-[7px] lg:text-[9px] font-mono tabular-nums tracking-tight font-semibold mt-0.5 truncate ${ltvVal <= ltvGuideline ? "text-emerald-400" : "text-amber-400"}`}>
                   {ltvVal <= ltvGuideline ? "At limit" : `+${(ltvVal - ltvGuideline).toFixed(1)}%`} ({fmtPct(ltvGuideline)})
@@ -835,6 +858,16 @@ export function AffordabilityPanelNew({
                   <SliderRow label="Credit Line" value={a.lineAmount as number} min={10000} max={300000} step={2500} onChange={(v) => update("lineAmount", v)} prefix="$" />
                   <SliderRow label="Draw Rate" value={a.drawRate as number} min={5} max={14} step={0.25} onChange={(v) => update("drawRate", v)} suffix="%" />
                   <SliderRow label="Insurance" value={a.insurance} min={40} max={400} step={10} onChange={(v) => update("insurance", v)} prefix="$" suffix="/mo" />
+                </>
+              )}
+              {mode === "heq" && (
+                <>
+                  <SliderRow label="Home Value" value={a.homeValue as number} min={150000} max={1500000} step={5000} onChange={(v) => update("homeValue", v)} prefix="$" />
+                  <SliderRow label="1st Balance" value={a.firstBalance as number} min={50000} max={a.homeValue as number} step={5000} onChange={(v) => update("firstBalance", v)} prefix="$" />
+                  <SliderRow label="Loan Amount" value={a.lineAmount as number} min={10000} max={300000} step={2500} onChange={(v) => update("lineAmount", v)} prefix="$" />
+                  <SliderRow label="Fixed Rate" value={a.rate as number} min={4.5} max={14} step={0.125} onChange={(v) => update("rate", v)} suffix="%" />
+                  <SliderRow label="Insurance" value={a.insurance} min={40} max={400} step={10} onChange={(v) => update("insurance", v)} prefix="$" suffix="/mo" />
+                  <ToggleRow label="Loan Term" options={[10, 15, 20]} value={a.term as number} onChange={(v) => update("term", v)} suffix="-yr" />
                 </>
               )}
             </div>

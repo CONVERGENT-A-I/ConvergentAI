@@ -57,6 +57,7 @@ export function AffordabilityModal({
   const transactionType: TransactionType =
     borrowerProfile?.transaction_type ||
     (borrowerProfile?.mortgage_goal === 'refinance' ? 'TT-REF' :
+     borrowerProfile?.transaction_type === 'TT-HEQ' ? 'TT-HEQ' :
      borrowerProfile?.mortgage_goal === 'equity' || borrowerProfile?.mortgage_goal === 'heloc' ? 'TT-HEL' :
      'TT-PUR');
   const cashOutIntent = borrowerProfile?.refinance_type === 'cash_out';
@@ -101,6 +102,17 @@ export function AffordabilityModal({
         },
       };
     }
+    if (transactionType === 'TT-HEQ') {
+      return {
+        heq: {
+          homeValue: borrowerProfile?.property_value ?? 500000,
+          firstBalance: borrowerProfile?.first_mortgage_balance ?? 300000,
+          lineAmount: borrowerProfile?.heloc_line_amount ?? 50000,
+          rate: 7.5,
+          term: 15,
+        },
+      };
+    }
     // Default: Purchase
     return {
       purchase: {
@@ -116,7 +128,9 @@ export function AffordabilityModal({
       ? (cashOutIntent ? 'Cash-Out Refinance Summary' : 'Refinance Summary')
       : transactionType === 'TT-HEL'
         ? 'HELOC Summary'
-        : 'Affordability Summary';
+        : transactionType === 'TT-HEQ'
+          ? 'Home Equity Loan Summary'
+          : 'Affordability Summary';
 
   return (
     <AnimatePresence>

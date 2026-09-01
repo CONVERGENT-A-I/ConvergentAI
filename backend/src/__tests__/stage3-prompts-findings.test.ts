@@ -111,6 +111,80 @@ function runStage3Tests() {
     console.error('❌ Stage 3 - Test 7 Failed: Stage 4 underwriting dispatch mismatch');
   }
 
+  // Test 8: Anonymous / Missing Name Fallback Edge Case (No undefined or double commas)
+  const anonRefProfile: BorrowerProfile = {
+    transaction_type: 'TT-REF',
+    mortgage_goal: 'refinance',
+  };
+  const anonRefInstructions = buildStage25Instructions(anonRefProfile);
+  const anonStage4 = buildStage4Instructions({ ...anonRefProfile, aus_status: 'refer' });
+  if (
+    !anonRefInstructions.includes('undefined') &&
+    !anonRefInstructions.includes(', ,') &&
+    !anonStage4.includes('undefined') &&
+    anonStage4.includes('Thank you for your patience, there')
+  ) {
+    console.log('✅ Stage 3 - Test 8 Passed: Missing borrower name safely defaults to fallback "there".');
+  } else {
+    console.error('❌ Stage 3 - Test 8 Failed: Missing borrower name fallback issue');
+  }
+
+  // Test 9: TT-HEQ (Fixed Equity Loan) Track Findings Delivery
+  const heqProfile: BorrowerProfile = {
+    borrower_name: 'Marcus Aurelius',
+    transaction_type: 'TT-HEQ',
+    mortgage_goal: 'heloc',
+  };
+  const heqInstructions = buildStage25Instructions(heqProfile);
+  const stage4Heq = buildStage4Instructions({ ...heqProfile, aus_status: 'approve' });
+  if (
+    heqInstructions.includes('HELOC & HOME EQUITY FINDINGS DELIVERY') &&
+    heqInstructions.includes('Marcus Aurelius') &&
+    stage4Heq.includes('Home Equity Loan Conditional Approval (EFD1)')
+  ) {
+    console.log('✅ Stage 3 - Test 9 Passed: TT-HEQ (Home Equity Loan) correctly maps to EFD1 findings delivery.');
+  } else {
+    console.error('❌ Stage 3 - Test 9 Failed: TT-HEQ findings delivery mismatch');
+  }
+
+  // Test 10: Stage 4 All Statuses Matrix across all tracks (approve, refer, suspend, timeout)
+  const statuses = ['approve', 'approve_with_conditions', 'refer', 'suspend', 'timeout'] as const;
+  let allStatusesValid = true;
+  for (const st of statuses) {
+    const pInst = buildStage4Instructions({ ...purProfile, aus_status: st });
+    const rInst = buildStage4Instructions({ ...refProfile, aus_status: st });
+    const hInst = buildStage4Instructions({ ...helProfile, aus_status: st });
+    if (!pInst || !rInst || !hInst) {
+      allStatusesValid = false;
+      break;
+    }
+    if (st === 'timeout') {
+      if (!pInst.includes('FD-LOADING') || !rInst.includes('FD-LOADING') || !hInst.includes('FD-LOADING')) {
+        allStatusesValid = false;
+      }
+    }
+  }
+  if (allStatusesValid) {
+    console.log('✅ Stage 3 - Test 10 Passed: Stage 4 handles all 5 underwriting statuses across all tracks.');
+  } else {
+    console.error('❌ Stage 3 - Test 10 Failed: Underwriting status matrix failed');
+  }
+
+  // Test 11: Compliance Guard — Pre-Qualification Letter gated strictly to TT-PUR
+  const refStage4Approve = buildStage4Instructions({ ...refProfile, aus_status: 'approve' });
+  const helStage4Approve = buildStage4Instructions({ ...helProfile, aus_status: 'approve' });
+  const purStage4Approve = buildStage4Instructions({ ...purProfile, aus_status: 'approve' });
+
+  if (
+    purStage4Approve.includes('pre-qualification letter') &&
+    !refStage4Approve.includes('pre-qualification letter') &&
+    !helStage4Approve.includes('pre-qualification letter')
+  ) {
+    console.log('✅ Stage 3 - Test 11 Passed: Pre-Qualification Letter strictly restricted to TT-PUR (Compliance Item 11).');
+  } else {
+    console.error('❌ Stage 3 - Test 11 Failed: Compliance Item 11 violation - prequal letter improperly leaked to non-purchase track');
+  }
+
   console.log('\n🎉 ALL STAGE 3 & 4 PROMPTS & MULTI-TRACK FINDINGS TESTS PASSED!');
 }
 
