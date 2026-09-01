@@ -51,9 +51,9 @@ This document is the **single source of truth** for implementing and verifying t
 │ PHASE 3: Stage 2.5 Dynamic Affordability Panel Binding                      ✅ COMPLETE │
 │          (with confirmed gaps — see Gap Analysis section below)                        │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
-│ PHASE 4: Stage 3/4 Findings Delivery (RFD1/2, HFD1/2) & LO Handoff         ⏳ PENDING  │
+│ PHASE 4: Stage 3/4 Findings Delivery (RFD1/2, HFD1/2) & LO Handoff         ✅ COMPLETE │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
-│ PHASE 5: End-to-End Regression & Quality Assurance Testing                  ⏳ PENDING  │
+│ PHASE 5: End-to-End Regression & Quality Assurance Testing                  ✅ COMPLETE │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -173,7 +173,7 @@ Tailor the Stage 3/4 findings scripts and Stage 5 loan officer handoff for Refin
 
 ---
 
-### 🔹 PHASE 5: Regression & Quality Assurance Testing (⏳ PENDING)
+### 🔹 PHASE 5: Regression & Quality Assurance Testing (✅ COMPLETE)
 
 #### Objective
 Perform full end-to-end regression testing across all 3 tracks to ensure 100% stability.
@@ -357,7 +357,7 @@ upfrontFeePct: profile.va_subsequent_use ? 3.3 : 2.15,
 | GAP-5 | HELOC HQ25 & HQ26 missing from field sequence | 🟡 MEDIUM | Phase 2 | ✅ Resolved |
 | GAP-6 | No equity disambiguation for TT-HEL vs TT-HEQ | 🟡 MEDIUM | Phase 1 | ✅ Resolved |
 | GAP-7 | Profile propagation check for Q46 borrower name in `stage25-affordability.ts` | 🟢 LOW | Phase 3 | ✅ Resolved |
-| GAP-8 | Phase 4 findings delivery (RFD1/2, HFD1/2, RFD-LOADING) missing | 🔴 HIGH | Phase 4 | ⏳ Pending (Phase 4) |
+| GAP-8 | Phase 4 findings delivery (RFD1/2, HFD1/2, RFD-LOADING) missing | 🔴 HIGH | Phase 4 | ✅ Resolved |
 | GAP-9 | 80% LTV ceiling not enforced on cash-out panel (`refiCO`) | 🟡 MEDIUM | Phase 3 | ✅ Resolved |
 | GAP-10 | HELOC repayment period payment (post–draw) not calculated or displayed | 🟢 LOW | Phase 3 | ✅ Resolved |
 | GAP-11 | VA funding fee hardcoded at 2.15%; 3.3% subsequent-use not handled | 🟢 LOW | Phase 3 | ✅ Resolved |
