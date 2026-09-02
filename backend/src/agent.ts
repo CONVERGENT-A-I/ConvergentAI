@@ -252,12 +252,15 @@ class AilanaVoiceAgent extends voice.Agent {
     }
 
     // ── 0ms Parallel Fast-Path for Stage 2 Completion ──
-    // ── 0ms Parallel Fast-Path for Stage 2 Completion ──
+    const isMilitaryUtterance = /\b(military|veteran|guard|national\s*guard|reserve|duty|service|served|air\s*force|army|navy|marines)\b/i.test(lastUserText);
+    const hasJobKeyword = /\b(salary|salaried|hourly|self-employed|self employed|working|employed|contractor?|w2|w-2|1099|full-time|part-time|full time|part time|employer|job|company|in this role|at my job|with them)\b/i.test(lastUserText);
+    const hasJobTenureDuration = !isMilitaryUtterance && hasJobKeyword && /(\d+|\b(one|two|three|four|five|six|seven|eight|nine|ten)\b)\s*(years?|months?)\b/i.test(lastUserText);
+
     const isAnsweringJobTenure =
       (pending === 'job_tenure_type' || pending === 'stage2_closing_offer') &&
       !this._stage2ClosingOfferDelivered &&
-      (/\b(salary|salaried|hourly|self-employed|self employed|working|employed|contract|w2|1099|full-time|part-time|full time|part time)\b/i.test(lastUserText) ||
-        /(\d+|\b(one|two|three|four|five|six|seven|eight|nine|ten)\b)\s*(years?|months?)\b/i.test(lastUserText));
+      !isMilitaryUtterance &&
+      (hasJobKeyword || hasJobTenureDuration);
 
     const isExplicitPathB = /\b(build.*(?:shared|summary|stated|info|heloc|refinance|options)|what\s+i\s+shared|from\s+what\s+i\s+shared|use\s+what\s+i\s+shared|summary|explore|stated|second|without|no\s+review|skip)\b/i.test(lastUserText);
     const isExplicitPathA = !isExplicitPathB && /\b(soft\s*pull|credit\s*review|first(?:\s*option)?|most\s*complete|yes|sure|okay|go\s*ahead|proceed|run\s*it|run\s*the\s*review)\b/i.test(lastUserText);

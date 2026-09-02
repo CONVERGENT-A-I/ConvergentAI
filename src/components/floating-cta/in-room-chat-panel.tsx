@@ -136,44 +136,115 @@ export function InRoomChatPanel({ isActive, onTriggerLoanOfficer }: InRoomChatPa
     };
   }, [room]);
 
+  // Normalize text for dedup: strip all punctuation, collapse whitespace, lowercase.
+  // This ensures "Good news, John —" and "Good news John" are treated as identical,
+  // preventing the same agent utterance from appearing in both chatMessages (explicit
+  // sendText) and transcripts (speech-to-text of the same audio).
+  const normalizeForDedup = (text: string): string =>
+    text.toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
+
   // Merge chat messages and transcripts
   const displayMessages = useMemo(() => {
     const combined: any[] = [];
-    const seenTexts = new Set<string>();
+    // Store stripped versions of every chat message text for fast lookup
+    const seenStripped = new Set<string>();
+    const seenIds = new Set<string>();
 
-    // Add manual chat messages
+    // Add manual chat messages (explicit sendText from agent or user input)
     chatMessages.forEach((msg) => {
+      const msgId = msg.id || msg.timestamp.toString();
+      if (seenIds.has(msgId)) return;
+
+      const isAgent =
+        msg.from?.identity?.startsWith("agent") ||
+        msg.from?.identity === "agent";
+
       if (msg.message && msg.message.trim()) {
-        const normalized = msg.message.trim().toLowerCase();
-        seenTexts.add(normalized);
+        const stripped = normalizeForDedup(msg.message);
+        // If an agent message is identical to an already seen agent message within the chat array, skip
+        if (isAgent && seenStripped.has(stripped)) {
+          return;
+        }
+        seenStripped.add(stripped);
       }
+
+      seenIds.add(msgId);
       combined.push({
-        id: msg.id || msg.timestamp.toString(),
+        id: msgId,
         text: msg.message,
         timestamp: msg.timestamp,
-        isAgent:
-          msg.from?.identity?.startsWith("agent") ||
-          msg.from?.identity === "agent",
+        isAgent,
         type: "chat",
         final: true,
       });
     });
 
-    // Add transcript messages
+    // Add transcript messages, skipping agent transcripts that duplicate a chat message
+    // or duplicate an already accepted transcript.
     Object.values(transcripts).forEach((tr) => {
-      if (tr.text && tr.text.trim()) {
-        const normalized = tr.text.trim().toLowerCase();
-        // If it's an agent transcription and we already have a chat message with the same text, skip it
-        if (tr.isAgent && seenTexts.has(normalized)) {
-          return;
+      if (!tr.text || !tr.text.trim()) return;
+
+      const trId = tr.id || tr.timestamp.toString();
+      if (seenIds.has(trId)) return;
+
+      if (tr.isAgent) {
+        const stripped = normalizeForDedup(tr.text);
+        // Exact match against seen agent messages
+        if (seenStripped.has(stripped)) return;
+        // Prefix match: if first 60 stripped chars match any seen entry, skip
+        const prefix = stripped.slice(0, 60);
+        if (prefix.length >= 25) {
+          for (const seen of seenStripped) {
+            if (seen.startsWith(prefix) || stripped.startsWith(seen.slice(0, 60))) {
+              return;
+            }
+          }
         }
-        combined.push(tr);
+        seenStripped.add(stripped);
       }
+
+      seenIds.add(trId);
+      combined.push(tr);
     });
 
     // Sort by timestamp
-    return combined.sort((a, b) => a.timestamp - b.timestamp);
+    combined.sort((a, b) => a.timestamp - b.timestamp);
+
+    // Final safety pass: filter out consecutive agent messages that are virtually identical
+    // within a 15-second window (guards against audio STT variations and timestamp jitter)
+    const deduped: any[] = [];
+    for (let i = 0; i < combined.length; i++) {
+      const current = combined[i];
+      if (i > 0) {
+        const prev = deduped[deduped.length - 1];
+        if (
+          current.isAgent &&
+          prev.isAgent &&
+          Math.abs(current.timestamp - prev.timestamp) < 15000
+        ) {
+          const sCurr = normalizeForDedup(current.text);
+          const sPrev = normalizeForDedup(prev.text);
+          if (
+            sCurr === sPrev ||
+            (sCurr.length >= 25 &&
+              sPrev.length >= 25 &&
+              (sCurr.startsWith(sPrev.slice(0, 25)) ||
+                sPrev.startsWith(sCurr.slice(0, 25))))
+          ) {
+            // Prefer the clean chat message type over transcript
+            if (prev.type === "transcript" && current.type === "chat") {
+              deduped[deduped.length - 1] = current;
+            }
+            continue;
+          }
+        }
+      }
+      deduped.push(current);
+    }
+
+    return deduped;
   }, [chatMessages, transcripts]);
+
 
   useEffect(() => {
     const el = scrollRef.current;

@@ -40,6 +40,35 @@ export function AffordabilityModal({
   if (mr === 'military' || mr === 'both') eligiblePrograms.push('va');
   if (mr === 'rural' || mr === 'both') eligiblePrograms.push('usda');
 
+  // Determine default active program from borrower profile (e.g. stated mortgage type in Refi)
+  const defaultProgram: 'conventional' | 'fha' | 'va' | 'usda' = (() => {
+    const mortgageType = (
+      borrowerProfile?.current_mortgage_type ||
+      borrowerProfile?.currentMortgageType ||
+      borrowerProfile?.preferred_program ||
+      ''
+    ).toLowerCase();
+
+    if (mortgageType.includes('fha')) {
+      if (!eligiblePrograms.includes('fha')) eligiblePrograms.push('fha');
+      return 'fha';
+    }
+    if (mortgageType.includes('va')) {
+      if (!eligiblePrograms.includes('va')) eligiblePrograms.push('va');
+      return 'va';
+    }
+    if (mortgageType.includes('usda')) {
+      if (!eligiblePrograms.includes('usda')) eligiblePrograms.push('usda');
+      return 'usda';
+    }
+    if (mortgageType.includes('conv')) return 'conventional';
+
+    if (mr === 'military' || mr === 'both') return 'va';
+    if (mr === 'rural' || mr === 'both') return 'usda';
+    return 'conventional';
+  })();
+
+
   const dataMode: AffordabilityDataMode =
     mode === 'verified' ? 'pulled' : 'stated';
 
@@ -200,12 +229,14 @@ export function AffordabilityModal({
               statedDownPaymentDollars={downPayment}
               lockedMode={true}
               eligiblePrograms={eligiblePrograms}
+              defaultProgram={defaultProgram}
               isSubmitted={isSubmitted}
               initialAssumptions={initialAssumptions}
               vaSubsequentUse={!!borrowerProfile?.va_subsequent_use}
               onRequestSoftPull={onUpgrade}
               onSubmitReview={() => onSubmitSuccess?.('approve_eligible')}
             />
+
           </div>
         </motion.div>
       </motion.div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Shield, Info, SlidersHorizontal, CheckCircle2, RotateCcw, ArrowUpRight, Sparkles } from "lucide-react";
 
 /* ---------------------------------------------------------
@@ -353,6 +353,7 @@ export interface AffordabilityPanelNewProps {
   statedDownPaymentDollars?: number;
   lockedMode?: boolean;
   eligiblePrograms?: ProgramId[];
+  defaultProgram?: ProgramId;
   initialAssumptions?: Partial<Record<ModeId, Partial<Assumptions>>>;
   onRequestSoftPull?: () => void;
   onSubmitReview?: () => void;
@@ -369,6 +370,7 @@ export function AffordabilityPanelNew({
   statedDownPaymentDollars,
   lockedMode = false,
   eligiblePrograms = ["conventional", "fha", "va", "usda"],
+  defaultProgram,
   initialAssumptions = {},
   onRequestSoftPull,
   onSubmitReview,
@@ -379,9 +381,31 @@ export function AffordabilityPanelNew({
   const [mode, setMode] = useState<ModeId>(initialMode);
   const [hasSubmittedLocally, setHasSubmittedLocally] = useState<boolean>(false);
 
-  // Default program: Rule R1 (service-eligible = VA, else conventional/FHA)
-  const defaultProgram = eligiblePrograms.includes("va") ? "va" : eligiblePrograms.includes("conventional") ? "conventional" : (eligiblePrograms[0] || "conventional");
-  const [program, setProgram] = useState<ProgramId>(defaultProgram);
+  // Default program selection:
+  // 1. Borrower-stated mortgage/loan type (e.g. FHA, VA, USDA, Conventional)
+  // 2. If purchase & service-eligible: VA
+  // 3. Conventional or first eligible program
+  const resolvedDefaultProgram: ProgramId = useMemo(() => {
+    if (defaultProgram && eligiblePrograms.includes(defaultProgram)) {
+      return defaultProgram;
+    }
+    if (eligiblePrograms.includes("va") && (transactionType === "TT-PUR" || !defaultProgram)) {
+      return "va";
+    }
+    return eligiblePrograms.includes("conventional")
+      ? "conventional"
+      : (eligiblePrograms[0] || "conventional");
+  }, [defaultProgram, eligiblePrograms, transactionType]);
+
+  const [program, setProgram] = useState<ProgramId>(resolvedDefaultProgram);
+
+  // Sync if defaultProgram arrives or updates
+  useEffect(() => {
+    if (defaultProgram && eligiblePrograms.includes(defaultProgram)) {
+      setProgram(defaultProgram);
+    }
+  }, [defaultProgram, eligiblePrograms]);
+
 
   const [assump, setAssump] = useState<Record<ModeId, Assumptions>>(() => {
     const merged: Record<ModeId, Assumptions> = JSON.parse(JSON.stringify(DEFAULTS));

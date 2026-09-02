@@ -1661,6 +1661,35 @@ export default function FloatingCTA() {
                         if (apMr === 'military' || apMr === 'both') apEligiblePrograms.push('va');
                         if (apMr === 'rural' || apMr === 'both') apEligiblePrograms.push('usda');
 
+                        // Determine default active program from borrower profile (e.g. stated mortgage type in Refi)
+                        const apDefaultProgram: 'conventional' | 'fha' | 'va' | 'usda' = (() => {
+                          const mortgageType = (
+                            borrowerProfile?.current_mortgage_type ||
+                            borrowerProfile?.currentMortgageType ||
+                            borrowerProfile?.preferred_program ||
+                            ''
+                          ).toLowerCase();
+
+                          if (mortgageType.includes('fha')) {
+                            if (!apEligiblePrograms.includes('fha')) apEligiblePrograms.push('fha');
+                            return 'fha';
+                          }
+                          if (mortgageType.includes('va')) {
+                            if (!apEligiblePrograms.includes('va')) apEligiblePrograms.push('va');
+                            return 'va';
+                          }
+                          if (mortgageType.includes('usda')) {
+                            if (!apEligiblePrograms.includes('usda')) apEligiblePrograms.push('usda');
+                            return 'usda';
+                          }
+                          if (mortgageType.includes('conv')) return 'conventional';
+
+                          if (apMr === 'military' || apMr === 'both') return 'va';
+                          if (apMr === 'rural' || apMr === 'both') return 'usda';
+                          return 'conventional';
+                        })();
+
+
                         // Map borrowerProfile → AffordabilityPanelNew props
                         const apRawMode = borrowerProfile?.affordability_mode ?? 'stated';
                         const apDataMode: AffordabilityDataMode = apRawMode === 'pulled' ? 'pulled' : apRawMode === 'verified' ? 'pulled' : 'stated';
@@ -1802,6 +1831,7 @@ export default function FloatingCTA() {
                             statedDownPaymentDollars={apDownPayment}
                             lockedMode={true}
                             eligiblePrograms={apEligiblePrograms}
+                            defaultProgram={apDefaultProgram}
                             isSubmitted={apIsSubmitted}
                             initialAssumptions={apInitialAssumptions}
                             onRequestSoftPull={handleSoftPull}
