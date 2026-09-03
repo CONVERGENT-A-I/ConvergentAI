@@ -262,10 +262,14 @@ class AilanaVoiceAgent extends voice.Agent {
       !isMilitaryUtterance &&
       (hasJobKeyword || hasJobTenureDuration);
 
-    const isExplicitPathB = /\b(build.*(?:shared|summary|stated|info|heloc|refinance|options)|what\s+i\s+shared|from\s+what\s+i\s+shared|use\s+what\s+i\s+shared|summary|explore|stated|second|without|no\s+review|skip)\b/i.test(lastUserText);
-    const isExplicitPathA = !isExplicitPathB && /\b(soft\s*pull|credit\s*review|first(?:\s*option)?|most\s*complete|yes|sure|okay|go\s*ahead|proceed|run\s*it|run\s*the\s*review)\b/i.test(lastUserText);
+    const isAtClosingOffer = pending === 'stage2_closing_offer' || this._stage2ClosingOfferDelivered;
 
-    if (pending === 'stage2_closing_offer' || isAnsweringJobTenure || isExplicitPathB) {
+    const isExplicitPathB = isAtClosingOffer &&
+      /\b(build.*(?:shared|summary|stated|info|heloc|refinance|options)|what\s+i\s+shared|from\s+what\s+i\s+shared|use\s+what\s+i\s+shared|summary|explore|stated|second\s*(?:option|path|choice|one)|without|no\s+review|skip)\b/i.test(lastUserText);
+    const isExplicitPathA = isAtClosingOffer &&
+      !isExplicitPathB && /\b(soft\s*pull|credit\s*review|first(?:\s*option)?|most\s*complete|yes|sure|okay|go\s*ahead|proceed|run\s*it|run\s*the\s*review)\b/i.test(lastUserText);
+
+    if (isAtClosingOffer || isAnsweringJobTenure) {
       if (isAnsweringJobTenure) {
         console.log('[agent-hook]: Parallel 0ms Fast-Path — job_tenure_type answer detected. Triggering STAGE2_CLOSING_OFFER_SCRIPT!');
         this.contextManager.setCurrentPendingField('stage2_closing_offer');
