@@ -13,9 +13,9 @@ This document records the official execution, verification checkpoints, and resu
 | **Test 3** | **Refinance (`TT-REF`)** | Verified (Path A) | 2026-09-04 12:16 AM | **PASS (100%)** | Cash-out sub-track (`refiCO`), Conventional loan, RQ27 cash-out amount ($80k), 80% LTV cap enforcement (GAP-9), out-of-pocket closing costs, Cash-Out Refinance Summary panel, `isAtClosingOffer` loop bug found & fixed, RFD1 findings, MLO transfer. |
 | **Test 4** | **HELOC / HE Loan (`TT-HEQ`)** | Verified (Path A) | 2026-09-03 11:21 AM | **PASS (100%)** | Fixed loan sub-track routing, EQ16 fixed risk disclosure, garage remodel use, OTP & CRS soft pull, Home Equity Loan Summary panel, EFD1 findings, 2-day LO callback. |
 | **Test 5** | **HELOC (`TT-HEL` / `TT-HEQ`)** | Verified (Path A) | 2026-09-03 12:34 PM | **PASS (100%)** | Stage 1 bug-fix verification (0 premature jumps), fixed risk disclosure, flexible payment pivot, roof maintenance draw, CLTV 90.0% amber benchmark (+5.0%), HFD1 findings, 3-day LO callback. |
-| **Test 6** | HELOC (`TT-HEL`) | — | Pending | Queued | |
+| **Test 6** | **HELOC (`TT-HEL`)** | Verified (Path A) | 2026-09-04 12:32 AM | **PASS (100%)** | Pure HELOC intent, investment property, debt consolidation, HQ16/HQ19 risk disclosure delivered proactively, HQ24 variable rate comfort, HQ25 prior HELOC, HQ26 timeline, HELOC Summary panel with 10->20yr repayment shock, HFD1 findings. |
 | **Test 7** | **Purchase (`TT-PUR`)** | Verified (Path A) | 2026-09-03 11:38 AM | **PASS (100%)** | Complete 15-question discovery, self-employed tenure, OTP & CRS soft pull, Affordability Summary with PMI & Cash-to-Close, FD1 findings with 90-day pre-qual letter. |
-| **Test 8** | Purchase (`TT-PUR`) | — | Pending | Queued | |
+| **Test 8** | **Purchase (`TT-PUR`)** | Verified (Path A) | 2026-09-04 12:41 AM | **PASS (100%)** | VA Purchase scenario, Q43 military veteran routing, VA program tab, VA funding fee (2.15%), townhouse, hourly employment, FD1 findings with pre-qual letter sent. |
 | **Test 9** | Purchase (`TT-PUR`) | — | Pending | Queued | |
 
 ---
@@ -311,5 +311,94 @@ This document records the official execution, verification checkpoints, and resu
 **Verified:** Bug fixed, re-tested successfully. All 11 automated test suites pass.
 
 ### 🏆 Verdict: **PASS — 100% Flawless Execution** (after bug fix)
+
+---
+
+## 💳 Test 6: HELOC Track (`TT-HEL`) — Pure Variable Rate (Run 3 of 3)
+
+### 📌 Session Profile & Scenario Inputs
+* **Borrower Name**: Steve
+* **Transaction Goal**: HELOC (`TT-HEL`) — Pure Line of Credit
+* **Property / Occupancy**: Investment Property
+* **Borrower Context**: First-time explorer, single applicant, ASAP timeline
+* **Financial Profile**:
+  * Gross Annual Income: `$175,000` (`$14,583/mo`)
+  * Monthly Debts: `$1,200/mo`
+  * Stated Credit Score: `730`
+  * Property Value: `$420,000`
+  * 1st Mortgage Balance: `$210,000`
+  * Desired Credit Line: `$100,000`
+  * Combined Loan-to-Value (CLTV): `($210k + $100k) / $420k = 73.8%` (Under 85.0% guideline)
+  * Draw / Fund Use: Debt consolidation
+  * Prior HELOC (`HQ25`): Yes, paid off 5 years ago
+  * Timeline (`HQ26`): Within the next month
+  * Current Employer: Self-employed consulting (8 years)
+* **Closing Choice**: Path A (Soft Credit Review / Verified Mode)
+* **Soft Pull Credentials**:
+  * Contact: `steve@gmail.com` | `5512345`
+  * Verified Address: `5815 KNOLL KREST ST, SAN ANTONIO, TX 782421118`
+  * Verified Employer: `Convergent AI`
+  * Accounts: 3 open accounts, 0 late payments in 24 months, "Good" category tier
+
+---
+
+### 📋 Phase-by-Phase Verification
+
+| Phase | Checkpoint | Status | Details |
+|---|---|---|---|
+| **Phase 1** | Intent Routing | ✅ **PASS** | Classified "I want a home equity line of credit" to `TT-HEL` without disambiguation. Collected investment property, first-time, ASAP timeline, and single applicant cleanly. |
+| **Phase 2** | Risk Disclosure (`HQ16`/`HQ19`) | ✅ **PASS** | Proactively delivered mandatory disclosure about variable rate, lien risk, and 10-to-20 year repayment transition. |
+| **Phase 2** | Rate Comfort (`HQ24`) | ✅ **PASS** | Asked if borrower was comfortable with variable rate vs fixed payment. Borrower responded "comfortable with a variable rate" and stayed on `TT-HEL` track. |
+| **Phase 2** | Complete Discovery Sequence & Gaps | ✅ **PASS** | Collected all fields, including `HQ25` (prior HELOC) and `HQ26` (timeline) from the GAP-5 fix. Zero purchase or refinance questions leaked. |
+| **Phase 3** | Two-Path Closing Offer | ✅ **PASS** | Delivered two-path choice cleanly. Borrower authorized Path A soft pull. |
+| **Phase 3A** | OTP Gate & Soft Pull Prefill | ✅ **PASS** | Completed OTP authentication, consent, and verified prefill data confirmation seamlessly. |
+| **Phase 3** | HELOC Summary Panel UI | ✅ **PASS** | Rendered `HELOC Summary` with `VERIFIED` badge. Showed Home Value `$420,000`, 1st Mortgage `$210,000`, Max Line `$147,000`, Requested Line `$100,000`, CLTV `73.8%`. Displayed both interest-only Draw Period Payment and amortizing Repayment Period Payment. |
+| **Phase 4** | Findings Delivery (`HFD1`) | ✅ **PASS** | Delivered exact `HFD1` script: conditional eligibility for HELOC, on-screen available credit line, formal application next steps. Zero pre-qualification letters mentioned. |
+| **Phase 5** | Loan Officer Callback Scheduling | ✅ **PASS** | Borrower requested callback next Monday at 11 AM $\rightarrow$ Ailana scheduled correctly. |
+
+### 🏆 Verdict: **PASS — 100% Flawless Execution**
+
+---
+
+## 🏠 Test 8: Purchase Track (`TT-PUR`) — VA Loan (Run 2 of 3)
+
+### 📌 Session Profile & Scenario Inputs
+* **Borrower Name**: Mike
+* **Transaction Goal**: Home Purchase (`TT-PUR`)
+* **Property / Occupancy**: Primary Residence
+* **Borrower Context**: First-time explorer, single applicant, 2-month timeline
+* **Financial Profile**:
+  * Gross Annual Income: `$95,000` (`$7,917/mo`)
+  * Monthly Debts: `$600/mo`
+  * Stated Credit Score: `680`
+  * Cash Available for Down Payment / Closing: `$15,000`
+  * Housing Situation: Renting
+  * Realtor Status: Has a realtor
+  * Target Purchase Price: `$280,000`
+  * Property Type & Location: Townhouse in San Antonio, Texas 78242
+  * Military Background (`Q43`): Yes — served in the Army for 4 years
+  * Employment / Tenure: Hourly (3 years)
+* **Closing Choice**: Path A (Soft Credit Review / Verified Mode)
+* **Soft Pull Credentials**:
+  * Contact: `mike@gmail.com` | `555 9876`
+  * Verified Address: `5815 KNOLL KREST ST, SAN ANTONIO, TX 782421118`
+  * Verified Employer: `Convergent AI`
+  * Accounts: 3 open accounts, 0 late payments in 24 months, "Good" category tier
+
+---
+
+### 📋 Phase-by-Phase Verification
+
+| Phase | Checkpoint | Status | Details |
+|---|---|---|---|
+| **Phase 1** | Intent Routing | ✅ **PASS** | Classified "I want to purchase a home" to `TT-PUR`. Collected primary residence, first time, 2-month timeline, and single applicant. |
+| **Phase 2** | Discovery Sequence & Gaps | ✅ **PASS** | Completed all 15 discovery questions in order. Extracted military status (Q43) and hourly employment (Q44) cleanly. Zero refi or HELOC questions leaked. |
+| **Phase 3** | Two-Path Closing Offer | ✅ **PASS** | Delivered two-path choice using purchase terminology. Borrower authorized Path A soft pull. |
+| **Phase 3A** | OTP Gate & CRS Soft Pull | ✅ **PASS** | Successfully verified OTP, accepted soft pull authorization, and confirmed prefilled bureau details (Mike, address, employer). |
+| **Phase 3** | Affordability Summary Panel UI | ✅ **PASS** | Rendered `Affordability Summary` with `VERIFIED` badge. Target Price `$280,000`, Down Payment `$15,000`. Showed VA program option and accurately calculated VA Funding Fee (2.15% for first-use). |
+| **Phase 4** | Findings Delivery (`FD1`) | ✅ **PASS** | Delivered exact `FD1` script: conditional eligibility, announced pre-qualification letter emailed, verified 90-day validity, offered loan officer connection. |
+| **Phase 5** | Loan Officer Handoff | ✅ **PASS** | Borrower requested MLO connection $\rightarrow$ SIP bridge triggered instantly. |
+
+### 🏆 Verdict: **PASS — 100% Flawless Execution**
 
 ---
