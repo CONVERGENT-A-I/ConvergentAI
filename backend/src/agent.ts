@@ -262,7 +262,8 @@ class AilanaVoiceAgent extends voice.Agent {
       !isMilitaryUtterance &&
       (hasJobKeyword || hasJobTenureDuration);
 
-    const isAtClosingOffer = pending === 'stage2_closing_offer' || this._stage2ClosingOfferDelivered;
+    const currentStage = this.contextManager.getActiveStage();
+    const isAtClosingOffer = (pending === 'stage2_closing_offer' || this._stage2ClosingOfferDelivered) && currentStage === '2';
 
     const isExplicitPathB = isAtClosingOffer &&
       /\b(build.*(?:shared|summary|stated|info|heloc|refinance|options)|what\s+i\s+shared|from\s+what\s+i\s+shared|use\s+what\s+i\s+shared|summary|explore|stated|second\s*(?:option|path|choice|one)|without|no\s+review|skip)\b/i.test(lastUserText);

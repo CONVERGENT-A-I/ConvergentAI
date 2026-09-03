@@ -10,7 +10,7 @@ This document records the official execution, verification checkpoints, and resu
 |---|---|---|---|---|---|
 | **Test 1** | **Refinance (`TT-REF`)** | Verified (Path A) | 2026-09-03 10:47 AM | **PASS (100%)** | Full discovery, STT error recovery ($60k/mo payment), RQ28/RQ29 asked, OTP & CRS soft pull, Refinance Summary panel with payment delta, RFD1 findings, MLO transfer. |
 | **Test 2** | **Refinance (`TT-REF`)** | Verified (Path A) | 2026-09-03 11:51 AM | **PASS (100%)** | USDA loan compliance (automatic rate & term, no cash-out), out-of-pocket closing costs, payment STT recovery ($30k -> $10k), Refinance Summary with $6,958/mo savings delta, RFD1 findings, live MLO handoff. |
-| **Test 3** | Refinance (`TT-REF`) | — | Pending | Queued | |
+| **Test 3** | **Refinance (`TT-REF`)** | Verified (Path A) | 2026-09-04 12:16 AM | **PASS (100%)** | Cash-out sub-track (`refiCO`), Conventional loan, RQ27 cash-out amount ($80k), 80% LTV cap enforcement (GAP-9), out-of-pocket closing costs, Cash-Out Refinance Summary panel, `isAtClosingOffer` loop bug found & fixed, RFD1 findings, MLO transfer. |
 | **Test 4** | **HELOC / HE Loan (`TT-HEQ`)** | Verified (Path A) | 2026-09-03 11:21 AM | **PASS (100%)** | Fixed loan sub-track routing, EQ16 fixed risk disclosure, garage remodel use, OTP & CRS soft pull, Home Equity Loan Summary panel, EFD1 findings, 2-day LO callback. |
 | **Test 5** | **HELOC (`TT-HEL` / `TT-HEQ`)** | Verified (Path A) | 2026-09-03 12:34 PM | **PASS (100%)** | Stage 1 bug-fix verification (0 premature jumps), fixed risk disclosure, flexible payment pivot, roof maintenance draw, CLTV 90.0% amber benchmark (+5.0%), HFD1 findings, 3-day LO callback. |
 | **Test 6** | HELOC (`TT-HEL`) | — | Pending | Queued | |
@@ -246,5 +246,70 @@ This document records the official execution, verification checkpoints, and resu
 | **Phase 5** | Loan Officer Next Steps | ✅ **PASS** | Concluded findings delivery with licensed loan officer connection offer. |
 
 ### 🏆 Verdict: **PASS — 100% Flawless Execution**
+
+---
+
+## 🔄 Test 3: Refinance Track (`TT-REF`) — Cash-Out Conventional (Run 3 of 3)
+
+### 📌 Session Profile & Scenario Inputs
+* **Borrower Name**: Steve
+* **Transaction Goal**: Refinance (`TT-REF`) — **Cash-Out** on Existing Conventional Mortgage
+* **Property / Occupancy**: Primary Residence
+* **Borrower Context**: First-time explorer, single applicant, 3-month timeline
+* **Financial Profile**:
+  * Gross Annual Income: `$160,000` (`$13,333/mo`)
+  * Monthly Debts: `$900/mo`
+  * Stated Credit Score: `720`
+  * Current Loan Type: **Conventional**
+  * Property Value: `$550,000`
+  * Current Balance: `$320,000` (LTV $\approx 58.2\%$)
+  * Cash-Out Amount: `$80,000` (New Total Loan $\approx 400,000$, New LTV $\approx 72.7\%$)
+  * Current Note Rate: `8.5%`
+  * Current Payment: `$3,200/mo`
+  * Remaining Term: `25 years`
+  * Closing Costs Preference: Paid out of pocket
+  * Prior Refinance (`RQ28`): No
+  * Stay Duration (`RQ29`): 7 years
+  * Current Employer: TechCo (5 years, salaried)
+* **Closing Choice**: Path A (Soft Credit Review / Verified Mode)
+* **Soft Pull Credentials**:
+  * Contact: `steve@gmail.com` | `555 123 55`
+  * Verified Address: `5815 KNOLL KREST ST, SAN ANTONIO, TX 782421118`
+  * Verified Employer: `Convergent AI`
+  * Accounts: 3 open accounts, 0 late payments in 24 months, "Good" category tier
+
+---
+
+### 📋 Phase-by-Phase Verification
+
+| Phase | Checkpoint | Status | Details |
+|---|---|---|---|
+| **Phase 1** | Intent Routing | ✅ **PASS** | Classified refinance intent to `TT-REF`. Collected primary residence, first time, 3-month timeline, and single applicant cleanly. |
+| **Phase 2** | Conventional Sub-track Overview | ✅ **PASS** | After borrower identified loan as Conventional, Ailana delivered `CONV-REF-OVERVIEW` mentioning rate-and-term and cash-out options. Borrower chose cash-out for kitchen renovation. |
+| **Phase 2** | Cash-Out Branch & RQ27 | ✅ **PASS** | `refinance_type=cash_out` correctly extracted. Cash-out amount question (RQ27) appeared in sequence after closing costs preference. Captured `$80,000` cleanly. |
+| **Phase 2** | Discovery Sequence & Gaps | ✅ **PASS** | All 15 cash-out refi fields collected in correct GAP-3 order: income, debt, credit, loan type, refi goal, property value, balance, rate, payment, term, closing costs, cash-out amount, prior refinance (RQ28), stay duration (RQ29), employer. Zero purchase question leakage. |
+| **Phase 3** | Two-Path Closing Offer | ✅ **PASS** | Delivered two-path choice. Borrower chose Path A soft credit review. |
+| **Phase 3A** | OTP & Soft Pull Prefill | ✅ **PASS** | Completed name, contact, OTP, consent, and verified prefill confirmation. |
+| **Phase 3** | Cash-Out Refinance Summary Panel | ✅ **PASS** | Rendered `Cash-Out Refinance Summary` with `VERIFIED` badge. Home Value `$550,000`, Payoff `$320,000`, Cash-Out `$80,000`, New Total Loan ~`$400,000`, LTV `72.7%` (under 80% guideline). Monthly savings delta and interactive sliders present. |
+| **Phase 3** | 80% LTV Cap Enforcement (GAP-9) | ✅ **PASS** | Slider test: cash-out amount beyond 80% LTV ceiling ($120K max) correctly capped with warning message. |
+| **Phase 4** | Findings Delivery (`RFD1`) | ✅ **PASS** | Delivered exact **`RFD1`** script: conditional eligibility for the refinance scenario, payment comparison on screen, loan officer rate lock offer. **Zero pre-qualification letter mentioned** (compliant with Item 11). |
+| **Phase 5** | Loan Officer Handoff | ✅ **PASS** | Borrower requested MLO connection → SIP bridge triggered instantly. |
+
+### 🐛 Bug Found & Fixed During Test 3
+
+**Issue:** After choosing Path A (soft pull) and transitioning to Stage 3A, Ailana asked for the borrower's name, then looped back to the two-path closing offer, creating an infinite cycle: name → re-ask closing offer → name → re-ask...
+
+**Root Cause:** The `isAtClosingOffer` flag in `agent.ts` (line 265) used `_stage2ClosingOfferDelivered` which was set to `true` during the closing offer delivery but **never reset**. After transitioning to Stage 3A (`contact_name`), every subsequent turn still entered the closing offer block. When the user said their name, no Path A/B regex matched, so it fell through to the re-ask script.
+
+**Fix:** Added `&& currentStage === '2'` guard to scope `isAtClosingOffer` to Stage 2 only:
+```diff
+-const isAtClosingOffer = pending === 'stage2_closing_offer' || this._stage2ClosingOfferDelivered;
++const currentStage = this.contextManager.getActiveStage();
++const isAtClosingOffer = (pending === 'stage2_closing_offer' || this._stage2ClosingOfferDelivered) && currentStage === '2';
+```
+
+**Verified:** Bug fixed, re-tested successfully. All 11 automated test suites pass.
+
+### 🏆 Verdict: **PASS — 100% Flawless Execution** (after bug fix)
 
 ---
