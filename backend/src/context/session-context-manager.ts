@@ -2049,8 +2049,8 @@ export class SessionContextManager {
       allFields.push({ name: field, description: fieldDesc, expectedType: 'number', additionalInstructions: instruction });
     }
 
-    // stage2_closing_offer (always opportunistic when near the end of Stage 2, or when pending)
-    if ((field === 'stage2_closing_offer' || this.profile.job_tenure_type_confirmed || this.profile.military_rural_confirmed || this.activeStage === '2') && !allFields.some(f => f.name === 'stage2_closing_offer')) {
+    // stage2_closing_offer (strictly wait until the field is actually pending to avoid false positive extractions)
+    if ((field === 'stage2_closing_offer' || this.currentPendingField === 'stage2_closing_offer') && !allFields.some(f => f.name === 'stage2_closing_offer')) {
       allFields.push({
         name: 'stage2_closing_offer',
         description: 'which path the borrower has chosen: soft credit review (Path A) or explore first without credit review (Path B)',
