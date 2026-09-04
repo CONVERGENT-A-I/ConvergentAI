@@ -410,6 +410,94 @@ async function runStage10EdgeCasesAndBoundariesTests() {
   );
 
   // =========================================================================
+  // SUITE 7: Extreme Financial Bounds & Negative Inputs
+  // =========================================================================
+  console.log('\n--- Suite 7: Extreme Financial Bounds & Negative Inputs ---');
+
+  // Test 7.1: Jumbo Loan Extreme Bound (DTI calculation at high limits)
+  const jumboLoan = calculateAffordability({
+    purchasePrice: 5000000, // $5 million
+    downPayment: 1500000, // 30% down
+    grossAnnualIncome: 1200000, // $1.2M income
+    totalMonthlyDebt: 5000,
+    programType: 'conventional',
+  });
+  assertTest(
+    jumboLoan.loanAmount === 3500000 && jumboLoan.ltv === 0.70 && !isNaN(jumboLoan.dti),
+    '7.1 Jumbo loan (multi-million) calculates safely without overflow'
+  );
+
+  // Test 7.2: DTI near 100% (extreme high debt)
+  const extremeDti = calculateAffordability({
+    purchasePrice: 300000,
+    downPayment: 60000,
+    grossAnnualIncome: 48000, // $4,000/mo
+    totalMonthlyDebt: 3800, // Very high debt, leaves $200 for mortgage
+    programType: 'conventional',
+  });
+  assertTest(
+    extremeDti.dti > 0.90 && extremeDti.dtiAboveHardCeiling === true,
+    '7.2 Extremely high DTI (> 90%) correctly flags hard ceiling'
+  );
+
+  // Test 7.3: Extreme low credit score parsing
+  assertTest(sanitizeCreditScore('300') === '300', '7.3 Sanitizer handles minimum absolute score (300)');
+
+  // Test 7.4: Negative income and property value clamping
+  const negativeInputs = calculateAffordability({
+    purchasePrice: -50000, // Negative property value
+    downPayment: -10000,
+    grossAnnualIncome: -60000,
+    totalMonthlyDebt: -500,
+    programType: 'conventional',
+  });
+  assertTest(
+    negativeInputs.loanAmount === 0 && negativeInputs.dti >= 0 && !isNaN(negativeInputs.dti),
+    '7.4 Negative inputs safely clamped to prevent negative loans and NaNs'
+  );
+
+  // =========================================================================
+  // SUITE 8: Contradictory Inputs & Missing Optional Fields
+  // =========================================================================
+  console.log('\n--- Suite 8: Contradictory Inputs & Flow Deviations ---');
+
+  // Test 8.1: Contradictory flow (changing mortgage goal mid-flow)
+  const switchSession = new SessionContextManager({} as any, {} as any);
+  const switchProf = switchSession.getProfile();
+  switchProf.mortgage_goal = 'purchase';
+  switchProf.transaction_type = 'TT-PUR';
+  switchProf.mortgage_goal_confirmed = true;
+  switchProf.occupancy_confirmed = true;
+  
+  // Try to change it to refinance illegally
+  switchProf.mortgage_goal = 'refinance';
+  // advanceWorkflow should still use TT-PUR logic because transaction_type didn't change unless deliberately processed
+  switchSession.advanceWorkflow();
+  assertTest(
+    switchSession.getPendingField() !== 'refinance_type',
+    '8.1 Mortgage goal switch without full transaction_type reset safely ignored/prevented by State Manager'
+  );
+
+  // Test 8.2: Missing optional fields handling
+  const optSession = new SessionContextManager({} as any, {} as any);
+  const optProf = optSession.getProfile();
+  optProf.mortgage_goal = 'purchase';
+  optProf.transaction_type = 'TT-PUR';
+  optProf.mortgage_goal_confirmed = true;
+  // Intentionally leaving 'timeline' undefined
+  optProf.timeline_confirmed = false;
+  optProf.occupancy = 'primary';
+  optProf.occupancy_confirmed = true;
+  optProf.existing_relationship_confirmed = true;
+  
+  // We can't advance from Stage 1 -> 2 without timeline confirmed.
+  optSession.advanceWorkflow();
+  assertTest(
+    optSession.getPendingField() === 'timeline',
+    '8.2 State manager strictly enforces mandatory fields (e.g. timeline) before advancing stages'
+  );
+
+  // =========================================================================
   // Final Scorecard
   // =========================================================================
   console.log('\n======================================================');

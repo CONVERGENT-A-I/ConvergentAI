@@ -267,6 +267,46 @@ async function runRefinanceFlowTests() {
     console.log('✅ Refinance - Test 7 Passed: High LTV / underwater profile safely injected into prompt.');
   }
 
+  // Test 8: Free and Clear Property (Cash-Out with $0 First Mortgage Balance)
+  const freeClearProfile: BorrowerProfile = {
+    ...refiProfile,
+    refinance_type: 'cash_out',
+    first_mortgage_balance: 0,
+    current_mortgage_rate: 0,
+    current_mortgage_payment: 0,
+    remaining_term_years: 0,
+  };
+  const freeClearPrompt = buildStage2RefinanceInstructions(freeClearProfile);
+  if (freeClearPrompt.includes('cash_out') || freeClearPrompt.includes('first_mortgage_balance')) {
+    console.log('✅ Refinance - Test 8 Passed: $0 first mortgage balance (free and clear) processed correctly.');
+  } else {
+    console.error('❌ Refinance - Test 8 Failed.');
+  }
+
+  // Test 9: Short Remaining Term (e.g., 1 Year)
+  const shortTermProfile: BorrowerProfile = {
+    ...refiProfile,
+    remaining_term_years: 1,
+  };
+  const shortTermPrompt = buildStage2RefinanceInstructions(shortTermProfile);
+  if (shortTermPrompt.includes('1') && shortTermPrompt.includes('remaining_term_years')) {
+    console.log('✅ Refinance - Test 9 Passed: Extremely short remaining term processed correctly.');
+  } else {
+    console.error('❌ Refinance - Test 9 Failed.');
+  }
+
+  // Test 10: Invalid or Unknown Loan Type Fallback
+  const unknownTypeProfile: BorrowerProfile = {
+    ...refiProfile,
+    current_mortgage_type: 'unknown',
+  };
+  const unknownTypePrompt = buildStage2RefinanceInstructions(unknownTypeProfile);
+  if (!unknownTypePrompt.includes('VA-REF-OVERVIEW') && !unknownTypePrompt.includes('FHA-REF-OVERVIEW') && !unknownTypePrompt.includes('USDA-REF-OVERVIEW') && !unknownTypePrompt.includes('CONV-REF-OVERVIEW')) {
+    console.log('✅ Refinance - Test 10 Passed: Unknown loan type correctly suppresses specific sub-track overview blocks, defaulting to general refinance.');
+  } else {
+    console.error('❌ Refinance - Test 10 Failed: Sub-track overview incorrectly generated for unknown loan type.');
+  }
+
   console.log('\n🎉 ALL REFINANCE FLOW TESTS PASSED!\n');
 }
 

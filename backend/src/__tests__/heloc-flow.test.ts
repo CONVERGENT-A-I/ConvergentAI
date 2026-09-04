@@ -198,6 +198,57 @@ async function runHelocFlowTests() {
     console.log('✅ HELOC - Test 8 Passed: Stated vs Verified mode prompt contexts generated cleanly.');
   }
 
+  // Test 9: Extreme Bounds (Draw request exceeding property value)
+  const extremeHelocProfile: BorrowerProfile = {
+    ...helocProfile,
+    property_value: 500000,
+    first_mortgage_balance: 100000,
+    heloc_line_amount: 600000, // Exceeds property value
+  };
+  const extremeHelocPrompt = buildStage2HelocInstructions(extremeHelocProfile);
+  if (extremeHelocPrompt.includes('600000')) {
+    console.log('✅ HELOC - Test 9 Passed: Extreme requested line amount safely injected into prompt for handler to process.');
+  }
+
+  // Test 10: Conflicting timeline testing / auto-seeding from Stage 1
+  const timelineManager = new SessionContextManager({} as any, {} as any);
+  const tProf = timelineManager.getProfile();
+  tProf.mortgage_goal = 'heloc';
+  tProf.transaction_type = 'TT-HEL';
+  tProf.mortgage_goal_confirmed = true;
+  tProf.occupancy_confirmed = true;
+  tProf.existing_relationship_confirmed = true;
+  tProf.timeline = 'within 30 days'; // Seeded from Stage 1
+  tProf.timeline_confirmed = true;
+  tProf.co_borrower_confirmed = true;
+  
+  // Fast forward to heloc_prior
+  tProf.gross_annual_income = 100000;
+  tProf.gross_annual_income_confirmed = true;
+  tProf.monthly_debt = 500;
+  tProf.monthly_debt_confirmed = true;
+  tProf.credit_range = '700';
+  tProf.credit_range_confirmed = true;
+  tProf.heloc_risk_acknowledged = true;
+  tProf.heloc_rate_comfort = 'variable';
+  (tProf as any).heloc_rate_comfort_confirmed = true;
+  tProf.property_value = 500000;
+  (tProf as any).property_value_confirmed = true;
+  tProf.first_mortgage_balance = 250000;
+  (tProf as any).first_mortgage_balance_confirmed = true;
+  tProf.heloc_line_amount = 50000;
+  (tProf as any).heloc_line_amount_confirmed = true;
+  tProf.heloc_draw_use = 'remodel';
+  tProf.heloc_prior = 'no';
+  tProf.heloc_prior_confirmed = true;
+
+  timelineManager.advanceWorkflow();
+  if (timelineManager.getPendingField() !== 'heloc_timeline') {
+    console.log('✅ HELOC - Test 10 Passed: heloc_timeline is skipped if timeline was already seeded from Stage 1.');
+  } else {
+    console.error('❌ HELOC - Test 10 Failed: heloc_timeline was asked despite timeline being confirmed in Stage 1.');
+  }
+
   console.log('\n🎉 ALL HELOC FLOW TESTS PASSED!\n');
 }
 

@@ -17,6 +17,28 @@ export function buildStage25Instructions(profile: BorrowerProfile): string {
       ? `"Here it is${borrowerName !== 'there' ? ', ' + borrowerName : ''} — I've placed your refinance summary on your screen, built from everything you've shared with me. Because it's based on your estimates rather than a credit review, treat it as a first sketch: a helpful picture for exploring, not a loan decision. You're in full control — adjust the targets and watch it respond. And whenever you'd like the more complete version, one quick authorization runs your soft credit review — no impact to your score — and this summary updates with your real credit data. Would you like to explore it together?"`
       : `"Here it is${borrowerName !== 'there' ? ', ' + borrowerName : ''} — I've placed your affordability summary on your screen, built from everything you've shared with me. Because it's based on your estimates rather than a credit review, treat it as a first sketch: a helpful picture for exploring, not a loan decision. You're in full control — adjust the targets and watch it respond. And whenever you'd like the more complete version, one quick authorization runs your soft credit review — no impact to your score — and this summary updates with your real credit data. Would you like to explore it together?"`;
 
+  let initialProgram = 'conventional';
+  if (profile.current_mortgage_type && ['fha', 'va', 'usda', 'conventional'].includes(profile.current_mortgage_type)) {
+    initialProgram = profile.current_mortgage_type;
+  } else if (profile.refinance_subtrack && ['fha', 'va', 'usda', 'conventional'].includes(profile.refinance_subtrack)) {
+    initialProgram = profile.refinance_subtrack;
+  } else if (profile.military_rural === 'military' || profile.military_rural === 'both') {
+    initialProgram = 'va';
+  } else if (profile.credit_range) {
+    const match = profile.credit_range.match(/\d+/);
+    if (match) {
+      const score = parseInt(match[0], 10);
+      if (score < 620) {
+        initialProgram = 'fha';
+      }
+    }
+  }
+
+  let displayProgram = 'Conventional';
+  if (initialProgram === 'fha') displayProgram = 'FHA';
+  if (initialProgram === 'va') displayProgram = 'VA';
+  if (initialProgram === 'usda') displayProgram = 'USDA';
+
   return `
 STAGE: Affordability Scenario Review (Stage 2.5).
 GOAL: Guide the borrower through their affordability summary on screen, support exploration, carry them to a formal eligibility review submission or a licensed loan officer handoff.
@@ -43,7 +65,7 @@ Q46-S — Presenting the affordability summary (Stated-Data Mode):
 ${q46SText}
 
 Q46 ADDENDUM — Program-view opener (delivered when initial program tab auto-selection is active):
-"Your summary opens on the [program] view — you can switch tabs anytime to see how your scenario looks under different program types."
+"Your summary opens on the ${displayProgram} view — you can switch tabs anytime to see how your scenario looks under different program types."
 
 UPGRADE NARRATION — When upgrading from Stated to Verified mode:
 "Your summary just updated — it now reflects your actual credit review rather than estimates, so the picture on your screen is the real one. Your targets carried over exactly as you set them. Take a fresh look, and keep exploring whenever you're ready."
