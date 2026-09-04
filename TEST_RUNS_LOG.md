@@ -16,7 +16,9 @@ This document records the official execution, verification checkpoints, and resu
 | **Test 6** | **HELOC (`TT-HEL`)** | Verified (Path A) | 2026-09-04 12:32 AM | **PASS (100%)** | Pure HELOC intent, investment property, debt consolidation, HQ16/HQ19 risk disclosure delivered proactively, HQ24 variable rate comfort, HQ25 prior HELOC, HQ26 timeline, HELOC Summary panel with 10->20yr repayment shock, HFD1 findings. |
 | **Test 7** | **Purchase (`TT-PUR`)** | Verified (Path A) | 2026-09-03 11:38 AM | **PASS (100%)** | Complete 15-question discovery, self-employed tenure, OTP & CRS soft pull, Affordability Summary with PMI & Cash-to-Close, FD1 findings with 90-day pre-qual letter. |
 | **Test 8** | **Purchase (`TT-PUR`)** | Verified (Path A) | 2026-09-04 12:41 AM | **PASS (100%)** | VA Purchase scenario, Q43 military veteran routing, VA program tab, VA funding fee (2.15%), townhouse, hourly employment, FD1 findings with pre-qual letter sent. |
-| **Test 9** | Purchase (`TT-PUR`) | — | Pending | Queued | |
+| **Test 9** | **Purchase (`TT-PUR`)** | Verified (Path A) | 2026-09-04 10:38 AM | **PASS (100%)** | Multi-family home scenario, hourly employment ($15/hr, 4 yrs), $65k down on $550k target, OTP & CRS soft pull, Affordability Summary with VERIFIED badge, 88.2% LTV ($206/mo PMI), FD1 findings with 90-day pre-qual letter, 2-day 9 AM LO callback scheduled. |
+
+> 🏆 **Overall Verification Status**: **9 of 9 Test Runs Completed — 100% Passing Across All Tracks (`TT-REF`, `TT-HEL`, `TT-HEQ`, `TT-PUR`)**
 
 ---
 
@@ -398,6 +400,50 @@ This document records the official execution, verification checkpoints, and resu
 | **Phase 3** | Affordability Summary Panel UI | ✅ **PASS** | Rendered `Affordability Summary` with `VERIFIED` badge. Target Price `$280,000`, Down Payment `$15,000`. Showed VA program option and accurately calculated VA Funding Fee (2.15% for first-use). |
 | **Phase 4** | Findings Delivery (`FD1`) | ✅ **PASS** | Delivered exact `FD1` script: conditional eligibility, announced pre-qualification letter emailed, verified 90-day validity, offered loan officer connection. |
 | **Phase 5** | Loan Officer Handoff | ✅ **PASS** | Borrower requested MLO connection $\rightarrow$ SIP bridge triggered instantly. |
+
+### 🏆 Verdict: **PASS — 100% Flawless Execution**
+
+---
+
+## 🏠 Test 9: Purchase Track (`TT-PUR`) — Multi-Family Conventional with PMI (Run 3 of 3)
+
+### 📌 Session Profile & Scenario Inputs
+* **Borrower Name**: Mike
+* **Transaction Goal**: Home Purchase (`TT-PUR`)
+* **Property / Occupancy**: Primary Residence
+* **Borrower Context**: First-time explorer, single applicant, 4-month timeline
+* **Financial Profile**:
+  * Gross Annual Income: `$175,000` (`$14,583/mo`)
+  * Monthly Debts: `$1,200/mo`
+  * Stated Credit Score: `720`
+  * Cash Available for Down Payment / Closing: `$65,000` (Stated Down: `$64,900` / `11.8%`)
+  * Housing Situation: Currently renting
+  * Realtor Status: Does not need any agents
+  * Target Purchase Price: `$550,000`
+  * Property Type & Location: Multi-family home in New York (710000)
+  * Military Background (`Q43`): None
+  * Employment / Tenure (`Q44`): Hourly ($15/hr, 4 years tenure)
+* **Closing Choice**: Path A (Soft Credit Review / Verified Mode)
+* **Soft Pull Credentials**:
+  * Contact: `Mike123@gmail.com` | `7290124`
+  * Verified Address: `5815 KNOLL KREST ST, SAN ANTONIO, TX 782421118`
+  * Verified Employer: `Convergent AI`
+  * Accounts: 3 open accounts, 0 late payments in 24 months, "Good" category tier
+
+---
+
+### 📋 Phase-by-Phase Verification
+
+| Phase | Checkpoint | Status | Details |
+|---|---|---|---|
+| **Phase 1** | Intent Routing | ✅ **PASS** | Classified "I want to purchase a home" to `TT-PUR`. Captured primary residence, first-time, 4-month timeline, and single applicant cleanly. |
+| **Phase 2** | Discovery Sequence & Gaps | ✅ **PASS** | All 15 discovery questions executed in exact order: income ($175k), debt ($1,200), credit (720), down payment ($65k), rent, no realtor, target price ($550k), multi-family home in NY, Q43 military (none), Q44 hourly tenure (4 years). Zero refi or HELOC questions leaked. |
+| **Phase 3** | Two-Path Closing Offer | ✅ **PASS** | Delivered verbatim two-path closing offer script ("Which would you prefer, the soft credit review... or building your affordability summary from the information you shared today?"). |
+| **Phase 3A** | OTP Gate & FCRA Soft Pull Consent | ✅ **PASS** | Captured name (Mike), email/mobile, sent OTP code, and presented verbatim FCRA soft credit inquiry authorization disclosure. Borrower explicitly authorized. |
+| **Phase 3A** | Prefill Data Verification | ✅ **PASS** | Read back prefilled credit bureau details one-by-one (name, physical address, employer Convergent AI, 3 open accounts / 0 late payments, Good tier rating). Borrower confirmed all items. |
+| **Phase 3** | Affordability Summary Panel UI | ✅ **PASS** | Rendered `Affordability Summary` panel with `VERIFIED` green badge. Target Price `$550,000`, Stated Down `$64,900` (11.8%), Loan Amount `$485,100`, Est. PITIA `$3,748/mo` (P&I `$3,026`, Taxes `$385`, Ins `$130`, PMI `$206`). Displayed Conventional and FHA program options. Verified accurate LTV benchmark (`88.2%`, +8.2% over 80.0%) and automatic PMI cancellation notice at 20% equity. Front-end DTI (`25.7%`) and Back-end DTI (`33.9%`) both within limits. |
+| **Phase 4** | Findings Delivery (`FD1`) | ✅ **PASS** | Delivered exact `FD1` script: announced conditional eligibility, payment range in pre-qualification letter, confirmed letter emailed to borrower on file, confirmed validity for ninety days, and offered loan officer connection. |
+| **Phase 5** | Loan Officer Callback Scheduling | ✅ **PASS** | Borrower requested: "Please give me a call back after 2 days with the loan officer at 9 AM" $\rightarrow$ Ailana successfully booked the callback for two days at 9 AM with loan officer context. |
 
 ### 🏆 Verdict: **PASS — 100% Flawless Execution**
 
