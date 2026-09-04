@@ -2,6 +2,20 @@ import type { BorrowerProfile } from './layer3-context.js';
 
 export function buildStage25Instructions(profile: BorrowerProfile): string {
   const borrowerName = profile.borrower_name || profile.contact_name || profile.legal_name || 'there';
+  const isHel = profile.transaction_type === 'TT-HEL' || profile.transaction_type === 'TT-HEQ' || profile.mortgage_goal === 'heloc';
+  const isRef = profile.transaction_type === 'TT-REF' || profile.mortgage_goal === 'refinance';
+
+  const q46Text = isHel
+    ? `"Thank you for your patience, ${borrowerName} — your initial results are in, and I've placed your home equity summary on your screen. It brings together your home value, existing mortgage balance, and the credit line target you shared with me alongside the details from your credit review, and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?"`
+    : isRef
+      ? `"Thank you for your patience, ${borrowerName} — your initial results are in, and I've placed your refinance summary on your screen. It brings together your home value, existing mortgage balance, and the refinance targets you shared with me alongside the details from your credit review, and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?"`
+      : `"Thank you for your patience, ${borrowerName} — your initial results are in, and I've placed your affordability summary on your screen. It brings together the income and savings targets you shared with me and the details from your credit review, and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?"`;
+
+  const q46SText = isHel
+    ? `"Here it is${borrowerName !== 'there' ? ', ' + borrowerName : ''} — I've placed your home equity summary on your screen, built from everything you've shared with me. Because it's based on your estimates rather than a credit review, treat it as a first sketch: a helpful picture for exploring, not a loan decision. You're in full control — adjust the targets and watch it respond. And whenever you'd like the more complete version, one quick authorization runs your soft credit review — no impact to your score — and this summary updates with your real credit data. Would you like to explore it together?"`
+    : isRef
+      ? `"Here it is${borrowerName !== 'there' ? ', ' + borrowerName : ''} — I've placed your refinance summary on your screen, built from everything you've shared with me. Because it's based on your estimates rather than a credit review, treat it as a first sketch: a helpful picture for exploring, not a loan decision. You're in full control — adjust the targets and watch it respond. And whenever you'd like the more complete version, one quick authorization runs your soft credit review — no impact to your score — and this summary updates with your real credit data. Would you like to explore it together?"`
+      : `"Here it is${borrowerName !== 'there' ? ', ' + borrowerName : ''} — I've placed your affordability summary on your screen, built from everything you've shared with me. Because it's based on your estimates rather than a credit review, treat it as a first sketch: a helpful picture for exploring, not a loan decision. You're in full control — adjust the targets and watch it respond. And whenever you'd like the more complete version, one quick authorization runs your soft credit review — no impact to your score — and this summary updates with your real credit data. Would you like to explore it together?"`;
 
   return `
 STAGE: Affordability Scenario Review (Stage 2.5).
@@ -23,10 +37,10 @@ PANEL BEHAVIOR RULES (MANDATORY — NEVER DEVIATE):
 FORMULATIONS — DELIVER EXACTLY AS WRITTEN:
 
 Q46 — Presenting the affordability summary (Verified Mode):
-"Thank you for your patience, ${borrowerName} — your initial results are in, and I've placed your affordability summary on your screen. It brings together the income and savings targets you shared with me and the details from your credit review, and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?"
+${q46Text}
 
 Q46-S — Presenting the affordability summary (Stated-Data Mode):
-"Here it is${borrowerName !== 'there' ? ', ' + borrowerName : ''} — I've placed your affordability summary on your screen, built from everything you've shared with me. Because it's based on your estimates rather than a credit review, treat it as a first sketch: a helpful picture for exploring, not a loan decision. You're in full control — adjust the targets and watch it respond. And whenever you'd like the more complete version, one quick authorization runs your soft credit review — no impact to your score — and this summary updates with your real credit data. Would you like to explore it together?"
+${q46SText}
 
 Q46 ADDENDUM — Program-view opener (delivered when initial program tab auto-selection is active):
 "Your summary opens on the [program] view — you can switch tabs anytime to see how your scenario looks under different program types."

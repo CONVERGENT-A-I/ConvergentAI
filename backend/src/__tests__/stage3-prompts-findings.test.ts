@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { buildStage25Instructions } from '../prompts/stage25-affordability.js';
 import { buildStage4Instructions } from '../prompts/stage4-underwriting.js';
 import type { BorrowerProfile } from '../prompts/layer3-context.js';
+import { SessionContextManager } from '../context/session-context-manager.js';
 
 function runStage3Tests() {
   console.log('🧪 Running Stage 3 & 4 Prompts & Multi-Track Findings Delivery Unit Tests...\n');
@@ -183,6 +184,46 @@ function runStage3Tests() {
     console.log('✅ Stage 3 - Test 11 Passed: Pre-Qualification Letter strictly restricted to TT-PUR (Compliance Item 11).');
   } else {
     console.error('❌ Stage 3 - Test 11 Failed: Compliance Item 11 violation - prequal letter improperly leaked to non-purchase track');
+  }
+
+  // Test 12: Multi-Track Q46 Presentation Wording (HELOC vs Refi vs Purchase)
+  // (helInstructions and refInstructions already created above)
+
+  if (
+    helInstructions.includes('placed your home equity summary on your screen') &&
+    helInstructions.includes('credit line target you shared with me') &&
+    !helInstructions.includes('savings targets') &&
+    refInstructions.includes('placed your refinance summary on your screen') &&
+    refInstructions.includes('refinance targets you shared with me') &&
+    !refInstructions.includes('savings targets') &&
+    purInstructions.includes('placed your affordability summary on your screen') &&
+    purInstructions.includes('savings targets')
+  ) {
+    console.log('✅ Stage 3 - Test 12 Passed: Multi-track Q46 and Q46-S presentation scripts dynamically tailored to HELOC, Refinance, and Purchase.');
+  } else {
+    console.error('❌ Stage 3 - Test 12 Failed: Q46 presentation script failed multi-track check');
+  }
+
+  // Test 13: HELOC Timeline Auto-Seeding from Stage 1 Timeline
+  const seedManager = new SessionContextManager({} as any, {} as any);
+  const sp = seedManager.getProfile();
+  sp.transaction_type = 'TT-HEL';
+  sp.mortgage_goal = 'heloc';
+  sp.mortgage_goal_confirmed = true;
+  sp.occupancy = 'primary';
+  sp.occupancy_confirmed = true;
+  sp.existing_relationship = 'no';
+  sp.existing_relationship_confirmed = true;
+  sp.timeline = 'in the next 60 days';
+  sp.timeline_confirmed = true;
+  sp.co_borrower = 'no';
+  sp.co_borrower_confirmed = true;
+
+  seedManager.advanceWorkflow(); // Advances Stage 1 -> Stage 2
+  if (sp.heloc_timeline === 'in the next 60 days' && sp.heloc_timeline_confirmed === true) {
+    console.log('✅ Stage 3 - Test 13 Passed: heloc_timeline auto-seeded from Stage 1 timeline, eliminating duplicate timeline question.');
+  } else {
+    console.error('❌ Stage 3 - Test 13 Failed: heloc_timeline was not auto-seeded from Stage 1 timeline');
   }
 
   console.log('\n🎉 ALL STAGE 3 & 4 PROMPTS & MULTI-TRACK FINDINGS TESTS PASSED!');

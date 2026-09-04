@@ -594,6 +594,10 @@ export class SessionContextManager {
       this.activeStage = '2';
       this.currentPendingField = 'gross_annual_income';
       this.profile.bridge_to_say = 'stage1_to_stage2';
+      if (this.profile.timeline && !this.profile.heloc_timeline) {
+        this.profile.heloc_timeline = this.profile.timeline;
+        this.profile.heloc_timeline_confirmed = true;
+      }
       console.log(`[agent-hook][fallback] Optimistically advanced Stage 1 -> Stage 2 for field "co_borrower" (default="no"). LLM transitions immediately with bridge!`);
       return;
     }
@@ -625,8 +629,17 @@ export class SessionContextManager {
     if (field === 'heloc_prior') {
       this.profile.heloc_prior = 'no'; // Default fallback value
       this.profile.heloc_prior_confirmed = true;
-      this.currentPendingField = 'heloc_timeline';
-      console.log(`[agent-hook][fallback] Optimistically advanced field "heloc_prior" -> "heloc_timeline" (default="no").`);
+      if (this.profile.heloc_timeline_confirmed || this.profile.heloc_timeline || this.profile.timeline) {
+        if (this.profile.timeline && !this.profile.heloc_timeline) {
+          this.profile.heloc_timeline = this.profile.timeline;
+          this.profile.heloc_timeline_confirmed = true;
+        }
+        this.currentPendingField = 'job_tenure_type';
+        console.log(`[agent-hook][fallback] Optimistically advanced field "heloc_prior" -> "job_tenure_type" (timeline already known).`);
+      } else {
+        this.currentPendingField = 'heloc_timeline';
+        console.log(`[agent-hook][fallback] Optimistically advanced field "heloc_prior" -> "heloc_timeline" (default="no").`);
+      }
       return;
     }
 
@@ -2552,6 +2565,11 @@ export class SessionContextManager {
         this.activeStage = '2';
         this.currentPendingField = 'gross_annual_income';
         this.profile.bridge_to_say = 'stage1_to_stage2';
+        if (this.profile.timeline && !this.profile.heloc_timeline) {
+          this.profile.heloc_timeline = this.profile.timeline;
+          this.profile.heloc_timeline_confirmed = true;
+          console.log(`[context-manager]: Auto-seeded heloc_timeline from Stage 1 timeline: "${this.profile.timeline}"`);
+        }
         console.log('[context-manager]: Transitioning to STAGE 2 Pre-Qualification Discovery!');
       }
     } else if (this.activeStage === '2') {
@@ -2668,7 +2686,19 @@ export class SessionContextManager {
         } else if (!this.profile.heloc_prior_confirmed && !this.profile.heloc_prior) {
           this.currentPendingField = 'heloc_prior';
         } else if (!this.profile.heloc_timeline_confirmed && !this.profile.heloc_timeline) {
-          this.currentPendingField = 'heloc_timeline';
+          if (this.profile.timeline) {
+            this.profile.heloc_timeline = this.profile.timeline;
+            this.profile.heloc_timeline_confirmed = true;
+            console.log(`[context-manager]: Auto-seeded heloc_timeline from Stage 1 timeline: "${this.profile.timeline}"`);
+            if (!this.profile.job_tenure_type_confirmed) {
+              this.currentPendingField = 'job_tenure_type';
+            } else {
+              this.calculateEligibility();
+              this.currentPendingField = 'stage2_closing_offer';
+            }
+          } else {
+            this.currentPendingField = 'heloc_timeline';
+          }
         } else if (!this.profile.job_tenure_type_confirmed) {
           this.currentPendingField = 'job_tenure_type';
         } else {

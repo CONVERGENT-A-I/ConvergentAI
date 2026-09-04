@@ -104,7 +104,11 @@ function normalizePronunciationForTts(text: string): string {
 }
 
 function createVerbatimStream(text: string): ReadableStream<string> {
-  const sanitized = normalizePronunciationForTts(text).replace(/\s*\n+\s*/g, ' ').replace(/—/g, ', ').trim();
+  const sanitized = normalizePronunciationForTts(text)
+    .replace(/\s*\n+\s*/g, ' ')
+    .replace(/\s*—\s*/g, ', ')
+    .replace(/\s+,/g, ',')
+    .trim();
   return new ReadableStream({
     start(controller) {
       if (sanitized.length > 0) {
@@ -299,7 +303,17 @@ class AilanaVoiceAgent extends voice.Agent {
           }
 
           const borrowerName = prof.borrower_name || prof.contact_name || prof.legal_name || 'there';
-          const q46s = `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your initial results are in, and I've placed your affordability summary on your screen. It brings together the income and savings targets you shared with me and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?`;
+          const isHel = prof.transaction_type === 'TT-HEL' || prof.transaction_type === 'TT-HEQ' || prof.mortgage_goal === 'heloc';
+          const isRef = prof.transaction_type === 'TT-REF' || prof.mortgage_goal === 'refinance';
+
+          let q46s: string;
+          if (isHel) {
+            q46s = `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your initial results are in, and I've placed your home equity summary on your screen. It brings together your home value, existing mortgage balance, and the credit line target you shared with me and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?`;
+          } else if (isRef) {
+            q46s = `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your initial results are in, and I've placed your refinance summary on your screen. It brings together your home value, existing mortgage balance, and the refinance targets you shared with me and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?`;
+          } else {
+            q46s = `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your initial results are in, and I've placed your affordability summary on your screen. It brings together the income and savings targets you shared with me and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?`;
+          }
           return createVerbatimStream(q46s) as any;
         } else if (isExplicitPathA) {
           console.log('[agent-hook]: Parallel 0ms Fast-Path — Path A (Soft Pull) chosen! Transitioning directly to STAGE 3A OTP gate (contact_name)!');
@@ -586,6 +600,15 @@ class AilanaVoiceAgent extends voice.Agent {
         this.sendStageUpdate('2.5').catch(err => console.warn(err));
       }
       const borrowerName = profile.borrower_name || profile.contact_name || profile.legal_name || 'there';
+      const isHel = profile.transaction_type === 'TT-HEL' || profile.transaction_type === 'TT-HEQ' || profile.mortgage_goal === 'heloc';
+      const isRef = profile.transaction_type === 'TT-REF' || profile.mortgage_goal === 'refinance';
+
+      if (isHel) {
+        return `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your initial results are in, and I've placed your home equity summary on your screen. It brings together your home value, existing mortgage balance, and the credit line target you shared with me alongside the details from your credit review, and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?`;
+      }
+      if (isRef) {
+        return `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your initial results are in, and I've placed your refinance summary on your screen. It brings together your home value, existing mortgage balance, and the refinance targets you shared with me alongside the details from your credit review, and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?`;
+      }
       return `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your initial results are in, and I've placed your affordability summary on your screen. It brings together the income and savings targets you shared with me and the details from your credit review, and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?`;
     };
 
