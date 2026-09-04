@@ -243,8 +243,8 @@ async function runStage10EdgeCasesAndBoundariesTests() {
   // Verify isAtClosingOffer is false when stage is 3A, even if _stage2ClosingOfferDelivered was true
   const mockStage2Pending = 'stage2_closing_offer';
   const mockDelivered = true;
-  const stage2Active = '2';
-  const stage3Active = '3A';
+  const stage2Active: string = '2';
+  const stage3Active: string = '3A';
 
   const isAtClosingOfferStage2 = (mockStage2Pending === 'stage2_closing_offer' || mockDelivered) && stage2Active === '2';
   const isAtClosingOfferStage3A = (mockStage2Pending === 'stage2_closing_offer' || mockDelivered) && stage3Active === '2';
@@ -294,7 +294,7 @@ async function runStage10EdgeCasesAndBoundariesTests() {
     borrower_name: 'Alex',
     transaction_type: 'TT-HEL',
     mortgage_goal: 'heloc',
-    heloc_preference: 'line_of_credit',
+    heloc_rate_comfort: 'variable',
     property_value: 500000,
     first_mortgage_balance: 250000,
     heloc_line_amount: 100000,
@@ -311,7 +311,7 @@ async function runStage10EdgeCasesAndBoundariesTests() {
     borrower_name: 'Alex',
     transaction_type: 'TT-HEQ',
     mortgage_goal: 'heloc',
-    heloc_preference: 'fixed_loan',
+    heloc_rate_comfort: 'fixed',
     property_value: 500000,
     first_mortgage_balance: 250000,
     heloc_line_amount: 100000,
