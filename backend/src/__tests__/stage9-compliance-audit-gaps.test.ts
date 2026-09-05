@@ -343,8 +343,8 @@ async function runStage9ComplianceAuditGapTests() {
   console.assert(
     heqStage4Approve.includes('CURRENT SUB-STAGE: Home Equity Loan Conditional Approval (EFD1)') &&
     heqStage4Approve.includes('conditionally eligible for a home equity loan') &&
-    heqStage4Approve.includes('estimated loan amount and monthly payment range are on your screen now'),
-    'G4 Failed: TT-HEQ approve must deliver EFD1 wording with home equity loan terminology'
+    !heqStage4Approve.includes('on your screen now'),
+    'G4 Failed: TT-HEQ approve must deliver EFD1 wording with home equity loan terminology without screen claim'
   );
   console.assert(
     !heqStage4Approve.includes('home equity line of credit'),
@@ -359,8 +359,8 @@ async function runStage9ComplianceAuditGapTests() {
   console.assert(
     helocStage4Approve.includes('CURRENT SUB-STAGE: HELOC Conditional Line Approval (HFD1)') &&
     helocStage4Approve.includes('conditionally eligible for a home equity line of credit') &&
-    helocStage4Approve.includes('estimated available credit line is on your screen now'),
-    'G4 Failed: TT-HEL approve must deliver HFD1 credit line wording'
+    !helocStage4Approve.includes('on your screen now'),
+    'G4 Failed: TT-HEL approve must deliver HFD1 credit line wording without screen claim'
   );
   console.assert(
     helocStage4Refer.includes('CURRENT SUB-STAGE: HELOC Manual Review Referral (HFD2)') &&

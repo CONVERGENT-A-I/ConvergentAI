@@ -413,7 +413,14 @@ export function InRoomChatPanel({ isActive, onTriggerLoanOfficer }: InRoomChatPa
                   {msg.type === "transcript" ? (
                     <span className="italic">{msg.text}</span>
                   ) : (
-                    <span>{msg.text}</span>
+                    <span>
+                      {msg.text.split(/(\*\*.*?\*\*)/g).map((part: string, index: number) => {
+                        if (part.startsWith('**') && part.endsWith('**')) {
+                          return <strong key={index} className="font-bold">{part.slice(2, -2)}</strong>;
+                        }
+                        return <span key={index}>{part}</span>;
+                      })}
+                    </span>
                   )}
                 </div>
                 <span

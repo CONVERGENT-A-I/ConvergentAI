@@ -498,6 +498,25 @@ async function runStage10EdgeCasesAndBoundariesTests() {
   );
 
   // =========================================================================
+  // SUITE 9: Affirmative Confirmation Edge Cases (Colloquialisms)
+  // =========================================================================
+  console.log('\n--- Suite 9: Affirmative Confirmation Edge Cases ---');
+
+  const isAffirmativeConfirmation = (text: string) => {
+    const lower = text.toLowerCase().trim();
+    return (
+      /\b(yes|yeah|yep|yup|ok|okay|alright|right|uh\s*huh|mhm|looks?\s*(good|right|correct|fine|okay)|that('s|\s+is)\s*(right|correct|accurate|good|fine|also\s+correct|it)|correct|matches|match|what\s+i\s+expect|good|fine|accurate|all\s+good|sounds?\s*(good|right)|perfect|sure|that\s*works|it\s*is|confirmed|true|i\s*think\s*so)\b/i.test(lower) &&
+      !/\b(not?\s*(right|correct|accurate|good|okay)|wrong|mistake|change|update|no\b(?!\s*,\s*(that|it)\s*(is|looks)\s*(also\s+)?(right|correct)))\b/i.test(lower)
+    );
+  };
+
+  assertTest(isAffirmativeConfirmation("Yeah, that's correct"), '9.1 "Yeah, that\'s correct" is recognized as affirmative');
+  assertTest(isAffirmativeConfirmation("Looks good to me"), '9.2 "Looks good to me" is recognized as affirmative');
+  assertTest(isAffirmativeConfirmation("No, that is correct"), '9.3 "No, that is correct" (correction affirmation) is recognized as affirmative');
+  assertTest(!isAffirmativeConfirmation("No, that's wrong"), '9.4 "No, that\'s wrong" is safely rejected as negative');
+  assertTest(!isAffirmativeConfirmation("Actually, I need to update that"), '9.5 "Actually, I need to update that" is safely rejected as negative');
+
+  // =========================================================================
   // Final Scorecard
   // =========================================================================
   console.log('\n======================================================');

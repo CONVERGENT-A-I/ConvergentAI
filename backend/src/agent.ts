@@ -549,8 +549,8 @@ class AilanaVoiceAgent extends voice.Agent {
     const isAffirmativeConfirmation = (text: string) => {
       const lower = text.toLowerCase().trim();
       return (
-        /\b(yes|yeah|yep|yup|looks?\s*(good|right|correct|fine)|that('s|\s+is)\s*(right|correct|accurate|good|fine|also\s+correct)|correct|matches|match|what\s+i\s+expect|good|fine|accurate|all\s+good|sounds\s+good|perfect|sure)\b/i.test(lower) &&
-        !/\b(not?\s*(right|correct|accurate|good)|wrong|mistake|change|update|no\b(?!\s*,\s*(that|it)\s*(is|looks)\s*(also\s+)?(right|correct)))\b/i.test(lower)
+        /\b(yes|yeah|yep|yup|ok|okay|alright|right|uh\s*huh|mhm|looks?\s*(good|right|correct|fine|okay)|that('s|\s+is)\s*(right|correct|accurate|good|fine|also\s+correct|it)|correct|matches|match|what\s+i\s+expect|good|fine|accurate|all\s+good|sounds?\s*(good|right)|perfect|sure|that\s*works|it\s*is|confirmed|true|i\s*think\s*so)\b/i.test(lower) &&
+        !/\b(not?\s*(right|correct|accurate|good|okay)|wrong|mistake|change|update|no\b(?!\s*,\s*(that|it)\s*(is|looks)\s*(also\s+)?(right|correct)))\b/i.test(lower)
       );
     };
 

@@ -68,7 +68,7 @@ function runStage3Tests() {
   };
   const refInstructions = buildStage25Instructions(refProfile);
   if (
-    refInstructions.includes('RFD1 (Conditional eligibility — refinance, on-screen payment comparison, no pre-qual letter):') &&
+    refInstructions.includes('RFD1 (Conditional eligibility — refinance, no pre-qual letter):') &&
     refInstructions.includes('RFD2 (Refer findings — refinance):') &&
     refInstructions.includes('Sarah Connor')
   ) {
@@ -88,7 +88,7 @@ function runStage3Tests() {
   };
   const helInstructions = buildStage25Instructions(helProfile);
   if (
-    helInstructions.includes('HFD1 (Conditional credit line approval — HELOC, on-screen available line, no pre-qual letter):') &&
+    helInstructions.includes('HFD1 (Conditional credit line approval — HELOC, no pre-qual letter):') &&
     helInstructions.includes('HFD2 (Refer findings — HELOC):') &&
     helInstructions.includes('John Wick')
   ) {
@@ -224,6 +224,17 @@ function runStage3Tests() {
     console.log('✅ Stage 3 - Test 13 Passed: heloc_timeline auto-seeded from Stage 1 timeline, eliminating duplicate timeline question.');
   } else {
     console.error('❌ Stage 3 - Test 13 Failed: heloc_timeline was not auto-seeded from Stage 1 timeline');
+  }
+
+  // Test 14: Q47-E Compliance formulation & negative constraint check
+  if (
+    purInstructions.includes('Q47-E') &&
+    purInstructions.includes('DO NOT give unsolicited compliance') &&
+    purInstructions.includes('not stored or committed as application data')
+  ) {
+    console.log('✅ Stage 3 - Test 14 Passed: Q47-E conditional privacy disclosure and unsolicited compliance ban are present.');
+  } else {
+    console.error('❌ Stage 3 - Test 14 Failed: Missing Q47-E or unsolicited compliance rules');
   }
 
   console.log('\n🎉 ALL STAGE 3 & 4 PROMPTS & MULTI-TRACK FINDINGS TESTS PASSED!');

@@ -344,6 +344,22 @@ function PaymentLedger({ segments, total, extraLine, totalLabel = "Total PITIA" 
 /* ---------------------------------------------------------
    MAIN NEW AFFORDABILITY PANEL COMPONENT
 --------------------------------------------------------- */
+export interface PanelValuesPayload {
+  mode: ModeId;
+  program: ProgramId;
+  price?: number;
+  downPayment?: number;
+  downPct?: number;
+  loanAmount?: number;
+  monthlyPayment?: number;
+  frontDti?: number;
+  backDti?: number;
+  ltv?: number;
+  cltv?: number;
+  homeValue?: number;
+  lineAmount?: number;
+}
+
 export interface AffordabilityPanelNewProps {
   transactionType?: TransactionType;
   cashOutIntent?: boolean;
@@ -357,6 +373,7 @@ export interface AffordabilityPanelNewProps {
   initialAssumptions?: Partial<Record<ModeId, Partial<Assumptions>>>;
   onRequestSoftPull?: () => void;
   onSubmitReview?: () => void;
+  onValuesChange?: (values: PanelValuesPayload) => void;
   isSubmitted?: boolean;
   vaSubsequentUse?: boolean;
 }
@@ -374,6 +391,7 @@ export function AffordabilityPanelNew({
   initialAssumptions = {},
   onRequestSoftPull,
   onSubmitReview,
+  onValuesChange,
   isSubmitted = false,
   vaSubsequentUse = false,
 }: AffordabilityPanelNewProps) {
@@ -539,6 +557,8 @@ export function AffordabilityPanelNew({
 
   // Calculate down payment in exact dollar amount for Purchase
   const currentDownDollars = mode === "purchase" ? Math.round(((a.price as number) * (a.downPct as number)) / 100) : 0;
+
+
 
   // Available eligible programs
   const availablePrograms = (Object.entries(PROGRAMS) as [ProgramId, ProgramConfig][]).filter(([id]) =>

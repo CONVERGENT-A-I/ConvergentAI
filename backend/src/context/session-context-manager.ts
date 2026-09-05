@@ -507,6 +507,10 @@ export class SessionContextManager {
     this.profile.current_pending_field = field;
   }
 
+  updateCurrentPanelValues(values: any): void {
+    this.profile.current_panel_values = values;
+  }
+
   /**
    * Returns true if the specified field (or current pending field) is a stage boundary
    * field whose completion triggers a workflow stage transition.
@@ -586,6 +590,33 @@ export class SessionContextManager {
     // ── Optimistic Boundary Transitions (0ms Fast-Path with Average/Default Values) ──
     const lastQuestion = this.getLastAssistantUtterance()?.toLowerCase() || '';
     const wasAskedCoBorrower = lastQuestion.includes('co-borrower') || lastQuestion.includes('co borrower') || lastQuestion.includes('applying on your own') || lastQuestion.includes('joining you on the loan');
+
+    // Fast-path goal detection for mortgage_goal so LLM turn 1 immediately knows the selected track
+    if (field === 'mortgage_goal') {
+      const lastUser = this.getLastUserUtterance()?.toLowerCase() || '';
+      if (/\b(heloc|equity|line of credit|credit line)\b/i.test(lastUser)) {
+        this.profile.mortgage_goal = 'heloc';
+        this.profile.transaction_type = /\b(fixed|lump sum|heq)\b/i.test(lastUser) ? 'TT-HEQ' : 'TT-HEL';
+        this.profile.mortgage_goal_confirmed = true;
+        this.currentPendingField = 'occupancy';
+        console.log(`[agent-hook][fast-path] Fast-classified mortgage_goal -> heloc (${this.profile.transaction_type}) from user input "${lastUser}".`);
+        return;
+      } else if (/\b(refinance|refi|lower rate|cash out)\b/i.test(lastUser)) {
+        this.profile.mortgage_goal = 'refinance';
+        this.profile.transaction_type = 'TT-REF';
+        this.profile.mortgage_goal_confirmed = true;
+        this.currentPendingField = 'occupancy';
+        console.log(`[agent-hook][fast-path] Fast-classified mortgage_goal -> refinance from user input "${lastUser}".`);
+        return;
+      } else if (/\b(purchase|buy|buying|homeownership|new home|new house)\b/i.test(lastUser)) {
+        this.profile.mortgage_goal = 'purchase';
+        this.profile.transaction_type = 'TT-PUR';
+        this.profile.mortgage_goal_confirmed = true;
+        this.currentPendingField = 'occupancy';
+        console.log(`[agent-hook][fast-path] Fast-classified mortgage_goal -> purchase from user input "${lastUser}".`);
+        return;
+      }
+    }
 
     if (field === 'co_borrower' && wasAskedCoBorrower) {
       this.profile.co_borrower = 'no'; // Default fallback value
@@ -1733,7 +1764,7 @@ export class SessionContextManager {
         this.currentPendingField = 'timeline';
       } else if (lower.includes('primary residence') || lower.includes('investment property') || lower.includes('second home')) {
         this.currentPendingField = 'occupancy';
-      } else if (lower.includes('primary goal') || lower.includes('purchase') || lower.includes('refinance') || lower.includes('buying a home') || lower.includes('mortgage goal')) {
+      } else if (lower.includes('primary goal') || lower.includes('purchase') || lower.includes('refinance') || lower.includes('buying a home') || lower.includes('mortgage goal') || lower.includes('heloc') || lower.includes('equity') || lower.includes('line of credit')) {
         this.currentPendingField = 'mortgage_goal';
       }
     }
@@ -1748,6 +1779,16 @@ export class SessionContextManager {
     for (let i = this.turnLog.length - 1; i >= 0; i--) {
       const entry = this.turnLog[i];
       if (entry && entry.role === 'assistant') {
+        return entry.text;
+      }
+    }
+    return null;
+  }
+
+  getLastUserUtterance(): string | null {
+    for (let i = this.turnLog.length - 1; i >= 0; i--) {
+      const entry = this.turnLog[i];
+      if (entry && entry.role === 'user') {
         return entry.text;
       }
     }
@@ -1769,7 +1810,7 @@ export class SessionContextManager {
         name: 'mortgage_goal',
         description: 'Whether they want to purchase/buy a new home, refinance an existing mortgage, or explore a home equity / HELOC option',
         expectedType: 'string',
-        additionalInstructions: 'Extract "purchase", "refinance", "heloc", or "heq" (all lowercase). If they say they want to buy, purchase, acquire, or look for a new home or property, return "purchase". If they want to refinance, refi, lower their rate or payment, get cash out, or change existing mortgage terms, return "refinance". If they want a home equity line of credit, HELOC, or flexible equity draw, return "heloc". If they specifically want a fixed home equity loan, lump sum equity loan, or fixed rate second mortgage (not a line of credit), return "heq". Return null if not mentioned at all.',
+        additionalInstructions: 'Extract "purchase", "refinance", "heloc", or "heq" (all lowercase). If they say they want to buy, purchase, acquire, or look for a new home or property, return "purchase". If they want to refinance, refi, lower their rate or payment, get cash out, or change existing mortgage terms, return "refinance". If they say HELOC, heloc, home equity line of credit, line of credit, or flexible equity draw, return "heloc". If they specifically want a fixed home equity loan, lump sum equity loan, or fixed rate second mortgage (not a line of credit), return "heq". Return null if not mentioned at all.',
       },
       {
         name: 'occupancy',
@@ -1802,14 +1843,14 @@ export class SessionContextManager {
 
     const mgRaw = extractionResults.mortgage_goal?.value;
     const mgVal = typeof mgRaw === 'string' ? mgRaw.toLowerCase().trim() : null;
-    if (mgVal && (mgVal.includes('purchase') || mgVal.includes('buy') || mgVal.includes('refinance') || mgVal.includes('refi') || mgVal.includes('equity') || mgVal.includes('heloc') || mgVal.includes('heq'))) {
+    if (mgVal && (mgVal.includes('purchase') || mgVal.includes('buy') || mgVal.includes('refinance') || mgVal.includes('refi') || mgVal.includes('equity') || mgVal.includes('heloc') || mgVal.includes('heq') || mgVal.includes('line of credit') || mgVal.includes('credit line'))) {
       if (mgVal.includes('refinance') || mgVal.includes('refi')) {
         this.profile.mortgage_goal = 'refinance';
         this.profile.transaction_type = 'TT-REF';
       } else if (mgVal === 'heq' || mgVal.includes('fixed') || mgVal.includes('lump sum')) {
         this.profile.mortgage_goal = 'heloc';
         this.profile.transaction_type = 'TT-HEQ';
-      } else if (mgVal.includes('equity') || mgVal.includes('heloc')) {
+      } else if (mgVal.includes('equity') || mgVal.includes('heloc') || mgVal.includes('line of credit') || mgVal.includes('credit line')) {
         this.profile.mortgage_goal = 'heloc';
         this.profile.transaction_type = 'TT-HEL';
       } else {
@@ -3157,7 +3198,20 @@ export class SessionContextManager {
       this.profile.target_price = numVal;
       this.profile.target_price_confirmed = true;
     } else if (field === 'mortgage_goal') {
-      this.profile.mortgage_goal = rawValue;
+      const lower = rawValue.toLowerCase();
+      if (lower.includes('refinance') || lower.includes('refi')) {
+        this.profile.mortgage_goal = 'refinance';
+        this.profile.transaction_type = 'TT-REF';
+      } else if (lower === 'heq' || lower.includes('fixed') || lower.includes('lump sum')) {
+        this.profile.mortgage_goal = 'heloc';
+        this.profile.transaction_type = 'TT-HEQ';
+      } else if (lower.includes('equity') || lower.includes('heloc') || lower.includes('line of credit') || lower.includes('credit line')) {
+        this.profile.mortgage_goal = 'heloc';
+        this.profile.transaction_type = 'TT-HEL';
+      } else {
+        this.profile.mortgage_goal = 'purchase';
+        this.profile.transaction_type = 'TT-PUR';
+      }
       this.profile.mortgage_goal_confirmed = true;
     } else if (field === 'occupancy') {
       this.profile.occupancy = rawValue as any;

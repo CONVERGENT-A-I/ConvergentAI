@@ -30,7 +30,7 @@ export function buildStage4Instructions(profile: BorrowerProfile): string {
 CURRENT SUB-STAGE: Refinance Conditional Eligibility (RFD1)
 GOAL: Announce conditional eligibility for the refinance scenario and present next steps.
 RULES:
-- Deliver RFD1: "Good news, ${borrowerName} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for the refinance scenario you built. Your estimated payment comparison is on your screen now — it shows your estimated new payment alongside your current payment reference point. Your licensed loan officer will reach out to walk you through next steps and lock in your rate — or I can connect you right now if you'd like."
+- Deliver RFD1: "Good news, ${borrowerName} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for the refinance scenario you built. Your licensed loan officer will reach out to walk you through next steps and lock in your rate — or I can connect you right now if you'd like."
 - Offer to connect with a licensed loan officer now or schedule a callback.`;
     } else if (status === 'timeout' || status === 'waiting') {
       subPrompt = `
@@ -59,12 +59,12 @@ RULES:
 CURRENT SUB-STAGE: Home Equity Loan Conditional Approval (EFD1)
 GOAL: Announce conditional home equity loan approval and present next steps.
 RULES:
-- Deliver EFD1: "Good news, ${borrowerName} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity loan. Your estimated loan amount and monthly payment range are on your screen now. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like."
+- Deliver EFD1: "Good news, ${borrowerName} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity loan. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like."
 - Offer to connect with a licensed loan officer now or schedule a callback.` : `
 CURRENT SUB-STAGE: HELOC Conditional Line Approval (HFD1)
 GOAL: Announce conditional credit line approval and present next steps.
 RULES:
-- Deliver HFD1: "Good news, ${borrowerName} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity line of credit. Your estimated available credit line is on your screen now. Your licensed loan officer will reach out to walk you through the next steps — including the formal application, appraisal scheduling, and the terms of your line — or I can connect you right now if you'd like."
+- Deliver HFD1: "Good news, ${borrowerName} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity line of credit. Your licensed loan officer will reach out to walk you through the next steps — including the formal application, appraisal scheduling, and the terms of your line — or I can connect you right now if you'd like."
 - Offer to connect with a licensed loan officer now or schedule a callback.`;
     } else if (status === 'timeout' || status === 'waiting') {
       subPrompt = `

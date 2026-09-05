@@ -850,7 +850,8 @@ export default function FloatingCTA() {
                         </h4>
 
                         <p className="text-gray-300 text-xs md:text-sm mt-4 leading-relaxed max-w-sm">
-                          You are about to transfer your call directly to a live human **Mortgage Loan Officer**.
+                          You are about to transfer your call directly to a live human{" "}
+                          <strong className="text-white font-semibold">Mortgage Loan Officer</strong>.
                         </p>
 
                         {/* Alert Box */}
@@ -861,7 +862,9 @@ export default function FloatingCTA() {
                           <div>
                             <h5 className="text-amber-400 text-xs font-bold">Important Notice</h5>
                             <p className="text-gray-300 text-[11px] md:text-xs mt-1 leading-normal">
-                              Once transferred, Ailana (your AI guide) will hibernate and **you will not be able to return to the AI session** until you end this call.
+                              Once transferred, Ailana (your AI guide) will hibernate and{" "}
+                              <strong className="text-white font-semibold">you will not be able to return to the AI session</strong>{" "}
+                              until you end this call.
                             </p>
                           </div>
                         </div>
@@ -878,7 +881,7 @@ export default function FloatingCTA() {
                             onClick={confirmLoanOfficerTransfer}
                             className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#00b4d8] to-[#023e8a] hover:from-[#00c5eb] hover:to-[#0353b3] text-white text-xs md:text-sm font-bold shadow-lg shadow-[#00b4d8]/20 transition-all cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap"
                           >
-                            <span>Yes, Connect Officer</span>
+                            <span>Connect to a Loan Officer</span>
                             <ArrowRight className="w-3.5 h-3.5" />
                           </button>
                         </div>

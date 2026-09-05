@@ -161,6 +161,7 @@ export interface BorrowerProfile {
   pmi_explained?: boolean;
   transition_pitch_delivered?: boolean;
   dti_above_hard_ceiling?: boolean;
+  current_panel_values?: Record<string, any> | null;
 
   // ── Stage 4 ──────────────────────────────────────────────────────────────
   aus_status?: 'waiting' | 'approve' | 'approve_eligible' | 'approve_with_conditions' | 'refer' | 'suspend' | 'timeout' | null;
@@ -394,7 +395,7 @@ export function buildLayer3TurnContext(
       const coBorrowerPhrase = hasCoBorrower ? 'you or a co-borrower' : 'you';
       taskLine = `CURRENT TASK:\nCollect military_rural\n\nAsk EXACTLY this: "Now, do ${coBorrowerPhrase} have any military service history — such as being on active duty, a veteran, or in the Reserve or National Guard?"\nDO NOT ASK FOR ANY OTHER FIELD.`;
     } else if (pendingField === 'fd1_delivery') {
-      taskLine = `CURRENT TASK:\nDeliver the Automated Underwriting System (AUS) findings. The system has applied a current representative rate from our rate sheet and generated a conditional eligibility result along with an estimated payment range. Tell the borrower their formal eligibility review is complete. Guide them to look at the updated affordability panel on their screen which now includes their real credit data.`;
+      taskLine = `CURRENT TASK:\nDeliver the Automated Underwriting System (AUS) findings. The system has applied a current representative rate from our rate sheet and generated a conditional eligibility result along with an estimated payment range. Tell the borrower their formal eligibility review is complete.`;
     } else if (pendingField === 'escalation_preference') {
       taskLine = `CURRENT TASK:\nIf the borrower asks general questions about the review findings, loan programs, documents, or the mortgage process, answer them thoroughly and helpfully, then gently offer live transfer or scheduling a callback. If they choose to schedule or connect, handle their preference accordingly.`;
     } else if (pendingField === 'scheduled_call_time') {
