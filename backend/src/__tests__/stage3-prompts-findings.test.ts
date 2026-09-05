@@ -189,19 +189,24 @@ function runStage3Tests() {
   // Test 12: Multi-Track Q46 Presentation Wording (HELOC vs Refi vs Purchase)
   // (helInstructions and refInstructions already created above)
 
+  const bionicEyesRegex = /on your screen/i;
+
   if (
-    helInstructions.includes('placed your home equity summary on your screen') &&
+    helInstructions.includes('your home equity summary is ready for you') &&
     helInstructions.includes('credit line target you shared with me') &&
     !helInstructions.includes('savings targets') &&
-    refInstructions.includes('placed your refinance summary on your screen') &&
+    !bionicEyesRegex.test(helInstructions) &&
+    refInstructions.includes('your refinance summary is ready for you') &&
     refInstructions.includes('refinance targets you shared with me') &&
     !refInstructions.includes('savings targets') &&
-    purInstructions.includes('placed your affordability summary on your screen') &&
-    purInstructions.includes('savings targets')
+    !bionicEyesRegex.test(refInstructions) &&
+    purInstructions.includes('your affordability summary is ready for you') &&
+    purInstructions.includes('savings targets') &&
+    !bionicEyesRegex.test(purInstructions)
   ) {
-    console.log('✅ Stage 3 - Test 12 Passed: Multi-track Q46 and Q46-S presentation scripts dynamically tailored to HELOC, Refinance, and Purchase.');
+    console.log('✅ Stage 3 - Test 12 Passed: Multi-track Q46 and Q46-S presentation scripts dynamically tailored to HELOC, Refinance, and Purchase. Verified bionic eyes ("on your screen") is purged.');
   } else {
-    console.error('❌ Stage 3 - Test 12 Failed: Q46 presentation script failed multi-track check');
+    console.error('❌ Stage 3 - Test 12 Failed: Q46 presentation script failed multi-track check or contained bionic eyes wording.');
   }
 
   // Test 13: HELOC Timeline Auto-Seeding from Stage 1 Timeline

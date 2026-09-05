@@ -2711,6 +2711,13 @@ export class SessionContextManager {
           console.log('[context-manager]: Transitioning to STAGE 2 Closing Transition (Refinance)!');
         }
       } else if (isHel) {
+        // Unconditionally auto-seed heloc_timeline from timeline if available, before evaluating pending fields
+        if (!this.profile.heloc_timeline_confirmed && !this.profile.heloc_timeline && this.profile.timeline) {
+          this.profile.heloc_timeline = this.profile.timeline;
+          this.profile.heloc_timeline_confirmed = true;
+          console.log(`[context-manager]: Auto-seeded heloc_timeline from Stage 1 timeline: "${this.profile.timeline}"`);
+        }
+
         // HELOC Sequence: heloc_risk_acknowledged -> heloc_rate_comfort -> property_value -> first_mortgage_balance -> heloc_line_amount -> heloc_draw_use -> heloc_prior -> heloc_timeline -> job_tenure_type
         if (!this.profile.heloc_risk_acknowledged) {
           this.currentPendingField = 'heloc_risk_acknowledged';
@@ -2727,19 +2734,7 @@ export class SessionContextManager {
         } else if (!this.profile.heloc_prior_confirmed && !this.profile.heloc_prior) {
           this.currentPendingField = 'heloc_prior';
         } else if (!this.profile.heloc_timeline_confirmed && !this.profile.heloc_timeline) {
-          if (this.profile.timeline) {
-            this.profile.heloc_timeline = this.profile.timeline;
-            this.profile.heloc_timeline_confirmed = true;
-            console.log(`[context-manager]: Auto-seeded heloc_timeline from Stage 1 timeline: "${this.profile.timeline}"`);
-            if (!this.profile.job_tenure_type_confirmed) {
-              this.currentPendingField = 'job_tenure_type';
-            } else {
-              this.calculateEligibility();
-              this.currentPendingField = 'stage2_closing_offer';
-            }
-          } else {
-            this.currentPendingField = 'heloc_timeline';
-          }
+          this.currentPendingField = 'heloc_timeline';
         } else if (!this.profile.job_tenure_type_confirmed) {
           this.currentPendingField = 'job_tenure_type';
         } else {

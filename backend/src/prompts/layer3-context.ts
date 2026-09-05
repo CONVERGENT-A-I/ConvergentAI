@@ -472,7 +472,7 @@ Do NOT ask for anything else.`;
   } else if (pendingField === 'otp_verification') {
     otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: VERIFY CODE VIA MODAL ***
 A one-time verification code has been sent to the borrower's email and mobile. You must instruct them to use the secure popup modal.
-Say EXACTLY: "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely on your screen when it arrives, and you're all set."
+Say EXACTLY: "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely when it arrives, and you're all set."
 Do NOT ask them to read the code out loud. Do NOT ask for anything else. Wait for the borrower to enter the code in the modal.`;
   }
 

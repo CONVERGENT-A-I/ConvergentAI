@@ -249,6 +249,21 @@ async function runHelocFlowTests() {
     console.error('❌ HELOC - Test 10 Failed: heloc_timeline was asked despite timeline being confirmed in Stage 1.');
   }
 
+  // Test 11: Auto-seeding of heloc_timeline happens BEFORE heloc_prior is confirmed
+  const preSeedManager = new SessionContextManager({} as any, {} as any);
+  const psProf = preSeedManager.getProfile();
+  psProf.mortgage_goal = 'heloc';
+  psProf.transaction_type = 'TT-HEL';
+  psProf.timeline = 'in a couple of weeks';
+  psProf.timeline_confirmed = true;
+  // Intentionally leave heloc_prior unconfirmed
+  preSeedManager.advanceWorkflow();
+  if (psProf.heloc_timeline === 'in a couple of weeks' && psProf.heloc_timeline_confirmed === true) {
+    console.log('✅ HELOC - Test 11 Passed: heloc_timeline is auto-seeded globally even before reaching it in the sequence.');
+  } else {
+    console.error('❌ HELOC - Test 11 Failed: heloc_timeline was not seeded early.', psProf.heloc_timeline);
+  }
+
   console.log('\n🎉 ALL HELOC FLOW TESTS PASSED!\n');
 }
 
