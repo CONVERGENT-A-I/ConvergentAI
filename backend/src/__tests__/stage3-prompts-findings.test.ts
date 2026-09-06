@@ -194,8 +194,14 @@ function runStage3Tests() {
   if (
     helInstructions.includes('your home equity summary is ready for you') &&
     helInstructions.includes('credit line target you shared with me') &&
+    helInstructions.includes('estimated home value or credit line target to see how') &&
     !helInstructions.includes('savings targets') &&
     !bionicEyesRegex.test(helInstructions) &&
+    heqInstructions.includes('your home equity summary is ready for you') &&
+    heqInstructions.includes('loan amount target you shared with me') &&
+    heqInstructions.includes('estimated home value or loan amount target to see how') &&
+    !heqInstructions.includes('credit line target') &&
+    !bionicEyesRegex.test(heqInstructions) &&
     refInstructions.includes('your refinance summary is ready for you') &&
     refInstructions.includes('refinance targets you shared with me') &&
     !refInstructions.includes('savings targets') &&
@@ -204,7 +210,7 @@ function runStage3Tests() {
     purInstructions.includes('savings targets') &&
     !bionicEyesRegex.test(purInstructions)
   ) {
-    console.log('✅ Stage 3 - Test 12 Passed: Multi-track Q46 and Q46-S presentation scripts dynamically tailored to HELOC, Refinance, and Purchase. Verified bionic eyes ("on your screen") is purged.');
+    console.log('✅ Stage 3 - Test 12 Passed: Multi-track Q46 and Q47 presentation scripts dynamically tailored to HELOC, HEQ, Refinance, and Purchase. Verified bionic eyes ("on your screen") is purged.');
   } else {
     console.error('❌ Stage 3 - Test 12 Failed: Q46 presentation script failed multi-track check or contained bionic eyes wording.');
   }
