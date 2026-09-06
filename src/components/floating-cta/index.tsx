@@ -1788,8 +1788,6 @@ export default function FloatingCTA() {
                           hasSubmittedAus ||
                           borrowerProfile?.affordability_submitted ||
                           borrowerProfile?.affordability_aus_status ||
-                          borrowerProfile?.aus_status ||
-                          borrowerProfile?.ausStatus ||
                           borrowerProfile?.stage === '3B' ||
                           borrowerProfile?.stage === '4' ||
                           activeStage === '3B' ||

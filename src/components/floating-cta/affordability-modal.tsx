@@ -76,8 +76,6 @@ export function AffordabilityModal({
   const isSubmitted = !!(
     borrowerProfile?.affordability_submitted ||
     borrowerProfile?.affordability_aus_status ||
-    borrowerProfile?.aus_status ||
-    borrowerProfile?.ausStatus ||
     borrowerProfile?.stage === '3B' ||
     borrowerProfile?.stage === '4'
   );

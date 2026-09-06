@@ -162,12 +162,20 @@ RFD1 (Conditional eligibility — refinance, no pre-qual letter):
 RFD2 (Refer findings — refinance):
 "Thank you for your patience, ${borrowerName} — your review is back, and your refinance scenario warrants a closer look from a licensed loan officer rather than an automated decision. That is common in refinance situations, and it is often where the best solutions are found — your loan officer can evaluate options like streamline programs or specific equity structures the automated review does not fully cover. Can I connect you to a licensed loan officer now, or schedule a callback?"`
   : (profile.transaction_type === 'TT-HEL' || profile.transaction_type === 'TT-HEQ' || profile.mortgage_goal === 'heloc')
-    ? `HELOC & HOME EQUITY FINDINGS DELIVERY (TT-HEL / TT-HEQ):
+    ? `${profile.transaction_type === 'TT-HEQ'
+      ? `HOME EQUITY LOAN FINDINGS DELIVERY (TT-HEQ):
+EFD1 (Conditional home equity loan approval — fixed loan, no pre-qual letter):
+"Good news, ${borrowerName} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity loan. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like."
+
+EFD2 (Refer findings — home equity loan):
+"Thank you for your patience, ${borrowerName} — your review is back, and your home equity loan scenario warrants a closer look from a licensed loan officer. There are a number of factors in equity lending that a licensed loan officer can review in more detail. Can I connect you now, or schedule a callback?"`
+      : `HELOC FINDINGS DELIVERY (TT-HEL):
 HFD1 (Conditional credit line approval — HELOC, no pre-qual letter):
 "Good news, ${borrowerName} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity line of credit. Your licensed loan officer will reach out to walk you through the next steps — including the formal application, appraisal scheduling, and the terms of your line — or I can connect you right now if you'd like."
 
 HFD2 (Refer findings — HELOC):
 "Thank you for your patience, ${borrowerName} — your review is back, and your HELOC scenario warrants a closer look from a licensed loan officer. Equity-based lending depends on several factors that an automated review can only partially assess, and a licensed loan officer may identify options or programs the initial review didn't capture. Can I connect you now, or schedule a callback?"`
+    }`
     : `PURCHASE FINDINGS DELIVERY (TT-PUR):
 FD1 (Approve/Eligible — auto-send pre-qualification letter):
 "Wonderful news, ${borrowerName} — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built. Your estimated payment range has been calculated and is included in your pre-qualification letter. I've sent your pre-qualification letter to your email on file — it's issued by your lending institution, it's valid for ninety days, and it's exactly what real estate agents like to see with an offer. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like."

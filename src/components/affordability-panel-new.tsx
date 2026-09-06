@@ -599,10 +599,10 @@ export function AffordabilityPanelNew({
                   <span className="text-slate-600 text-xs">|</span>
                   <div className="flex items-center gap-1">
                     <span className="text-[8.5px] lg:text-[10px] text-slate-400 uppercase font-medium">
-                      {mode === "heloc" ? "1st Balance:" : "Payoff:"}
+                      {mode === "heloc" || mode === "heq" ? "1st Balance:" : "Payoff:"}
                     </span>
                     <span className="font-mono tabular-nums tracking-tight text-[10.5px] lg:text-xs font-bold text-white">
-                      ${fmt(mode === "heloc" ? (a.firstBalance as number) : (a.payoff as number))}
+                      ${fmt(mode === "heloc" || mode === "heq" ? (a.firstBalance as number) : (a.payoff as number))}
                     </span>
                   </div>
                 </>

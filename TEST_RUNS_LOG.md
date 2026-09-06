@@ -448,3 +448,26 @@ This document records the official execution, verification checkpoints, and resu
 ### üèÜ Verdict: **PASS ‚Äî 100% Flawless Execution**
 
 ---
+
+---
+
+## ?? Bug Fix Log ó HELOC Panel (Dev Link Post-Deploy Audit)
+
+**Date**: 2026-09-06
+**Source**: Live dev link testing at https://dev.convergentai.tech/
+**Investigator**: Antigravity AI
+
+### Bugs Found & Fixed
+
+| # | Bug | Severity | Files Changed | Status |
+|---|---|---|---|---|
+| **BF-01** | Panel auto-showed "Review Submitted" on mount in HELOC Verified mode ó aus_status (soft pull result) was being used as proxy for formal AUS submit button | High | src/components/floating-cta/index.tsx, affordability-modal.tsx | Fixed |
+| **BF-02** | Ailana delivered HFD1 HELOC language for TT-HEQ borrower (should be EFD1 home equity loan language) ó stage25-affordability.ts lumped both tracks together | High | backend/src/prompts/stage25-affordability.ts | Fixed |
+| **BF-03** | Home Equity Loan Summary panel showed 1st Balance as  ó heq mode reads firstBalance not payoff, but code showed payoff for non-heloc modes | Medium | src/components/affordability-panel-new.tsx | Fixed |
+
+### Post-Fix Validation
+
+- Backend TypeScript build: tsc ó 0 errors
+- Frontend TypeScript type-check: npx tsc --noEmit ó 0 errors
+- Automated test suite: 12/12 suites, 54/54 tests ó All green
+- Purchase and Refinance flows: No similar panel issues found (BF-01 fix benefits all 3 tracks)
