@@ -13,7 +13,7 @@ import { conversationService } from '../services/conversation-service.js';
 import { isDatabaseEnabled } from '../services/database.js';
 import { callCrsSoftPull } from '../services/crs-service.js';
 import { lookupZipData } from '../utils/zip-lookup.js';
-
+import { logAffordabilityEvent } from '../utils/affordability-audit.js';
 
 export type TurnLogEntry = {
   role: 'user' | 'assistant';
@@ -72,8 +72,13 @@ export class SessionContextManager {
 
   public onStateReconciled?: (manager: SessionContextManager) => void;
 
+  // AUS submission tracking for audit logging
+  private ausSubmissionTimestamp: number | null = null;
+
   // Database persistence (optional - only if DATABASE_URL is set)
   private applicationId: string | null = null;
+  private sessionId: string | null = null;
+  private roomName: string | null = null; // Store room name for fallback application lookup
   private lastSyncAt = Date.now();
   private readonly syncIntervalMs = 5000; // Sync every 5 seconds
   private readonly dbEnabled: boolean;
@@ -134,9 +139,60 @@ export class SessionContextManager {
   }
 
   /**
+   * Get the current application ID
+   */
+  getApplicationId(): string | null {
+    return this.applicationId;
+  }
+
+  /**
+   * Set the session ID for audit logging
+   */
+  setSessionId(id: string): void {
+    this.sessionId = id;
+    this.roomName = id; // Also store as roomName for fallback lookups
+    console.log(`[context-manager] Session ID set: ${id}`);
+  }
+
+  /**
+   * Ensure applicationId is available (lazy lookup if needed)
+   */
+  private async ensureApplicationId(): Promise<string | null> {
+    // If we already have it, return it
+    if (this.applicationId) {
+      return this.applicationId;
+    }
+
+    // Try to look it up from database using roomName
+    if (this.dbEnabled && this.roomName) {
+      try {
+        console.log(`[context-manager] applicationId not set, attempting lookup by roomName: ${this.roomName}`);
+        const application = await applicationService.findApplicationByRoomName(this.roomName);
+        if (application) {
+          this.applicationId = application.id;
+          console.log(`[context-manager] ✅ Found applicationId via roomName lookup: ${this.applicationId}`);
+          return this.applicationId;
+        }
+      } catch (error) {
+        console.error('[context-manager] Failed to lookup applicationId by roomName:', error);
+      }
+    }
+
+    console.warn('[context-manager] ⚠️ applicationId not available and lookup failed');
+    return null;
+  }
+
+  /**
+   * Get the current session ID
+   */
+  getSessionId(): string | null {
+    return this.sessionId;
+  }
+
+  /**
    * Initialize context from database (resume existing application)
    */
-  async initializeFromDatabase(applicationId: string): Promise<void> {
+  async initializeFromDatabase(applicationId: string, skipAffordabilityState: boolean = false): Promise<void> {
     if (!this.dbEnabled || !applicationId) {
       console.log('[context-manager] Skipping database initialization (database not enabled)');
       return;
@@ -145,6 +201,9 @@ export class SessionContextManager {
     try {
       this.applicationId = applicationId;
       console.log(`[context-manager] Loading application ${applicationId} from database...`);
+      if (skipAffordabilityState) {
+        console.log('[context-manager] 🔄 TESTING MODE: Will skip restoring affordability submission state');
+      }
 
       const app = await applicationService.getApplicationWithStages(applicationId);
       if (!app) {
@@ -195,6 +254,59 @@ export class SessionContextManager {
         this.profile.pending_confirm_field = app.stage2.pendingConfirmField ?? null;
         this.profile.pending_confirm_value = app.stage2.pendingConfirmValue ?? null;
         this.profile.bridge_to_say = app.stage2.bridgeToSay as any ?? null;
+        // Refinance fields
+        this.profile.property_value = app.stage2.propertyValue?.toNumber() ?? null;
+        (this.profile as any).property_value_confirmed = app.stage2.propertyValueConfirmed;
+        this.profile.first_mortgage_balance = app.stage2.firstMortgageBalance?.toNumber() ?? null;
+        (this.profile as any).first_mortgage_balance_confirmed = app.stage2.firstMortgageBalanceConfirmed;
+        this.profile.current_mortgage_rate = app.stage2.currentMortgageRate?.toNumber() ?? null;
+        (this.profile as any).current_mortgage_rate_confirmed = app.stage2.currentMortgageRateConfirmed;
+        this.profile.current_mortgage_payment = app.stage2.currentMortgagePayment?.toNumber() ?? null;
+        (this.profile as any).current_mortgage_payment_confirmed = app.stage2.currentMortgagePaymentConfirmed;
+        this.profile.current_mortgage_type = app.stage2.currentMortgageType as any ?? null;
+        this.profile.remaining_term_years = app.stage2.remainingTermYears ?? null;
+        (this.profile as any).remaining_term_years_confirmed = app.stage2.remainingTermYearsConfirmed;
+        this.profile.closing_costs_preference = app.stage2.closingCostsPreference as any ?? null;
+        (this.profile as any).closing_costs_preference_confirmed = app.stage2.closingCostsPreferenceConfirmed;
+        this.profile.cash_out_amount = app.stage2.cashOutAmount?.toNumber() ?? null;
+        (this.profile as any).cash_out_amount_confirmed = app.stage2.cashOutAmountConfirmed;
+        this.profile.cash_out_use = app.stage2.cashOutUse ?? null;
+        this.profile.refinance_subtrack = app.stage2.refinanceSubtrack as any ?? null;
+        this.profile.va_subsequent_use = app.stage2.vaSubsequentUse ?? null;
+        this.profile.prior_refinance = app.stage2.priorRefinance as any ?? null;
+        this.profile.prior_refinance_confirmed = app.stage2.priorRefinanceConfirmed;
+        this.profile.stay_duration_years = app.stage2.stayDurationYears ?? null;
+        this.profile.stay_duration_years_confirmed = app.stage2.stayDurationYearsConfirmed;
+        // HELOC fields
+        this.profile.heloc_line_amount = app.stage2.helocLineAmount?.toNumber() ?? null;
+        (this.profile as any).heloc_line_amount_confirmed = app.stage2.helocLineAmountConfirmed;
+        this.profile.heloc_draw_use = app.stage2.helocDrawUse ?? null;
+        this.profile.heloc_prior = app.stage2.helocPrior as any ?? null;
+        this.profile.heloc_prior_confirmed = app.stage2.helocPriorConfirmed;
+        this.profile.heloc_timeline = app.stage2.helocTimeline ?? null;
+        this.profile.heloc_timeline_confirmed = app.stage2.helocTimelineConfirmed;
+        (this.profile as any).heloc_risk_acknowledged = app.stage2.helocRiskAcknowledged;
+        this.profile.heloc_rate_comfort = app.stage2.helocRateComfort as any ?? null;
+        this.profile.heloc_rate_comfort_confirmed = app.stage2.helocRateComfortConfirmed;
+        (this.profile as any).heloc_draw_period_understood = app.stage2.helocDrawPeriodUnderstood;
+        (this.profile as any).heloc_repayment_period_understood = app.stage2.helocRepaymentPeriodUnderstood;
+
+        // ── Stage 2.5 Affordability Panel Fields ──
+        // Skip restoring submission state in testing mode (each call should start fresh)
+        if (!skipAffordabilityState) {
+          this.profile.affordability_panel_rendered = app.stage2.affordabilityPanelRendered;
+          this.profile.affordability_mode = app.stage2.affordabilityMode as any ?? null;
+          this.profile.affordability_purchase_price = app.stage2.affordabilityPurchasePrice?.toNumber() ?? null;
+          this.profile.affordability_down_payment = app.stage2.affordabilityDownPayment?.toNumber() ?? null;
+          this.profile.affordability_income_band = app.stage2.affordabilityIncomeBand as any ?? null;
+          this.profile.affordability_dti_band = app.stage2.affordabilityDtiBand as any ?? null;
+          this.profile.affordability_submitted = app.stage2.affordabilitySubmitted;
+          this.profile.affordability_aus_status = app.stage2.affordabilityAusStatus as any ?? null;
+          this.profile.affordability_prequel_letter_sent = app.stage2.affordabilityPrequelLetterSent;
+        } else {
+          console.log('[context-manager] 🔄 Skipping affordability state restoration (testing mode - fresh start)');
+          // Leave all affordability fields as null/false for fresh start
+        }
       }
 
       // Restore Stage 3 (unified)
@@ -213,6 +325,18 @@ export class SessionContextManager {
         this.profile.soft_pull_consent = app.stage3.softPullConsent as any ?? null;
         this.profile.employer = app.stage3.employer ?? null;
         this.profile.prefilled_fields_confirmed = app.stage3.prefilledFieldsConfirmed as any;
+        // OTP & Session Login fields
+        this.profile.session_login_complete = app.stage3.sessionLoginComplete;
+        this.profile.contact_on_file = app.stage3.contactOnFile;
+        this.profile.contact_name = app.stage3.contactName ?? null;
+        (this.profile as any).contact_name_confirmed = app.stage3.contactNameConfirmed;
+        this.profile.contact_email = app.stage3.contactEmail ?? null;
+        this.profile.contact_mobile = app.stage3.contactMobile ?? null;
+        this.profile.otp_verified = app.stage3.otpVerified;
+        // CRS data
+        (this.profile as any).crs_open_accounts = app.stage3.crsOpenAccounts ?? null;
+        (this.profile as any).crs_late_payments = app.stage3.crsLatePayments ?? null;
+        // Stage 3B fields
         this.profile.marital_status = app.stage3.maritalStatus as any ?? null;
         this.profile.marital_status_confirmed = app.stage3.maritalStatusConfirmed;
         this.profile.dependents = app.stage3.dependents ?? null;
@@ -507,10 +631,6 @@ export class SessionContextManager {
     this.profile.current_pending_field = field;
   }
 
-  updateCurrentPanelValues(values: any): void {
-    this.profile.current_panel_values = values;
-  }
-
   /**
    * Returns true if the specified field (or current pending field) is a stage boundary
    * field whose completion triggers a workflow stage transition.
@@ -591,33 +711,6 @@ export class SessionContextManager {
     const lastQuestion = this.getLastAssistantUtterance()?.toLowerCase() || '';
     const wasAskedCoBorrower = lastQuestion.includes('co-borrower') || lastQuestion.includes('co borrower') || lastQuestion.includes('applying on your own') || lastQuestion.includes('joining you on the loan');
 
-    // Fast-path goal detection for mortgage_goal so LLM turn 1 immediately knows the selected track
-    if (field === 'mortgage_goal') {
-      const lastUser = this.getLastUserUtterance()?.toLowerCase() || '';
-      if (/\b(heloc|equity|line of credit|credit line)\b/i.test(lastUser)) {
-        this.profile.mortgage_goal = 'heloc';
-        this.profile.transaction_type = /\b(fixed|lump sum|heq)\b/i.test(lastUser) ? 'TT-HEQ' : 'TT-HEL';
-        this.profile.mortgage_goal_confirmed = true;
-        this.currentPendingField = 'occupancy';
-        console.log(`[agent-hook][fast-path] Fast-classified mortgage_goal -> heloc (${this.profile.transaction_type}) from user input "${lastUser}".`);
-        return;
-      } else if (/\b(refinance|refi|lower rate|cash out)\b/i.test(lastUser)) {
-        this.profile.mortgage_goal = 'refinance';
-        this.profile.transaction_type = 'TT-REF';
-        this.profile.mortgage_goal_confirmed = true;
-        this.currentPendingField = 'occupancy';
-        console.log(`[agent-hook][fast-path] Fast-classified mortgage_goal -> refinance from user input "${lastUser}".`);
-        return;
-      } else if (/\b(purchase|buy|buying|homeownership|new home|new house)\b/i.test(lastUser)) {
-        this.profile.mortgage_goal = 'purchase';
-        this.profile.transaction_type = 'TT-PUR';
-        this.profile.mortgage_goal_confirmed = true;
-        this.currentPendingField = 'occupancy';
-        console.log(`[agent-hook][fast-path] Fast-classified mortgage_goal -> purchase from user input "${lastUser}".`);
-        return;
-      }
-    }
-
     if (field === 'co_borrower' && wasAskedCoBorrower) {
       this.profile.co_borrower = 'no'; // Default fallback value
       this.profile.co_borrower_confirmed = true;
@@ -695,6 +788,8 @@ export class SessionContextManager {
   }
 
   async onUserTurn(text: string): Promise<void> {
+    console.log(`[audit-debug] 🔵 onUserTurn START | applicationId: ${this.applicationId}, sessionId: ${this.sessionId}, roomName: ${this.roomName}, stage: ${this.activeStage}, field: ${this.currentPendingField}`);
+    
     const _perfOnUserTurnStart = performance.now();
     let trimmed = text.trim();
 
@@ -783,6 +878,8 @@ export class SessionContextManager {
     // looping only causes multiple sequential Cerebras calls when several fields
     // are answered at once.
     const _tExtract = performance.now();
+    console.log(`[audit-debug] 🚀 Starting extraction | stage: ${this.activeStage}, field: ${this.currentPendingField}`);
+    
     if (this.activeStage === '1') {
       await this.runStage1Extraction(trimmed);
     } else if (this.activeStage === '2') {
@@ -813,6 +910,8 @@ export class SessionContextManager {
   // Stage 2.5 (Affordability Panel) Extraction
   // ──────────────────────────────────────────────────────────────────────────
   private async runStage25Extraction(text: string): Promise<void> {
+    console.log(`[audit-debug] 🔍 runStage25Extraction called | stage: ${this.activeStage}, field: ${this.currentPendingField}, userText: "${text}"`);
+    
     const lastQuestion = this.getLastAssistantUtterance();
     let field = this.currentPendingField;
 
@@ -823,6 +922,8 @@ export class SessionContextManager {
     }
 
     if (field === 'affordability_panel_active') {
+      console.log(`[audit-debug] 🎯 Extracting affordability_action from user text...`);
+      
       const res = await extractProfileField(
         text,
         lastQuestion,
@@ -837,7 +938,13 @@ export class SessionContextManager {
         'Extract "drop_off" if borrower explicitly says they want to stop, pause, exit, or think about it. Return null for everything else including general conversation, job/employment answers, and statements about work.'
       );
 
+      console.log(`[audit-debug] 📊 Extraction result: ${JSON.stringify(res)}`);
+
       if (res.value === 'submit') {
+        // ── Submit detected - trigger AUS submission (audit logging happens in applyAusResult) ───
+        console.log(`[audit-debug] ✅ SUBMIT DETECTED via voice! Applying AUS result...`);
+        
+        // ── Now handle the submission based on mode ──────────────────────────
         if (this.profile.affordability_mode === 'stated' || !this.profile.otp_verified) {
           // Voice submit in stated mode -> triggers upgrade flow
           this.activeStage = '3A';
@@ -849,7 +956,8 @@ export class SessionContextManager {
         } else {
           // Voice submit in verified mode -> executes AUS submission
           this.profile.affordability_submitted = true;
-          this.applyAusResult('approve_eligible');
+          this.ausSubmissionTimestamp = Date.now(); // Track when submission occurred
+          await this.applyAusResult('approve_eligible');
           console.log('[context-manager]: Affordability panel EXPLICITLY submitted for review via voice! AUS result applied.');
         }
       } else if (res.value === 'upgrade') {
@@ -930,13 +1038,65 @@ export class SessionContextManager {
     }
   }
 
-  public applyAusResult(result: 'approve_eligible' | 'refer'): void {
+  public async applyAusResult(result: 'approve_eligible' | 'refer'): Promise<void> {
     this.profile.affordability_aus_status = result;
     this.profile.aus_status = result === 'approve_eligible' ? 'approve' : result;
     this.profile.affordability_submitted = true;
     this.activeStage = '2.5';
     this.currentPendingField = result === 'approve_eligible' ? 'fd1_delivery' : 'fd2_delivery';
     console.log(`[context-manager]: Applied AUS result: ${result} -> pending field set to ${this.currentPendingField}`);
+
+    // ── AUDIT LOGGING: Submit Clicked (runs for BOTH UI and voice submissions) ───
+    const appId = await this.ensureApplicationId();
+    
+    if (appId && this.sessionId) {
+      const loanAmount = (this.profile.affordability_purchase_price ?? 0) - (this.profile.affordability_down_payment ?? 0);
+      const ltv = this.profile.affordability_purchase_price ? 
+        loanAmount / this.profile.affordability_purchase_price : 0;
+      
+      console.log(`[audit-debug] Logging submit_clicked event | appId: ${appId}, sessionId: ${this.sessionId}, mode: ${this.profile.affordability_mode}`);
+      
+      const submitEvent: any = {
+        eventType: 'submit_clicked',
+        applicationId: appId,
+        sessionId: this.sessionId,
+        loanAmountAtSubmission: loanAmount,
+        ltvAtSubmission: ltv,
+      };
+      
+      if (this.profile.contact_name || this.profile.borrower_name) {
+        submitEvent.borrowerName = this.profile.contact_name ?? this.profile.borrower_name;
+      }
+      if (this.profile.mortgage_goal) submitEvent.transactionType = this.profile.mortgage_goal;
+      if (this.profile.affordability_purchase_price != null) submitEvent.purchasePriceAtSubmission = this.profile.affordability_purchase_price;
+      if (this.profile.affordability_down_payment != null) submitEvent.downPaymentAtSubmission = this.profile.affordability_down_payment;
+      if (this.profile.affordability_mode) submitEvent.affordabilityMode = this.profile.affordability_mode;
+      
+      logAffordabilityEvent(submitEvent).catch(err => console.error('[context-manager] Failed to log submit event:', err));
+    } else {
+      console.error(`[audit-debug] CANNOT LOG submit_clicked: Missing applicationId (${appId}) or sessionId (${this.sessionId})!`);
+    }
+
+    // ── AUDIT LOGGING: AUS Result Received ────────────────────────────────
+    const timeToResult = this.ausSubmissionTimestamp ? Date.now() - this.ausSubmissionTimestamp : undefined;
+    
+    if (appId && this.sessionId) {
+      const ausEvent: any = {
+        eventType: 'aus_result_received',
+        applicationId: appId,
+        sessionId: this.sessionId,
+        findingType: result === 'approve_eligible' ? 'Approve/Eligible' : 'Refer',
+      };
+      
+      if (timeToResult != null) ausEvent.timeToResultMs = timeToResult;
+      if (this.profile.affordability_mode) ausEvent.affordabilityMode = this.profile.affordability_mode;
+      if (this.profile.affordability_purchase_price != null) ausEvent.purchasePriceAtSubmission = this.profile.affordability_purchase_price;
+      if (this.profile.affordability_down_payment != null) ausEvent.downPaymentAtSubmission = this.profile.affordability_down_payment;
+      if (this.profile.affordability_income_band) ausEvent.resultingIncomeBand = this.profile.affordability_income_band;
+      if (this.profile.affordability_dti_band) ausEvent.resultingDtiBand = this.profile.affordability_dti_band;
+      
+      logAffordabilityEvent(ausEvent).catch(err => console.error('[context-manager] Failed to log AUS result event:', err));
+    }
   }
 
   public triggerUpgradeToVerifiedMode(): void {
@@ -1764,7 +1924,7 @@ export class SessionContextManager {
         this.currentPendingField = 'timeline';
       } else if (lower.includes('primary residence') || lower.includes('investment property') || lower.includes('second home')) {
         this.currentPendingField = 'occupancy';
-      } else if (lower.includes('primary goal') || lower.includes('purchase') || lower.includes('refinance') || lower.includes('buying a home') || lower.includes('mortgage goal') || lower.includes('heloc') || lower.includes('equity') || lower.includes('line of credit')) {
+      } else if (lower.includes('primary goal') || lower.includes('purchase') || lower.includes('refinance') || lower.includes('buying a home') || lower.includes('mortgage goal')) {
         this.currentPendingField = 'mortgage_goal';
       }
     }
@@ -1779,16 +1939,6 @@ export class SessionContextManager {
     for (let i = this.turnLog.length - 1; i >= 0; i--) {
       const entry = this.turnLog[i];
       if (entry && entry.role === 'assistant') {
-        return entry.text;
-      }
-    }
-    return null;
-  }
-
-  getLastUserUtterance(): string | null {
-    for (let i = this.turnLog.length - 1; i >= 0; i--) {
-      const entry = this.turnLog[i];
-      if (entry && entry.role === 'user') {
         return entry.text;
       }
     }
@@ -1810,7 +1960,7 @@ export class SessionContextManager {
         name: 'mortgage_goal',
         description: 'Whether they want to purchase/buy a new home, refinance an existing mortgage, or explore a home equity / HELOC option',
         expectedType: 'string',
-        additionalInstructions: 'Extract "purchase", "refinance", "heloc", or "heq" (all lowercase). If they say they want to buy, purchase, acquire, or look for a new home or property, return "purchase". If they want to refinance, refi, lower their rate or payment, get cash out, or change existing mortgage terms, return "refinance". If they say HELOC, heloc, home equity line of credit, line of credit, or flexible equity draw, return "heloc". If they specifically want a fixed home equity loan, lump sum equity loan, or fixed rate second mortgage (not a line of credit), return "heq". Return null if not mentioned at all.',
+        additionalInstructions: 'Extract "purchase", "refinance", "heloc", or "heq" (all lowercase). If they say they want to buy, purchase, acquire, or look for a new home or property, return "purchase". If they want to refinance, refi, lower their rate or payment, get cash out, or change existing mortgage terms, return "refinance". If they want a home equity line of credit, HELOC, or flexible equity draw, return "heloc". If they specifically want a fixed home equity loan, lump sum equity loan, or fixed rate second mortgage (not a line of credit), return "heq". Return null if not mentioned at all.',
       },
       {
         name: 'occupancy',
@@ -1843,14 +1993,14 @@ export class SessionContextManager {
 
     const mgRaw = extractionResults.mortgage_goal?.value;
     const mgVal = typeof mgRaw === 'string' ? mgRaw.toLowerCase().trim() : null;
-    if (mgVal && (mgVal.includes('purchase') || mgVal.includes('buy') || mgVal.includes('refinance') || mgVal.includes('refi') || mgVal.includes('equity') || mgVal.includes('heloc') || mgVal.includes('heq') || mgVal.includes('line of credit') || mgVal.includes('credit line'))) {
+    if (mgVal && (mgVal.includes('purchase') || mgVal.includes('buy') || mgVal.includes('refinance') || mgVal.includes('refi') || mgVal.includes('equity') || mgVal.includes('heloc') || mgVal.includes('heq'))) {
       if (mgVal.includes('refinance') || mgVal.includes('refi')) {
         this.profile.mortgage_goal = 'refinance';
         this.profile.transaction_type = 'TT-REF';
       } else if (mgVal === 'heq' || mgVal.includes('fixed') || mgVal.includes('lump sum')) {
         this.profile.mortgage_goal = 'heloc';
         this.profile.transaction_type = 'TT-HEQ';
-      } else if (mgVal.includes('equity') || mgVal.includes('heloc') || mgVal.includes('line of credit') || mgVal.includes('credit line')) {
+      } else if (mgVal.includes('equity') || mgVal.includes('heloc')) {
         this.profile.mortgage_goal = 'heloc';
         this.profile.transaction_type = 'TT-HEL';
       } else {
@@ -2711,13 +2861,6 @@ export class SessionContextManager {
           console.log('[context-manager]: Transitioning to STAGE 2 Closing Transition (Refinance)!');
         }
       } else if (isHel) {
-        // Unconditionally auto-seed heloc_timeline from timeline if available, before evaluating pending fields
-        if (!this.profile.heloc_timeline_confirmed && !this.profile.heloc_timeline && this.profile.timeline) {
-          this.profile.heloc_timeline = this.profile.timeline;
-          this.profile.heloc_timeline_confirmed = true;
-          console.log(`[context-manager]: Auto-seeded heloc_timeline from Stage 1 timeline: "${this.profile.timeline}"`);
-        }
-
         // HELOC Sequence: heloc_risk_acknowledged -> heloc_rate_comfort -> property_value -> first_mortgage_balance -> heloc_line_amount -> heloc_draw_use -> heloc_prior -> heloc_timeline -> job_tenure_type
         if (!this.profile.heloc_risk_acknowledged) {
           this.currentPendingField = 'heloc_risk_acknowledged';
@@ -2734,7 +2877,19 @@ export class SessionContextManager {
         } else if (!this.profile.heloc_prior_confirmed && !this.profile.heloc_prior) {
           this.currentPendingField = 'heloc_prior';
         } else if (!this.profile.heloc_timeline_confirmed && !this.profile.heloc_timeline) {
-          this.currentPendingField = 'heloc_timeline';
+          if (this.profile.timeline) {
+            this.profile.heloc_timeline = this.profile.timeline;
+            this.profile.heloc_timeline_confirmed = true;
+            console.log(`[context-manager]: Auto-seeded heloc_timeline from Stage 1 timeline: "${this.profile.timeline}"`);
+            if (!this.profile.job_tenure_type_confirmed) {
+              this.currentPendingField = 'job_tenure_type';
+            } else {
+              this.calculateEligibility();
+              this.currentPendingField = 'stage2_closing_offer';
+            }
+          } else {
+            this.currentPendingField = 'heloc_timeline';
+          }
         } else if (!this.profile.job_tenure_type_confirmed) {
           this.currentPendingField = 'job_tenure_type';
         } else {
@@ -3193,20 +3348,7 @@ export class SessionContextManager {
       this.profile.target_price = numVal;
       this.profile.target_price_confirmed = true;
     } else if (field === 'mortgage_goal') {
-      const lower = rawValue.toLowerCase();
-      if (lower.includes('refinance') || lower.includes('refi')) {
-        this.profile.mortgage_goal = 'refinance';
-        this.profile.transaction_type = 'TT-REF';
-      } else if (lower === 'heq' || lower.includes('fixed') || lower.includes('lump sum')) {
-        this.profile.mortgage_goal = 'heloc';
-        this.profile.transaction_type = 'TT-HEQ';
-      } else if (lower.includes('equity') || lower.includes('heloc') || lower.includes('line of credit') || lower.includes('credit line')) {
-        this.profile.mortgage_goal = 'heloc';
-        this.profile.transaction_type = 'TT-HEL';
-      } else {
-        this.profile.mortgage_goal = 'purchase';
-        this.profile.transaction_type = 'TT-PUR';
-      }
+      this.profile.mortgage_goal = rawValue;
       this.profile.mortgage_goal_confirmed = true;
     } else if (field === 'occupancy') {
       this.profile.occupancy = rawValue as any;

@@ -227,7 +227,52 @@ export class ApplicationService {
         affordabilitySubmitted: profile.affordability_submitted || false,
         affordabilityAusStatus: profile.affordability_aus_status ?? null,
         affordabilityPrequelLetterSent: profile.affordability_prequel_letter_sent || false,
+        // Soft Pull Disclosure Tracking
+        softPullDisclosureDelivered: (profile as any).soft_pull_disclosure_delivered || false,
+        softPullDisclosureDeliveredAt: (profile as any).soft_pull_disclosure_delivered_at 
+          ? new Date((profile as any).soft_pull_disclosure_delivered_at) 
+          : null,
+        // Escalation Preference
+        escalationPreference: profile.escalation_preference ?? null,
         zipCode: profile.zip_code ?? null,
+        // Refinance Fields
+        propertyValue: profile.property_value ?? null,
+        propertyValueConfirmed: (profile as any).property_value_confirmed || false,
+        firstMortgageBalance: profile.first_mortgage_balance ?? null,
+        firstMortgageBalanceConfirmed: (profile as any).first_mortgage_balance_confirmed || false,
+        currentMortgageRate: profile.current_mortgage_rate ?? null,
+        currentMortgageRateConfirmed: (profile as any).current_mortgage_rate_confirmed || false,
+        currentMortgagePayment: profile.current_mortgage_payment ?? null,
+        currentMortgagePaymentConfirmed: (profile as any).current_mortgage_payment_confirmed || false,
+        currentMortgageType: profile.current_mortgage_type ?? null,
+        remainingTermYears: profile.remaining_term_years ?? null,
+        remainingTermYearsConfirmed: (profile as any).remaining_term_years_confirmed || false,
+        closingCostsPreference: profile.closing_costs_preference ?? null,
+        closingCostsPreferenceConfirmed: (profile as any).closing_costs_preference_confirmed || false,
+        cashOutAmount: profile.cash_out_amount ?? null,
+        cashOutAmountConfirmed: (profile as any).cash_out_amount_confirmed || false,
+        cashOutUse: profile.cash_out_use ?? null,
+        refinanceSubtrack: profile.refinance_subtrack ?? null,
+        vaSubsequentUse: profile.va_subsequent_use ?? null,
+        priorRefinance: profile.prior_refinance ?? null,
+        priorRefinanceConfirmed: profile.prior_refinance_confirmed || false,
+        stayDurationYears: typeof profile.stay_duration_years === 'number' 
+          ? String(profile.stay_duration_years) 
+          : profile.stay_duration_years ?? null,
+        stayDurationYearsConfirmed: profile.stay_duration_years_confirmed || false,
+        // HELOC Fields
+        helocLineAmount: profile.heloc_line_amount ?? null,
+        helocLineAmountConfirmed: (profile as any).heloc_line_amount_confirmed || false,
+        helocDrawUse: profile.heloc_draw_use ?? null,
+        helocPrior: profile.heloc_prior ?? null,
+        helocPriorConfirmed: profile.heloc_prior_confirmed || false,
+        helocTimeline: profile.heloc_timeline ?? null,
+        helocTimelineConfirmed: profile.heloc_timeline_confirmed || false,
+        helocRiskAcknowledged: (profile as any).heloc_risk_acknowledged || false,
+        helocRateComfort: profile.heloc_rate_comfort ?? null,
+        helocRateComfortConfirmed: profile.heloc_rate_comfort_confirmed || false,
+        helocDrawPeriodUnderstood: (profile as any).heloc_draw_period_understood || false,
+        helocRepaymentPeriodUnderstood: (profile as any).heloc_repayment_period_understood || false,
       },
       update: {
         grossAnnualIncome: profile.gross_annual_income ?? null,
@@ -265,7 +310,52 @@ export class ApplicationService {
         affordabilitySubmitted: profile.affordability_submitted || false,
         affordabilityAusStatus: profile.affordability_aus_status ?? null,
         affordabilityPrequelLetterSent: profile.affordability_prequel_letter_sent || false,
+        // Soft Pull Disclosure Tracking
+        softPullDisclosureDelivered: (profile as any).soft_pull_disclosure_delivered || false,
+        softPullDisclosureDeliveredAt: (profile as any).soft_pull_disclosure_delivered_at 
+          ? new Date((profile as any).soft_pull_disclosure_delivered_at) 
+          : null,
+        // Escalation Preference
+        escalationPreference: profile.escalation_preference ?? null,
         zipCode: profile.zip_code ?? null,
+        // Refinance Fields
+        propertyValue: profile.property_value ?? null,
+        propertyValueConfirmed: (profile as any).property_value_confirmed || false,
+        firstMortgageBalance: profile.first_mortgage_balance ?? null,
+        firstMortgageBalanceConfirmed: (profile as any).first_mortgage_balance_confirmed || false,
+        currentMortgageRate: profile.current_mortgage_rate ?? null,
+        currentMortgageRateConfirmed: (profile as any).current_mortgage_rate_confirmed || false,
+        currentMortgagePayment: profile.current_mortgage_payment ?? null,
+        currentMortgagePaymentConfirmed: (profile as any).current_mortgage_payment_confirmed || false,
+        currentMortgageType: profile.current_mortgage_type ?? null,
+        remainingTermYears: profile.remaining_term_years ?? null,
+        remainingTermYearsConfirmed: (profile as any).remaining_term_years_confirmed || false,
+        closingCostsPreference: profile.closing_costs_preference ?? null,
+        closingCostsPreferenceConfirmed: (profile as any).closing_costs_preference_confirmed || false,
+        cashOutAmount: profile.cash_out_amount ?? null,
+        cashOutAmountConfirmed: (profile as any).cash_out_amount_confirmed || false,
+        cashOutUse: profile.cash_out_use ?? null,
+        refinanceSubtrack: profile.refinance_subtrack ?? null,
+        vaSubsequentUse: profile.va_subsequent_use ?? null,
+        priorRefinance: profile.prior_refinance ?? null,
+        priorRefinanceConfirmed: profile.prior_refinance_confirmed || false,
+        stayDurationYears: typeof profile.stay_duration_years === 'number' 
+          ? String(profile.stay_duration_years) 
+          : profile.stay_duration_years ?? null,
+        stayDurationYearsConfirmed: profile.stay_duration_years_confirmed || false,
+        // HELOC Fields
+        helocLineAmount: profile.heloc_line_amount ?? null,
+        helocLineAmountConfirmed: (profile as any).heloc_line_amount_confirmed || false,
+        helocDrawUse: profile.heloc_draw_use ?? null,
+        helocPrior: profile.heloc_prior ?? null,
+        helocPriorConfirmed: profile.heloc_prior_confirmed || false,
+        helocTimeline: profile.heloc_timeline ?? null,
+        helocTimelineConfirmed: profile.heloc_timeline_confirmed || false,
+        helocRiskAcknowledged: (profile as any).heloc_risk_acknowledged || false,
+        helocRateComfort: profile.heloc_rate_comfort ?? null,
+        helocRateComfortConfirmed: profile.heloc_rate_comfort_confirmed || false,
+        helocDrawPeriodUnderstood: (profile as any).heloc_draw_period_understood || false,
+        helocRepaymentPeriodUnderstood: (profile as any).heloc_repayment_period_understood || false,
       },
     });
   }
@@ -297,9 +387,14 @@ export class ApplicationService {
         // OTP Gate & Session Login Fields
         sessionLoginComplete: profile.session_login_complete || false,
         contactOnFile: profile.contact_on_file || false,
+        contactName: profile.contact_name ?? null,
+        contactNameConfirmed: (profile as any).contact_name_confirmed || false,
         contactEmail: profile.contact_email ?? null,
         contactMobile: profile.contact_mobile ?? null,
         otpVerified: profile.otp_verified || false,
+        // CRS Soft Pull Data
+        crsOpenAccounts: (profile as any).crs_open_accounts ?? null,
+        crsLatePayments: (profile as any).crs_late_payments ?? null,
         // Stage 3B Application Completion
         maritalStatus: profile.marital_status ?? null,
         maritalStatusConfirmed: profile.marital_status_confirmed || false,
@@ -340,9 +435,14 @@ export class ApplicationService {
         // OTP Gate & Session Login Fields
         sessionLoginComplete: profile.session_login_complete || false,
         contactOnFile: profile.contact_on_file || false,
+        contactName: profile.contact_name ?? null,
+        contactNameConfirmed: (profile as any).contact_name_confirmed || false,
         contactEmail: profile.contact_email ?? null,
         contactMobile: profile.contact_mobile ?? null,
         otpVerified: profile.otp_verified || false,
+        // CRS Soft Pull Data
+        crsOpenAccounts: (profile as any).crs_open_accounts ?? null,
+        crsLatePayments: (profile as any).crs_late_payments ?? null,
         // Stage 3B Application Completion
         maritalStatus: profile.marital_status ?? null,
         maritalStatusConfirmed: profile.marital_status_confirmed || false,
@@ -412,6 +512,82 @@ export class ApplicationService {
     }
 
     await Promise.all(syncs);
+  }
+
+  /**
+   * Create an escalation record when moving to Stage 5
+   */
+  async createEscalation(
+    applicationId: string,
+    reason: string,
+    reasonDetails?: string,
+    preference?: string
+  ) {
+    if (!prisma) {
+      console.warn('[app-service] Database not enabled, skipping createEscalation');
+      return null;
+    }
+    return await prisma.escalation.create({
+      data: {
+        applicationId,
+        reason,
+        reasonDetails: reasonDetails ?? null,
+        preference: preference ?? null,
+      },
+    });
+  }
+
+  /**
+   * Log affordability audit event
+   */
+  async logAffordabilityAudit(data: {
+    applicationId: string;
+    sessionId: string;
+    eventType: string;
+    purchasePrice?: number;
+    downPayment?: number;
+    loanAmount?: number;
+    ltv?: number;
+    incomeBand?: string;
+    dtiBand?: string;
+    estimatedPayment?: number;
+    dtiAboveHardCeiling?: boolean;
+    sliderType?: string;
+    previousValue?: number;
+    newValue?: number;
+    affordabilityMode?: string;
+    transactionType?: string;
+    metadata?: any;
+  }) {
+    console.log('[app-service] logAffordabilityAudit called with:', JSON.stringify(data, null, 2));
+    if (!prisma) {
+      console.warn('[app-service] ❌ Database not enabled, skipping logAffordabilityAudit');
+      return null;
+    }
+    console.log('[app-service] Prisma is available, creating audit record...');
+    const result = await prisma.affordabilityAudit.create({
+      data: {
+        applicationId: data.applicationId,
+        sessionId: data.sessionId,
+        eventType: data.eventType,
+        purchasePrice: data.purchasePrice ?? null,
+        downPayment: data.downPayment ?? null,
+        loanAmount: data.loanAmount ?? null,
+        ltv: data.ltv ?? null,
+        incomeBand: data.incomeBand ?? null,
+        dtiBand: data.dtiBand ?? null,
+        estimatedPayment: data.estimatedPayment ?? null,
+        dtiAboveHardCeiling: data.dtiAboveHardCeiling ?? null,
+        sliderType: data.sliderType ?? null,
+        previousValue: data.previousValue ?? null,
+        newValue: data.newValue ?? null,
+        affordabilityMode: data.affordabilityMode ?? null,
+        transactionType: data.transactionType ?? null,
+        metadata: data.metadata || {},
+      },
+    });
+    console.log('[app-service] ✅ Audit record created successfully with id:', result.id);
+    return result;
   }
 }
 

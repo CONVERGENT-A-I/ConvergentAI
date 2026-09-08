@@ -40,6 +40,7 @@ import { isDatabaseEnabled } from './services/database.js';
 import { callCrsSoftPull } from './services/crs-service.js';
 import { classifyAuthorization, classifyLoanOfficerTransferIntent } from './context/llm-extractor.js';
 import { BackgroundVoiceCancellation } from '@livekit/noise-cancellation-node';
+import { logAffordabilityEvent } from './utils/affordability-audit.js';
 
 // Global error guard to catch LiveKit SDK RPC connection timeouts gracefully without crashing/stalling the agent loop
 process.on('unhandledRejection', (reason: any) => {
@@ -553,8 +554,8 @@ class AilanaVoiceAgent extends voice.Agent {
     const isAffirmativeConfirmation = (text: string) => {
       const lower = text.toLowerCase().trim();
       return (
-        /\b(yes|yeah|yep|yup|ok|okay|alright|right|uh\s*huh|mhm|looks?\s*(good|right|correct|fine|okay)|that('s|\s+is)\s*(right|correct|accurate|good|fine|also\s+correct|it)|correct|matches|match|what\s+i\s+expect|good|fine|accurate|all\s+good|sounds?\s*(good|right)|perfect|sure|that\s*works|it\s*is|confirmed|true|i\s*think\s*so)\b/i.test(lower) &&
-        !/\b(not?\s*(right|correct|accurate|good|okay)|wrong|mistake|change|update|no\b(?!\s*,\s*(that|it)\s*(is|looks)\s*(also\s+)?(right|correct)))\b/i.test(lower)
+        /\b(yes|yeah|yep|yup|looks?\s*(good|right|correct|fine)|that('s|\s+is)\s*(right|correct|accurate|good|fine|also\s+correct)|correct|matches|match|what\s+i\s+expect|good|fine|accurate|all\s+good|sounds\s+good|perfect|sure)\b/i.test(lower) &&
+        !/\b(not?\s*(right|correct|accurate|good)|wrong|mistake|change|update|no\b(?!\s*,\s*(that|it)\s*(is|looks)\s*(also\s+)?(right|correct)))\b/i.test(lower)
       );
     };
 
@@ -931,6 +932,11 @@ export default defineAgent({
       model: 'google/gemma-4-31b-it',
     });
     const contextManager = new SessionContextManager(summarizationLlm, metrics);
+
+    // ── Set Session ID for audit logging ──────────────────────────────────────
+    const roomNameForSession = ctx.room.name ?? `room_${Date.now()}`;
+    contextManager.setSessionId(roomNameForSession);
+    console.log(`[agent-audit] Session ID configured for affordability audit logging: ${roomNameForSession}`);
     
     let sendStageUpdateFn: ((stage: string) => Promise<void>) | null = null;
     contextManager.onStateReconciled = (manager) => {
@@ -958,8 +964,9 @@ export default defineAgent({
         if (application) {
           console.log(`[agent-db]: ✅ Found existing application (id=${application.id})`);
           contextManager.setApplicationId(application.id);
-          await contextManager.initializeFromDatabase(application.id);
-          console.log(`[agent-db]: ✅ Context restored from database`);
+          // TESTING MODE: Skip restoring affordability submission state so each call starts fresh
+          await contextManager.initializeFromDatabase(application.id, true);
+          console.log(`[agent-db]: ✅ Context restored from database (affordability state skipped for fresh testing)`);
         } else {
           console.log(`[agent-db]: No existing application found, creating new one...`);
 
@@ -1168,6 +1175,11 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       const isIdle = () => currentAgentState === 'listening';
       await contextManager.maybeCompact(session, vadAgent, isIdle);
       await contextManager.maybeRotate(session, createAgentForRotation, isIdle);
+      
+      // Sync to database after each turn (throttled internally to 5-second intervals)
+      await contextManager.syncToDatabase().catch(err => 
+        console.error('[agent-db]: Failed to sync to database:', err)
+      );
     };
 
     let currentAgentState = 'initializing';
@@ -1592,7 +1604,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       if (messageText.startsWith('SYSTEM_AUS_SUBMITTED:')) {
         const status = messageText.split(':')[1];
         console.log(`[agent]: SYSTEM_AUS_SUBMITTED received. Status: ${status}`);
-        contextManager.applyAusResult(status as any);
+        await contextManager.applyAusResult(status as any);
         updateSessionInstructions();
         await sendStageUpdate(contextManager.getActiveStage());
 
