@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import { Shield, Info, SlidersHorizontal, CheckCircle2, RotateCcw, ArrowUpRight, Sparkles } from "lucide-react";
 
 /* ---------------------------------------------------------
@@ -425,7 +425,7 @@ export function AffordabilityPanelNew({
   }, [defaultProgram, eligiblePrograms]);
 
 
-  const [assump, setAssump] = useState<Record<ModeId, Assumptions>>(() => {
+  const getBaselineAssumptions = useCallback((): Record<ModeId, Assumptions> => {
     const merged: Record<ModeId, Assumptions> = JSON.parse(JSON.stringify(DEFAULTS));
     (Object.keys(initialAssumptions) as ModeId[]).forEach((modeId) => {
       if (merged[modeId]) merged[modeId] = { ...merged[modeId], ...initialAssumptions[modeId] };
@@ -435,7 +435,9 @@ export function AffordabilityPanelNew({
       merged.purchase.downPct = Math.round((statedDownPaymentDollars / merged.purchase.price) * 100 * 10) / 10;
     }
     return merged;
-  });
+  }, [initialAssumptions, statedDownPaymentDollars]);
+
+  const [assump, setAssump] = useState<Record<ModeId, Assumptions>>(() => getBaselineAssumptions());
   const a = assump[mode];
 
   const [statedDebts, setStatedDebts] = useState<number>(monthlyDebts);
@@ -863,8 +865,15 @@ export function AffordabilityPanelNew({
                 <SlidersHorizontal className="w-3 h-3" /> Adjust Scenario Assumptions
               </div>
               <button
-                onClick={() => setAssump((prev) => ({ ...prev, [mode]: JSON.parse(JSON.stringify(DEFAULTS[mode])) }))}
+                onClick={() => {
+                  const baselines = getBaselineAssumptions();
+                  setAssump((prev) => ({ ...prev, [mode]: baselines[mode] }));
+                  if (dataMode === "stated") {
+                    setStatedDebts(monthlyDebts);
+                  }
+                }}
                 className="text-[8px] lg:text-[10px] text-slate-400 hover:text-white transition flex items-center gap-1 cursor-pointer"
+                title="Reset to your stated numbers"
               >
                 <RotateCcw className="w-2.5 h-2.5" /> Reset
               </button>

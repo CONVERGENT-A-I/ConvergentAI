@@ -471,3 +471,26 @@ This document records the official execution, verification checkpoints, and resu
 - Frontend TypeScript type-check: npx tsc --noEmit ó 0 errors
 - Automated test suite: 12/12 suites, 54/54 tests ó All green
 - Purchase and Refinance flows: No similar panel issues found (BF-01 fix benefits all 3 tracks)
+
+---
+
+## üöÄ Dev Verification Test: HELOC (TT-HEQ Fixed Home Equity Loan)
+**Date**: 2026-09-08
+**Environment**: https://dev.convergentai.tech/
+**Result**: 100% PASS (Flawless)
+
+- **BF-01 Verified**: Panel mounted with active 'Submit for Formal Underwriting Review' button (no premature submission).
+- **BF-02 Verified**: Findings delivered with exact EFD1 script ("home equity loan").
+- **BF-03 Verified**: Summary ribbon and assumptions display '1ST BALANCE ,000' (no Payoff ).
+- **Calculations**: CLTV computed to exact 64.3% with Front-end DTI 20.3% and Back-end DTI 27.1%.
+
+---
+
+## üõ†Ô∏è Feature Enhancement: Stated Baseline Reset (PUR, REF, HEL)
+**Date**: 2026-09-08
+**Files Changed**: src/components/affordability-panel-new.tsx
+
+| # | Enhancement | Severity | Status |
+|---|---|---|---|
+| **BF-04** | Reset button in Scenario Assumptions previously reset to static hard-coded DEFAULTS table. Updated to reset to borrower's stated baseline values (overlay of initial assumptions) across all 3 tracks (PUR, REF, and HEL/HEQ). Also resets stated debts if in stated mode. | Medium | Completed & Verified |
+
