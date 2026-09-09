@@ -2739,6 +2739,14 @@ export class SessionContextManager {
     if (this.currentPendingField) {
       this.fieldAttempts[this.currentPendingField] = 0;
     }
+
+    // Unconditionally auto-seed heloc_timeline from Stage 1 timeline as early as possible
+    if (this.profile.timeline && !this.profile.heloc_timeline_confirmed && !this.profile.heloc_timeline) {
+      this.profile.heloc_timeline = this.profile.timeline;
+      this.profile.heloc_timeline_confirmed = true;
+      console.log(`[context-manager]: Auto-seeded heloc_timeline globally from Stage 1 timeline: "${this.profile.timeline}"`);
+    }
+
     // ── Stage 1 ──────────────────────────────────────────────────────────────────────────
     if (this.activeStage === '1') {
 
@@ -2877,19 +2885,7 @@ export class SessionContextManager {
         } else if (!this.profile.heloc_prior_confirmed && !this.profile.heloc_prior) {
           this.currentPendingField = 'heloc_prior';
         } else if (!this.profile.heloc_timeline_confirmed && !this.profile.heloc_timeline) {
-          if (this.profile.timeline) {
-            this.profile.heloc_timeline = this.profile.timeline;
-            this.profile.heloc_timeline_confirmed = true;
-            console.log(`[context-manager]: Auto-seeded heloc_timeline from Stage 1 timeline: "${this.profile.timeline}"`);
-            if (!this.profile.job_tenure_type_confirmed) {
-              this.currentPendingField = 'job_tenure_type';
-            } else {
-              this.calculateEligibility();
-              this.currentPendingField = 'stage2_closing_offer';
-            }
-          } else {
-            this.currentPendingField = 'heloc_timeline';
-          }
+          this.currentPendingField = 'heloc_timeline';
         } else if (!this.profile.job_tenure_type_confirmed) {
           this.currentPendingField = 'job_tenure_type';
         } else {

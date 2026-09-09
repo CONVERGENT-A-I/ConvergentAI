@@ -1359,10 +1359,6 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           clearTimeout(silentTurnTimer);
           silentTurnTimer = null;
         }
-        contextManager.onAgentTurn(item.textContent).catch(err =>
-          console.error('[agent-error]: Failed to save agent turn:', err)
-        );
-
         // ── Publish agent message as a LiveKit chat message ─────────────────
         // Since TTS audio goes directly to LemonSlice via DataStreamAudioOutput,
         // the LiveKit TranscriptionSynchronizer never sees audio playout events
@@ -1374,7 +1370,12 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         // Cartesia Sonic-3.5 uses internally before displaying in the chat UI.
         // These tags are consumed by the TTS engine in its own pipeline —
         // this strip is ONLY for the chat display text and has zero effect on audio.
-        const msgText = item.textContent.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+        // We also strip any trailing partial tags (/<[^>]*$/) in case the generation was interrupted mid-tag.
+        const msgText = item.textContent.replace(/<[^>]*>/g, '').replace(/<[^>]*$/, '').replace(/\s+/g, ' ').trim();
+
+        contextManager.onAgentTurn(msgText).catch(err =>
+          console.error('[agent-error]: Failed to save agent turn:', err)
+        );
         (async () => {
           try {
             await ctx.room.localParticipant?.sendText(msgText, { topic: 'lk.chat' });
@@ -1553,7 +1554,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         }
         const textStream = summarizationLlm.chat({ chatCtx: textChatCtx });
         const textCollected = await textStream.collect();
-        const reply = textCollected.text?.trim();
+        const reply = textCollected.text?.replace(/<[^>]*>/g, '').replace(/<[^>]*$/, '').replace(/\s+/g, ' ').trim();
 
         if (reply) {
           contextManager.onAgentTurn(reply).catch(err =>

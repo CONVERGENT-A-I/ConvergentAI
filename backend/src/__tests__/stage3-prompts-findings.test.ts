@@ -139,7 +139,7 @@ function runStage3Tests() {
   const heqInstructions = buildStage25Instructions(heqProfile);
   const stage4Heq = buildStage4Instructions({ ...heqProfile, aus_status: 'approve' });
   if (
-    heqInstructions.includes('HELOC & HOME EQUITY FINDINGS DELIVERY') &&
+    heqInstructions.includes('HOME EQUITY LOAN FINDINGS DELIVERY (TT-HEQ)') &&
     heqInstructions.includes('Marcus Aurelius') &&
     stage4Heq.includes('Home Equity Loan Conditional Approval (EFD1)')
   ) {
@@ -241,7 +241,7 @@ function runStage3Tests() {
   if (
     purInstructions.includes('Q47-E') &&
     purInstructions.includes('DO NOT give unsolicited compliance') &&
-    purInstructions.includes('not stored or committed as application data')
+    purInstructions.includes('NOT stored or committed as application data')
   ) {
     console.log('✅ Stage 3 - Test 14 Passed: Q47-E conditional privacy disclosure and unsolicited compliance ban are present.');
   } else {
