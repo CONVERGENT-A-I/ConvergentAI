@@ -933,6 +933,27 @@ export default defineAgent({
     });
     const contextManager = new SessionContextManager(summarizationLlm, metrics);
 
+    // ── Pre-cache System Prompt ───────────────────────────────────────────────
+    // Warm up the inference server cache so the first user turn TTFT is fast
+    (async () => {
+      try {
+        console.log(`[agent-startup]: Pre-caching system prompt...`);
+        const preCacheCtx = new llm.ChatContext();
+        preCacheCtx.items.push(new llm.ChatMessage({
+          role: 'system',
+          content: contextManager.getStaticInstructions(),
+        }));
+        const stream = summarizationLlm.chat({ chatCtx: preCacheCtx });
+        for await (const chunk of stream) {
+          break; // pull one chunk to force the request, then stop
+        }
+        console.log(`[agent-startup]: System prompt pre-caching complete.`);
+      } catch (err) {
+        console.warn(`[agent-startup]: Failed to pre-cache system prompt:`, err);
+      }
+    })();
+    // ─────────────────────────────────────────────────────────────────────────
+
     // ── Set Session ID for audit logging ──────────────────────────────────────
     const roomNameForSession = ctx.room.name ?? `room_${Date.now()}`;
     contextManager.setSessionId(roomNameForSession);
