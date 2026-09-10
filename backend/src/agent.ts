@@ -1030,10 +1030,10 @@ export default defineAgent({
       language: 'en',
     });
 
-    // ── TTS: Cartesia sonic-3.5 via LiveKit Inference ────────────────────────
-    console.log(`[agent]: Loading Cartesia TTS via LiveKit Inference (sonic-3.5)...`);
+    // ── TTS: Cartesia sonic-3.6 via LiveKit Inference ────────────────────────
+    console.log(`[agent]: Loading Cartesia TTS via LiveKit Inference (${ailanaConfig.cartesiaModel})...`);
     const sessionTts = new inference.TTS({
-      model: 'cartesia/sonic-3.5',
+      model: (ailanaConfig.cartesiaModel as any) || 'cartesia/sonic-3.6',
       voice: ailanaConfig.cartesiaVoiceId || 'a167e0f3-df7e-4d52-a9c3-f949145efdab',
       sampleRate: 16000,
     });
@@ -1097,7 +1097,7 @@ export default defineAgent({
     };
 
     const createVadAgent = () => {
-      console.log('[agent]: Creating LiveKit Inference agent (Gemma 4 31B LLM + Cartesia Ink-2 STT + Cartesia Sonic-3.5 TTS + TurnDetector)...');
+      console.log('[agent]: Creating LiveKit Inference agent (Gemma 4 31B LLM + Cartesia Ink-2 STT + Cartesia Sonic-3.6 TTS + TurnDetector)...');
       return new AilanaVoiceAgent({
         instructions: contextManager.getStaticInstructions(),
         stt: sessionStt,
@@ -1144,7 +1144,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       }
       : false;
 
-    console.log(`[agent]: Expressive mode configured: ${ailanaConfig.expressiveMode ? '✅ ENABLED (Cartesia Sonic-3.5)' : '❌ DISABLED'}`);
+    console.log(`[agent]: Expressive mode configured: ${ailanaConfig.expressiveMode ? '✅ ENABLED (Cartesia Sonic-3.6)' : '❌ DISABLED'}`);
 
     const session = new voice.AgentSession({
       userAwayTimeout: null,
@@ -1388,7 +1388,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         // responses always appear in the chat panel, regardless of audio routing.
         //
         // Strip any XML/expression control tags (e.g. <expr type="happy">) that
-        // Cartesia Sonic-3.5 uses internally before displaying in the chat UI.
+        // Cartesia Sonic-3.6 uses internally before displaying in the chat UI.
         // These tags are consumed by the TTS engine in its own pipeline —
         // this strip is ONLY for the chat display text and has zero effect on audio.
         // We also strip any trailing partial tags (/<[^>]*$/) in case the generation was interrupted mid-tag.
@@ -2223,7 +2223,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
 
 
 
-    const activeModelName = 'LiveKit Inference (google/gemma-4-31b-it + cartesia/ink-2 + cartesia/sonic-3.5 + LemonSlice Avatar)';
+    const activeModelName = `LiveKit Inference (google/gemma-4-31b-it + cartesia/ink-2 + ${ailanaConfig.cartesiaModel} + LemonSlice Avatar)`;
     console.log(
       `[agent]: Ready — model=${activeModelName}, prompt=${ailanaConfig.promptVersion}, compact@${ailanaConfig.compactEveryNTurns} turns / ${ailanaConfig.forceCompactInputTokens} tokens`,
     );
