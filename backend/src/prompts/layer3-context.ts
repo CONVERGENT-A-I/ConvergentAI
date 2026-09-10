@@ -511,7 +511,11 @@ Do NOT ask them to read the code out loud. Do NOT ask for anything else. Wait fo
   if (stage === '5') {
     blocks.push(stage5Block);
   }
-  blocks.push(taskLine + bridgeBlock + stage2ClosingBlock + consentBlock + otpBlock + lowConfidenceBlock);
+  let circleBackInstruction = '';
+  if (pendingField) {
+    circleBackInstruction = `\n\nCIRCLE-BACK RULE:\nIf you answered a question, explanation request, or educational inquiry in this turn, you MUST conclude your response by naturally guiding the borrower back to the flow and re-asking the pending question (${pendingField}). Never end your turn without a clear next step or question for the borrower.`;
+  }
+  blocks.push(taskLine + bridgeBlock + stage2ClosingBlock + consentBlock + otpBlock + lowConfidenceBlock + circleBackInstruction);
 
   const vaEligibilityReferenceBlock = `
 === VA ELIGIBILITY DETAIL — PROMPT REFERENCE ===

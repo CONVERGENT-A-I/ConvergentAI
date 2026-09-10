@@ -70,7 +70,7 @@ const STAGE2_CLOSING_OFFER_SCRIPT = (profile?: BorrowerProfile) => {
   return `Great work exploring your numbers${namePrefix}. You have two good ways to see your affordability picture. First, with your authorization, I can perform a soft credit review to pre-populate your application with your actual credit data, saving you time and ensuring accurate information, all with no impact to your credit score. Alternatively, I can build your affordability summary right now using just the details you've already shared, and you can add the credit review whenever you're ready. Which path would you prefer?`;
 };
 
-function isQuestionOrCorrection(text: string | null | undefined): boolean {
+export function isQuestionOrCorrection(text: string | null | undefined): boolean {
   if (!text) return false;
   const t = text.toLowerCase().trim();
   if (t.includes('?')) return true;
@@ -87,7 +87,10 @@ function isQuestionOrCorrection(text: string | null | undefined): boolean {
     'confused', 'don\'t understand', 'not sure', 'unsure', 'tell me about',
     'already told you', 'gave it to you', 'gave you', 'just said', 'just shared',
     'already shared', 'shared that', 'shared it', 'just gave', 'already gave',
-    'already told', 'just told', 'already said', 'i shared', 'i gave'
+    'already told', 'just told', 'already said', 'i shared', 'i gave',
+    'worried', 'concerned', 'wondering', 'curious', 'elaborate', 'clarify',
+    'clarification', 'more info', 'more information', 'tell me more', 'sounds expensive',
+    'sounds high', 'what about', 'how come', 'is that'
   ];
   return keywords.some(k => t.includes(k));
 }
@@ -214,19 +217,38 @@ class AilanaVoiceAgent extends voice.Agent {
     const activeStage = this.contextManager.getActiveStage();
 
     // ── Loan Officer Transfer Fast-Path ──────────────────────────────────────
-    // Use LLM classification — no regex. Pass the user utterance and the last
-    // agent message so the classifier has context (e.g. Ailana just offered the LO).
-    const lastAgentMsg = [...(chatCtx?.items || [])]
-      .reverse()
-      .find((item: any) => item.role === 'assistant' || item.type === 'assistant');
-    const lastAgentText = typeof lastAgentMsg?.content === 'string'
-      ? lastAgentMsg.content
-      : Array.isArray(lastAgentMsg?.content)
-        ? lastAgentMsg.content.join(' ')
-        : null;
+    // Stage-gate: LO transfer is ONLY processed in Stage 5 (post-review escalation stage
+    // after findings come back).
+    // In stages 1, 2, 2.5, 3, 3A, 4: skip entirely — saves 300-900ms on every turn.
+    const LO_ELIGIBLE_STAGES = new Set(['5']);
+    const loEligibleStage = LO_ELIGIBLE_STAGES.has(activeStage);
 
-    const loIntent = await classifyLoanOfficerTransferIntent(lastUserText, lastAgentText);
-    console.log(`[agent-hook]: LO transfer classification → "${loIntent}" for: "${lastUserText}"`);
+    let loIntent: 'yes' | 'no' | 'uncertain' = 'uncertain';
+
+    if (loEligibleStage) {
+      // Regex pre-filter (0ms): if no LO keywords, skip the LLM classifier entirely.
+      // Only invoke the LLM when there is a plausible signal that the user wants a transfer.
+      const LO_KEYWORD_PATTERN = /\b(connect|transfer|speak|talk|loan officer|real person|someone|schedule|call me|book|yes|sure|go ahead|do it|let's do|absolutely|definitely)\b/i;
+      const loKeywordDetected = LO_KEYWORD_PATTERN.test(lastUserText);
+
+      if (loKeywordDetected) {
+        const lastAgentMsg = [...(chatCtx?.items || [])]
+          .reverse()
+          .find((item: any) => item.role === 'assistant' || item.type === 'assistant');
+        const lastAgentText = typeof lastAgentMsg?.content === 'string'
+          ? lastAgentMsg.content
+          : Array.isArray(lastAgentMsg?.content)
+            ? lastAgentMsg.content.join(' ')
+            : null;
+
+        loIntent = await classifyLoanOfficerTransferIntent(lastUserText, lastAgentText);
+        console.log(`[agent-hook]: LO transfer classification → "${loIntent}" for: "${lastUserText}"`);
+      } else {
+        console.log(`[agent-hook]: LO transfer pre-filter SKIPPED (no keywords, stage=${activeStage}) — 0ms.`);
+      }
+    } else {
+      console.log(`[agent-hook]: LO transfer STAGE-GATED (stage=${activeStage}, not stage 5) — skipping classifier.`);
+    }
 
     // ?? CRITICAL RACE CONDITION FIX: 
     // We MUST read the profile and pending fields AFTER the await above.
@@ -270,7 +292,7 @@ class AilanaVoiceAgent extends voice.Agent {
       (hasJobKeyword || hasJobTenureDuration);
 
     const currentStage = this.contextManager.getActiveStage();
-    const isAtClosingOffer = (pending === 'stage2_closing_offer' || this._stage2ClosingOfferDelivered) && currentStage === '2';
+    const isAtClosingOffer = currentStage === '2' && (pending === 'stage2_closing_offer' || this._stage2ClosingOfferDelivered);
 
     const isExplicitPathB = isAtClosingOffer &&
       /\b(build.*(?:shared|summary|stated|info|heloc|refinance|options)|what\s+i\s+shared|from\s+what\s+i\s+shared|use\s+what\s+i\s+shared|summary|explore|stated|second\s*(?:option|path|choice|one)|without|no\s+review|skip)\b/i.test(lastUserText);
@@ -291,6 +313,7 @@ class AilanaVoiceAgent extends voice.Agent {
       } else {
         // User is answering stage2_closing_offer:
         if (isExplicitPathB) {
+          this._stage2ClosingOfferDelivered = false;
           console.log('[agent-hook]: Parallel 0ms Fast-Path — Path B (Stated Mode) chosen! Transitioning directly to Stage 2.5 Stated Mode!');
           this.contextManager.setActiveStage('2.5');
           const prof = this.contextManager.getProfile();
@@ -321,6 +344,7 @@ class AilanaVoiceAgent extends voice.Agent {
           }
           return createVerbatimStream(q46s) as any;
         } else if (isExplicitPathA) {
+          this._stage2ClosingOfferDelivered = false;
           console.log('[agent-hook]: Parallel 0ms Fast-Path — Path A (Soft Pull) chosen! Transitioning directly to STAGE 3A OTP gate (contact_name)!');
           this.contextManager.setActiveStage('3A');
           this.contextManager.setCurrentPendingField('contact_name');
@@ -382,8 +406,8 @@ class AilanaVoiceAgent extends voice.Agent {
         scriptText = `${apology}I have your email. Could you also share the mobile number you'd like to use?`;
         console.log('[agent-hook]: Delivering contact_mobile script (email already captured) via Deterministic ReadableStream!');
       } else {
-        scriptText = `${apology}I have your mobile number. Could you also share the email address you'd like to use?`;
-        console.log('[agent-hook]: Delivering contact_mobile script via Deterministic ReadableStream!');
+        scriptText = `${apology}Could you share the mobile number you'd like to use for your account?`;
+        console.log('[agent-hook]: Delivering contact_mobile script (email not yet captured) via Deterministic ReadableStream!');
       }
       return createVerbatimStream(scriptText) as any;
     }
@@ -420,11 +444,22 @@ class AilanaVoiceAgent extends voice.Agent {
 
     if (pending === 'military_rural') {
       const lower = lastUserText.toLowerCase().trim();
-      const isAnsweringMilitary = /\b(yes|yeah|yep|yup|sure|no|never|none|n\/a|not really|veteran|active|guard|reserve|duty|spouse|military|served|army|navy|air force|marines|coast guard|space force)\b/i.test(lower);
+      const isAnsweringMilitary = /\b(yes|yeah|yep|yup|sure|no|never|none|n\/a|not really|veteran|active|guard|reserve|duty|spouse|military|served|army|navy|air force|marines|coast guard|space force|rural|country|countryside|usda|farm|outside city|small town)\b/i.test(lower);
 
       if (isAnsweringMilitary) {
         console.log(`[agent-hook]: Synchronous military_rural answer detected ("${lastUserText}"). Advancing to job_tenure_type.`);
-        profile.military_rural = /\b(yes|yeah|yep|yup|sure|veteran|active|guard|reserve|duty|spouse|military|served|army|navy|air force|marines|coast guard|space force)\b/i.test(lower) ? 'military' : 'neither';
+        const isExplicitNegative = /\b(no|never|none|n\/a|not\s+really|neither)\b/i.test(lower) && !/\b(yes|yeah|yep|yup|sure)\b/i.test(lower);
+        const isMilitary = !isExplicitNegative && /\b(yes|yeah|yep|yup|sure|veteran|active|guard|reserve|duty|spouse|military|served|army|navy|air force|marines|coast guard|space force)\b/i.test(lower);
+        const isRural = !isExplicitNegative && /\b(rural|country|countryside|usda|farm|outside city|not a city|small town|outside of city)\b/i.test(lower);
+        if (isMilitary && isRural) {
+          profile.military_rural = 'both';
+        } else if (isMilitary) {
+          profile.military_rural = 'military';
+        } else if (isRural) {
+          profile.military_rural = 'rural';
+        } else {
+          profile.military_rural = 'neither';
+        }
         profile.military_rural_confirmed = true;
         this.contextManager.advanceWorkflow();
 
@@ -445,6 +480,23 @@ class AilanaVoiceAgent extends voice.Agent {
       // Mark OTP as ready to show ONLY NOW — after Ailana has spoken the bridging line.
       // This prevents the frontend OTP modal from rendering before the speech is delivered.
       (profile as any)._otpReadyToShow = true;
+
+      // Start a 45-second timeout: if OTP is not submitted, Ailana re-prompts gently
+      if (!(profile as any)._otpTimeoutStarted) {
+        (profile as any)._otpTimeoutStarted = true;
+        setTimeout(() => {
+          const currentPending = this.contextManager.getPendingField();
+          const otpVerified = this.contextManager.getProfile().otp_verified;
+          if (currentPending === 'otp_verification' && !otpVerified) {
+            console.log('[agent-hook]: OTP timeout (45s) — delivering reminder.');
+            const reminder = "Just a reminder — you should have received a one-time code on your screen. Please enter it whenever you're ready, and we'll continue from there.";
+            if (this.sayCallback) {
+              this.sayCallback(reminder).catch(err => console.warn('[agent-hook]: OTP reminder failed:', err));
+            }
+          }
+        }, 45000);
+      }
+
       return createVerbatimStream(scriptText) as any;
     }
 
@@ -528,6 +580,7 @@ class AilanaVoiceAgent extends voice.Agent {
           const address = profile.physical_address || (profile.zip_code ? `address on file in zip code ${profile.zip_code}` : 'address on file');
           const prefillScript = `Thank you — that's all done. I have your name listed as ${name}, and your physical address as ${address}. Does that sound right, or is anything out of date?`;
           console.log('[agent-hook]: CRS complete. Delivering prefill_name_address via sayCallback.');
+          (profile as any).prefill_name_address_delivered = true;
           if (_sayCallback) {
             await _sayCallback(prefillScript);
           }
@@ -566,7 +619,7 @@ class AilanaVoiceAgent extends voice.Agent {
     };
 
     const buildPrefillEmployerScript = () => {
-      const employer = profile.employer || 'information on file';
+      const employer = profile.employer || 'Convergent AI';
       return `Great. Next, I have your employer listed as ${employer}. Does that sound correct, or has anything changed?`;
     };
 
@@ -626,6 +679,13 @@ class AilanaVoiceAgent extends voice.Agent {
       }
 
       const lower = lastUserText.toLowerCase().trim();
+
+      // If the user asked a question about the prefill data, delegate to LLM to answer naturally
+      if (isQuestionOrCorrection(lastUserText)) {
+        (profile as any).needs_prefill_correction = true;
+        return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+      }
+
       const isAffirmative = isAffirmativeConfirmation(lastUserText);
       const isCorrection = /\b(no|not|wrong|change|update|actually|mistake)\b/i.test(lower) && !isAffirmative;
 
@@ -652,6 +712,13 @@ class AilanaVoiceAgent extends voice.Agent {
       }
 
       const lower = lastUserText.toLowerCase().trim();
+
+      // If the user asked a question about the prefill data, delegate to LLM to answer naturally
+      if (isQuestionOrCorrection(lastUserText)) {
+        (profile as any).needs_prefill_correction = true;
+        return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+      }
+
       const isAffirmative = isAffirmativeConfirmation(lastUserText);
       const isCorrection = /\b(no|not|wrong|change|update|actually|mistake)\b/i.test(lower) && !isAffirmative;
 
@@ -678,6 +745,13 @@ class AilanaVoiceAgent extends voice.Agent {
       }
 
       const lower = lastUserText.toLowerCase().trim();
+
+      // If the user asked a question about the prefill data, delegate to LLM to answer naturally
+      if (isQuestionOrCorrection(lastUserText)) {
+        (profile as any).needs_prefill_correction = true;
+        return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+      }
+
       const isAffirmative = isAffirmativeConfirmation(lastUserText);
       const isCorrection = /\b(no|not|wrong|change|update|actually|mistake)\b/i.test(lower) && !isAffirmative;
 
@@ -704,6 +778,13 @@ class AilanaVoiceAgent extends voice.Agent {
       }
 
       const lower = lastUserText.toLowerCase().trim();
+
+      // If the user asked a question about the prefill data, delegate to LLM to answer naturally
+      if (isQuestionOrCorrection(lastUserText)) {
+        (profile as any).needs_prefill_correction = true;
+        return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+      }
+
       const isAffirmative = isAffirmativeConfirmation(lastUserText);
       const isCorrection = /\b(no|not|wrong|change|update|actually|mistake)\b/i.test(lower) && !isAffirmative;
 
@@ -954,10 +1035,24 @@ export default defineAgent({
     })();
     // ─────────────────────────────────────────────────────────────────────────
 
-    // ── Set Session ID for audit logging ──────────────────────────────────────
-    const roomNameForSession = ctx.room.name ?? `room_${Date.now()}`;
-    contextManager.setSessionId(roomNameForSession);
-    console.log(`[agent-audit] Session ID configured for affordability audit logging: ${roomNameForSession}`);
+    // ── Set Session ID and Application ID for audit logging ──────────────────
+    let parsedMetadata: any = {};
+    if (ctx.room.metadata) {
+      try {
+        parsedMetadata = typeof ctx.room.metadata === 'string' ? JSON.parse(ctx.room.metadata) : ctx.room.metadata;
+      } catch (e) {
+        console.warn(`[agent-audit] Could not parse room metadata as JSON:`, ctx.room.metadata);
+      }
+    }
+
+    const sessionId = parsedMetadata.sessionId || ctx.room.name || `room_${Date.now()}`;
+    contextManager.setSessionId(sessionId);
+
+    if (parsedMetadata.applicationId) {
+      contextManager.setApplicationId(parsedMetadata.applicationId);
+      console.log(`[agent-audit] Application ID configured from room metadata: ${parsedMetadata.applicationId}`);
+    }
+    console.log(`[agent-audit] Session ID configured for affordability audit logging: ${sessionId}`);
     
     let sendStageUpdateFn: ((stage: string) => Promise<void>) | null = null;
     contextManager.onStateReconciled = (manager) => {
@@ -974,13 +1069,8 @@ export default defineAgent({
         const roomName = ctx.room.name ?? `room_${Date.now()}`;
         console.log(`[agent-db]: Checking for existing application with roomName="${roomName}"...`);
 
-        // TEMPORARY: Option 3 - Never resume (always create fresh sessions)
-        // TODO: Switch to Option 1 after confirming flow with team lead
-        // Option 1: Only resume IN_PROGRESS applications (production-ready)
-        // Uncomment line below to enable resume:
-        //   const application = await applicationService.findApplicationByRoomName(roomName);
-        // And comment out the next line:
-        const application = null as Awaited<ReturnType<typeof applicationService.findApplicationByRoomName>>; // Force fresh session every time
+        // Resume existing IN_PROGRESS application if one exists for this room
+        const application = await applicationService.findApplicationByRoomName(roomName);
 
         if (application) {
           console.log(`[agent-db]: ✅ Found existing application (id=${application.id})`);
@@ -1241,8 +1331,39 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       job_tenure_type: 'I apologize for that. Could you tell me a bit about your current job tenure and the type of income you have — for example, whether you are salaried, hourly, or self-employed?',
       // Stage 2 Closing Offer — verbatim two-path choice re-prompt
       stage2_closing_offer: 'I apologize for the interruption. Let me repeat: you have two options for your affordability summary. The most complete option is a soft credit review — no impact to your credit score — which prefills your application with your real credit data. Or I can build your summary right now from everything you have shared, and you can add the credit review whenever you are ready. Which would you prefer?',
+      // Stage 2 — Refinance
+      current_mortgage_type: 'I apologize for the interruption. What type of mortgage do you currently have — conventional, FHA, VA, or another type?',
+      property_value: 'I apologize for that. What is your estimate of your home\'s current market value?',
+      first_mortgage_balance: 'I apologize for the interruption. What is the approximate remaining balance on your first mortgage?',
+      current_mortgage_rate: 'I apologize for that. Do you know your current interest rate on this mortgage?',
+      current_mortgage_payment: 'I apologize for the interruption. What is your current monthly mortgage payment, not including taxes and insurance?',
+      remaining_term_years: 'I apologize for that. How many years are remaining on your current mortgage term?',
+      cash_out_amount: 'I apologize for the interruption. How much cash would you like to take out in the refinance?',
+      cash_out_use: 'I apologize for that. What do you plan to use the cash-out funds for?',
+      prior_refinance: 'I apologize for the interruption. Have you refinanced this property before?',
+      stay_duration_years: 'I apologize for that. How long do you plan to stay in the home?',
+      // Stage 2 — HELOC
+      heloc_line_amount: 'I apologize for the interruption. What credit line amount are you looking to access?',
+      heloc_draw_use: 'I apologize for that. What do you plan to use the funds for?',
+      heloc_prior: 'I apologize for the interruption. Have you had a home equity line or loan on this property before?',
+      heloc_timeline: 'I apologize for that. How soon are you hoping to access the funds?',
+      heloc_risk_acknowledged: 'I apologize for the interruption. I want to make sure you understand the structure and collateral on a home equity line — did you have any questions about that before we continue?',
+      heloc_rate_comfort: 'I apologize for that. How comfortable are you with a variable interest rate that may change over time, or is fixed predictability more important?',
+      // Stage 3A — Soft Pull / OTP / Prefill
+      contact_name: 'I apologize for the interruption. Could you tell me what name you would like on your secure account?',
+      contact_email: 'I apologize for that. What email and mobile number would you like to use for your account?',
+      contact_mobile: 'I apologize for the interruption. What mobile number should I send your verification code to?',
+      otp_verification: 'I apologize for that. Please enter the one-time verification code on your screen whenever you\'re ready.',
+      soft_pull_authorization: 'I apologize for that interruption. Before we proceed — this is a soft credit inquiry that will not affect your credit score. You are authorizing it, and your data is used only to process your eligibility review. Do you authorize the soft credit inquiry on that basis?',
+      prefill_name_address: 'I apologize for the interruption. I have your name and address on file — does that information look correct, or is anything out of date?',
+      prefill_employer: 'I apologize for that. I have your employer information on file — does that sound correct?',
+      prefill_accounts: 'I apologize for the interruption. I have your accounts summary on file — does that match what you know?',
+      prefill_credit_range: 'I apologize for that. We retrieved your credit profile showing a category rating — does that match what you expect?',
       // Stage 4
       checklist_acknowledgement: 'I apologize for that interruption. Do you have these documents available, or would you like to go through any of them?',
+      // Stage 5
+      escalation_preference: 'I apologize for the interruption. Would you like me to connect you directly with a licensed loan officer now, or would you prefer to schedule a callback?',
+      scheduled_call_time: 'I apologize for that. What date and time works best for your scheduled callback?',
     };
 
     session.on(voice.AgentSessionEventTypes.Error, (err: any) => {
@@ -1893,6 +2014,10 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         const identity = participant?.identity;
         if (topic === 'lk-chat' && identity !== ctx.room.localParticipant?.identity) {
           const str = new TextDecoder().decode(payload);
+          if (str.length > 8000) {
+            console.warn(`[agent-security]: Oversized DataReceived payload (>8000 chars) from ${identity} — ignoring.`);
+            return;
+          }
           try {
             const parsed = JSON.parse(str);
             if (parsed.type === 'otp_submit') {
@@ -1918,7 +2043,13 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       ctx.room.registerTextStreamHandler(topic, async (stream, participant) => {
         try {
           let fullText = '';
-          for await (const chunk of stream) fullText += chunk;
+          for await (const chunk of stream) {
+            fullText += chunk;
+            if (fullText.length > 8000) {
+              console.warn(`[agent-security]: Oversized message (>8000 chars) from ${participant?.identity} — truncating and ignoring.`);
+              return;
+            }
+          }
           if (participant?.identity !== ctx.room.localParticipant?.identity) {
             try {
               const parsed = JSON.parse(fullText);

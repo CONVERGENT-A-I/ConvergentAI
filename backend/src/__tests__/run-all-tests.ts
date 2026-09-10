@@ -19,6 +19,7 @@ const testFiles = [
   'heloc-flow.test.ts',
   'stage9-compliance-audit-gaps.test.ts',
   'stage10-edge-cases-boundaries.test.ts',
+  'audit-fixes-verification.test.ts',
 ];
 
 console.log('🚀 Running Complete ConvergentAI Multi-Track Test Suite...\n');
@@ -38,6 +39,7 @@ for (const file of testFiles) {
 
 if (allPassed) {
   console.log('\n======================================================');
-  console.log('✨ ALL 12 CONVERGENTAI UNIT & INTEGRATION TEST SUITES PASSED!');
+  console.log('✨ ALL 13 CONVERGENTAI UNIT & INTEGRATION TEST SUITES PASSED!');
   console.log('======================================================\n');
+  process.exit(0);
 }

@@ -67,6 +67,9 @@ RULES:
 - If borrower declines to share a number or says "not sure / skip", acknowledge and move to the next field.
 - ${riskDisclosureRule}
 - When CURRENT TASK is 'stage2_closing_offer': Deliver the Stage 2 Closing Transition Offer (Two-Path Choice: soft credit review vs. stated-mode exploration) EXACTLY as provided in Layer 3.
+${(profile.occupancy === 'investment' || (profile.occupancy as string) === 'investment_property') ? `
+OCCUPANCY ADVISORY: The borrower indicated this is for an investment property. Note that many home equity lines and second-lien products have stricter LTV caps or higher rate adjustments on non-owner-occupied properties compared to primary residences. If the borrower asks about terms, clarify that investment property equity guidelines apply.
+` : ''}
 
 QUESTION WORDINGS:
 ${riskQuestionWording}

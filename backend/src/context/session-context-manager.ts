@@ -178,6 +178,12 @@ export class SessionContextManager {
       }
     }
 
+    const fallbackId = this.sessionId || this.roomName || `session_${Date.now()}`;
+    console.log(`[context-manager] ℹ️ Using session/room fallback as applicationId: ${fallbackId}`);
+    this.applicationId = fallbackId;
+    if (!this.sessionId) this.sessionId = fallbackId;
+    return this.applicationId;
+
     console.warn('[context-manager] ⚠️ applicationId not available and lookup failed');
     return null;
   }
@@ -994,6 +1000,8 @@ export class SessionContextManager {
         this.profile.gross_annual_income_confirmed = true;
         console.log(`[context-manager]: Corrected income in Stage 2.5 to $${res.value}`);
       }
+      (this.profile as any).affordability_profile_correction = 'processed';
+      (this.profile as any).affordability_income_correction = 'processed';
       this.currentPendingField = 'affordability_panel_active';
       return;
     }
@@ -1952,41 +1960,52 @@ export class SessionContextManager {
   private async runStage1Extraction(text: string): Promise<void> {
     const lastQuestion = this.getLastAssistantUtterance();
 
-    // Always send the FULL static set of Stage 1 fields — never conditionally
-    // remove confirmed ones. This keeps the system prompt prefix byte-identical
-    // across every turn so Cerebras prefix cache hits after the first call.
-    const fieldsToExtract: FieldToExtract[] = [
-      {
+    const fieldsToExtract: FieldToExtract[] = [];
+    if (!this.profile.mortgage_goal_confirmed) {
+      fieldsToExtract.push({
         name: 'mortgage_goal',
         description: 'Whether they want to purchase/buy a new home, refinance an existing mortgage, or explore a home equity / HELOC option',
         expectedType: 'string',
         additionalInstructions: 'Extract "purchase", "refinance", "heloc", or "heq" (all lowercase). If they say they want to buy, purchase, acquire, or look for a new home or property, return "purchase". If they want to refinance, refi, lower their rate or payment, get cash out, or change existing mortgage terms, return "refinance". If they want a home equity line of credit, HELOC, or flexible equity draw, return "heloc". If they specifically want a fixed home equity loan, lump sum equity loan, or fixed rate second mortgage (not a line of credit), return "heq". Return null if not mentioned at all.',
-      },
-      {
+      });
+    }
+    if (!this.profile.occupancy_confirmed) {
+      fieldsToExtract.push({
         name: 'occupancy',
         description: 'Whether they are looking for a primary residence, second home, or investment property',
         expectedType: 'string',
         additionalInstructions: 'Extract "primary", "secondary", or "investment". If they say "for myself and family to live in", "home for myself", etc., extract "primary". If they say "rental", "investment", etc., extract "investment". If not found, return null.',
-      },
-      {
+      });
+    }
+    if (!this.profile.existing_relationship_confirmed) {
+      fieldsToExtract.push({
         name: 'existing_relationship',
         description: 'Whether they have worked with this lending institution before',
         expectedType: 'string',
         additionalInstructions: 'Extract "yes" or "no". If they say they have worked with us before or have an existing mortgage, return "yes". If they say it is their first time, return "no". If they say they don\'t know or are unsure, return "no". If not found, return null.',
-      },
-      {
+      });
+    }
+    if (!this.profile.timeline_confirmed) {
+      fieldsToExtract.push({
         name: 'timeline',
         description: 'When they plan to purchase or refinance (e.g. in 3 months, next year, ASAP, etc.)',
         expectedType: 'string',
         additionalInstructions: 'Extract the user timeline. If they indicate a timeline, extract a concise summary (e.g. "within 3 months", "ASAP", "next year"). If they say they are unsure, undecided, don\'t know, or decline to specify, return "unsure" or "undecided". If not mentioned at all, return null.',
-      },
-      {
+      });
+    }
+    if (!this.profile.co_borrower_confirmed) {
+      fieldsToExtract.push({
         name: 'co_borrower',
         description: 'Whether anyone else will be applying with them on the loan',
         expectedType: 'string',
         additionalInstructions: 'Extract "yes" or "no". If they mention a spouse, partner, or family member applying with them, return "yes". If they say "no", "just me", "myself alone", "I will not be including", "applying individually", "do not want to include", or express any intention to apply alone, return "no". If they say they don\'t know or are unsure, return "no". If not found, return null.',
-      },
-    ];
+      });
+    }
+
+    if (fieldsToExtract.length === 0) {
+      this.advanceWorkflow();
+      return;
+    }
 
     const extractionResults = await extractMultipleFields(text, lastQuestion, fieldsToExtract);
     let anyUpdates = false;
@@ -2388,8 +2407,10 @@ export class SessionContextManager {
 
     if (results.heloc_risk_acknowledged?.value && !this.profile.heloc_risk_acknowledged) {
       this.profile.heloc_risk_acknowledged = true;
+      this.profile.heloc_draw_period_understood = true;
+      this.profile.heloc_repayment_period_understood = true;
       anyUpdates = true;
-      console.log(`[context-manager] Stage2: heloc_risk_acknowledged=true`);
+      console.log(`[context-manager] Stage2: heloc_risk_acknowledged=true (draw & repayment periods acknowledged)`);
     }
 
     if (results.heloc_rate_comfort?.value && !this.profile.heloc_rate_comfort) {
@@ -3521,8 +3542,11 @@ If no correction/change is found, return null.`
         if (field === 'credit_range') this.profile.credit_range = null;
         if (field === 'refinance_type') this.profile.refinance_type = 'rate_term';
         if (field === 'current_mortgage_type') this.profile.current_mortgage_type = 'conventional';
-        if (field === 'closing_costs_preference') this.profile.closing_costs_preference = 'rolled_in';
-        if (field === 'heloc_risk_acknowledged') this.profile.heloc_risk_acknowledged = true;
+        if (field === 'heloc_risk_acknowledged') {
+          this.profile.heloc_risk_acknowledged = true;
+          this.profile.heloc_draw_period_understood = true;
+          this.profile.heloc_repayment_period_understood = true;
+        }
         if (field === 'heloc_draw_use') this.profile.heloc_draw_use = 'home improvement';
         if (field === 'heloc_prior') this.profile.heloc_prior = 'no';
         if (field === 'heloc_timeline') this.profile.heloc_timeline = 'not specified';

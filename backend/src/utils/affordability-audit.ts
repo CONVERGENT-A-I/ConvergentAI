@@ -48,8 +48,9 @@ export interface AffordabilityAuditEvent {
 
 export async function logAffordabilityEvent(event: AffordabilityAuditEvent): Promise<void> {
   // Immutable audit logging for Regulation B / ECOA compliance
-  const eventWithTimestamp = {
+  const eventWithTimestamp: AffordabilityAuditEvent = {
     ...event,
+    applicationId: event.applicationId || event.sessionId,
     timestamp: event.timestamp || new Date().toISOString()
   };
   
@@ -57,7 +58,7 @@ export async function logAffordabilityEvent(event: AffordabilityAuditEvent): Pro
   console.log('[AUDIT-AFFORDABILITY]:', JSON.stringify(eventWithTimestamp, null, 2));
 
   // Persist to database via application service
-  if (!event.applicationId || !event.sessionId) {
+  if (!eventWithTimestamp.applicationId || !eventWithTimestamp.sessionId) {
     console.warn('[AUDIT-AFFORDABILITY] ⚠️ Missing applicationId or sessionId, skipping database persist');
     return;
   }
@@ -66,8 +67,8 @@ export async function logAffordabilityEvent(event: AffordabilityAuditEvent): Pro
     // Map AffordabilityAuditEvent to applicationService.logAffordabilityAudit parameters
     // Build the audit data object, only including defined values (exactOptionalPropertyTypes compliance)
     const auditData: Parameters<typeof applicationService.logAffordabilityAudit>[0] = {
-      applicationId: event.applicationId,
-      sessionId: event.sessionId,
+      applicationId: eventWithTimestamp.applicationId,
+      sessionId: eventWithTimestamp.sessionId,
       eventType: event.eventType,
       metadata: {
         borrowerName: event.borrowerName,
