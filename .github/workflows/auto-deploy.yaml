@@ -1,8 +1,8 @@
 name: Deploy CONVERGENT-AI to GKE
 
-# - push to "dev"         -> auto build + deploy into GKE cluster dev env.
-# - push to "main"        -> Manual deploy.
-# - Prod manual deploy    -> Tab Actions -> "Run workflow" -> choose the target "production".
+# - push to "dev"            -> auto build + deploy into GKE dev environment.
+# - staging manual deploy    -> Actions -> Run workflow -> branch "staging" -> target "staging".
+# - production manual deploy -> Actions -> Run workflow -> branch "main" -> target "production".
 on:
   push:
     branches:
@@ -15,8 +15,8 @@ on:
         default: production
         type: choice
         options:
+          - staging
           - production
-          - dev
 
 concurrency:
   group: deploy-${{ github.ref_name }}-${{ github.event.inputs.target || 'auto' }}
@@ -47,6 +47,17 @@ jobs:
             TARGET="dev"
           fi
 
+          # Prevent a manual deployment from using the wrong source branch.
+          if [ "$TARGET" = "staging" ] && [ "$GITHUB_REF_NAME" != "staging" ]; then
+            echo "Staging must be deployed manually from the staging branch."
+            exit 1
+          fi
+
+          if [ "$TARGET" = "production" ] && [ "$GITHUB_REF_NAME" != "main" ]; then
+            echo "Production must be deployed manually from the main branch."
+            exit 1
+          fi
+
           if [ "$TARGET" = "production" ]; then
             echo "docker_env=prod"                                    >> "$GITHUB_OUTPUT"
             echo "values_file=values_prod.yaml"                       >> "$GITHUB_OUTPUT"
@@ -55,6 +66,14 @@ jobs:
             echo "secret_prefix=prod-convergent"                      >> "$GITHUB_OUTPUT"
             echo "backend_url=https://be.convergentai.tech"           >> "$GITHUB_OUTPUT"
             echo "env_name=production"                                >> "$GITHUB_OUTPUT"
+          elif [ "$TARGET" = "staging" ]; then
+            echo "docker_env=staging"                                 >> "$GITHUB_OUTPUT"
+            echo "values_file=values_staging.yaml"                    >> "$GITHUB_OUTPUT"
+            echo "namespace=cta-staging"                              >> "$GITHUB_OUTPUT"
+            echo "helm_release=cta-staging"                           >> "$GITHUB_OUTPUT"
+            echo "secret_prefix=staging-convergent"                   >> "$GITHUB_OUTPUT"
+            echo "backend_url=https://staging-be.convergentai.tech"   >> "$GITHUB_OUTPUT"
+            echo "env_name=staging"                                   >> "$GITHUB_OUTPUT"
           else
             echo "docker_env=dev"                                     >> "$GITHUB_OUTPUT"
             echo "values_file=values_dev.yaml"                        >> "$GITHUB_OUTPUT"
@@ -140,6 +159,8 @@ jobs:
           NAMESPACE: ${{ steps.env.outputs.namespace }}
           DEV_FE: ${{ vars.DEV_FE }}
           DEV_BE: ${{ vars.DEV_BE }}
+          STAGING_FE: ${{ vars.STAGING_FE }}
+          STAGING_BE: ${{ vars.STAGING_BE }}
           PROD_FE: ${{ vars.PROD_FE }}
           PROD_BE: ${{ vars.PROD_BE }}
         run: |
@@ -149,6 +170,9 @@ jobs:
           if [ "$DOCKER_ENV" = "prod" ]; then
             FE_ENV="$PROD_FE"
             BE_ENV="$PROD_BE"
+          elif [ "$DOCKER_ENV" = "staging" ]; then
+            FE_ENV="$STAGING_FE"
+            BE_ENV="$STAGING_BE"
           else
             FE_ENV="$DEV_FE"
             BE_ENV="$DEV_BE"
