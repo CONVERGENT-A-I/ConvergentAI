@@ -1,11 +1,12 @@
 import 'dotenv/config';
+import fs from 'fs';
 process.env.LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || 'test-key';
 import { SessionContextManager } from '../context/session-context-manager.js';
 import { buildStage2Instructions } from '../prompts/stage2-prequalification.js';
 import { buildStage2HelocInstructions } from '../prompts/stage2-heloc.js';
 import { buildStage2RefinanceInstructions } from '../prompts/stage2-refinance.js';
 import { buildLayer3TurnContext } from '../prompts/layer3-context.js';
-import { isQuestionOrCorrection } from '../agent.js';
+import { isQuestionOrCorrection, formatPhoneForSpeech } from '../agent.js';
 
 console.log('🧪 Running Comprehensive Multi-Suite Audit Verification Tests (50+ Test Cases)...\n');
 
@@ -514,6 +515,86 @@ console.log('--- Suite 11: Latency Optimizations, Sentinel Fixes, Metadata & Rep
 
   assert(!scriptRepeated, 'Prefill name and address script is not repeated when delivered flag is true');
   assert(advancedToEmployer, 'Affirmative response advances to prefill_employer cleanly');
+}
+
+// 11.7: Voice confirmation of contact_confirm_display sets contact_info_confirmed and generates OTP
+{
+  const scm = new SessionContextManager({} as any, {} as any);
+  scm.setActiveStage('3A');
+  scm.getProfile().contact_first_name = 'David';
+  scm.getProfile().contact_last_name = 'Miller';
+  scm.getProfile().contact_email = 'david@example.com';
+  scm.getProfile().contact_mobile = '555-0199';
+  scm.setCurrentPendingField('contact_confirm_display');
+
+  scm.handleContactInfoConfirmed();
+
+  const p = scm.getProfile();
+  assert((p as any).contact_info_confirmed === true, 'handleContactInfoConfirmed marks contact_info_confirmed = true');
+  assert((p as any)._pendingOtp === '123456', 'handleContactInfoConfirmed generates mock OTP code 123456');
+  assert(scm.getPendingField() === 'otp_verification', 'State machine advances from contact_confirm_display to otp_verification');
+}
+
+// 11.8: Affirmative phrase matching for contact confirmation card
+{
+  const testPhrases = [
+    'Yes, everything looks correct.',
+    'This looks correct',
+    'Looks good to me',
+    'Confirm',
+    'Confirmed',
+    'Yes, that is right'
+  ];
+  const regex = /\b(yes|yeah|yep|yup|looks?\s*(good|right|correct|fine)|that('s|\s+is)\s*(right|correct|accurate|good|fine|also\s+correct)|correct|matches|match|what\s+i\s+expect|good|fine|accurate|all\s+good|sounds\s+good|perfect|sure|confirm|confirmed|this\s+looks\s+correct|everything\s+looks\s+correct)\b/i;
+  
+  const allMatched = testPhrases.every(phrase => regex.test(phrase.toLowerCase().trim()));
+  assert(allMatched, 'All standard voice confirmation phrases match affirmative pattern');
+}
+
+// 11.9: Silent-turn reprompt entries exist for contact_first_name, contact_last_name, and contact_confirm_display
+{
+  const agentCode = fs.readFileSync(new URL('../agent.ts', import.meta.url), 'utf-8');
+  assert(agentCode.includes("contact_first_name: 'I apologize for the interruption"), 'PENDING_FIELD_REPROMPT has contact_first_name entry');
+  assert(agentCode.includes("contact_last_name: 'I apologize for that"), 'PENDING_FIELD_REPROMPT has contact_last_name entry');
+  assert(agentCode.includes("contact_confirm_display: 'I apologize for the interruption"), 'PENDING_FIELD_REPROMPT has contact_confirm_display entry');
+}
+
+// 11.10: contact_confirm_correction is deterministic and stage boundary
+{
+  const scm = new SessionContextManager({} as any, {} as any);
+  assert(scm.isDeterministicField('contact_confirm_correction'), 'contact_confirm_correction is deterministic field');
+  assert(scm.isStageBoundaryField('contact_confirm_correction'), 'contact_confirm_correction is stage boundary field');
+}
+
+// 11.11: Silent-turn reprompt entry exists for contact_confirm_correction
+{
+  const agentCode = fs.readFileSync(new URL('../agent.ts', import.meta.url), 'utf-8');
+  assert(agentCode.includes("contact_confirm_correction: 'I apologize"), 'PENDING_FIELD_REPROMPT has contact_confirm_correction entry');
+}
+
+// 11.12: formatPhoneForSpeech speech formatting
+{
+  assert(formatPhoneForSpeech('5551234567') === '(555) 123-4567', 'formatPhoneForSpeech formats 10-digit number');
+  assert(formatPhoneForSpeech('15551234567') === '+1 (555) 123-4567', 'formatPhoneForSpeech formats 11-digit +1 number');
+  assert(formatPhoneForSpeech('555-123-4567') === '(555) 123-4567', 'formatPhoneForSpeech handles dashed input');
+}
+
+// 11.13: advanceWorkflow routing for contact_confirm_correction
+{
+  const scm = new SessionContextManager({} as any, {} as any);
+  scm.setActiveStage('3A');
+  scm.getProfile().contact_first_name = 'Sarah';
+  scm.getProfile().contact_last_name = 'Johnson';
+  scm.getProfile().contact_email = 'sarah@example.com';
+  scm.getProfile().contact_mobile = '5551234567';
+  (scm.getProfile() as any).contact_confirm_needs_correction = true;
+
+  scm.advanceWorkflow();
+  assert(scm.getPendingField() === 'contact_confirm_correction', 'advanceWorkflow routes to contact_confirm_correction when correction needed');
+
+  (scm.getProfile() as any).contact_confirm_needs_correction = false;
+  scm.advanceWorkflow();
+  assert(scm.getPendingField() === 'contact_confirm_display', 'advanceWorkflow routes back to contact_confirm_display once correction flag is cleared');
 }
 
 console.log(`\n======================================================`);

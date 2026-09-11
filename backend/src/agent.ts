@@ -70,6 +70,16 @@ const STAGE2_CLOSING_OFFER_SCRIPT = (profile?: BorrowerProfile) => {
   return `Great work exploring your numbers${namePrefix}. You have two good ways to see your affordability picture. First, with your authorization, I can perform a soft credit review to pre-populate your application with your actual credit data, saving you time and ensuring accurate information, all with no impact to your credit score. Alternatively, I can build your affordability summary right now using just the details you've already shared, and you can add the credit review whenever you're ready. Which path would you prefer?`;
 };
 
+export function formatPhoneForSpeech(raw: string): string {
+  const digits = (raw || '').replace(/\D/g, '');
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  } else if (digits.length === 11 && digits[0] === '1') {
+    return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+  return raw || '';
+}
+
 export function isQuestionOrCorrection(text: string | null | undefined): boolean {
   if (!text) return false;
   const t = text.toLowerCase().trim();
@@ -412,6 +422,67 @@ class AilanaVoiceAgent extends voice.Agent {
       return createVerbatimStream(scriptText) as any;
     }
 
+    const isAffirmativeConfirmation = (text: string) => {
+      const lower = text.toLowerCase().trim();
+      return (
+        /\b(yes|yeah|yep|yup|looks?\s*(good|right|correct|fine)|that('s|\s+is)\s*(right|correct|accurate|good|fine|also\s+correct)|correct|matches|match|what\s+i\s+expect|good|fine|accurate|all\s+good|sounds\s+good|perfect|sure|confirm|confirmed|this\s+looks\s+correct|everything\s+looks\s+correct)\b/i.test(lower) &&
+        !/\b(not?\s*(right|correct|accurate|good)|wrong|mistake|change|update|no\b(?!\s*,\s*(that|it)\s*(is|looks)\s*(also\s+)?(right|correct)))\b/i.test(lower)
+      );
+    };
+
+    if (pending === 'contact_confirm_display') {
+      const lower = lastUserText.toLowerCase().trim();
+      const isAffirmative = isAffirmativeConfirmation(lastUserText);
+      const isCorrection = /\b(no|not|wrong|change|update|actually|mistake|fix|incorrect)\b/i.test(lower) && !isAffirmative;
+
+      if (isAffirmative) {
+        console.log(`[agent-hook]: Voice confirmation of contact details detected ("${lastUserText}"). Advancing to OTP dispatch.`);
+        this.contextManager.handleContactInfoConfirmed();
+        (profile as any)._otpInstructionDelivered = true;
+        (profile as any)._otpReadyToShow = true;
+        if (this.sendStageUpdate) {
+          this.sendStageUpdate(this.contextManager.getActiveStage()).catch(err => console.warn(err));
+        }
+        const otpScript = "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely on your screen when it arrives, and you're all set.";
+        return createVerbatimStream(otpScript) as any;
+      }
+
+      if (isCorrection && !(profile as any)._contactCorrectionAcknowledged) {
+        console.log(`[agent-hook]: Voice correction of contact details requested ("${lastUserText}").`);
+        (profile as any).contact_confirm_needs_correction = true;
+        this.contextManager.advanceWorkflow();
+        const scriptText = "No problem at all. What would you like to update — your name, email, or mobile number?";
+        return createVerbatimStream(scriptText) as any;
+      }
+
+      const fn = (profile as any).contact_first_name || '';
+      const ln = (profile as any).contact_last_name || '';
+      const name = `${fn} ${ln}`.trim() || profile.contact_name || 'your name';
+      const email = profile.contact_email || 'your email';
+      const phone = formatPhoneForSpeech(profile.contact_mobile || '');
+
+      let prefix = '';
+      if ((profile as any)._contactCorrectionAcknowledged) {
+        prefix = "Got it — I've updated that. ";
+        (profile as any)._contactCorrectionAcknowledged = false;
+      }
+
+      if (this.sendStageUpdate) {
+        this.sendStageUpdate(this.contextManager.getActiveStage()).catch(err => console.warn(err));
+      }
+
+      const script = `${prefix}I have ${name}, ${email}, and ${phone}. Your details are on screen — do they all look correct?`;
+      return createVerbatimStream(script) as any;
+    }
+
+    if (pending === 'contact_confirm_correction') {
+      if (this.sendStageUpdate) {
+        this.sendStageUpdate(this.contextManager.getActiveStage()).catch(err => console.warn(err));
+      }
+      const scriptText = "No problem — which one would you like to update: your name, email, or mobile number?";
+      return createVerbatimStream(scriptText) as any;
+    }
+
     if (pending === 'property_type') {
       const lower = lastUserText.toLowerCase().trim();
       const ptMatch = lower.match(/\b(single\s*family|condo(minium)?|town\s*home|townhouse|multi\s*family|duplex|triplex|fourplex|manufactured|mobile\s*home)\b/i);
@@ -603,14 +674,6 @@ class AilanaVoiceAgent extends voice.Agent {
       console.log('[agent-hook]: User asked a question about soft pull — delegating to Cerebras LLM.');
       return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
     }
-
-    const isAffirmativeConfirmation = (text: string) => {
-      const lower = text.toLowerCase().trim();
-      return (
-        /\b(yes|yeah|yep|yup|looks?\s*(good|right|correct|fine)|that('s|\s+is)\s*(right|correct|accurate|good|fine|also\s+correct)|correct|matches|match|what\s+i\s+expect|good|fine|accurate|all\s+good|sounds\s+good|perfect|sure)\b/i.test(lower) &&
-        !/\b(not?\s*(right|correct|accurate|good)|wrong|mistake|change|update|no\b(?!\s*,\s*(that|it)\s*(is|looks)\s*(also\s+)?(right|correct)))\b/i.test(lower)
-      );
-    };
 
     const buildPrefillNameAddressScript = () => {
       const name = profile.contact_name || profile.legal_name || profile.borrower_name || 'Valued Borrower';
@@ -1351,8 +1414,12 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       heloc_rate_comfort: 'I apologize for that. How comfortable are you with a variable interest rate that may change over time, or is fixed predictability more important?',
       // Stage 3A — Soft Pull / OTP / Prefill
       contact_name: 'I apologize for the interruption. Could you tell me what name you would like on your secure account?',
+      contact_first_name: 'I apologize for the interruption. Could you tell me what first name you would like on your secure account?',
+      contact_last_name: 'I apologize for that. What is your last name?',
       contact_email: 'I apologize for that. What email and mobile number would you like to use for your account?',
       contact_mobile: 'I apologize for the interruption. What mobile number should I send your verification code to?',
+      contact_confirm_display: 'I apologize for the interruption. I have your name, email, and mobile shown on screen — do they all look correct?',
+      contact_confirm_correction: 'I apologize — which one would you like to fix: your name, email, or mobile number?',
       otp_verification: 'I apologize for that. Please enter the one-time verification code on your screen whenever you\'re ready.',
       soft_pull_authorization: 'I apologize for that interruption. Before we proceed — this is a soft credit inquiry that will not affect your credit score. You are authorizing it, and your data is used only to process your eligibility review. Do you authorize the soft credit inquiry on that basis?',
       prefill_name_address: 'I apologize for the interruption. I have your name and address on file — does that information look correct, or is anything out of date?',
@@ -2066,6 +2133,8 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             }
             if (parsed.type === 'contact_info_needs_correction') {
               console.log('[agent]: contact_info_needs_correction received from UI.');
+              (contextManager.getProfile() as any).contact_confirm_needs_correction = true;
+              contextManager.advanceWorkflow();
               const scriptText = "No problem at all. What would you like to update — your name, email, or mobile number?";
               if (voiceMuted) {
                 generateTextOnlyReply(scriptText).catch(err => console.error(err));
@@ -2120,6 +2189,8 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
               }
               if (parsed.type === 'contact_info_needs_correction') {
                 console.log('[agent]: contact_info_needs_correction received from UI (TextStream).');
+                (contextManager.getProfile() as any).contact_confirm_needs_correction = true;
+                contextManager.advanceWorkflow();
                 const scriptText = "No problem at all. What would you like to update — your name, email, or mobile number?";
                 if (voiceMuted) {
                   generateTextOnlyReply(scriptText).catch(err => console.error(err));

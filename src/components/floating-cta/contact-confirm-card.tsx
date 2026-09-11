@@ -1,8 +1,8 @@
-﻿'use client';
+'use client';
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, User, Mail, Phone, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ShieldCheck, User, Mail, Phone } from 'lucide-react';
 
 export interface ContactConfirmCardProps {
   isVisible: boolean;
@@ -10,8 +10,8 @@ export interface ContactConfirmCardProps {
   lastName?: string | null;
   email?: string | null;
   mobile?: string | null;
-  onConfirm: () => void;
-  onCorrect: () => void;
+  onConfirm?: () => void;
+  onCorrect?: () => void;
 }
 
 export function ContactConfirmCard({
@@ -20,9 +20,10 @@ export function ContactConfirmCard({
   lastName,
   email,
   mobile,
-  onConfirm,
   onCorrect,
 }: ContactConfirmCardProps) {
+  const fullName = [firstName, lastName].filter(Boolean).join(' ').trim() || '—';
+
   return (
     <AnimatePresence>
       {isVisible && (
@@ -54,17 +55,12 @@ export function ContactConfirmCard({
               </p>
             </div>
 
-            {/* Info rows */}
-            <div className="space-y-3 mb-6">
+            {/* Info rows - 3 rows matching voice read-back */}
+            <div className="space-y-3 mb-2">
               <InfoRow
                 icon={<User className="w-4 h-4 text-[#00b4d8]" />}
-                label="First Name"
-                value={firstName || '—'}
-              />
-              <InfoRow
-                icon={<User className="w-4 h-4 text-[#00b4d8]" />}
-                label="Last Name"
-                value={lastName || '—'}
+                label="Full Name"
+                value={fullName}
               />
               <InfoRow
                 icon={<Mail className="w-4 h-4 text-[#00b4d8]" />}
@@ -78,25 +74,14 @@ export function ContactConfirmCard({
               />
             </div>
 
-            {/* Action buttons */}
-            <div className="flex flex-col gap-3">
-              <button
-                id="contact-confirm-correct-btn"
-                onClick={onConfirm}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-[#00b4d8] to-[#0096c7] hover:from-[#0096c7] hover:to-[#0077b6] text-black font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-[#00b4d8]/20 cursor-pointer"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                This looks correct
-              </button>
-              <button
-                id="contact-confirm-fix-btn"
-                onClick={onCorrect}
-                className="w-full py-3 rounded-xl border border-gray-700 hover:border-[#00b4d8]/50 text-gray-300 hover:text-white font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <AlertCircle className="w-4 h-4" />
-                Something is wrong — let me correct
-              </button>
-            </div>
+            {/* Subtle voice-primary hint - no buttons */}
+            <p
+              id="contact-confirm-hint"
+              onClick={onCorrect}
+              className="text-center text-xs text-gray-500 mt-4 cursor-pointer hover:text-gray-400 transition-colors"
+            >
+              Something doesn&apos;t look right? Just say so and I&apos;ll fix it.
+            </p>
           </motion.div>
         </motion.div>
       )}

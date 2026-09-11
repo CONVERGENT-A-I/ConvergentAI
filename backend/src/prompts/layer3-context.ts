@@ -383,6 +383,7 @@ export function buildLayer3TurnContext(
     pendingField === 'contact_email' ||
     pendingField === 'contact_mobile' ||
     pendingField === 'contact_confirm_display' ||
+    pendingField === 'contact_confirm_correction' ||
     pendingField === 'otp_verification' ||
     profile.soft_pull_consent === 'pending';
 
@@ -493,10 +494,24 @@ The email was captured. Now ask for their mobile number.
 Say EXACTLY: "And what mobile number should I send your verification code to?"
 Do NOT ask for anything else.`;
   } else if (pendingField === 'contact_confirm_display') {
+    const fn = (profile as any).contact_first_name || '';
+    const ln = (profile as any).contact_last_name || '';
+    const fullName = `${fn} ${ln}`.trim() || profile.contact_name || 'your name';
+    const email = profile.contact_email || 'your email';
+    const phone = profile.contact_mobile || 'your phone number';
     otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: CONTACT CONFIRMATION DISPLAY ***
-The borrower's first name, last name, email, and mobile have all been captured. A confirmation card is now shown on their screen.
-Say EXACTLY: "I've captured your details. Please review the information displayed on your screen, and let me know if everything looks correct."
-Do NOT ask for anything else. Do NOT mention OTP yet. Wait for the borrower to confirm or flag a correction.`;
+The borrower's details are on screen.
+Read back all values: "I have ${fullName}, ${email}, and ${phone}. Your details are on screen — do they all look correct?"
+If they say yes, advance to OTP.
+If they say no with a correction inline, acknowledge the correction.
+If they say no without a correction, ask which one to update.
+Do NOT mention OTP yet.`;
+  } else if (pendingField === 'contact_confirm_correction') {
+    otpBlock = `\n\n*** CRITICAL: CONTACT CORRECTION TURN ***
+The borrower said something was incorrect on the confirmation. Ask EXACTLY:
+"No problem — which one would you like to update: your name, email, or mobile number?"
+If they also gave you the corrected value in the same sentence, acknowledge it.
+Do NOT ask for anything else.`;
   } else if (pendingField === 'otp_verification') {
     otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: VERIFY CODE VIA MODAL ***
 A one-time verification code has been sent to the borrower's email and mobile. You must instruct them to use the secure popup modal.

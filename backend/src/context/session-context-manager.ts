@@ -662,6 +662,8 @@ export class SessionContextManager {
       'contact_name',
       'contact_email',
       'contact_mobile',
+      'contact_confirm_display',
+      'contact_confirm_correction',
       'otp_verification',
       'prefill_name_address',
       'prefill_employer',
@@ -686,6 +688,7 @@ export class SessionContextManager {
       'contact_email',
       'contact_mobile',
       'contact_confirm_display',
+      'contact_confirm_correction',
       'otp_verification',
       'soft_pull_authorization',
       'prefill_name_address',
@@ -1407,23 +1410,183 @@ export class SessionContextManager {
 
     // ── v8.8 OTP Gate: Step 2.5 — contact_confirm_display (borrower confirms details on screen) ──
     if (this.currentPendingField === 'contact_confirm_display') {
-      // This field is advanced by the frontend data channel message 'contact_info_confirmed'
-      // Voice path: if borrower says "yes", "looks good", "correct", "confirm", advance
-      const res = await extractProfileField(
-        text,
-        lastQuestion,
-        'confirm_contact_info',
-        'whether the borrower confirms their contact details are correct',
-        'string',
-        'Extract "confirmed" if the borrower says yes, correct, looks good, confirm, or similar positive affirmation. Extract "correction" if they say no, wrong, change it, fix it, or similar. Return null if unclear.'
-      );
-      if (res.value === 'confirmed') {
-        console.log('[context-manager]: Contact info confirmed via voice — advancing to OTP dispatch.');
-        this.advanceWorkflow();
-      } else if (res.value === 'correction') {
-        // Stay on this field — Ailana will ask what to correct
-        console.log('[context-manager]: Contact info correction requested via voice.');
+      const results = await extractMultipleFields(text, lastQuestion, [
+        {
+          name: 'confirm_intent',
+          description: 'whether the borrower confirmed or rejected their contact info',
+          expectedType: 'string',
+          additionalInstructions: 'Return "confirmed" if yes, correct, looks good, confirm, that is right, or affirmative. Return "correction" if no, wrong, change, update, fix, mistake, or if they provide corrected contact details. Return null if unclear.',
+        },
+        {
+          name: 'contact_first_name',
+          description: 'corrected first name or full name, if the user mentioned a correction',
+          expectedType: 'string',
+          additionalInstructions: 'Only return a value if the user explicitly corrected their name. Return null otherwise.',
+        },
+        {
+          name: 'contact_last_name',
+          description: 'corrected last name, if the user mentioned a correction',
+          expectedType: 'string',
+          additionalInstructions: 'Only return a value if the user explicitly corrected their last name. Return null otherwise.',
+        },
+        {
+          name: 'contact_email',
+          description: 'corrected email address, if provided',
+          expectedType: 'string',
+          additionalInstructions: 'Apply phonetic normalization: "at" → @, "dot" → . Strip spaces. Return null if no correction.',
+        },
+        {
+          name: 'contact_mobile',
+          description: 'corrected mobile number, if provided',
+          expectedType: 'string',
+          additionalInstructions: 'Strip non-numeric characters except a leading +. Return null if no correction.',
+        },
+      ]);
+
+      let intent = results.confirm_intent?.value as string | null;
+      let firstNameVal = results.contact_first_name?.value ? String(results.contact_first_name.value).trim() : null;
+      let lastNameVal = results.contact_last_name?.value ? String(results.contact_last_name.value).trim() : null;
+      let emailVal = results.contact_email?.value ? String(results.contact_email.value).toLowerCase().trim() : null;
+      let mobileVal = results.contact_mobile?.value ? String(results.contact_mobile.value).replace(/\D/g, '') : null;
+
+      // Regex fallback for intent and inline corrections
+      const lower = text.toLowerCase().trim();
+      if (!intent) {
+        if (/\b(yes|yeah|yep|yup|looks?\s*(good|right|correct|fine)|that('s|\s+is)\s*(right|correct|accurate|good|fine|also\s+correct)|correct|matches|match|what\s+i\s+expect|good|fine|accurate|all\s+good|sounds\s+good|perfect|sure|confirm|confirmed|this\s+looks\s+correct|everything\s+looks\s+correct)\b/i.test(lower) &&
+            !/\b(not?\s*(right|correct|accurate|good)|wrong|mistake|change|update|no\b(?!\s*,\s*(that|it)\s*(is|looks)\s*(also\s+)?(right|correct)))\b/i.test(lower)) {
+          intent = 'confirmed';
+        } else if (/\b(no|not|wrong|change|update|actually|mistake|fix|incorrect)\b/i.test(lower)) {
+          intent = 'correction';
+        }
       }
+
+      if (!emailVal) {
+        const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+        if (emailMatch) emailVal = emailMatch[0].toLowerCase();
+      }
+
+      const anyInlineCorrection = Boolean(firstNameVal || lastNameVal || emailVal || mobileVal);
+
+      if (intent === 'confirmed' && !anyInlineCorrection) {
+        console.log('[context-manager]: Contact info confirmed via voice — advancing to OTP dispatch.');
+        this.handleContactInfoConfirmed();
+      } else if (intent === 'correction' || anyInlineCorrection) {
+        console.log('[context-manager]: Contact info correction requested via voice.');
+        let nameUpdated = false;
+        if (firstNameVal) {
+          if (firstNameVal.includes(' ') && !lastNameVal) {
+            const parts = firstNameVal.split(/\s+/);
+            (this.profile as any).contact_first_name = parts[0];
+            (this.profile as any).contact_last_name = parts.slice(1).join(' ');
+          } else {
+            (this.profile as any).contact_first_name = firstNameVal;
+          }
+          nameUpdated = true;
+        }
+        if (lastNameVal) {
+          (this.profile as any).contact_last_name = lastNameVal;
+          nameUpdated = true;
+        }
+        if (emailVal) {
+          this.profile.contact_email = emailVal;
+        }
+        if (mobileVal) {
+          this.profile.contact_mobile = mobileVal;
+        }
+        if (nameUpdated) {
+          const fn = (this.profile as any).contact_first_name || '';
+          const ln = (this.profile as any).contact_last_name || '';
+          const fullName = `${fn} ${ln}`.trim();
+          this.profile.contact_name = fullName;
+          this.profile.borrower_name = fullName;
+          this.profile.legal_name = fullName;
+        }
+
+        if (anyInlineCorrection) {
+          (this.profile as any).contact_confirm_needs_correction = false;
+          (this.profile as any)._contactCorrectionAcknowledged = true;
+          this.advanceWorkflow();
+        } else {
+          (this.profile as any).contact_confirm_needs_correction = true;
+          this.advanceWorkflow();
+        }
+      }
+      return;
+    }
+
+    // ── v8.8 OTP Gate: Step 2.6 — contact_confirm_correction (borrower said "No" without details) ──
+    if (this.currentPendingField === 'contact_confirm_correction') {
+      const results = await extractMultipleFields(text, lastQuestion, [
+        {
+          name: 'contact_first_name',
+          description: 'corrected first name or full name, if the user mentioned one',
+          expectedType: 'string',
+          additionalInstructions: 'Extract ONLY if the user explicitly corrected their name in this utterance. Return null otherwise.',
+        },
+        {
+          name: 'contact_last_name',
+          description: 'corrected last name, if the user mentioned one',
+          expectedType: 'string',
+          additionalInstructions: 'Extract ONLY if the user explicitly corrected their last name in this utterance. Return null otherwise.',
+        },
+        {
+          name: 'contact_email',
+          description: 'corrected email address, if the user mentioned one',
+          expectedType: 'string',
+          additionalInstructions: 'Apply phonetic normalization: "at" → @, "dot" → . Strip spaces. Return null if no email correction was mentioned.',
+        },
+        {
+          name: 'contact_mobile',
+          description: 'corrected mobile number, if the user mentioned one',
+          expectedType: 'string',
+          additionalInstructions: 'Strip non-numeric characters except a leading +. Return null if no phone correction was mentioned.',
+        },
+      ]);
+
+      let firstNameVal = results.contact_first_name?.value ? String(results.contact_first_name.value).trim() : null;
+      let lastNameVal = results.contact_last_name?.value ? String(results.contact_last_name.value).trim() : null;
+      let emailVal = results.contact_email?.value ? String(results.contact_email.value).toLowerCase().trim() : null;
+      let mobileVal = results.contact_mobile?.value ? String(results.contact_mobile.value).replace(/\D/g, '') : null;
+
+      if (!emailVal) {
+        const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+        if (emailMatch) emailVal = emailMatch[0].toLowerCase();
+      }
+
+      let nameUpdated = false;
+      if (firstNameVal) {
+        if (firstNameVal.includes(' ') && !lastNameVal) {
+          const parts = firstNameVal.split(/\s+/);
+          (this.profile as any).contact_first_name = parts[0];
+          (this.profile as any).contact_last_name = parts.slice(1).join(' ');
+        } else {
+          (this.profile as any).contact_first_name = firstNameVal;
+        }
+        nameUpdated = true;
+      }
+      if (lastNameVal) {
+        (this.profile as any).contact_last_name = lastNameVal;
+        nameUpdated = true;
+      }
+      if (emailVal) {
+        this.profile.contact_email = emailVal;
+      }
+      if (mobileVal) {
+        this.profile.contact_mobile = mobileVal;
+      }
+
+      if (nameUpdated) {
+        const fn = (this.profile as any).contact_first_name || '';
+        const ln = (this.profile as any).contact_last_name || '';
+        const fullName = `${fn} ${ln}`.trim();
+        this.profile.contact_name = fullName;
+        this.profile.borrower_name = fullName;
+        this.profile.legal_name = fullName;
+      }
+
+      (this.profile as any).contact_confirm_needs_correction = false;
+      (this.profile as any)._contactCorrectionAcknowledged = true;
+      this.advanceWorkflow();
       return;
     }
 
@@ -3069,7 +3232,11 @@ export class SessionContextManager {
       } else if (!this.profile.otp_verified) {
         // If contact_confirm_display hasn't been shown/confirmed yet, show it first
         if (!(this.profile as any).contact_info_confirmed) {
-          this.currentPendingField = 'contact_confirm_display';
+          if ((this.profile as any).contact_confirm_needs_correction) {
+            this.currentPendingField = 'contact_confirm_correction';
+          } else {
+            this.currentPendingField = 'contact_confirm_display';
+          }
         } else {
           this.currentPendingField = 'otp_verification';
         }

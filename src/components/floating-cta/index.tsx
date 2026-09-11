@@ -1272,8 +1272,11 @@ export default function FloatingCTA() {
                                   const otpAlreadyVerified = profile?.otp_verified || profile?.session_login_complete;
                                   const hasBothContacts = Boolean(profile?.contact_email && profile?.contact_mobile);
 
-                                  // Show contact confirmation card
-                                  if (profile?.current_pending_field === 'contact_confirm_display' && hasBothContacts && !otpAlreadyVerified) {
+                                  // Show contact confirmation card (keeps card visible during confirmation and field correction for real-time updates)
+                                  const isContactConfirmActive =
+                                    profile?.current_pending_field === 'contact_confirm_display' ||
+                                    profile?.current_pending_field === 'contact_confirm_correction';
+                                  if (isContactConfirmActive && hasBothContacts && !otpAlreadyVerified) {
                                     setIsContactConfirmVisible(true);
                                   } else {
                                     setIsContactConfirmVisible(false);
