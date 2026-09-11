@@ -334,6 +334,10 @@ export class SessionContextManager {
         // OTP & Session Login fields
         this.profile.session_login_complete = app.stage3.sessionLoginComplete;
         this.profile.contact_on_file = app.stage3.contactOnFile;
+        (this.profile as any).contact_first_name = (app.stage3 as any).contactFirstName ?? null;
+        (this.profile as any).contact_first_name_confirmed = (app.stage3 as any).contactFirstNameConfirmed ?? false;
+        (this.profile as any).contact_last_name = (app.stage3 as any).contactLastName ?? null;
+        (this.profile as any).contact_last_name_confirmed = (app.stage3 as any).contactLastNameConfirmed ?? false;
         this.profile.contact_name = app.stage3.contactName ?? null;
         (this.profile as any).contact_name_confirmed = app.stage3.contactNameConfirmed;
         this.profile.contact_email = app.stage3.contactEmail ?? null;
@@ -676,9 +680,12 @@ export class SessionContextManager {
     if (!target) return false;
     const DETERMINISTIC_FIELDS = new Set([
       'stage2_closing_offer',
+      'contact_first_name',
+      'contact_last_name',
       'contact_name',
       'contact_email',
       'contact_mobile',
+      'contact_confirm_display',
       'otp_verification',
       'soft_pull_authorization',
       'prefill_name_address',
@@ -954,11 +961,11 @@ export class SessionContextManager {
         if (this.profile.affordability_mode === 'stated' || !this.profile.otp_verified) {
           // Voice submit in stated mode -> triggers upgrade flow
           this.activeStage = '3A';
-          this.currentPendingField = 'contact_name';
+          this.currentPendingField = 'contact_first_name';
           this.profile.affordability_submitted = false;
           this.profile.aus_status = null;
           this.profile.affordability_aus_status = null;
-          console.log('[context-manager]: Voice submit in stated mode -> triggering upgrade (Stage 3A contact_name).');
+          console.log('[context-manager]: Voice submit in stated mode -> triggering upgrade (Stage 3A contact_first_name).');
         } else {
           // Voice submit in verified mode -> executes AUS submission
           this.profile.affordability_submitted = true;
@@ -969,11 +976,11 @@ export class SessionContextManager {
       } else if (res.value === 'upgrade') {
         // Trigger upgrade to verified mode — set pending to OTP gate
         this.activeStage = '3A';
-        this.currentPendingField = 'contact_name';
+        this.currentPendingField = 'contact_first_name';
         this.profile.affordability_submitted = false;
         this.profile.aus_status = null;
         this.profile.affordability_aus_status = null;
-        console.log('[context-manager]: Affordability panel upgrade to verified mode requested via voice. Going to OTP gate (contact_name).');
+        console.log('[context-manager]: Affordability panel upgrade to verified mode requested via voice. Going to OTP gate (contact_first_name).');
       } else if (res.value === 'update_profile') {
         this.currentPendingField = 'affordability_profile_correction';
       } else if (res.value === 'delete_data') {
@@ -1109,12 +1116,12 @@ export class SessionContextManager {
 
   public triggerUpgradeToVerifiedMode(): void {
     this.activeStage = '3A';
-    this.currentPendingField = 'contact_name';
+    this.currentPendingField = 'contact_first_name';
     this.profile.transition_pitch_delivered = true;
     this.profile.affordability_submitted = false;
     this.profile.aus_status = null;
     this.profile.affordability_aus_status = null;
-    console.log('[context-manager]: Explicit upgrade to verified mode triggered! Active stage set to 3A, pending field set to contact_name.');
+    console.log('[context-manager]: Explicit upgrade to verified mode triggered! Active stage set to 3A, pending field set to contact_first_name.');
   }
 
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢
@@ -1151,8 +1158,8 @@ export class SessionContextManager {
       if (res.value === 'yes') {
         // Route through v8.7 OTP gate
         this.activeStage = '3A';
-        this.currentPendingField = 'contact_name';
-        console.log('[context-manager]: stage3_closing_offer accepted! Transitioning to STAGE 3A OTP gate (contact_name)!');
+        this.currentPendingField = 'contact_first_name';
+        console.log('[context-manager]: stage3_closing_offer accepted! Transitioning to STAGE 3A OTP gate (contact_first_name)!');
 
       } else if (res.value === 'no') {
         this.currentPendingField = 'advisor_connection_offer';
@@ -1255,10 +1262,97 @@ export class SessionContextManager {
     }
   }
 
+  /**
+   * Called when the frontend ContactConfirmCard receives a 'This looks correct' click.
+   * Marks contact info as confirmed, generates mock OTP, and advances to otp_verification.
+   */
+  public handleContactInfoConfirmed(): void {
+    if (this.currentPendingField !== 'contact_confirm_display') {
+      console.warn(`[context-manager] Received contact_info_confirmed but current field is ${this.currentPendingField}. Ignoring.`);
+      return;
+    }
+
+    // Mark confirmed and generate mock OTP
+    (this.profile as any).contact_info_confirmed = true;
+    const mockOtp = '123456';
+    (this.profile as any)._pendingOtp = mockOtp;
+    console.log(`[OTP-Service]: Contact info confirmed by borrower. Generated mock OTP: ${mockOtp}`);
+    console.log(`[OTP-Service]: OTP sent to ${this.profile.contact_email} and ${this.profile.contact_mobile}`);
+
+    // Advance to otp_verification
+    this.advanceWorkflow();
+    this.syncToDatabase().catch(err => console.error('[context-manager] DB sync failed on contact confirm:', err));
+  }
+
   private async runStage3AExtraction(text: string): Promise<void> {
     const lastQuestion = this.getLastAssistantUtterance();
 
-    // ── v8.7 OTP Gate: Step 0 — collect contact_name ──
+    // ── v8.8 OTP Gate: Step 0a — collect contact_first_name ──
+    if (this.currentPendingField === 'contact_first_name') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'contact_first_name',
+        "the borrower's first name",
+        'string',
+        'Extract the first name the borrower provides (e.g. "Steve", "David", "Sarah"). If the user provides a full name like "Steve Miller", extract the full name or first name. Return null if no name is mentioned.'
+      );
+      if (res.value) {
+        const val = String(res.value).trim().replace(/[.,!]/g, '');
+        if (val.includes(' ')) {
+          const parts = val.split(/\s+/);
+          (this.profile as any).contact_first_name = parts[0];
+          (this.profile as any).contact_first_name_confirmed = true;
+          (this.profile as any).contactFirstName = parts[0];
+          (this.profile as any).contact_last_name = parts.slice(1).join(' ');
+          (this.profile as any).contact_last_name_confirmed = true;
+          (this.profile as any).contactLastName = parts.slice(1).join(' ');
+          this.profile.contact_name = val;
+          this.profile.borrower_name = val;
+          this.profile.legal_name = val;
+          this.profile.contact_name_confirmed = true;
+          console.log(`[context-manager]: Captured full name from first name turn: ${(this.profile as any).contact_first_name} ${(this.profile as any).contact_last_name}`);
+        } else {
+          (this.profile as any).contact_first_name = val;
+          (this.profile as any).contact_first_name_confirmed = true;
+          (this.profile as any).contactFirstName = val;
+          this.profile.borrower_name = val;
+          console.log(`[context-manager]: Captured contact first name: ${(this.profile as any).contact_first_name}`);
+        }
+        this.advanceWorkflow();
+      }
+      return;
+    }
+
+    // ── v8.8 OTP Gate: Step 0b — collect contact_last_name ──
+    if (this.currentPendingField === 'contact_last_name') {
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'contact_last_name',
+        "the borrower's last name or family name",
+        'string',
+        'Extract the last name / surname the borrower provides (e.g. "Miller", "Smith", "Jenkins"). Return null if no last name is mentioned.'
+      );
+      if (res.value) {
+        const val = String(res.value).trim().replace(/[.,!]/g, '');
+        (this.profile as any).contact_last_name = val;
+        (this.profile as any).contact_last_name_confirmed = true;
+        (this.profile as any).contactLastName = val;
+        // Assemble full name
+        const firstName = (this.profile as any).contact_first_name || '';
+        const fullName = `${firstName} ${val}`.trim();
+        this.profile.contact_name = fullName;
+        this.profile.borrower_name = fullName;
+        this.profile.legal_name = fullName;
+        this.profile.contact_name_confirmed = true;
+        console.log(`[context-manager]: Captured contact last name: ${(this.profile as any).contact_last_name}. Full name assembled: ${fullName}`);
+        this.advanceWorkflow();
+      }
+      return;
+    }
+
+    // ── v8.7 OTP Gate: Step 0 — legacy contact_name (fallback, should not be hit in v8.8+) ──
     if (this.currentPendingField === 'contact_name') {
       const res = await extractProfileField(
         text,
@@ -1305,16 +1399,30 @@ export class SessionContextManager {
         console.log(`[context-manager]: Captured contact mobile: ${this.profile.contact_mobile}`);
       }
 
-      if (this.profile.contact_email && this.profile.contact_mobile) {
-        // Generate and "send" a mock OTP
-        const mockOtp = '123456';
-        (this.profile as any)._pendingOtp = mockOtp;
-        console.log(`[OTP-Service]: Generated mock OTP code: ${mockOtp}`);
-        console.log(`[OTP-Service]: OTP sent to ${this.profile.contact_email} and ${this.profile.contact_mobile}`);
-      }
-
       if (results.contact_email?.value || results.contact_mobile?.value) {
         this.advanceWorkflow();
+      }
+      return;
+    }
+
+    // ── v8.8 OTP Gate: Step 2.5 — contact_confirm_display (borrower confirms details on screen) ──
+    if (this.currentPendingField === 'contact_confirm_display') {
+      // This field is advanced by the frontend data channel message 'contact_info_confirmed'
+      // Voice path: if borrower says "yes", "looks good", "correct", "confirm", advance
+      const res = await extractProfileField(
+        text,
+        lastQuestion,
+        'confirm_contact_info',
+        'whether the borrower confirms their contact details are correct',
+        'string',
+        'Extract "confirmed" if the borrower says yes, correct, looks good, confirm, or similar positive affirmation. Extract "correction" if they say no, wrong, change it, fix it, or similar. Return null if unclear.'
+      );
+      if (res.value === 'confirmed') {
+        console.log('[context-manager]: Contact info confirmed via voice — advancing to OTP dispatch.');
+        this.advanceWorkflow();
+      } else if (res.value === 'correction') {
+        // Stay on this field — Ailana will ask what to correct
+        console.log('[context-manager]: Contact info correction requested via voice.');
       }
       return;
     }
@@ -2534,8 +2642,8 @@ export class SessionContextManager {
       if (offerVal === 'soft_pull') {
         // Path A: OTP gate → soft pull → prefill → Stage 2.5 Verified
         this.activeStage = '3A';
-        this.currentPendingField = 'contact_name';
-        console.log('[context-manager]: Path A chosen via LLM — Stage 2 closing offer accepted. Transitioning to STAGE 3A OTP gate (contact_name)!');
+        this.currentPendingField = 'contact_first_name';
+        console.log('[context-manager]: Path A chosen via LLM — Stage 2 closing offer accepted. Transitioning to STAGE 3A OTP gate (contact_first_name)!');
         return;
       } else if (offerVal === 'explain') {
         console.log('[context-manager]: stage2_closing_offer explanation requested via LLM.');
@@ -2949,15 +3057,22 @@ export class SessionContextManager {
       }
     } else if (this.activeStage === '3A') {
       const confirmed = this.profile.prefilled_fields_confirmed || {};
-      // -- v8.7 OTP Gate: contact_name → contact_email → contact_mobile → otp_verification → soft_pull_authorization → prefill walkthrough --
-      if (!this.profile.contact_name) {
-        this.currentPendingField = 'contact_name';
+      // -- v8.8 OTP Gate: contact_first_name → contact_last_name → contact_email → contact_mobile → contact_confirm_display → otp_verification → soft_pull_authorization → prefill walkthrough --
+      if (!(this.profile as any).contact_first_name) {
+        this.currentPendingField = 'contact_first_name';
+      } else if (!(this.profile as any).contact_last_name) {
+        this.currentPendingField = 'contact_last_name';
       } else if (!this.profile.contact_email) {
         this.currentPendingField = 'contact_email';
       } else if (!this.profile.contact_mobile) {
         this.currentPendingField = 'contact_mobile';
       } else if (!this.profile.otp_verified) {
-        this.currentPendingField = 'otp_verification';
+        // If contact_confirm_display hasn't been shown/confirmed yet, show it first
+        if (!(this.profile as any).contact_info_confirmed) {
+          this.currentPendingField = 'contact_confirm_display';
+        } else {
+          this.currentPendingField = 'otp_verification';
+        }
       } else if (!this.profile.soft_pull_consent || this.profile.soft_pull_consent === 'pending') {
         // OTP complete — now ask for formal soft pull authorization
         this.currentPendingField = 'soft_pull_authorization';
@@ -3558,6 +3673,14 @@ If no correction/change is found, return null.`
         (this.profile as any)[`${field}_confirmed`] = true;
         this.advanceWorkflow();
       }
+    } else if (field === 'contact_first_name') {
+      (this.profile as any).contact_first_name = 'Valued';
+      (this.profile as any).contact_first_name_confirmed = true;
+    } else if (field === 'contact_last_name') {
+      (this.profile as any).contact_last_name = 'Member';
+      (this.profile as any).contact_last_name_confirmed = true;
+      this.profile.contact_name = 'Valued Member';
+      this.profile.contact_name_confirmed = true;
     } else if (field === 'contact_name') {
       this.profile.contact_name = 'Valued Member';
       this.profile.contact_name_confirmed = true;

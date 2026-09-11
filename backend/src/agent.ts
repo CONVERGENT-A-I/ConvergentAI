@@ -1610,6 +1610,10 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             session_login_complete: prof.session_login_complete,
             contact_on_file: prof.contact_on_file,
             contact_name: prof.contact_name,
+            contact_first_name: (prof as any).contact_first_name ?? (prof as any).contactFirstName ?? (prof.contact_name ? prof.contact_name.split(' ')[0] : null) ?? (prof.borrower_name ? prof.borrower_name.split(' ')[0] : null),
+            contact_last_name: (prof as any).contact_last_name ?? (prof as any).contactLastName ?? (prof.contact_name && prof.contact_name.includes(' ') ? prof.contact_name.split(' ').slice(1).join(' ') : null) ?? (prof.borrower_name && prof.borrower_name.includes(' ') ? prof.borrower_name.split(' ').slice(1).join(' ') : null),
+            contactFirstName: (prof as any).contact_first_name ?? (prof as any).contactFirstName ?? (prof.contact_name ? prof.contact_name.split(' ')[0] : null) ?? (prof.borrower_name ? prof.borrower_name.split(' ')[0] : null),
+            contactLastName: (prof as any).contact_last_name ?? (prof as any).contactLastName ?? (prof.contact_name && prof.contact_name.includes(' ') ? prof.contact_name.split(' ').slice(1).join(' ') : null) ?? (prof.borrower_name && prof.borrower_name.includes(' ') ? prof.borrower_name.split(' ').slice(1).join(' ') : null),
             contact_email: prof.contact_email,
             contact_mobile: prof.contact_mobile,
             // otp_sent = true only AFTER Ailana has delivered the "I've sent a code" line.
@@ -2009,6 +2013,31 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       }
     };
 
+    const deliverOtpInstructionsOnce = (reason: string) => {
+      const p = contextManager.getProfile();
+      if ((p as any)._otpInstructionDelivered) {
+        console.log(`[agent]: OTP instructions ALREADY delivered (ignoring duplicate trigger from ${reason}).`);
+        return;
+      }
+      (p as any)._otpInstructionDelivered = true;
+      (p as any)._otpReadyToShow = true;
+      console.log(`[agent]: Triggering agent speech for OTP instructions [triggered by ${reason}].`);
+      const scriptText = "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely on your screen when it arrives, and you're all set.";
+      if (voiceMuted) {
+        generateTextOnlyReply(scriptText).catch(err => console.error(err));
+      } else {
+        metrics.startTurn();
+        metrics.markAgentSpeaking();
+        session.say(scriptText, { addToChatCtx: true });
+        contextManager.onAgentTurn(scriptText).catch(err =>
+          console.error('[agent-error]: Failed to save agent turn:', err)
+        );
+      }
+      sendStageUpdate(contextManager.getActiveStage()).catch(err =>
+        console.error('[agent-error]: Failed to send stage update after OTP dispatch:', err)
+      );
+    };
+
     ctx.room.on(RoomEvent.DataReceived, async (payload, participant, _kind, topic) => {
       try {
         const identity = participant?.identity;
@@ -2026,6 +2055,27 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
                 updateSessionInstructions();
               }
               deliverSoftPullDisclosureOnce('DataReceived:otp_submit');
+              return;
+            }
+            if (parsed.type === 'contact_info_confirmed') {
+              console.log('[agent]: contact_info_confirmed received from UI — advancing Stage 3A to OTP dispatch.');
+              contextManager.handleContactInfoConfirmed();
+              updateSessionInstructions();
+              deliverOtpInstructionsOnce('DataReceived:contact_info_confirmed');
+              return;
+            }
+            if (parsed.type === 'contact_info_needs_correction') {
+              console.log('[agent]: contact_info_needs_correction received from UI.');
+              const scriptText = "No problem at all. What would you like to update — your name, email, or mobile number?";
+              if (voiceMuted) {
+                generateTextOnlyReply(scriptText).catch(err => console.error(err));
+              } else {
+                metrics.startTurn();
+                metrics.markAgentSpeaking();
+                session.say(scriptText, { addToChatCtx: true });
+                contextManager.onAgentTurn(scriptText).catch(err => console.error(err));
+              }
+              updateSessionInstructions();
               return;
             }
             await handleSystemMessages(parsed.message ?? str, identity);
@@ -2059,6 +2109,27 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
                   updateSessionInstructions();
                 }
                 deliverSoftPullDisclosureOnce(`TextStreamHandler:${topic}:otp_submit`);
+                return;
+              }
+              if (parsed.type === 'contact_info_confirmed') {
+                console.log('[agent]: contact_info_confirmed received from UI (TextStream) — advancing Stage 3A to OTP dispatch.');
+                contextManager.handleContactInfoConfirmed();
+                updateSessionInstructions();
+                deliverOtpInstructionsOnce(`TextStreamHandler:${topic}:contact_info_confirmed`);
+                return;
+              }
+              if (parsed.type === 'contact_info_needs_correction') {
+                console.log('[agent]: contact_info_needs_correction received from UI (TextStream).');
+                const scriptText = "No problem at all. What would you like to update — your name, email, or mobile number?";
+                if (voiceMuted) {
+                  generateTextOnlyReply(scriptText).catch(err => console.error(err));
+                } else {
+                  metrics.startTurn();
+                  metrics.markAgentSpeaking();
+                  session.say(scriptText, { addToChatCtx: true });
+                  contextManager.onAgentTurn(scriptText).catch(err => console.error(err));
+                }
+                updateSessionInstructions();
                 return;
               }
               await handleSystemMessages(parsed.message ?? fullText, participant?.identity);

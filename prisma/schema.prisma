@@ -311,6 +311,10 @@ model Stage3Application {
   // Stage 3A: OTP Gate & Session Login
   sessionLoginComplete Boolean @default(false) @map("session_login_complete")
   contactOnFile        Boolean @default(false) @map("contact_on_file")
+  contactFirstName          String? @map("contact_first_name")
+  contactFirstNameConfirmed Boolean @default(false) @map("contact_first_name_confirmed")
+  contactLastName           String? @map("contact_last_name")
+  contactLastNameConfirmed  Boolean @default(false) @map("contact_last_name_confirmed")
   contactName          String? @map("contact_name")
   contactNameConfirmed Boolean @default(false) @map("contact_name_confirmed")
   contactEmail         String? @map("contact_email")

@@ -8,7 +8,11 @@ export interface OtpVerificationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onVerifySuccess: (code: string) => void;
-  targetDestination?: string; // e.g. "mobile number ending in 4567"
+  targetDestination?: string; // kept for backward compat, used as fallback
+  contactFirstName?: string | null;
+  contactLastName?: string | null;
+  contactEmail?: string | null;
+  contactMobile?: string | null;
 }
 
 export function OtpVerificationModal({
@@ -16,6 +20,10 @@ export function OtpVerificationModal({
   onClose,
   onVerifySuccess,
   targetDestination = 'your mobile number',
+  contactFirstName,
+  contactLastName,
+  contactEmail,
+  contactMobile,
 }: OtpVerificationModalProps) {
   const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
@@ -132,9 +140,28 @@ export function OtpVerificationModal({
             </div>
 
             <h3 className="text-lg font-bold tracking-wide text-white">One-Time Verification</h3>
-            <p className="text-xs text-gray-400 mt-1 max-w-xs">
-              We sent a 6-digit code to <span className="text-gray-200 font-semibold">{targetDestination}</span>.
-            </p>
+
+            {/* Sending code to email & mobile */}
+            <div className="w-full mt-3 mb-1 space-y-2">
+              <p className="text-[10px] text-gray-500 uppercase tracking-widest text-center">SENDING CODE TO</p>
+              {contactEmail && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#111827]/80 border border-gray-800">
+                  <span className="text-sm">✉️</span>
+                  <span className="text-xs font-semibold text-white truncate">{contactEmail}</span>
+                </div>
+              )}
+              {contactMobile && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#111827]/80 border border-gray-800">
+                  <span className="text-sm">📱</span>
+                  <span className="text-xs font-semibold text-white">{contactMobile}</span>
+                </div>
+              )}
+              {!contactEmail && !contactMobile && (
+                <p className="text-xs text-gray-400 mt-1 max-w-xs">
+                  We sent a 6-digit code to <span className="text-gray-200 font-semibold">{targetDestination}</span>.
+                </p>
+              )}
+            </div>
 
             {/* Dev Mock Helper Toast */}
             <div className="mt-3 px-3 py-1.5 bg-[#131b2e] border border-[#00b4d8]/30 rounded-lg text-[11px] text-[#00b4d8] font-mono flex items-center gap-1.5">

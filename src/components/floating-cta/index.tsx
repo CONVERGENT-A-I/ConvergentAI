@@ -54,6 +54,7 @@ import {
   type TransactionType,
 } from "../affordability-panel-new";
 import { OtpVerificationModal } from "./otp-verification-modal";
+import { ContactConfirmCard } from "./contact-confirm-card";
 import VideoStage from "../video-stage";
 
 export default function FloatingCTA() {
@@ -78,6 +79,7 @@ export default function FloatingCTA() {
   const [isAffordabilityPanelOpen, setIsAffordabilityPanelOpen] = useState<boolean>(false);
   const [hasSubmittedAus, setHasSubmittedAus] = useState<boolean>(false);
   const [isOtpModalOpen, setIsOtpModalOpen] = useState<boolean>(false);
+  const [isContactConfirmVisible, setIsContactConfirmVisible] = useState<boolean>(false);
   const [panelClosedByUser, setPanelClosedByUser] = useState<boolean>(false);
   const isSubmittingAfterOtpRef = useRef<boolean>(false);
 
@@ -1269,6 +1271,14 @@ export default function FloatingCTA() {
                                   // 3. otp_sent=true OR current_pending_field='otp_verification'
                                   const otpAlreadyVerified = profile?.otp_verified || profile?.session_login_complete;
                                   const hasBothContacts = Boolean(profile?.contact_email && profile?.contact_mobile);
+
+                                  // Show contact confirmation card
+                                  if (profile?.current_pending_field === 'contact_confirm_display' && hasBothContacts && !otpAlreadyVerified) {
+                                    setIsContactConfirmVisible(true);
+                                  } else {
+                                    setIsContactConfirmVisible(false);
+                                  }
+
                                   if (!otpAlreadyVerified && hasBothContacts) {
                                     if (
                                       profile?.otp_sent === true ||
@@ -1284,10 +1294,58 @@ export default function FloatingCTA() {
                                 }}
                               />
                               {/* AffordabilityModal removed — panel is now inline split-screen */}
+                              <ContactConfirmCard
+                                isVisible={isContactConfirmVisible}
+                                firstName={
+                                  (borrowerProfile as any)?.contact_first_name ||
+                                  (borrowerProfile as any)?.contactFirstName ||
+                                  (borrowerProfile?.contact_name ? borrowerProfile.contact_name.split(' ')[0] : '') ||
+                                  (borrowerProfile?.borrowerName ? borrowerProfile.borrowerName.split(' ')[0] : '')
+                                }
+                                lastName={
+                                  (borrowerProfile as any)?.contact_last_name ||
+                                  (borrowerProfile as any)?.contactLastName ||
+                                  (borrowerProfile?.contact_name && borrowerProfile.contact_name.includes(' ')
+                                    ? borrowerProfile.contact_name.split(' ').slice(1).join(' ')
+                                    : '') ||
+                                  (borrowerProfile?.borrowerName && borrowerProfile.borrowerName.includes(' ')
+                                    ? borrowerProfile.borrowerName.split(' ').slice(1).join(' ')
+                                    : '')
+                                }
+                                email={borrowerProfile?.contact_email}
+                                mobile={borrowerProfile?.contact_mobile}
+                                onConfirm={async () => {
+                                  setIsContactConfirmVisible(false);
+                                  console.log('[ui-contact-confirm]: Confirmed — sending contact_info_confirmed to backend.');
+                                  try {
+                                    const encoder = new TextEncoder();
+                                    const payload = encoder.encode(JSON.stringify({ type: 'contact_info_confirmed' }));
+                                    if ((window as any).lkPublishData) {
+                                      await (window as any).lkPublishData(payload, { topic: 'lk-chat', reliable: true });
+                                    }
+                                  } catch (err) {
+                                    console.warn('[ui-contact-confirm]: Failed to send confirmation:', err);
+                                  }
+                                }}
+                                onCorrect={async () => {
+                                  console.log('[ui-contact-confirm]: Correction requested — sending contact_info_needs_correction.');
+                                  try {
+                                    const encoder = new TextEncoder();
+                                    const payload = encoder.encode(JSON.stringify({ type: 'contact_info_needs_correction' }));
+                                    if ((window as any).lkPublishData) {
+                                      await (window as any).lkPublishData(payload, { topic: 'lk-chat', reliable: true });
+                                    }
+                                  } catch (err) {
+                                    console.warn('[ui-contact-confirm]: Failed to send correction signal:', err);
+                                  }
+                                }}
+                              />
                               <OtpVerificationModal
                                 isOpen={isOtpModalOpen}
                                 onClose={() => setIsOtpModalOpen(false)}
                                 targetDestination={borrowerProfile?.contact_mobile || borrowerProfile?.contact_email || 'your phone'}
+                                contactEmail={borrowerProfile?.contact_email}
+                                contactMobile={borrowerProfile?.contact_mobile}
                                 onVerifySuccess={async (code) => {
                                   setIsOtpModalOpen(false);
                                   console.log('[ui-otp]: OTP Verified with code:', code);

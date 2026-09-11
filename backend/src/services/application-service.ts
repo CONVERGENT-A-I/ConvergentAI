@@ -387,6 +387,10 @@ export class ApplicationService {
         // OTP Gate & Session Login Fields
         sessionLoginComplete: profile.session_login_complete || false,
         contactOnFile: profile.contact_on_file || false,
+        contactFirstName: (profile as any).contact_first_name ?? null,
+        contactFirstNameConfirmed: (profile as any).contact_first_name_confirmed || false,
+        contactLastName: (profile as any).contact_last_name ?? null,
+        contactLastNameConfirmed: (profile as any).contact_last_name_confirmed || false,
         contactName: profile.contact_name ?? null,
         contactNameConfirmed: (profile as any).contact_name_confirmed || false,
         contactEmail: profile.contact_email ?? null,
@@ -435,6 +439,10 @@ export class ApplicationService {
         // OTP Gate & Session Login Fields
         sessionLoginComplete: profile.session_login_complete || false,
         contactOnFile: profile.contact_on_file || false,
+        contactFirstName: (profile as any).contact_first_name ?? null,
+        contactFirstNameConfirmed: (profile as any).contact_first_name_confirmed || false,
+        contactLastName: (profile as any).contact_last_name ?? null,
+        contactLastNameConfirmed: (profile as any).contact_last_name_confirmed || false,
         contactName: profile.contact_name ?? null,
         contactNameConfirmed: (profile as any).contact_name_confirmed || false,
         contactEmail: profile.contact_email ?? null,

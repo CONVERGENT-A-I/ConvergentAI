@@ -150,6 +150,10 @@ export interface BorrowerProfile {
   contact_on_file?: boolean;
   contact_name?: string | null;
   contact_name_confirmed?: boolean;
+  contact_first_name?: string | null;
+  contact_first_name_confirmed?: boolean;
+  contact_last_name?: string | null;
+  contact_last_name_confirmed?: boolean;
   contact_email?: string | null;
   contact_mobile?: string | null;
   otp_verified?: boolean;
@@ -209,10 +213,13 @@ const FIELD_LABELS: Record<string, string> = {
   affordability_aus_status: 'AUS eligibility review result',
   prior_refinance: 'prior refinance history on this property',
   stay_duration_years: 'planned duration to stay in the home',
-  contact_name: 'preferred name for account setup',
+  contact_name: 'full name for account setup',
+  contact_first_name: 'first name for account setup',
+  contact_last_name: 'last name for account setup',
   contact_email: 'email address for secure login',
   contact_mobile: 'mobile phone number for OTP verification',
   otp_verification: 'one-time verification code',
+  contact_confirm_display: 'contact information confirmation display',
   escalation_preference: 'preference for live transfer or scheduled callback',
   scheduled_call_time: 'preferred date and time for the callback',
 };
@@ -306,7 +313,9 @@ export function buildLayer3TurnContext(
     `Comparison Walkthrough:     ${profile.program_comparison_interest ?? 'not yet collected'}`,
     `Financial priority:          ${profile.financial_priority ?? 'not yet collected'}`,
     `Home horizon:                ${profile.home_horizon ?? 'not yet collected'}`,
-    `Contact Name:                ${profile.contact_name ?? 'not yet collected'}`,
+    `Contact First Name:          ${(profile as any).contact_first_name ?? 'not yet collected'}`,
+    `Contact Last Name:           ${(profile as any).contact_last_name ?? 'not yet collected'}`,
+    `Contact Name (Full):         ${profile.contact_name ?? 'not yet collected'}`,
     `Contact Email:               ${profile.contact_email ?? 'not yet collected'}`,
     `Contact Mobile:              ${profile.contact_mobile ?? 'not yet collected'}`,
     `OTP Verified:                ${!!profile.otp_verified}`,
@@ -368,9 +377,12 @@ export function buildLayer3TurnContext(
   // If stage2_closing_offer, OTP, or consent instructions take over, skip the generic task.
   const hasSpecificOverride =
     pendingField === 'stage2_closing_offer' ||
+    pendingField === 'contact_first_name' ||
+    pendingField === 'contact_last_name' ||
     pendingField === 'contact_name' ||
     pendingField === 'contact_email' ||
     pendingField === 'contact_mobile' ||
+    pendingField === 'contact_confirm_display' ||
     pendingField === 'otp_verification' ||
     profile.soft_pull_consent === 'pending';
 
@@ -454,21 +466,37 @@ NEVER quote payment amounts. NEVER mention loan programs. NEVER say "FHA" or "co
 
   // ── OTP Gate Instruction Blocks (v8.7) ────────────────────────────────────
   let otpBlock = '';
-  if (pendingField === 'contact_name') {
-    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT PREFERRED NAME ***
-You MUST ask for the borrower's name to set up their secure login.
+  if (pendingField === 'contact_first_name') {
+    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT FIRST NAME ***
+You MUST ask for the borrower's first name to set up their secure login.
+Say EXACTLY: "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?"
+Do NOT ask for last name, email, or mobile yet. Do NOT mention the soft pull until after OTP is verified.`;
+  } else if (pendingField === 'contact_last_name') {
+    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT LAST NAME ***
+The borrower's first name has been captured. Now ask for their last name.
+Say EXACTLY: "Thank you. And what's your last name?"
+Do NOT ask for anything else yet.`;
+  } else if (pendingField === 'contact_name') {
+    // Legacy fallback — should not normally be hit in v8.8+
+    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT NAME ***
+You MUST ask for the borrower's full name to set up their secure login.
 Say EXACTLY: "Perfect. Before we run your review, I'll need a few details to set up your secure login. First, what's your name?"
 Do NOT ask for email or mobile yet. Do NOT mention the soft pull until after OTP is verified.`;
   } else if (pendingField === 'contact_email') {
     otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT EMAIL AND MOBILE ***
 You MUST ask for the borrower's email and mobile number together in ONE question.
-Say EXACTLY: "Thank you. Now, what email and mobile number would you like to use for your account?"
+Say EXACTLY: "Great. Now, what email address and mobile number would you like to use for your account?"
 Do NOT ask for anything else. Do NOT mention the soft pull until after OTP is verified.`;
   } else if (pendingField === 'contact_mobile') {
     otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT MOBILE ***
 The email was captured. Now ask for their mobile number.
 Say EXACTLY: "And what mobile number should I send your verification code to?"
 Do NOT ask for anything else.`;
+  } else if (pendingField === 'contact_confirm_display') {
+    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: CONTACT CONFIRMATION DISPLAY ***
+The borrower's first name, last name, email, and mobile have all been captured. A confirmation card is now shown on their screen.
+Say EXACTLY: "I've captured your details. Please review the information displayed on your screen, and let me know if everything looks correct."
+Do NOT ask for anything else. Do NOT mention OTP yet. Wait for the borrower to confirm or flag a correction.`;
   } else if (pendingField === 'otp_verification') {
     otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: VERIFY CODE VIA MODAL ***
 A one-time verification code has been sent to the borrower's email and mobile. You must instruct them to use the secure popup modal.
