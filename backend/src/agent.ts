@@ -1632,10 +1632,23 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         metrics.recordRealtimeMetrics(ttft, tokens);
         const cacheTag = cachedTokens > 0 ? ` [CACHE HIT: ${cachedTokens} tokens]` : ' [CACHE MISS/COLD]';
         console.log(`[pipeline][${ts()}] LLM metrics — TTFT=${ttft}ms  prompt_tokens=${tokens}  cached_tokens=${cachedTokens}${cacheTag}  completion_tokens=${m.completionTokens ?? '?'}`);
+      } else if (m?.type === 'stt_metrics') {
+        const dur = m.durationMs ?? m.duration ?? -1;
+        if (dur >= 0) metrics.t_stt_duration_ms = dur;
       } else if (m?.type === 'tts_metrics') {
         const ttfb = m.ttfbMs ?? -1;
         const dur = m.durationMs ?? m.duration ?? -1;
         const audioDur = m.audioDurationMs ?? -1;
+        
+        if (ttfb >= 0) {
+          try {
+            const payload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_METRIC_TTFB" }));
+            ctx.room.localParticipant?.publishData(payload, { reliable: true, topic: 'lk-chat' }).catch(() => {});
+          } catch (e) {
+            console.warn("[agent-telemetry]: Failed to send TTFB marker", e);
+          }
+        }
+        
         metrics.markTtsComplete(ttfb, dur, audioDur);
       } else if (m?.type === 'realtime_model_metrics') {
         metrics.recordRealtimeMetrics(m.ttftMs ?? -1, m.inputTokens ?? 0);
@@ -2136,6 +2149,11 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           }
           try {
             const parsed = JSON.parse(str);
+            if (parsed.message === "SYSTEM_METRIC_RENDER_DELTA" && parsed.client_render_ms !== undefined) {
+              metrics.markClientRenderMs(parsed.client_render_ms);
+              return;
+            }
+
             if (parsed.type === 'otp_submit') {
               if (!contextManager.getProfile().otp_verified) {
                 contextManager.handleOtpSubmission(parsed.code);

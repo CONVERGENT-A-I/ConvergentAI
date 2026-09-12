@@ -54,8 +54,8 @@ User input: "${userInput}"`;
   const _perfExtractSingle_start = performance.now();
   console.log(`[perf] llm-extractor extractProfileField("${fieldName}"): START (running concurrent with main LLM if race not yet resolved)`);
 
+
   try {
-    const _perfCallStart = performance.now();
     const chatCtx = new llm.ChatContext();
     chatCtx.addMessage({ role: 'system', content: systemPrompt });
     chatCtx.addMessage({ role: 'user', content: userPrompt });
@@ -63,18 +63,11 @@ User input: "${userInput}"`;
     const stream = extractorLlm.chat({ chatCtx });
     const collected = await stream.collect();
     content = collected.text || null;
-
-    const _perfCallMs = (performance.now() - _perfCallStart).toFixed(1);
-    console.log(`[perf] llm-extractor extractProfileField("${fieldName}"): LiveKit Inference call took ${_perfCallMs}ms`);
-    console.log(`[llm-extractor] Extracted "${fieldName}" raw JSON:`, content);
   } catch (error: any) {
     const statusCode = error?.status ?? error?.statusCode;
     console.error(`[llm-extractor] LiveKit Inference failed for "${fieldName}" (status: ${statusCode}):`, error?.message ?? error);
     // content stays null; caller receives { value: null, declined: false }
   }
-
-  const _perfExtractSingle_ms = (performance.now() - _perfExtractSingle_start).toFixed(1);
-  console.log(`[perf] llm-extractor extractProfileField("${fieldName}"): TOTAL ${_perfExtractSingle_ms}ms (content=${content ? 'ok' : 'null'})`);
 
   if (!content) {
     return { value: null, declined: false };
@@ -154,8 +147,6 @@ export async function extractMultipleFields(
   }
 
   const _fieldNames = fields.map(f => f.name).join(', ');
-  const _perfExtractMulti_start = performance.now();
-  console.log(`[perf] llm-extractor extractMultipleFields([${_fieldNames}]): START (Concurrent Promises)`);
 
   const results: Record<string, ExtractionResult> = {};
   
@@ -187,9 +178,6 @@ export async function extractMultipleFields(
   } catch (error: any) {
     console.error(`[llm-extractor] Fatal error during concurrent extraction [${_fieldNames}]:`, error);
   }
-
-  const _perfExtractMulti_ms = (performance.now() - _perfExtractMulti_start).toFixed(1);
-  console.log(`[perf] llm-extractor extractMultipleFields([${_fieldNames}]): TOTAL ${_perfExtractMulti_ms}ms (Concurrent)`);
 
   return results;
 }
@@ -331,9 +319,6 @@ export async function classifyConfirmation(
   fieldName: string,
   pendingValue: string,
 ): Promise<'yes' | 'no' | 'ambiguous' | 'no_content'> {
-  const _perfClassify_start = performance.now();
-  console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): START`);
-
   // Remove punctuation (commas, periods, exclamation points, question marks) to simplify regex
   const cleanInput = userInput.toLowerCase().trim().replace(/[,.!\?]/g, '');
   
@@ -387,7 +372,6 @@ export async function classifyConfirmation(
 
   if ((hasAffirmation && !hasCorrection) || isBroadAffirmation) {
     console.log(`[llm-extractor] Fast-path matched 'yes' for confirmation of "${fieldName}" (hasAffirmation=${hasAffirmation}, hasCorrection=${hasCorrection}, isBroad=${isBroadAffirmation})`);
-    console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): TOTAL ${(performance.now() - _perfClassify_start).toFixed(1)}ms (content=fast-path)`);
     return 'yes';
   }
 
@@ -404,7 +388,6 @@ User response: "${userInput}"`;
   let content: string | null = null;
 
   try {
-    const _perfCallStart = performance.now();
     const chatCtx = new llm.ChatContext();
     chatCtx.addMessage({ role: 'system', content: systemPrompt });
     chatCtx.addMessage({ role: 'user', content: userPrompt });
@@ -412,18 +395,11 @@ User response: "${userInput}"`;
     const stream = extractorLlm.chat({ chatCtx });
     const collected = await stream.collect();
     content = collected.text || null;
-
-    const _perfCallMs = (performance.now() - _perfCallStart).toFixed(1);
-    console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): LiveKit Inference call took ${_perfCallMs}ms`);
-    console.log(`[llm-extractor] Classified confirmation for "${fieldName}" raw JSON:`, content);
   } catch (error: any) {
     const statusCode = error?.status ?? error?.statusCode;
     console.error(`[llm-extractor] LiveKit Inference classify failed for "${fieldName}" (status: ${statusCode}):`, error?.message ?? error);
     // content stays null; caller receives 'no_content'
   }
-
-  const _perfClassify_ms = (performance.now() - _perfClassify_start).toFixed(1);
-  console.log(`[perf] llm-extractor classifyConfirmation("${fieldName}"): TOTAL ${_perfClassify_ms}ms (content=${content ? 'ok' : 'null'})`);
 
   if (!content) {
     console.warn(`[llm-extractor] classifyConfirmation("${fieldName}"): LiveKit Inference returned null content -> 'no_content'`);

@@ -26,7 +26,7 @@ export class LatencyTracker {
   // Per-turn pipeline stage timestamps
   private t_stt_start: number | undefined;
   private t_stt_complete: number | undefined;
-  private t_stt_duration_ms: number | undefined; // persisted before startTurn() wipes t_stt_start
+  public t_stt_duration_ms: number | undefined; // persisted before startTurn() wipes t_stt_start
   private t_llm_start: number | undefined;
   private t_llm_first_token: number | undefined;
   private t_llm_complete: number | undefined;
@@ -57,6 +57,7 @@ export class LatencyTracker {
     this.t_tts_complete = undefined;
     this.t_avatar_render_start = undefined;
     this.t_avatar_first_frame = undefined;
+    this.t_client_render_ms = undefined;
     return this.turnNumber;
   }
 
@@ -81,44 +82,41 @@ export class LatencyTracker {
   }
 
   markLlmStart(): void {
+    if (this.t_llm_start) return;
     this.t_llm_start = Date.now();
-    console.log(`[pipeline][${ts()}] LLM request sent → LiveKit Inference`);
   }
 
   markLlmFirstToken(ttftMs?: number): void {
     if (this.t_llm_first_token) return; // only record first
     if (ttftMs !== undefined && ttftMs >= 0 && this.t_llm_start) {
       this.t_llm_first_token = this.t_llm_start + ttftMs;
+    } else if (ttftMs !== undefined && ttftMs >= 0 && !this.t_llm_start) {
+      this.t_llm_start = Date.now() - ttftMs;
+      this.t_llm_first_token = Date.now();
     } else {
       this.t_llm_first_token = Date.now();
     }
-    const ttft = this.t_llm_start ? this.t_llm_first_token - this.t_llm_start : (ttftMs ?? -1);
-    const tokenTimeStr = new Date(this.t_llm_first_token).toISOString().slice(11, 23);
-    console.log(`[pipeline][${tokenTimeStr}] LLM first token received  TTFT=${ttft}ms${ttft > 60000 ? '  ⚠️  INFRA ISSUE (>60s)' : ttft > 5000 ? '  ⚠️  HIGH' : '  ✓'}`);
   }
 
   markLlmComplete(): void {
     this.t_llm_complete = Date.now();
-    const dur = this.t_llm_start ? this.t_llm_complete - this.t_llm_start : -1;
-    console.log(`[pipeline][${ts()}] LLM stream complete  total=${dur}ms`);
   }
 
   markTtsStart(): void {
+    if (this.t_tts_start) return;
     this.t_tts_start = Date.now();
-    const lag = this.t_llm_first_token ? this.t_tts_start - this.t_llm_first_token : -1;
-    console.log(`[pipeline][${ts()}] TTS started  lag_after_first_token=${lag >= 0 ? lag + 'ms' : '?'}`);
   }
 
   markTtsFirstByte(ttfbMs?: number): void {
     if (this.t_tts_first_byte) return;
     if (ttfbMs !== undefined && ttfbMs >= 0 && this.t_tts_start) {
       this.t_tts_first_byte = this.t_tts_start + ttfbMs;
+    } else if (ttfbMs !== undefined && ttfbMs >= 0 && !this.t_tts_start) {
+      this.t_tts_start = Date.now() - ttfbMs;
+      this.t_tts_first_byte = Date.now();
     } else {
       this.t_tts_first_byte = Date.now();
     }
-    const ttfb = this.t_tts_start ? this.t_tts_first_byte - this.t_tts_start : (ttfbMs ?? -1);
-    const byteTimeStr = new Date(this.t_tts_first_byte).toISOString().slice(11, 23);
-    console.log(`[pipeline][${byteTimeStr}] TTS first audio chunk received (streaming started)  TTFB=${ttfb}ms`);
   }
 
   markTtsComplete(ttfbMs?: number, synthesisDurMs?: number, audioDurMs?: number): void {
@@ -126,17 +124,24 @@ export class LatencyTracker {
     if (ttfbMs !== undefined && ttfbMs >= 0) {
       this.markTtsFirstByte(ttfbMs);
     }
-    const dur = this.t_tts_start ? this.t_tts_complete - this.t_tts_start : -1;
-    const synthDur = synthesisDurMs !== undefined && synthesisDurMs >= 0 ? synthesisDurMs : dur;
-    const audioDurStr = audioDurMs !== undefined && audioDurMs >= 0 ? `  audio_dur=${audioDurMs}ms` : '';
-    console.log(`[pipeline][${ts()}] TTS stream complete  synthesis_dur=${synthDur}ms${audioDurStr}`);
-    this.logPipelineReport();
   }
 
   // ── Avatar rendering latency (LemonSlice) ──────────────────────────────
   private t_avatar_render_start: number | undefined;
   private t_avatar_first_frame: number | undefined;
+  private t_client_render_ms: number | undefined;
   private _avatarFrameTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  private _pipelineReportTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
+
+  markClientRenderMs(ms: number): void {
+    this.t_client_render_ms = ms;
+    // If the pipeline report was waiting for this metric, print it now!
+    if (this._pipelineReportTimeoutHandle) {
+      clearTimeout(this._pipelineReportTimeoutHandle);
+      this._pipelineReportTimeoutHandle = undefined;
+      this.logPipelineReport(false);
+    }
+  }
 
   /** Called when TTS starts (ttsNode) AND again when agent state → speaking.
    *  First call (ttsNode) arms the 1500ms safety-net timeout early, so it fires
@@ -148,11 +153,6 @@ export class LatencyTracker {
     const isFirstCall = !this.t_avatar_render_start;
     this.t_avatar_render_start = Date.now();
     const renderStartSnapshot = this.t_avatar_render_start;
-    const lag = this.t_tts_start ? this.t_avatar_render_start - this.t_tts_start : -1;
-    if (isFirstCall) {
-      // Only log on the first call (from ttsNode) to avoid duplicate lines
-      console.log(`[pipeline][${ts()}] AVATAR render start  lag_after_tts_start=${lag}ms`);
-    }
 
     // ── Per-turn race-condition safety net ───────────────────────────────────
     // The ActiveSpeakersChanged event sometimes fires AFTER the LiveKit SDK has
@@ -189,24 +189,17 @@ export class LatencyTracker {
     const sinceRenderStart = this.t_avatar_first_frame - this.t_avatar_render_start;
     const sinceTtsStart = this.t_tts_start ? this.t_avatar_first_frame - this.t_tts_start : -1;
     const sinceUserTurn = this.pendingUserTurnEnd ? this.t_avatar_first_frame - this.pendingUserTurnEnd : -1;
-    console.log(JSON.stringify({
-      type: 'ailana-metrics',
-      event: 'avatar_first_frame',
-      tts_to_avatar_ms: sinceRenderStart,
-      tts_start_to_avatar_ms: sinceTtsStart,
-      e2e_to_avatar_ms: sinceUserTurn,
-      isFallback,
-      turnNumber: this.turnNumber,
-      sessionAgeMs: Date.now() - this.sessionStartAt,
-    }));
-    const fallbackTag = isFallback ? ' [TIMEOUT_FALLBACK — LiveKit event drop, not real lag]' : '';
-    console.log(
-      `[pipeline][${ts()}] ── AVATAR LATENCY ──` +
-      `  tts_to_avatar=${sinceRenderStart}ms` +
-      `  tts_start_to_avatar=${sinceTtsStart}ms` +
-      `  e2e_user_to_avatar=${sinceUserTurn}ms` +
-      fallbackTag
-    );
+    
+    // Wait for the frontend granular telemetry (Data Channel) to arrive before printing
+    // If it arrives, markClientRenderMs will clear this timeout and print instantly.
+    if (this.t_client_render_ms !== undefined) {
+      this.logPipelineReport(isFallback);
+    } else {
+      this._pipelineReportTimeoutHandle = setTimeout(() => {
+        this._pipelineReportTimeoutHandle = undefined;
+        this.logPipelineReport(isFallback);
+      }, 1000); // Wait up to 1 second for frontend metric
+    }
   }
 
   markAgentSpeaking(): void {
@@ -229,42 +222,50 @@ export class LatencyTracker {
   }
 
   logCompaction(itemsBefore: number, itemsAfter: number): void {
-    console.log(JSON.stringify({
-      type: 'ailana-metrics', event: 'context_compaction',
-      itemsBefore, itemsAfter,
-      turnNumber: this.turnNumber,
-      sessionAgeMs: Date.now() - this.sessionStartAt,
-    }));
+    // JSON payload removed to declutter terminal
   }
 
   logRotation(reason: string): void {
-    console.log(JSON.stringify({
-      type: 'ailana-metrics', event: 'session_rotation',
-      reason, turnNumber: this.turnNumber,
-      sessionAgeMs: Date.now() - this.sessionStartAt,
-    }));
+    // JSON payload removed to declutter terminal
   }
 
-  /** Prints a human-readable single-line timing summary after each full turn. */
-  private logPipelineReport(): void {
-    const ref = this.t_stt_start ?? this.pendingUserTurnEnd;
-    if (!ref) return;
-    const fmt = (t?: number) => t ? `${t - ref}ms` : '?';
+  /** Prints a human-readable comprehensive timing summary after each full turn. */
+  public logPipelineReport(isFallback = false): void {
+    const fallbackTag = isFallback ? ' [TIMEOUT_FALLBACK]' : '';
+    const diff = (end?: number, start?: number) => (end && start && end >= start) ? `${end - start}ms` : '?';
+    
+    const eou = diff(this.t_llm_start, this.pendingUserTurnEnd);
+    const llm_ttft = diff(this.t_llm_first_token, this.t_llm_start);
+    const llm_total = diff(this.t_llm_complete, this.t_llm_start);
+    const tts_ttfb = diff(this.t_tts_first_byte, this.t_tts_start);
+    const tts_total = diff(this.t_tts_complete, this.t_tts_start);
+    const avatar_render = diff(this.t_avatar_first_frame, this.t_tts_first_byte);
+    const e2e = diff(this.t_avatar_first_frame, this.pendingUserTurnEnd);
+
     // stt_done: use persisted duration if raw timestamps were wiped by startTurn()
-    const sttDone = this.t_stt_complete
-      ? `${this.t_stt_complete - ref}ms`
-      : this.t_stt_duration_ms !== undefined
-      ? `${this.t_stt_duration_ms}ms (dur)`
-      : '?';
+    const sttDone = this.t_stt_duration_ms !== undefined ? `${this.t_stt_duration_ms}ms` : '?';
+
+    // Advanced Telemetry Breakdown
+    const hasGranularTelemetry = this.t_client_render_ms !== undefined && typeof avatar_render === 'string' && avatar_render.endsWith('ms');
+    let renderLine = `  • LemonSlice Render & Network (TTS TTFB → Avatar Frame): ${avatar_render}\n`;
+    if (hasGranularTelemetry) {
+      const totalRenderOverhead = parseInt(avatar_render, 10);
+      const networkHopTime = Math.max(0, totalRenderOverhead - this.t_client_render_ms!);
+      renderLine = `  • LemonSlice Local Render Time (from Frontend): ${this.t_client_render_ms}ms\n` +
+                   `  • Network Transit Overhead (RTT): ${networkHopTime}ms\n`;
+    }
+
     console.log(
-      `[pipeline][${ts()}] ── TURN ${this.turnNumber} SUMMARY ──` +
-      `  stt_done=${sttDone}` +
-      `  llm_start=${fmt(this.t_llm_start)}` +
-      `  llm_first_token=${fmt(this.t_llm_first_token)}` +
-      `  llm_done=${fmt(this.t_llm_complete)}` +
-      `  tts_start=${fmt(this.t_tts_start)}` +
-      `  tts_first_byte=${fmt(this.t_tts_first_byte)}` +
-      `  tts_done=${fmt(this.t_tts_complete)}`
+      `\n[pipeline][${ts()}] ── TURN ${this.turnNumber} METRICS SUMMARY${fallbackTag} ──\n` +
+      `  • STT Processing: ${sttDone}\n` +
+      `  • EOU Delay (User End → LLM Start): ${eou}\n` +
+      `  • LLM TTFT (LLM Start → First Token): ${llm_ttft}\n` +
+      `  • LLM Total (LLM Start → Complete): ${llm_total}\n` +
+      `  • TTS TTFB (TTS Start → First Audio Byte): ${tts_ttfb}\n` +
+      `  • TTS Total (TTS Start → Complete): ${tts_total}\n` +
+      renderLine +
+      `  • E2E Latency (User End → Avatar Frame): ${e2e}\n` +
+      `───────────────────────────────────────────────────`
     );
   }
 
@@ -278,7 +279,7 @@ export class LatencyTracker {
     };
     if (this.pendingUserTurnEnd) payload.userTurnEndAt = this.pendingUserTurnEnd;
     if (this.pendingGenerateReply) payload.generateReplyAt = this.pendingGenerateReply;
-    console.log(JSON.stringify({ type: 'ailana-metrics', event: 'turn', ...payload }));
+    // console.log(JSON.stringify({ type: 'ailana-metrics', event: 'turn', ...payload }));
   }
 
   logContextSize(itemCount: number, estimatedTokens: number): void {

@@ -41,13 +41,25 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Listen for platform error signals from backend
+  // References for tracking speech state and telemetry
+  const isAgentSpeakingRef = useRef<boolean>(false);
+  const agentSilenceBlocksRef = useRef<number>(0);
+  const turnNumberRef = useRef<number>(0);
+  const clientTtfbReceiveTimeRef = useRef<number | null>(null);
+
+  // Listen for platform error signals and telemetry markers from backend
   useEffect(() => {
     const handleData = (payload: Uint8Array) => {
       try {
         const text = new TextDecoder().decode(payload);
         const parsed = JSON.parse(text);
         const msg = parsed.message ?? text;
+        
+        if (msg === "SYSTEM_METRIC_TTFB") {
+          clientTtfbReceiveTimeRef.current = performance.now();
+          return;
+        }
+
         if (msg === "SYSTEM_AVATAR_CONN_FAILED" || msg === "SYSTEM_AVATAR_CAPACITY_LIMITED") {
           console.warn("[LemonsliceAvatar] Received platform error:", msg);
           setStatus("error");
@@ -95,10 +107,7 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
   const videoTrack = videoPublication?.track as any;
   const audioTrack = audioPublication?.track as any;
 
-  // References for tracking speech state
-  const isAgentSpeakingRef = useRef<boolean>(false);
-  const agentSilenceBlocksRef = useRef<number>(0);
-  const turnNumberRef = useRef<number>(0);
+
 
   const sendTelemetry = useCallback((event: string, durationMs: number, details?: any) => {
     const backendUrl =
@@ -148,6 +157,26 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
             turnNumberRef.current += 1;
             const now = performance.now();
             console.log(`[LemonsliceAvatar] [metrics] 🗣️ Avatar playout started for turn ${turnNumberRef.current}`);
+            
+            // --- Granular Telemetry ---
+            if (clientTtfbReceiveTimeRef.current) {
+              const renderDelta = now - clientTtfbReceiveTimeRef.current;
+              // Reset the ref so we don't accidentally send stale deltas on subsequent stutters
+              clientTtfbReceiveTimeRef.current = null;
+              
+              if ((window as any).lkPublishData) {
+                try {
+                  const payload = new TextEncoder().encode(JSON.stringify({
+                    message: "SYSTEM_METRIC_RENDER_DELTA",
+                    client_render_ms: Math.round(renderDelta)
+                  }));
+                  (window as any).lkPublishData(payload, { topic: 'lk-chat', reliable: true });
+                } catch (e) {
+                  // silent catch
+                }
+              }
+            }
+
             sendTelemetry("client_avatar_playout_started", now, { turn: turnNumberRef.current });
           }
         } else {
