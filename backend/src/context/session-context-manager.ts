@@ -682,9 +682,7 @@ export class SessionContextManager {
     if (!target) return false;
     const DETERMINISTIC_FIELDS = new Set([
       'stage2_closing_offer',
-      'contact_first_name',
-      'contact_last_name',
-      'contact_name',
+      'contact_full_name',
       'contact_email',
       'contact_mobile',
       'contact_confirm_display',
@@ -964,26 +962,24 @@ export class SessionContextManager {
         if (this.profile.affordability_mode === 'stated' || !this.profile.otp_verified) {
           // Voice submit in stated mode -> triggers upgrade flow
           this.activeStage = '3A';
-          this.currentPendingField = 'contact_first_name';
+          this.currentPendingField = 'contact_full_name';
           this.profile.affordability_submitted = false;
           this.profile.aus_status = null;
           this.profile.affordability_aus_status = null;
-          console.log('[context-manager]: Voice submit in stated mode -> triggering upgrade (Stage 3A contact_first_name).');
+          console.log('[context-manager]: Voice submit in stated mode -> triggering upgrade (Stage 3A contact_full_name).');
         } else {
-          // Voice submit in verified mode -> executes AUS submission
-          this.profile.affordability_submitted = true;
-          this.ausSubmissionTimestamp = Date.now(); // Track when submission occurred
-          await this.applyAusResult('approve_eligible');
-          console.log('[context-manager]: Affordability panel EXPLICITLY submitted for review via voice! AUS result applied.');
+          // Voice submit in verified mode -> require verbal confirmation first
+          this.currentPendingField = 'affordability_submit_confirmation';
+          console.log('[context-manager]: Voice submit requested in verified mode -> prompting for confirmation.');
         }
       } else if (res.value === 'upgrade') {
         // Trigger upgrade to verified mode — set pending to OTP gate
         this.activeStage = '3A';
-        this.currentPendingField = 'contact_first_name';
+        this.currentPendingField = 'contact_full_name';
         this.profile.affordability_submitted = false;
         this.profile.aus_status = null;
         this.profile.affordability_aus_status = null;
-        console.log('[context-manager]: Affordability panel upgrade to verified mode requested via voice. Going to OTP gate (contact_first_name).');
+        console.log('[context-manager]: Affordability panel upgrade to verified mode requested via voice. Going to OTP gate (contact_full_name).');
       } else if (res.value === 'update_profile') {
         this.currentPendingField = 'affordability_profile_correction';
       } else if (res.value === 'delete_data') {
@@ -995,6 +991,22 @@ export class SessionContextManager {
       return;
     }
 
+
+    if (field === 'affordability_submit_confirmation') {
+      const decision = await classifyConfirmation(text, lastQuestion, 'affordability_submit_confirmation', 'Are you ready to submit your scenario for formal review?');
+      if (decision === 'yes') {
+        this.profile.affordability_submitted = true;
+        this.ausSubmissionTimestamp = Date.now();
+        await this.applyAusResult('approve_eligible');
+        console.log('[context-manager]: Affordability panel EXPLICITLY submitted and confirmed via voice! AUS result applied.');
+        this.advanceWorkflow();
+      } else if (decision === 'no') {
+        this.currentPendingField = 'affordability_panel_active';
+        console.log('[context-manager]: Submit confirmation declined. Returning to affordability panel.');
+        this.advanceWorkflow();
+      }
+      return;
+    }
 
     if (field === 'affordability_profile_correction' || field === 'affordability_income_correction') {
       const res = await extractProfileField(
@@ -1119,12 +1131,12 @@ export class SessionContextManager {
 
   public triggerUpgradeToVerifiedMode(): void {
     this.activeStage = '3A';
-    this.currentPendingField = 'contact_first_name';
+    this.currentPendingField = 'contact_full_name';
     this.profile.transition_pitch_delivered = true;
     this.profile.affordability_submitted = false;
     this.profile.aus_status = null;
     this.profile.affordability_aus_status = null;
-    console.log('[context-manager]: Explicit upgrade to verified mode triggered! Active stage set to 3A, pending field set to contact_first_name.');
+    console.log('[context-manager]: Explicit upgrade to verified mode triggered! Active stage set to 3A, pending field set to contact_full_name.');
   }
 
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢
@@ -1161,8 +1173,8 @@ export class SessionContextManager {
       if (res.value === 'yes') {
         // Route through v8.7 OTP gate
         this.activeStage = '3A';
-        this.currentPendingField = 'contact_first_name';
-        console.log('[context-manager]: stage3_closing_offer accepted! Transitioning to STAGE 3A OTP gate (contact_first_name)!');
+        this.currentPendingField = 'contact_full_name';
+        console.log('[context-manager]: stage3_closing_offer accepted! Transitioning to STAGE 3A OTP gate (contact_full_name)!');
 
       } else if (res.value === 'no') {
         this.currentPendingField = 'advisor_connection_offer';
@@ -1290,87 +1302,58 @@ export class SessionContextManager {
   private async runStage3AExtraction(text: string): Promise<void> {
     const lastQuestion = this.getLastAssistantUtterance();
 
-    // ── v8.8 OTP Gate: Step 0a — collect contact_first_name ──
-    if (this.currentPendingField === 'contact_first_name') {
-      const res = await extractProfileField(
-        text,
-        lastQuestion,
-        'contact_first_name',
-        "the borrower's first name",
-        'string',
-        'Extract the first name the borrower provides (e.g. "Steve", "David", "Sarah"). If the user provides a full name like "Steve Miller", extract the full name or first name. Return null if no name is mentioned.'
-      );
-      if (res.value) {
-        const val = String(res.value).trim().replace(/[.,!]/g, '');
-        if (val.includes(' ')) {
-          const parts = val.split(/\s+/);
-          (this.profile as any).contact_first_name = parts[0];
-          (this.profile as any).contact_first_name_confirmed = true;
-          (this.profile as any).contactFirstName = parts[0];
-          (this.profile as any).contact_last_name = parts.slice(1).join(' ');
-          (this.profile as any).contact_last_name_confirmed = true;
-          (this.profile as any).contactLastName = parts.slice(1).join(' ');
-          this.profile.contact_name = val;
-          this.profile.borrower_name = val;
-          this.profile.legal_name = val;
-          this.profile.contact_name_confirmed = true;
-          console.log(`[context-manager]: Captured full name from first name turn: ${(this.profile as any).contact_first_name} ${(this.profile as any).contact_last_name}`);
-        } else {
-          (this.profile as any).contact_first_name = val;
-          (this.profile as any).contact_first_name_confirmed = true;
-          (this.profile as any).contactFirstName = val;
-          this.profile.borrower_name = val;
-          console.log(`[context-manager]: Captured contact first name: ${(this.profile as any).contact_first_name}`);
+    // ── v8.8 OTP Gate: Step 0 — collect contact_full_name ──
+    if (this.currentPendingField === 'contact_full_name') {
+      const results = await extractMultipleFields(text, lastQuestion, [
+        {
+          name: 'contact_first_name',
+          description: "The borrower's first name",
+          expectedType: 'string',
+        },
+        {
+          name: 'contact_middle_name',
+          description: "The borrower's middle name or middle initial (if provided)",
+          expectedType: 'string',
+        },
+        {
+          name: 'contact_last_name',
+          description: "The borrower's last name or surname (pay attention to multi-word last names)",
+          expectedType: 'string',
+        },
+        {
+          name: 'contact_suffix',
+          description: "The borrower's suffix (e.g. Jr., III), if provided",
+          expectedType: 'string',
         }
-        this.advanceWorkflow();
-      }
-      return;
-    }
+      ]);
 
-    // ── v8.8 OTP Gate: Step 0b — collect contact_last_name ──
-    if (this.currentPendingField === 'contact_last_name') {
-      const res = await extractProfileField(
-        text,
-        lastQuestion,
-        'contact_last_name',
-        "the borrower's last name or family name",
-        'string',
-        'Extract the last name / surname the borrower provides (e.g. "Miller", "Smith", "Jenkins"). Return null if no last name is mentioned.'
-      );
-      if (res.value) {
-        const val = String(res.value).trim().replace(/[.,!]/g, '');
-        (this.profile as any).contact_last_name = val;
-        (this.profile as any).contact_last_name_confirmed = true;
-        (this.profile as any).contactLastName = val;
-        // Assemble full name
-        const firstName = (this.profile as any).contact_first_name || '';
-        const fullName = `${firstName} ${val}`.trim();
+      if (results.contact_first_name?.value) {
+        const first = String(results.contact_first_name.value).trim();
+        const middle = results.contact_middle_name?.value ? String(results.contact_middle_name.value).trim() : '';
+        const last = results.contact_last_name?.value ? String(results.contact_last_name.value).trim() : '';
+        const suffix = results.contact_suffix?.value ? String(results.contact_suffix.value).trim() : '';
+
+        (this.profile as any).contact_first_name = first;
+        (this.profile as any).contact_first_name_confirmed = true;
+        (this.profile as any).contactFirstName = first;
+        
+        if (middle) (this.profile as any).contact_middle_name = middle;
+        
+        if (last) {
+          (this.profile as any).contact_last_name = last;
+          (this.profile as any).contact_last_name_confirmed = true;
+          (this.profile as any).contactLastName = last;
+        }
+        
+        if (suffix) (this.profile as any).contact_suffix = suffix;
+
+        const fullName = [first, middle, last, suffix].filter(Boolean).join(' ');
         this.profile.contact_name = fullName;
         this.profile.borrower_name = fullName;
         this.profile.legal_name = fullName;
         this.profile.contact_name_confirmed = true;
-        console.log(`[context-manager]: Captured contact last name: ${(this.profile as any).contact_last_name}. Full name assembled: ${fullName}`);
-        this.advanceWorkflow();
-      }
-      return;
-    }
-
-    // ── v8.7 OTP Gate: Step 0 — legacy contact_name (fallback, should not be hit in v8.8+) ──
-    if (this.currentPendingField === 'contact_name') {
-      const res = await extractProfileField(
-        text,
-        lastQuestion,
-        'contact_name',
-        "the borrower's preferred first name or full name",
-        'string',
-        'Extract the name they want to use for account setup or preferred name. Return null if no name is mentioned.'
-      );
-      if (res.value) {
-        this.profile.contact_name = res.value as string;
-        this.profile.borrower_name = res.value as string;
-        this.profile.legal_name = res.value as string;
-        this.profile.contact_name_confirmed = true;
-        console.log(`[context-manager]: Captured contact name: ${this.profile.contact_name}`);
+        
+        console.log(`[context-manager]: Captured contact full name: ${fullName}`);
         this.advanceWorkflow();
       }
       return;
@@ -1449,8 +1432,16 @@ export class SessionContextManager {
       let emailVal = results.contact_email?.value ? String(results.contact_email.value).toLowerCase().trim() : null;
       let mobileVal = results.contact_mobile?.value ? String(results.contact_mobile.value).replace(/\D/g, '') : null;
 
-      // Regex fallback for intent and inline corrections
+      // Email Dominant-Intent Guard: Prevent name bleed during email corrections
       const lower = text.toLowerCase().trim();
+      const isEmailCorrection = /\b(email|@|gmail|yahoo|hotmail)\b/.test(lower) && !/\b(name|first|last)\b/.test(lower);
+      if (isEmailCorrection) {
+        console.log('[context-manager]: Utterance primarily about email detected. Guarding against name extraction bleed.');
+        firstNameVal = null;
+        lastNameVal = null;
+      }
+
+      // Regex fallback for intent and inline corrections
       if (!intent) {
         if (/\b(yes|yeah|yep|yup|looks?\s*(good|right|correct|fine)|that('s|\s+is)\s*(right|correct|accurate|good|fine|also\s+correct)|correct|matches|match|what\s+i\s+expect|good|fine|accurate|all\s+good|sounds\s+good|perfect|sure|confirm|confirmed|this\s+looks\s+correct|everything\s+looks\s+correct)\b/i.test(lower) &&
             !/\b(not?\s*(right|correct|accurate|good)|wrong|mistake|change|update|no\b(?!\s*,\s*(that|it)\s*(is|looks)\s*(also\s+)?(right|correct)))\b/i.test(lower)) {
@@ -1474,13 +1465,7 @@ export class SessionContextManager {
         console.log('[context-manager]: Contact info correction requested via voice.');
         let nameUpdated = false;
         if (firstNameVal) {
-          if (firstNameVal.includes(' ') && !lastNameVal) {
-            const parts = firstNameVal.split(/\s+/);
-            (this.profile as any).contact_first_name = parts[0];
-            (this.profile as any).contact_last_name = parts.slice(1).join(' ');
-          } else {
-            (this.profile as any).contact_first_name = firstNameVal;
-          }
+          (this.profile as any).contact_first_name = firstNameVal;
           nameUpdated = true;
         }
         if (lastNameVal) {
@@ -1495,8 +1480,10 @@ export class SessionContextManager {
         }
         if (nameUpdated) {
           const fn = (this.profile as any).contact_first_name || '';
+          const mn = (this.profile as any).contact_middle_name || '';
           const ln = (this.profile as any).contact_last_name || '';
-          const fullName = `${fn} ${ln}`.trim();
+          const sfx = (this.profile as any).contact_suffix || '';
+          const fullName = [fn, mn, ln, sfx].filter(Boolean).join(' ');
           this.profile.contact_name = fullName;
           this.profile.borrower_name = fullName;
           this.profile.legal_name = fullName;
@@ -1553,15 +1540,18 @@ export class SessionContextManager {
         if (emailMatch) emailVal = emailMatch[0].toLowerCase();
       }
 
+      // Email Dominant-Intent Guard: Prevent name bleed during email corrections
+      const lower = text.toLowerCase().trim();
+      const isEmailCorrection = /\b(email|@|gmail|yahoo|hotmail)\b/.test(lower) && !/\b(name|first|last)\b/.test(lower);
+      if (isEmailCorrection) {
+        console.log('[context-manager]: Utterance primarily about email detected. Guarding against name extraction bleed.');
+        firstNameVal = null;
+        lastNameVal = null;
+      }
+
       let nameUpdated = false;
       if (firstNameVal) {
-        if (firstNameVal.includes(' ') && !lastNameVal) {
-          const parts = firstNameVal.split(/\s+/);
-          (this.profile as any).contact_first_name = parts[0];
-          (this.profile as any).contact_last_name = parts.slice(1).join(' ');
-        } else {
-          (this.profile as any).contact_first_name = firstNameVal;
-        }
+        (this.profile as any).contact_first_name = firstNameVal;
         nameUpdated = true;
       }
       if (lastNameVal) {
@@ -1577,8 +1567,10 @@ export class SessionContextManager {
 
       if (nameUpdated) {
         const fn = (this.profile as any).contact_first_name || '';
+        const mn = (this.profile as any).contact_middle_name || '';
         const ln = (this.profile as any).contact_last_name || '';
-        const fullName = `${fn} ${ln}`.trim();
+        const sfx = (this.profile as any).contact_suffix || '';
+        const fullName = [fn, mn, ln, sfx].filter(Boolean).join(' ');
         this.profile.contact_name = fullName;
         this.profile.borrower_name = fullName;
         this.profile.legal_name = fullName;
@@ -3228,11 +3220,9 @@ export class SessionContextManager {
       }
     } else if (this.activeStage === '3A') {
       const confirmed = this.profile.prefilled_fields_confirmed || {};
-      // -- v8.8 OTP Gate: contact_first_name → contact_last_name → contact_email → contact_mobile → contact_confirm_display → otp_verification → soft_pull_authorization → prefill walkthrough --
-      if (!(this.profile as any).contact_first_name) {
-        this.currentPendingField = 'contact_first_name';
-      } else if (!(this.profile as any).contact_last_name) {
-        this.currentPendingField = 'contact_last_name';
+      // -- v8.8 OTP Gate: contact_full_name → contact_email → contact_mobile → contact_confirm_display → otp_verification → soft_pull_authorization → prefill walkthrough --
+      if (!(this.profile as any).contact_first_name || !(this.profile as any).contact_last_name) {
+        this.currentPendingField = 'contact_full_name';
       } else if (!this.profile.contact_email) {
         this.currentPendingField = 'contact_email';
       } else if (!this.profile.contact_mobile) {
@@ -3848,9 +3838,11 @@ If no correction/change is found, return null.`
         (this.profile as any)[`${field}_confirmed`] = true;
         this.advanceWorkflow();
       }
-    } else if (field === 'contact_first_name') {
+    } else if (field === 'contact_full_name') {
       (this.profile as any).contact_first_name = 'Valued';
       (this.profile as any).contact_first_name_confirmed = true;
+      (this.profile as any).contact_last_name = 'Customer';
+      (this.profile as any).contact_last_name_confirmed = true;
     } else if (field === 'contact_last_name') {
       (this.profile as any).contact_last_name = 'Member';
       (this.profile as any).contact_last_name_confirmed = true;

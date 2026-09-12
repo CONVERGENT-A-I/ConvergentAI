@@ -381,9 +381,7 @@ export function buildLayer3TurnContext(
   // If stage2_closing_offer, OTP, or consent instructions take over, skip the generic task.
   const hasSpecificOverride =
     pendingField === 'stage2_closing_offer' ||
-    pendingField === 'contact_first_name' ||
-    pendingField === 'contact_last_name' ||
-    pendingField === 'contact_name' ||
+    pendingField === 'contact_full_name' ||
     pendingField === 'contact_email' ||
     pendingField === 'contact_mobile' ||
     pendingField === 'contact_confirm_display' ||
@@ -417,6 +415,8 @@ export function buildLayer3TurnContext(
       taskLine = `CURRENT TASK:\nIf the borrower asks general questions about the review findings, loan programs, documents, or the mortgage process, answer them thoroughly and helpfully, then gently offer live transfer or scheduling a callback. If they choose to schedule or connect, handle their preference accordingly.`;
     } else if (pendingField === 'scheduled_call_time') {
       taskLine = `CURRENT TASK:\nCollect the borrower's preferred date and time for the scheduled callback. Once they provide it, confirm it warmly.`;
+    } else if (pendingField === 'affordability_submit_confirmation') {
+      taskLine = `CURRENT TASK:\nConfirm the borrower's intent to submit their scenario for formal review.\n\nAsk EXACTLY: "Just to confirm, are you ready to submit your scenario for the formal eligibility review?"\nDO NOT ASK FOR ANY OTHER FIELD.`;
     } else if (pendingField) {
       taskLine = `CURRENT TASK:\nCollect ${pendingField}\n\nDO NOT ASK FOR ANY OTHER FIELD.`;
     } else if (stage === '5') {
@@ -471,21 +471,10 @@ NEVER quote payment amounts. NEVER mention loan programs. NEVER say "FHA" or "co
 
   // ── OTP Gate Instruction Blocks (v8.7) ────────────────────────────────────
   let otpBlock = '';
-  if (pendingField === 'contact_first_name') {
-    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT FIRST NAME ***
-You MUST ask for the borrower's first name to set up their secure login.
-Say EXACTLY: "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?"
-Do NOT ask for last name, email, or mobile yet. Do NOT mention the soft pull until after OTP is verified.`;
-  } else if (pendingField === 'contact_last_name') {
-    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT LAST NAME ***
-The borrower's first name has been captured. Now ask for their last name.
-Say EXACTLY: "Thank you. And what's your last name?"
-Do NOT ask for anything else yet.`;
-  } else if (pendingField === 'contact_name') {
-    // Legacy fallback — should not normally be hit in v8.8+
-    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT NAME ***
+  if (pendingField === 'contact_full_name') {
+    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT FULL NAME ***
 You MUST ask for the borrower's full name to set up their secure login.
-Say EXACTLY: "Perfect. Before we run your review, I'll need a few details to set up your secure login. First, what's your name?"
+Say EXACTLY: "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what is your full name?"
 Do NOT ask for email or mobile yet. Do NOT mention the soft pull until after OTP is verified.`;
   } else if (pendingField === 'contact_email') {
     otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT EMAIL AND MOBILE ***
@@ -562,7 +551,14 @@ Do NOT ask them to read the code out loud. Do NOT ask for anything else. Wait fo
   if (pendingField) {
     circleBackInstruction = `\n\nCIRCLE-BACK RULE:\nIf you answered a question, explanation request, or educational inquiry in this turn, you MUST conclude your response by naturally guiding the borrower back to the flow and re-asking the pending question (${pendingField}). Never end your turn without a clear next step or question for the borrower.`;
   }
-  blocks.push(taskLine + bridgeBlock + stage2ClosingBlock + consentBlock + otpBlock + lowConfidenceBlock + circleBackInstruction);
+
+  // ── Anti-Redundancy Rules ─────────────────────────────────────────────────
+  let antiRedundancyBlock = '';
+  if (stage === '2.5') {
+    antiRedundancyBlock = `\n\n*** ANTI-REDUNDANCY RULES (STAGE 2.5 AFFORDABILITY) ***\n- Do NOT repeat the initial affordability summary explanation on subsequent turns.\n- If the borrower is just adjusting targets/sliders without asking a question, keep your response extremely brief (1 short sentence) and conversational (e.g. "Got it, your summary is updated.").\n- Do NOT repeatedly recite full Q48 scripts like "That sounds like a comfortable spot" or "With those targets, your total debt ratio..." every single time they change a number.\n- Once the initial panel is explained, adopt a concise, listening posture.`;
+  }
+
+  blocks.push(taskLine + bridgeBlock + stage2ClosingBlock + consentBlock + otpBlock + lowConfidenceBlock + circleBackInstruction + antiRedundancyBlock);
 
   const vaEligibilityReferenceBlock = `
 === VA ELIGIBILITY DETAIL — PROMPT REFERENCE ===
