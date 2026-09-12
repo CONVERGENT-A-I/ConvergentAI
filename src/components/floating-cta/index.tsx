@@ -150,7 +150,6 @@ export default function FloatingCTA() {
   const [connectionStatus, setConnectionStatus] = useState<string>("");
   const [isOffline, setIsOffline] = useState(false);
   const [showEndCallConfirm, setShowEndCallConfirm] = useState(false);
-  const [showLoanOfficerConfirm, setShowLoanOfficerConfirm] = useState(false);
   const [showInactivityPrompt, setShowInactivityPrompt] = useState(false);
   const [inactivityCountdown, setInactivityCountdown] = useState(10);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -377,19 +376,8 @@ export default function FloatingCTA() {
     }
   };
 
-  const handleCancelLoanOfficerTransfer = async () => {
-    setShowLoanOfficerConfirm(false);
-    try {
-      const payload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_LOAN_OFFICER_CANCELLED" }));
-      await (window as any).lkPublishData?.(payload, { topic: 'lk-chat', reliable: true });
-      console.log("[ui-loan-officer]: 🚫 Transfer cancelled. Notified backend.");
-    } catch (e) {
-      console.warn("[ui-loan-officer]: Failed to notify backend of cancel", e);
-    }
-  };
 
   const confirmLoanOfficerTransfer = () => {
-    setShowLoanOfficerConfirm(false);
     const mode = "loan-officer";
     setIsOpen(true);
     setPendingMode(mode);
@@ -423,10 +411,12 @@ export default function FloatingCTA() {
   const handleAIAction = (mode: PendingMode) => {
     if (mode === "loan-officer") {
       console.log(
-        `[ui-loan-officer]: 🔘 User clicked 'Loan Officer' button. Current mode: ${pendingMode}, flowPhase: ${flowPhase}`
+        `[ui-loan-officer]: 🔘 Loan Officer transfer triggered. Current mode: ${pendingMode}, flowPhase: ${flowPhase}`
       );
       if (pendingMode !== "loan-officer") {
-        setShowLoanOfficerConfirm(true);
+        // Skip modal — transfer directly to the Loan Officer channel
+        console.log("[ui-loan-officer]: ⚡ Auto-transferring to Loan Officer (no confirmation modal).");
+        confirmLoanOfficerTransfer();
         return;
       }
     }
@@ -890,67 +880,6 @@ export default function FloatingCTA() {
                         </button>
                       </div>
                     </div>
-                  </div>
-                )}
-                {showLoanOfficerConfirm && (
-                  <div className="absolute inset-0 z-[240] flex items-center justify-center bg-black/75 backdrop-blur-md p-4">
-                    <motion.div
-                      initial={{ scale: 0.95, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.95, opacity: 0 }}
-                      className="w-full max-w-lg rounded-3xl border border-white/10 bg-[#0A0D18]/95 p-6 md:p-8 shadow-[0_20px_50px_rgba(0,180,216,0.15)] backdrop-blur-xl"
-                    >
-                      <div className="flex flex-col items-center text-center">
-                        {/* Header Pulse Icon */}
-                        <div className="relative mb-6">
-                          <div className="absolute inset-0 rounded-full bg-[#00b4d8]/10 animate-pulse scale-125" />
-                          <div className="h-16 w-16 rounded-full border border-[#00b4d8]/30 bg-black/40 flex items-center justify-center backdrop-blur-md shadow-[0_0_20px_rgba(0,180,216,0.15)]">
-                            <Headset className="w-7 h-7 text-[#00b4d8]" />
-                          </div>
-                        </div>
-
-                        <h4 className="text-white text-xl font-bold tracking-tight">
-                          Connect with Loan Officer?
-                        </h4>
-
-                        <p className="text-gray-300 text-xs md:text-sm mt-4 leading-relaxed max-w-sm">
-                          You are about to transfer your call directly to a live human{" "}
-                          <strong className="text-white font-semibold">Mortgage Loan Officer</strong>.
-                        </p>
-
-                        {/* Alert Box */}
-                        <div className="w-full mt-5 px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left flex gap-3 items-start">
-                          <div className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
-                            <span className="text-xs font-bold font-sans">!</span>
-                          </div>
-                          <div>
-                            <h5 className="text-amber-400 text-xs font-bold">Important Notice</h5>
-                            <p className="text-gray-300 text-[11px] md:text-xs mt-1 leading-normal">
-                              Once transferred, Ailana (your AI guide) will hibernate and{" "}
-                              <strong className="text-white font-semibold">you will not be able to return to the AI session</strong>{" "}
-                              until you end this call.
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="mt-7 flex flex-col sm:flex-row items-center justify-center gap-3 w-full">
-                          <button
-                            onClick={handleCancelLoanOfficerTransfer}
-                            className="w-full sm:w-auto px-6 py-2.5 rounded-xl border border-white/10 text-gray-300 text-xs md:text-sm font-semibold hover:bg-white/10 hover:text-white transition-all cursor-pointer whitespace-nowrap"
-                          >
-                            Stay with Ailana
-                          </button>
-                          <button
-                            onClick={confirmLoanOfficerTransfer}
-                            className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#00b4d8] to-[#023e8a] hover:from-[#00c5eb] hover:to-[#0353b3] text-white text-xs md:text-sm font-bold shadow-lg shadow-[#00b4d8]/20 transition-all cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap"
-                          >
-                            <span>Connect to a Loan Officer</span>
-                            <ArrowRight className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    </motion.div>
                   </div>
                 )}
 
