@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useEffect, useCallback } from "react";
+import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { Shield, Info, SlidersHorizontal, CheckCircle2, RotateCcw, ArrowUpRight, Sparkles } from "lucide-react";
 
 /* ---------------------------------------------------------
@@ -415,14 +415,40 @@ export function AffordabilityPanelNew({
       : (eligiblePrograms[0] || "conventional");
   }, [defaultProgram, eligiblePrograms, transactionType]);
 
+  const [userSelectedProgram, setUserSelectedProgram] = useState<ProgramId | null>(null);
   const [program, setProgram] = useState<ProgramId>(resolvedDefaultProgram);
+  const prevDefaultProgramRef = useRef<ProgramId | undefined>(defaultProgram);
+  const prevTxTypeRef = useRef<TransactionType | undefined>(transactionType);
 
-  // Sync if defaultProgram arrives or updates
+  // Sync if transactionType changes
   useEffect(() => {
-    if (defaultProgram && eligiblePrograms.includes(defaultProgram)) {
+    if (transactionType !== prevTxTypeRef.current) {
+      prevTxTypeRef.current = transactionType;
+      setUserSelectedProgram(null);
+      setProgram(resolvedDefaultProgram);
+    }
+  }, [transactionType, resolvedDefaultProgram]);
+
+  // Sync if defaultProgram arrives or updates from backend
+  useEffect(() => {
+    if (defaultProgram && defaultProgram !== prevDefaultProgramRef.current) {
+      prevDefaultProgramRef.current = defaultProgram;
+      if (eligiblePrograms.includes(defaultProgram)) {
+        setProgram(defaultProgram);
+        setUserSelectedProgram(null);
+      }
+    } else if (!userSelectedProgram && defaultProgram && eligiblePrograms.includes(defaultProgram) && program !== defaultProgram) {
       setProgram(defaultProgram);
     }
-  }, [defaultProgram, eligiblePrograms]);
+  }, [defaultProgram, eligiblePrograms, userSelectedProgram, program]);
+
+  // Safety fallback if active program is no longer in eligiblePrograms
+  useEffect(() => {
+    if (eligiblePrograms.length > 0 && !eligiblePrograms.includes(program)) {
+      setProgram(resolvedDefaultProgram);
+      setUserSelectedProgram(null);
+    }
+  }, [eligiblePrograms, program, resolvedDefaultProgram]);
 
 
   const getBaselineAssumptions = useCallback((): Record<ModeId, Assumptions> => {
@@ -654,6 +680,7 @@ export function AffordabilityPanelNew({
                         <button
                           key={id}
                           onClick={() => {
+                            setUserSelectedProgram(id);
                             setProgram(id);
                             if (mode === "purchase" && (a.downPct as number) < p.minDownPct) update("downPct", p.minDownPct);
                           }}

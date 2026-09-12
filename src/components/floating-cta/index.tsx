@@ -83,6 +83,68 @@ export default function FloatingCTA() {
   const [panelClosedByUser, setPanelClosedByUser] = useState<boolean>(false);
   const isSubmittingAfterOtpRef = useRef<boolean>(false);
 
+  // ── Stable Affordability Panel Program Selections (PUR, REF, HEL) ──
+  const apEligiblePrograms = useMemo<('conventional' | 'fha' | 'va' | 'usda')[]>(() => {
+    const progs: ('conventional' | 'fha' | 'va' | 'usda')[] = ['conventional', 'fha'];
+    const mr = borrowerProfile?.military_rural || borrowerProfile?.militaryRural;
+    if (mr === 'military' || mr === 'both') progs.push('va');
+    if (mr === 'rural' || mr === 'both') progs.push('usda');
+
+    const mortgageType = (
+      borrowerProfile?.current_mortgage_type ||
+      borrowerProfile?.currentMortgageType ||
+      borrowerProfile?.preferred_program ||
+      ''
+    ).toLowerCase();
+
+    if (mortgageType.includes('va') && !progs.includes('va')) progs.push('va');
+    if (mortgageType.includes('usda') && !progs.includes('usda')) progs.push('usda');
+    return progs;
+  }, [
+    borrowerProfile?.military_rural,
+    borrowerProfile?.militaryRural,
+    borrowerProfile?.current_mortgage_type,
+    borrowerProfile?.currentMortgageType,
+    borrowerProfile?.preferred_program,
+  ]);
+
+  const apDefaultProgram = useMemo<'conventional' | 'fha' | 'va' | 'usda'>(() => {
+    const mortgageType = (
+      borrowerProfile?.current_mortgage_type ||
+      borrowerProfile?.currentMortgageType ||
+      borrowerProfile?.preferred_program ||
+      ''
+    ).toLowerCase();
+
+    if (mortgageType.includes('fha')) return 'fha';
+    if (mortgageType.includes('va')) return 'va';
+    if (mortgageType.includes('usda')) return 'usda';
+    if (mortgageType.includes('conv')) return 'conventional';
+
+    const mr = borrowerProfile?.military_rural || borrowerProfile?.militaryRural;
+    if (mr === 'military' || mr === 'both') return 'va';
+    if (mr === 'rural' || mr === 'both') return 'usda';
+
+    // Credit score fallback for Purchase / general: scores under 620 route to FHA
+    const creditStr = String(borrowerProfile?.credit_range || borrowerProfile?.creditRange || borrowerProfile?.stated_credit_score || '');
+    const scoreMatch = creditStr.match(/\d+/);
+    if (scoreMatch) {
+      const scoreNum = parseInt(scoreMatch[0], 10);
+      if (scoreNum > 300 && scoreNum < 620) return 'fha';
+    }
+
+    return 'conventional';
+  }, [
+    borrowerProfile?.current_mortgage_type,
+    borrowerProfile?.currentMortgageType,
+    borrowerProfile?.preferred_program,
+    borrowerProfile?.military_rural,
+    borrowerProfile?.militaryRural,
+    borrowerProfile?.credit_range,
+    borrowerProfile?.creditRange,
+    borrowerProfile?.stated_credit_score,
+  ]);
+
   const [isFallbackMode, setIsFallbackMode] = useState(false);
   const [avatarFallbackReason, setAvatarFallbackReason] = useState<"capacity" | "failed" | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<string>("");
@@ -1720,38 +1782,8 @@ export default function FloatingCTA() {
                     {/* ── Affordability Panel: Desktop Inline Split (lg+) ── */}
                     <AnimatePresence>
                       {isAffordabilityPanelOpen && (() => {
-                        const apEligiblePrograms: ('conventional' | 'fha' | 'va' | 'usda')[] = ['conventional', 'fha'];
-                        const apMr = borrowerProfile?.military_rural;
-                        if (apMr === 'military' || apMr === 'both') apEligiblePrograms.push('va');
-                        if (apMr === 'rural' || apMr === 'both') apEligiblePrograms.push('usda');
-
-                        // Determine default active program from borrower profile (e.g. stated mortgage type in Refi)
-                        const apDefaultProgram: 'conventional' | 'fha' | 'va' | 'usda' = (() => {
-                          const mortgageType = (
-                            borrowerProfile?.current_mortgage_type ||
-                            borrowerProfile?.currentMortgageType ||
-                            borrowerProfile?.preferred_program ||
-                            ''
-                          ).toLowerCase();
-
-                          if (mortgageType.includes('fha')) {
-                            if (!apEligiblePrograms.includes('fha')) apEligiblePrograms.push('fha');
-                            return 'fha';
-                          }
-                          if (mortgageType.includes('va')) {
-                            if (!apEligiblePrograms.includes('va')) apEligiblePrograms.push('va');
-                            return 'va';
-                          }
-                          if (mortgageType.includes('usda')) {
-                            if (!apEligiblePrograms.includes('usda')) apEligiblePrograms.push('usda');
-                            return 'usda';
-                          }
-                          if (mortgageType.includes('conv')) return 'conventional';
-
-                          if (apMr === 'military' || apMr === 'both') return 'va';
-                          if (apMr === 'rural' || apMr === 'both') return 'usda';
-                          return 'conventional';
-                        })();
+                        // apEligiblePrograms and apDefaultProgram are memoized at component top-level
+                        // to prevent unstable references and premature tab reversions
 
 
                         // Map borrowerProfile → AffordabilityPanelNew props

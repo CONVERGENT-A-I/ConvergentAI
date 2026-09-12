@@ -2596,6 +2596,10 @@ export class SessionContextManager {
       const sanitizedScore = sanitizeCreditScore(results.credit_range.value);
       this.profile.credit_range = sanitizedScore;
       this.profile.credit_range_confirmed = true;
+      const numScore = sanitizedScore ? parseInt(sanitizedScore, 10) : NaN;
+      if (!isNaN(numScore) && numScore < 620 && !this.profile.preferred_program) {
+        this.profile.preferred_program = 'fha';
+      }
       anyUpdates = true;
       console.log(`[context-manager] Stage2: credit_range=${sanitizedScore} (raw: ${results.credit_range.value})`);
     } else if (results.credit_range?.declined && !this.profile.credit_range_confirmed) {
@@ -2647,9 +2651,13 @@ export class SessionContextManager {
       console.log(`[context-manager] Stage2: refinance_type=${rt}`);
     }
 
-    if (results.current_mortgage_type?.value && !this.profile.current_mortgage_type) {
-      const cmt = String(results.current_mortgage_type.value).toLowerCase().trim();
+    if ((results.current_mortgage_type?.value || (this.currentPendingField === 'current_mortgage_type' && /\b(fha|va|usda|conv|conventional)\b/i.test(text))) && !this.profile.current_mortgage_type) {
+      const rawVal = results.current_mortgage_type?.value ? String(results.current_mortgage_type.value) : text;
+      const cmt = rawVal.toLowerCase().trim();
       this.profile.current_mortgage_type = cmt.includes('fha') ? 'fha' : cmt.includes('va') ? 'va' : cmt.includes('usda') ? 'usda' : 'conventional';
+      if (!this.profile.preferred_program) {
+        this.profile.preferred_program = this.profile.current_mortgage_type;
+      }
       anyUpdates = true;
       console.log(`[context-manager] Stage2: current_mortgage_type=${this.profile.current_mortgage_type}`);
     }

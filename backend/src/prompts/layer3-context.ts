@@ -30,6 +30,9 @@ export interface BorrowerProfile {
 
   credit_range?: string | null;
   credit_range_confirmed?: boolean;
+  credit_score?: number | null;
+  stated_credit_score?: number | null;
+  verified_credit_score?: number | null;
 
   down_payment?: number | null;
   down_payment_confirmed?: boolean;
@@ -52,6 +55,7 @@ export interface BorrowerProfile {
   current_mortgage_rate?: number | null;
   current_mortgage_payment?: number | null;
   current_mortgage_type?: 'conventional' | 'fha' | 'va' | 'usda' | 'unknown' | null;
+  preferred_program?: 'conventional' | 'fha' | 'va' | 'usda' | null;
   remaining_term_years?: number | null;
   closing_costs_preference?: 'out_of_pocket' | 'rolled_in' | null;
 

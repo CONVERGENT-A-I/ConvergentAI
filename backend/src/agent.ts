@@ -186,9 +186,21 @@ class AilanaVoiceAgent extends voice.Agent {
     const ausAlreadyDone = !!(this.contextManager.getProfile() as any).aus_status;
     const inAffordabilityStage = this.contextManager.getActiveStage() === '2.5' || this.contextManager.getPendingField() === 'affordability_panel_active' || !!this.contextManager.getProfile().affordability_panel_rendered;
     const isConditionalOrQuestion = /\b(what if|after (?:i|we) submit|if (?:i|we) submit|before (?:i|we) submit|will that affect|what will be the process|how does it work|can you explain|why does|tell me about)\b/i.test(lastUserText);
+    const isUpgradeIntent = /\b(upgrade|verified\s*(?:mode|numbers|score|credit)|soft\s*(?:credit\s*)?(?:pull|review)|check\s*my\s*credit|run\s*(?:my\s*)?credit)\b/i.test(lastUserText);
     const verbalSubmitPattern = /\b(submit\s*(for\s*me|it|review|my\s*review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(?:and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|do\s+it\s+for\s+me|send\s+it|yes\s+submit|let'?s\s+submit|go\s+ahead|let'?s\s+go|proceed|ready\s+to\s+submit|i'?m\s+ready|yes\s+please|sounds\s+good)\b/i;
 
-    if (inAffordabilityStage && !isConditionalOrQuestion && verbalSubmitPattern.test(lastUserText)) {
+    if (inAffordabilityStage && isUpgradeIntent && (!this.contextManager.getProfile().otp_verified || this.contextManager.getProfile().affordability_mode === 'stated')) {
+      console.log(`[agent-hook]: Voice upgrade request detected in Stage 2.5 ("${lastUserText}") — initiating Stage 3A contact_first_name!`);
+      this.contextManager.triggerUpgradeToVerifiedMode();
+      this.updateInstructionsCallback();
+      if (this.sendStageUpdate) {
+        this.sendStageUpdate('3A').catch(err => console.warn(err));
+      }
+      const upgradeScript = "I'd be happy to get that upgraded for you! Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?";
+      return createVerbatimStream(upgradeScript) as any;
+    }
+
+    if (inAffordabilityStage && !isConditionalOrQuestion && !isUpgradeIntent && verbalSubmitPattern.test(lastUserText)) {
       console.log(`[agent-hook]: 0ms Verbal Submit Fast-Path triggered — executing AUS findings immediately without LLM call!`);
 
       // 1. Instantly update the UI to show the button as "Review Submitted ✓" and ensure panel stays rendered
@@ -1659,6 +1671,14 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             heloc_line_amount: prof.heloc_line_amount,
             current_mortgage_rate: prof.current_mortgage_rate,
             current_mortgage_payment: prof.current_mortgage_payment,
+            current_mortgage_type: prof.current_mortgage_type,
+            currentMortgageType: prof.current_mortgage_type,
+            refinance_subtrack: prof.refinance_subtrack,
+            preferred_program: (prof as any).preferred_program ?? prof.current_mortgage_type ?? null,
+            credit_score: prof.credit_score,
+            stated_credit_score: prof.stated_credit_score,
+            verified_credit_score: prof.verified_credit_score,
+            va_subsequent_use: prof.va_subsequent_use,
             remaining_term_years: prof.remaining_term_years,
             // ── Affordability Panel state ────────────────────────────
             affordability_panel_rendered: prof.affordability_panel_rendered,
@@ -1839,7 +1859,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         updateSessionInstructions();
         await sendStageUpdate(contextManager.getActiveStage());
 
-        const triggerPrompt = `The borrower clicked 'Upgrade to Verified Mode' on their screen. Transition to Stage 3A by asking for their email and mobile number to set up their secure login for the soft credit review.`;
+        const triggerPrompt = `The borrower clicked 'Upgrade to Verified Mode' on their screen. Enthusiastically acknowledge that you will upgrade their scenario to verified numbers, and ask for their first name to begin setting up their secure login: "I'd be happy to get that upgraded for you! Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?"`;
         if (voiceMuted) {
           await generateTextOnlyReply(triggerPrompt);
         } else {
