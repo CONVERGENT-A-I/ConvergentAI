@@ -60,7 +60,7 @@ console.log('--- Suite 1: Employer Data Handling & Convergent AI Soft Pull ---')
 
 // 1.4: buildPrefillEmployerScript defaults to Convergent AI when employer is not yet set
 {
-  const profileNoEmp = { employer: null };
+  const profileNoEmp: { employer: string | null } = { employer: null };
   const buildScript = (prof: any) => {
     const emp = prof.employer || 'Convergent AI';
     return `Great. Next, I have your employer listed as ${emp}. Does that sound correct, or has anything changed?`;

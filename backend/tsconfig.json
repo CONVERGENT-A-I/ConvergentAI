@@ -43,6 +43,13 @@
     "skipLibCheck": true,
 
     "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-  }
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "src/__tests__/**",
+    "dist"
+  ]
 }
