@@ -8,6 +8,7 @@ import type { LatencyTracker } from '../metrics/latency-tracker.js';
 import type { BorrowerProfile } from '../prompts/layer3-context.js';
 import { buildSessionPrompt, buildStaticInstructions, buildDynamicContext } from '../prompts/ailana-system.js';
 import { extractProfileField, classifyConfirmation, classifyAuthorization, extractMultipleFields, type FieldToExtract } from './llm-extractor.js';
+import { applyContactUpdates } from '../utils/profile-sync.js';
 import { applicationService } from '../services/application-service.js';
 import { conversationService } from '../services/conversation-service.js';
 import { isDatabaseEnabled } from '../services/database.js';
@@ -1358,34 +1359,11 @@ export class SessionContextManager {
       ]);
 
       if (results.contact_first_name?.value) {
-        let first = String(results.contact_first_name.value).trim();
-        let last = results.contact_last_name?.value ? String(results.contact_last_name.value).trim() : '';
-
-        // If the user provided both names in one turn (e.g. "David Patton")
-        if (!last && first.includes(' ')) {
-          const parts = first.split(/\s+/);
-          first = parts[0] || first;
-          last = parts.slice(1).join(' ');
-        }
-
-        (this.profile as any).contact_first_name = first;
-        (this.profile as any).contact_first_name_confirmed = true;
-        (this.profile as any).contactFirstName = first;
-
-        if (last) {
-          (this.profile as any).contact_last_name = last;
-          (this.profile as any).contact_last_name_confirmed = true;
-          (this.profile as any).contactLastName = last;
-          const fullName = `${first} ${last}`.trim();
-          this.profile.contact_name = fullName;
-          this.profile.borrower_name = fullName;
-          this.profile.legal_name = fullName;
-          this.profile.contact_name_confirmed = true;
-          console.log(`[context-manager]: Captured both first and last name: ${fullName}`);
-        } else {
-          this.profile.contact_name = first;
-          console.log(`[context-manager]: Captured contact first name: ${first}`);
-        }
+        applyContactUpdates(this.profile, {
+          contact_first_name: results.contact_first_name.value,
+          contact_last_name: results.contact_last_name?.value,
+        });
+        console.log(`[context-manager]: Captured contact name: ${this.profile.contact_name}`);
 
         this.advanceWorkflow();
       }
@@ -1403,19 +1381,10 @@ export class SessionContextManager {
       ]);
 
       if (results.contact_last_name?.value) {
-        const last = String(results.contact_last_name.value).trim();
-        (this.profile as any).contact_last_name = last;
-        (this.profile as any).contact_last_name_confirmed = true;
-        (this.profile as any).contactLastName = last;
-
-        const first = (this.profile as any).contact_first_name || '';
-        const fullName = [first, last].filter(Boolean).join(' ');
-        this.profile.contact_name = fullName;
-        this.profile.borrower_name = fullName;
-        this.profile.legal_name = fullName;
-        this.profile.contact_name_confirmed = true;
-
-        console.log(`[context-manager]: Captured contact last name: ${last} (Full: ${fullName})`);
+        applyContactUpdates(this.profile, {
+          contact_last_name: results.contact_last_name.value,
+        });
+        console.log(`[context-manager]: Captured contact last name: ${(this.profile as any).contact_last_name} (Full: ${this.profile.contact_name})`);
         this.advanceWorkflow();
       }
       return;
@@ -1447,42 +1416,12 @@ export class SessionContextManager {
       ]);
 
       if (results.contact_first_name?.value) {
-        let first = String(results.contact_first_name.value).trim();
-        const middle = results.contact_middle_name?.value ? String(results.contact_middle_name.value).trim() : '';
-        let last = results.contact_last_name?.value ? String(results.contact_last_name.value).trim() : '';
-        const suffix = results.contact_suffix?.value ? String(results.contact_suffix.value).trim() : '';
-
-        // If the LLM returned the entire full name in first name (e.g. "David Patton")
-        if (!last && first.includes(' ')) {
-          const parts = first.split(/\s+/);
-          first = parts[0] || first;
-          last = parts.slice(1).join(' ');
-        }
-
-        (this.profile as any).contact_first_name = first;
-        (this.profile as any).contact_first_name_confirmed = true;
-        (this.profile as any).contactFirstName = first;
-        
-        if (middle) (this.profile as any).contact_middle_name = middle;
-        
-        if (last) {
-          (this.profile as any).contact_last_name = last;
-          (this.profile as any).contact_last_name_confirmed = true;
-          (this.profile as any).contactLastName = last;
-        } else {
-          (this.profile as any).contact_last_name = first;
-          (this.profile as any).contact_last_name_confirmed = true;
-          (this.profile as any).contactLastName = first;
-        }
-        
-        if (suffix) (this.profile as any).contact_suffix = suffix;
-
-        const fullName = [first, middle, (last && last !== first ? last : ''), suffix].filter(Boolean).join(' ');
-        this.profile.contact_name = fullName || first;
-        this.profile.borrower_name = this.profile.contact_name;
-        this.profile.legal_name = this.profile.contact_name;
-        this.profile.contact_name_confirmed = true;
-        
+        applyContactUpdates(this.profile, {
+          contact_first_name: results.contact_first_name.value,
+          contact_middle_name: results.contact_middle_name?.value,
+          contact_last_name: results.contact_last_name?.value,
+          contact_suffix: results.contact_suffix?.value,
+        });
         console.log(`[context-manager]: Captured contact full name: ${this.profile.contact_name}`);
         this.advanceWorkflow();
       }
@@ -1507,11 +1446,11 @@ export class SessionContextManager {
       ]);
 
       if (results.contact_email?.value) {
-        this.profile.contact_email = results.contact_email.value as string;
+        applyContactUpdates(this.profile, { contact_email: results.contact_email.value });
         console.log(`[context-manager]: Captured contact email: ${this.profile.contact_email}`);
       }
       if (results.contact_mobile?.value) {
-        this.profile.contact_mobile = results.contact_mobile.value as string;
+        applyContactUpdates(this.profile, { contact_mobile: results.contact_mobile.value });
         console.log(`[context-manager]: Captured contact mobile: ${this.profile.contact_mobile}`);
       }
 
@@ -1531,16 +1470,10 @@ export class SessionContextManager {
           additionalInstructions: 'Return "confirmed" if yes, correct, looks good, confirm, that is right, or affirmative. Return "correction" if no, wrong, change, update, fix, mistake, or if they provide corrected contact details. Return null if unclear.',
         },
         {
-          name: 'contact_first_name',
-          description: 'corrected first name or full name, if the user mentioned a correction',
+          name: 'fullName',
+          description: 'corrected full name, first name, or last name if the user mentioned a correction',
           expectedType: 'string',
           additionalInstructions: 'Only return a value if the user explicitly corrected their name. Return null otherwise.',
-        },
-        {
-          name: 'contact_last_name',
-          description: 'corrected last name, if the user mentioned a correction',
-          expectedType: 'string',
-          additionalInstructions: 'Only return a value if the user explicitly corrected their last name. Return null otherwise.',
         },
         {
           name: 'contact_email',
@@ -1557,8 +1490,7 @@ export class SessionContextManager {
       ]);
 
       let intent = results.confirm_intent?.value as string | null;
-      let firstNameVal = results.contact_first_name?.value ? String(results.contact_first_name.value).trim() : null;
-      let lastNameVal = results.contact_last_name?.value ? String(results.contact_last_name.value).trim() : null;
+      let fullNameVal = results.fullName?.value ? String(results.fullName.value).trim() : null;
       let emailVal = results.contact_email?.value ? String(results.contact_email.value).toLowerCase().trim() : null;
       let mobileVal = results.contact_mobile?.value ? String(results.contact_mobile.value).replace(/\D/g, '') : null;
 
@@ -1567,8 +1499,7 @@ export class SessionContextManager {
       const isEmailCorrection = /\b(email|@|gmail|yahoo|hotmail)\b/.test(lower) && !/\b(name|first|last)\b/.test(lower);
       if (isEmailCorrection) {
         console.log('[context-manager]: Utterance primarily about email detected. Guarding against name extraction bleed.');
-        firstNameVal = null;
-        lastNameVal = null;
+        fullNameVal = null;
       }
 
       // Regex fallback for intent and inline corrections
@@ -1582,42 +1513,22 @@ export class SessionContextManager {
       }
 
       if (!emailVal) {
-        const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-        if (emailMatch) emailVal = emailMatch[0].toLowerCase();
+        const emailMatch = text.match(/[a-zA-Z0-9_%+-]+(?:\.\s*[a-zA-Z0-9_%+-]+)*\s*@\s*[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+        if (emailMatch) emailVal = emailMatch[0].replace(/\s+/g, '').toLowerCase();
       }
 
-      const anyInlineCorrection = Boolean(firstNameVal || lastNameVal || emailVal || mobileVal);
+      const anyInlineCorrection = Boolean(fullNameVal || emailVal || mobileVal);
 
       if (intent === 'confirmed' && !anyInlineCorrection) {
         console.log('[context-manager]: Contact info confirmed via voice — advancing to OTP dispatch.');
         this.handleContactInfoConfirmed();
       } else if (intent === 'correction' || anyInlineCorrection) {
         console.log('[context-manager]: Contact info correction requested via voice.');
-        let nameUpdated = false;
-        if (firstNameVal) {
-          (this.profile as any).contact_first_name = firstNameVal;
-          nameUpdated = true;
-        }
-        if (lastNameVal) {
-          (this.profile as any).contact_last_name = lastNameVal;
-          nameUpdated = true;
-        }
-        if (emailVal) {
-          this.profile.contact_email = emailVal;
-        }
-        if (mobileVal) {
-          this.profile.contact_mobile = mobileVal;
-        }
-        if (nameUpdated) {
-          const fn = (this.profile as any).contact_first_name || '';
-          const mn = (this.profile as any).contact_middle_name || '';
-          const ln = (this.profile as any).contact_last_name || '';
-          const sfx = (this.profile as any).contact_suffix || '';
-          const fullName = [fn, mn, ln, sfx].filter(Boolean).join(' ');
-          this.profile.contact_name = fullName;
-          this.profile.borrower_name = fullName;
-          this.profile.legal_name = fullName;
-        }
+        applyContactUpdates(this.profile, {
+          fullName: fullNameVal,
+          contact_email: emailVal,
+          contact_mobile: mobileVal,
+        });
 
         if (anyInlineCorrection) {
           (this.profile as any).contact_confirm_needs_correction = false;
@@ -1635,16 +1546,10 @@ export class SessionContextManager {
     if (this.currentPendingField === 'contact_confirm_correction') {
       const results = await extractMultipleFields(text, lastQuestion, [
         {
-          name: 'contact_first_name',
-          description: 'corrected first name or full name, if the user mentioned one',
+          name: 'fullName',
+          description: 'corrected full name, first name, or last name, if the user mentioned one',
           expectedType: 'string',
           additionalInstructions: 'Extract ONLY if the user explicitly corrected their name in this utterance. Return null otherwise.',
-        },
-        {
-          name: 'contact_last_name',
-          description: 'corrected last name, if the user mentioned one',
-          expectedType: 'string',
-          additionalInstructions: 'Extract ONLY if the user explicitly corrected their last name in this utterance. Return null otherwise.',
         },
         {
           name: 'contact_email',
@@ -1660,14 +1565,13 @@ export class SessionContextManager {
         },
       ]);
 
-      let firstNameVal = results.contact_first_name?.value ? String(results.contact_first_name.value).trim() : null;
-      let lastNameVal = results.contact_last_name?.value ? String(results.contact_last_name.value).trim() : null;
+      let fullNameVal = results.fullName?.value ? String(results.fullName.value).trim() : null;
       let emailVal = results.contact_email?.value ? String(results.contact_email.value).toLowerCase().trim() : null;
       let mobileVal = results.contact_mobile?.value ? String(results.contact_mobile.value).replace(/\D/g, '') : null;
 
       if (!emailVal) {
-        const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-        if (emailMatch) emailVal = emailMatch[0].toLowerCase();
+        const emailMatch = text.match(/[a-zA-Z0-9_%+-]+(?:\.\s*[a-zA-Z0-9_%+-]+)*\s*@\s*[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+        if (emailMatch) emailVal = emailMatch[0].replace(/\s+/g, '').toLowerCase();
       }
 
       // Email Dominant-Intent Guard: Prevent name bleed during email corrections
@@ -1675,36 +1579,14 @@ export class SessionContextManager {
       const isEmailCorrection = /\b(email|@|gmail|yahoo|hotmail)\b/.test(lower) && !/\b(name|first|last)\b/.test(lower);
       if (isEmailCorrection) {
         console.log('[context-manager]: Utterance primarily about email detected. Guarding against name extraction bleed.');
-        firstNameVal = null;
-        lastNameVal = null;
+        fullNameVal = null;
       }
 
-      let nameUpdated = false;
-      if (firstNameVal) {
-        (this.profile as any).contact_first_name = firstNameVal;
-        nameUpdated = true;
-      }
-      if (lastNameVal) {
-        (this.profile as any).contact_last_name = lastNameVal;
-        nameUpdated = true;
-      }
-      if (emailVal) {
-        this.profile.contact_email = emailVal;
-      }
-      if (mobileVal) {
-        this.profile.contact_mobile = mobileVal;
-      }
-
-      if (nameUpdated) {
-        const fn = (this.profile as any).contact_first_name || '';
-        const mn = (this.profile as any).contact_middle_name || '';
-        const ln = (this.profile as any).contact_last_name || '';
-        const sfx = (this.profile as any).contact_suffix || '';
-        const fullName = [fn, mn, ln, sfx].filter(Boolean).join(' ');
-        this.profile.contact_name = fullName;
-        this.profile.borrower_name = fullName;
-        this.profile.legal_name = fullName;
-      }
+      applyContactUpdates(this.profile, {
+        fullName: fullNameVal,
+        contact_email: emailVal,
+        contact_mobile: mobileVal,
+      });
 
       (this.profile as any).contact_confirm_needs_correction = false;
       (this.profile as any)._contactCorrectionAcknowledged = true;
@@ -1764,7 +1646,7 @@ export class SessionContextManager {
         'Extract the full legal name of the borrower (first and last name, e.g. "John Doe"). If not found, return null.'
       );
       if (res.value) {
-        this.profile.legal_name = res.value as string;
+        applyContactUpdates(this.profile, { fullName: res.value as string });
         this.profile.legal_name_confirmed = true;
         this.advanceWorkflow();
       }
@@ -1910,9 +1792,8 @@ export class SessionContextManager {
           hasCorrection = true;
         } else if (step === 'prefill_name_address') {
           if (extractionResults.name_correction?.value) {
-            this.profile.borrower_name = extractionResults.name_correction.value as string;
-            this.profile.legal_name = extractionResults.name_correction.value as string;
-            console.log(`[context-manager]: Corrected borrower name to ${extractionResults.name_correction.value}`);
+            applyContactUpdates(this.profile, { fullName: extractionResults.name_correction.value as string });
+            console.log(`[context-manager]: Corrected borrower name to ${this.profile.borrower_name}`);
             hasCorrection = true;
           }
           if (extractionResults.address_correction?.value) {

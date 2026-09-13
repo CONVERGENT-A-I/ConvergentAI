@@ -18,6 +18,7 @@ console.log('[agent] DATABASE_URL status:', process.env.DATABASE_URL ? '✅ PRES
 import { type JobContext, ServerOptions, cli, voice, llm, inference, defineAgent } from '@livekit/agents';
 import { RoomEvent, TrackKind } from '@livekit/rtc-node';
 import { fileURLToPath } from 'url';
+import { applyContactUpdates } from './utils/profile-sync.js';
 import * as openai from '@livekit/agents-plugin-openai';
 import { ailanaConfig } from './config/ailana-config.js';
 import { SessionContextManager } from './context/session-context-manager.js';
@@ -142,98 +143,27 @@ export async function applyUIFieldCorrection(
       ]);
 
       if (results?.contact_first_name?.value) {
-        let first = String(results.contact_first_name.value).trim();
-        const middle = results.contact_middle_name?.value ? String(results.contact_middle_name.value).trim() : '';
-        let last = results.contact_last_name?.value ? String(results.contact_last_name.value).trim() : '';
-        const suffix = results.contact_suffix?.value ? String(results.contact_suffix.value).trim() : '';
-
-        // If the LLM returned the entire full name in first name (e.g. "David Patton")
-        if (!last && first.includes(' ')) {
-          const parts = first.split(/\s+/);
-          first = parts[0] || first;
-          last = parts.slice(1).join(' ');
-        }
-
-        (profile as any).contact_first_name = first;
-        (profile as any).contact_first_name_confirmed = true;
-        (profile as any).contactFirstName = first;
-
-        if (middle) (profile as any).contact_middle_name = middle;
-
-        if (last) {
-          (profile as any).contact_last_name = last;
-          (profile as any).contact_last_name_confirmed = true;
-          (profile as any).contactLastName = last;
-        } else {
-          (profile as any).contact_last_name = first;
-          (profile as any).contact_last_name_confirmed = true;
-          (profile as any).contactLastName = first;
-        }
-
-        if (suffix) (profile as any).contact_suffix = suffix;
-
-        const fullName = [first, middle, (last && last !== first ? last : ''), suffix].filter(Boolean).join(' ');
-        profile.contact_name = fullName || rawVal;
-        profile.borrower_name = profile.contact_name;
-        profile.legal_name = profile.contact_name;
-        profile.contact_name_confirmed = true;
+        applyContactUpdates(profile, {
+          contact_first_name: results.contact_first_name.value,
+          contact_middle_name: results.contact_middle_name?.value,
+          contact_last_name: results.contact_last_name?.value,
+          contact_suffix: results.contact_suffix?.value,
+        });
       } else {
-        profile.contact_name = rawVal;
-        profile.borrower_name = rawVal;
-        profile.legal_name = rawVal;
-        profile.contact_name_confirmed = true;
-        const parts = rawVal.split(/\s+/);
-        (profile as any).contact_first_name = parts[0] || rawVal;
-        (profile as any).contactFirstName = parts[0] || rawVal;
-        (profile as any).contact_first_name_confirmed = true;
-        (profile as any).contact_last_name = parts.slice(1).join(' ') || parts[0] || rawVal;
-        (profile as any).contactLastName = (profile as any).contact_last_name;
-        (profile as any).contact_last_name_confirmed = true;
+        applyContactUpdates(profile, { fullName: rawVal });
       }
     } catch (err) {
       console.error('[agent-error]: Failed to extract full name via LLM during UI correction:', err);
-      profile.contact_name = rawVal;
-      profile.borrower_name = rawVal;
-      profile.legal_name = rawVal;
-      profile.contact_name_confirmed = true;
-      const parts = rawVal.split(/\s+/);
-      (profile as any).contact_first_name = parts[0] || rawVal;
-      (profile as any).contactFirstName = parts[0] || rawVal;
-      (profile as any).contact_first_name_confirmed = true;
-      (profile as any).contact_last_name = parts.slice(1).join(' ') || parts[0] || rawVal;
-      (profile as any).contactLastName = (profile as any).contact_last_name;
-      (profile as any).contact_last_name_confirmed = true;
+      applyContactUpdates(profile, { fullName: rawVal });
     }
   } else if (field === 'firstName') {
-    const val = String(value || '').trim();
-    (profile as any).contact_first_name = val;
-    (profile as any).contactFirstName = val;
-    (profile as any).contact_first_name_confirmed = true;
-    const lastName = (profile as any).contact_last_name || (profile as any).contactLastName || '';
-    const middleName = (profile as any).contact_middle_name || '';
-    const suffix = (profile as any).contact_suffix || '';
-    profile.contact_name = [val, middleName, lastName, suffix].filter(Boolean).join(' ') || val;
-    profile.borrower_name = profile.contact_name;
-    profile.legal_name = profile.contact_name;
-    profile.contact_name_confirmed = true;
+    applyContactUpdates(profile, { contact_first_name: String(value || '').trim() });
   } else if (field === 'lastName') {
-    const val = String(value || '').trim();
-    (profile as any).contact_last_name = val;
-    (profile as any).contactLastName = val;
-    (profile as any).contact_last_name_confirmed = true;
-    const firstName = (profile as any).contact_first_name || (profile as any).contactFirstName || '';
-    const middleName = (profile as any).contact_middle_name || '';
-    const suffix = (profile as any).contact_suffix || '';
-    profile.contact_name = [firstName, middleName, val, suffix].filter(Boolean).join(' ') || val;
-    profile.borrower_name = profile.contact_name;
-    profile.legal_name = profile.contact_name;
-    profile.contact_name_confirmed = true;
+    applyContactUpdates(profile, { contact_last_name: String(value || '').trim() });
   } else if (field === 'email') {
-    profile.contact_email = String(value || '').toLowerCase().trim();
-    (profile as any).contact_email_confirmed = true;
+    applyContactUpdates(profile, { contact_email: String(value || '') });
   } else if (field === 'mobile') {
-    profile.contact_mobile = String(value || '').replace(/\D/g, '');
-    (profile as any).contact_mobile_confirmed = true;
+    applyContactUpdates(profile, { contact_mobile: String(value || '') });
   }
 }
 
@@ -654,7 +584,7 @@ class AilanaVoiceAgent extends voice.Agent {
         this.sendStageUpdate(this.contextManager.getActiveStage()).catch(err => console.warn(err));
       }
 
-      const script = `${prefix}I have ${name}, ${email}, and ${phone}. Your details are on screen — do they all look correct?`;
+      const script = `${prefix}I have ${name}, ${email}, and ${phone}. Your details are on screen, do they all look correct? If not, please spell out the correction for me, or you can update it directly on the screen.`;
       return createVerbatimStream(script) as any;
     }
 
@@ -1607,7 +1537,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       contact_last_name: 'I apologize for that. What is your last name?',
       contact_email: 'I apologize for that. What email and mobile number would you like to use for your account?',
       contact_mobile: 'I apologize for the interruption. What mobile number should I send your verification code to?',
-      contact_confirm_display: 'I apologize for the interruption. I have your name, email, and mobile shown on screen — do they all look correct?',
+      contact_confirm_display: 'I apologize for the interruption. I have your name, email, and mobile shown on screen, do they all look correct? If not, please spell out the correction for me, or you can update it directly on the screen.',
       contact_confirm_correction: 'I apologize — which one would you like to fix: your name, email, or mobile number?',
       otp_verification: 'I apologize for that. Please enter the one-time verification code on your screen whenever you\'re ready.',
       soft_pull_authorization: 'I apologize for that interruption. Before we proceed — this is a soft credit inquiry that will not affect your credit score. You are authorizing it, and your data is used only to process your eligibility review. Do you authorize the soft credit inquiry on that basis?',
@@ -2091,7 +2021,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             const name = `${fn} ${ln}`.trim() || prof.contact_name || 'your name';
             const email = prof.contact_email || 'your email';
             const phone = formatPhoneForSpeech(prof.contact_mobile || '');
-            reply = `I have ${name}, ${email}, and ${phone}. Your details are on screen — do they all look correct?`;
+            reply = `I have ${name}, ${email}, and ${phone}. Your details are on screen, do they all look correct? If not, please spell out the correction for me, or you can update it directly on the screen.`;
           }
         } else if (pending === 'contact_confirm_correction') {
           reply = "No problem — which one would you like to update: your name, email, or mobile number?";

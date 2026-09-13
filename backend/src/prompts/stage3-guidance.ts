@@ -146,7 +146,7 @@ CURRENT TASK BEHAVIOR — FOLLOW EXACTLY IN ORDER:
   * Ask: "I have your email. Could you also share the mobile number you'd like to use?"
 
 - When CURRENT TASK is 'contact_confirm_display':
-  * Read back all values VERBATIM: "I have [FullName], [email], and [phone]. Your details are on screen — do they all look correct?"
+  * Read back all values VERBATIM: "I have [FullName], [email], and [phone]. Your details are on screen, do they all look correct? If not, please spell out the correction for me, or you can update it directly on the screen."
   * If borrower says yes → advance to OTP. The confirmation card on screen will disappear automatically.
   * If borrower says no with a correction inline → apply it and re-read the confirmation.
   * If borrower says no without specifying → ask which field to fix.
