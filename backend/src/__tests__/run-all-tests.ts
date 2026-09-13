@@ -20,6 +20,7 @@ const testFiles = [
   'stage9-compliance-audit-gaps.test.ts',
   'stage10-edge-cases-boundaries.test.ts',
   'audit-fixes-verification.test.ts',
+  'ui-field-correction.test.ts',
 ];
 
 console.log('🚀 Running Complete ConvergentAI Multi-Track Test Suite...\n');
@@ -39,7 +40,7 @@ for (const file of testFiles) {
 
 if (allPassed) {
   console.log('\n======================================================');
-  console.log('✨ ALL 13 CONVERGENTAI UNIT & INTEGRATION TEST SUITES PASSED!');
+  console.log('✨ ALL 14 CONVERGENTAI UNIT & INTEGRATION TEST SUITES PASSED!');
   console.log('======================================================\n');
   process.exit(0);
 }

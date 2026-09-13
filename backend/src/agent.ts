@@ -38,7 +38,7 @@ import { sendPrequalLetterEmail } from './utils/email-sender.js';
 import { applicationService } from './services/application-service.js';
 import { isDatabaseEnabled } from './services/database.js';
 import { callCrsSoftPull } from './services/crs-service.js';
-import { classifyAuthorization, classifyLoanOfficerTransferIntent } from './context/llm-extractor.js';
+import { classifyAuthorization, classifyLoanOfficerTransferIntent, extractMultipleFields } from './context/llm-extractor.js';
 import { BackgroundVoiceCancellation } from '@livekit/noise-cancellation-node';
 import { logAffordabilityEvent } from './utils/affordability-audit.js';
 
@@ -103,6 +103,138 @@ export function isQuestionOrCorrection(text: string | null | undefined): boolean
     'sounds high', 'what about', 'how come', 'is that'
   ];
   return keywords.some(k => t.includes(k));
+}
+
+export async function applyUIFieldCorrection(
+  parsed: { field?: string; value?: any },
+  profile: any,
+  extractor: typeof extractMultipleFields = extractMultipleFields,
+): Promise<void> {
+  const { field, value } = parsed;
+  console.log(`[agent]: contact_ui_field_correction received from UI: field=${field}, value=${value}`);
+
+  if (field === 'fullName' || field === 'name') {
+    const rawVal = String(value || '').trim();
+    if (!rawVal) return;
+
+    try {
+      const results = await extractor(rawVal, 'What is your full name?', [
+        {
+          name: 'contact_first_name',
+          description: "The borrower's first name",
+          expectedType: 'string',
+        },
+        {
+          name: 'contact_middle_name',
+          description: "The borrower's middle name or middle initial (if provided)",
+          expectedType: 'string',
+        },
+        {
+          name: 'contact_last_name',
+          description: "The borrower's last name or surname (pay attention to multi-word last names)",
+          expectedType: 'string',
+        },
+        {
+          name: 'contact_suffix',
+          description: "The borrower's suffix (e.g. Jr., III), if provided",
+          expectedType: 'string',
+        },
+      ]);
+
+      if (results?.contact_first_name?.value) {
+        let first = String(results.contact_first_name.value).trim();
+        const middle = results.contact_middle_name?.value ? String(results.contact_middle_name.value).trim() : '';
+        let last = results.contact_last_name?.value ? String(results.contact_last_name.value).trim() : '';
+        const suffix = results.contact_suffix?.value ? String(results.contact_suffix.value).trim() : '';
+
+        // If the LLM returned the entire full name in first name (e.g. "David Patton")
+        if (!last && first.includes(' ')) {
+          const parts = first.split(/\s+/);
+          first = parts[0] || first;
+          last = parts.slice(1).join(' ');
+        }
+
+        (profile as any).contact_first_name = first;
+        (profile as any).contact_first_name_confirmed = true;
+        (profile as any).contactFirstName = first;
+
+        if (middle) (profile as any).contact_middle_name = middle;
+
+        if (last) {
+          (profile as any).contact_last_name = last;
+          (profile as any).contact_last_name_confirmed = true;
+          (profile as any).contactLastName = last;
+        } else {
+          (profile as any).contact_last_name = first;
+          (profile as any).contact_last_name_confirmed = true;
+          (profile as any).contactLastName = first;
+        }
+
+        if (suffix) (profile as any).contact_suffix = suffix;
+
+        const fullName = [first, middle, (last && last !== first ? last : ''), suffix].filter(Boolean).join(' ');
+        profile.contact_name = fullName || rawVal;
+        profile.borrower_name = profile.contact_name;
+        profile.legal_name = profile.contact_name;
+        profile.contact_name_confirmed = true;
+      } else {
+        profile.contact_name = rawVal;
+        profile.borrower_name = rawVal;
+        profile.legal_name = rawVal;
+        profile.contact_name_confirmed = true;
+        const parts = rawVal.split(/\s+/);
+        (profile as any).contact_first_name = parts[0] || rawVal;
+        (profile as any).contactFirstName = parts[0] || rawVal;
+        (profile as any).contact_first_name_confirmed = true;
+        (profile as any).contact_last_name = parts.slice(1).join(' ') || parts[0] || rawVal;
+        (profile as any).contactLastName = (profile as any).contact_last_name;
+        (profile as any).contact_last_name_confirmed = true;
+      }
+    } catch (err) {
+      console.error('[agent-error]: Failed to extract full name via LLM during UI correction:', err);
+      profile.contact_name = rawVal;
+      profile.borrower_name = rawVal;
+      profile.legal_name = rawVal;
+      profile.contact_name_confirmed = true;
+      const parts = rawVal.split(/\s+/);
+      (profile as any).contact_first_name = parts[0] || rawVal;
+      (profile as any).contactFirstName = parts[0] || rawVal;
+      (profile as any).contact_first_name_confirmed = true;
+      (profile as any).contact_last_name = parts.slice(1).join(' ') || parts[0] || rawVal;
+      (profile as any).contactLastName = (profile as any).contact_last_name;
+      (profile as any).contact_last_name_confirmed = true;
+    }
+  } else if (field === 'firstName') {
+    const val = String(value || '').trim();
+    (profile as any).contact_first_name = val;
+    (profile as any).contactFirstName = val;
+    (profile as any).contact_first_name_confirmed = true;
+    const lastName = (profile as any).contact_last_name || (profile as any).contactLastName || '';
+    const middleName = (profile as any).contact_middle_name || '';
+    const suffix = (profile as any).contact_suffix || '';
+    profile.contact_name = [val, middleName, lastName, suffix].filter(Boolean).join(' ') || val;
+    profile.borrower_name = profile.contact_name;
+    profile.legal_name = profile.contact_name;
+    profile.contact_name_confirmed = true;
+  } else if (field === 'lastName') {
+    const val = String(value || '').trim();
+    (profile as any).contact_last_name = val;
+    (profile as any).contactLastName = val;
+    (profile as any).contact_last_name_confirmed = true;
+    const firstName = (profile as any).contact_first_name || (profile as any).contactFirstName || '';
+    const middleName = (profile as any).contact_middle_name || '';
+    const suffix = (profile as any).contact_suffix || '';
+    profile.contact_name = [firstName, middleName, val, suffix].filter(Boolean).join(' ') || val;
+    profile.borrower_name = profile.contact_name;
+    profile.legal_name = profile.contact_name;
+    profile.contact_name_confirmed = true;
+  } else if (field === 'email') {
+    profile.contact_email = String(value || '').toLowerCase().trim();
+    (profile as any).contact_email_confirmed = true;
+  } else if (field === 'mobile') {
+    profile.contact_mobile = String(value || '').replace(/\D/g, '');
+    (profile as any).contact_mobile_confirmed = true;
+  }
 }
 
 
@@ -2457,6 +2589,10 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       );
     };
 
+    const handleUIFieldCorrection = async (parsed: { field?: string; value?: any }) => {
+      await applyUIFieldCorrection(parsed, contextManager.getProfile());
+    };
+
     ctx.room.on(RoomEvent.DataReceived, async (payload, participant, _kind, topic) => {
       try {
         const identity = participant?.identity;
@@ -2498,40 +2634,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
               return;
             }
             if (parsed.type === 'contact_ui_field_correction') {
-              const { field, value } = parsed;
-              const profile = contextManager.getProfile();
-              console.log(`[agent]: contact_ui_field_correction received from UI: field=${field}, value=${value}`);
-              if (field === 'fullName' || field === 'name') {
-                const val = String(value || '').trim();
-                profile.contact_name = val;
-                profile.borrower_name = val;
-                profile.legal_name = val;
-                const parts = val.split(/\s+/);
-                (profile as any).contact_first_name = parts[0] || val;
-                (profile as any).contactFirstName = parts[0] || val;
-                (profile as any).contact_last_name = parts.slice(1).join(' ') || parts[0] || val;
-                (profile as any).contactLastName = (profile as any).contact_last_name;
-              } else if (field === 'firstName') {
-                const val = String(value || '').trim();
-                (profile as any).contact_first_name = val;
-                (profile as any).contactFirstName = val;
-                const lastName = (profile as any).contact_last_name || (profile as any).contactLastName || '';
-                profile.contact_name = [val, lastName].filter(Boolean).join(' ');
-                profile.borrower_name = profile.contact_name;
-                profile.legal_name = profile.contact_name;
-              } else if (field === 'lastName') {
-                const val = String(value || '').trim();
-                (profile as any).contact_last_name = val;
-                (profile as any).contactLastName = val;
-                const firstName = (profile as any).contact_first_name || (profile as any).contactFirstName || '';
-                profile.contact_name = [firstName, val].filter(Boolean).join(' ');
-                profile.borrower_name = profile.contact_name;
-                profile.legal_name = profile.contact_name;
-              } else if (field === 'email') {
-                profile.contact_email = String(value || '').toLowerCase().trim();
-              } else if (field === 'mobile') {
-                profile.contact_mobile = String(value || '').replace(/\D/g, '');
-              }
+              await handleUIFieldCorrection(parsed);
               updateSessionInstructions();
               sendStageUpdate(contextManager.getActiveStage()).catch(err =>
                 console.error('[agent-error]: Failed to send stage update after field correction:', err)
@@ -2588,40 +2691,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
                 return;
               }
               if (parsed.type === 'contact_ui_field_correction') {
-                const { field, value } = parsed;
-                const profile = contextManager.getProfile();
-                console.log(`[agent]: contact_ui_field_correction received from UI (TextStream): field=${field}, value=${value}`);
-                if (field === 'fullName' || field === 'name') {
-                  const val = String(value || '').trim();
-                  profile.contact_name = val;
-                  profile.borrower_name = val;
-                  profile.legal_name = val;
-                  const parts = val.split(/\s+/);
-                  (profile as any).contact_first_name = parts[0] || val;
-                  (profile as any).contactFirstName = parts[0] || val;
-                  (profile as any).contact_last_name = parts.slice(1).join(' ') || parts[0] || val;
-                  (profile as any).contactLastName = (profile as any).contact_last_name;
-                } else if (field === 'firstName') {
-                  const val = String(value || '').trim();
-                  (profile as any).contact_first_name = val;
-                  (profile as any).contactFirstName = val;
-                  const lastName = (profile as any).contact_last_name || (profile as any).contactLastName || '';
-                  profile.contact_name = [val, lastName].filter(Boolean).join(' ');
-                  profile.borrower_name = profile.contact_name;
-                  profile.legal_name = profile.contact_name;
-                } else if (field === 'lastName') {
-                  const val = String(value || '').trim();
-                  (profile as any).contact_last_name = val;
-                  (profile as any).contactLastName = val;
-                  const firstName = (profile as any).contact_first_name || (profile as any).contactFirstName || '';
-                  profile.contact_name = [firstName, val].filter(Boolean).join(' ');
-                  profile.borrower_name = profile.contact_name;
-                  profile.legal_name = profile.contact_name;
-                } else if (field === 'email') {
-                  profile.contact_email = String(value || '').toLowerCase().trim();
-                } else if (field === 'mobile') {
-                  profile.contact_mobile = String(value || '').replace(/\D/g, '');
-                }
+                await handleUIFieldCorrection(parsed);
                 updateSessionInstructions();
                 sendStageUpdate(contextManager.getActiveStage()).catch(err =>
                   console.error('[agent-error]: Failed to send stage update after field correction:', err)
