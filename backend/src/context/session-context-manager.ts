@@ -929,10 +929,21 @@ export class SessionContextManager {
     const lastQuestion = this.getLastAssistantUtterance();
     let field = this.currentPendingField;
 
-    // Clear AUS delivery state and return to active panel interaction
+    // If AUS findings were delivered, advance to Stage 5 escalation preference
     if (field === 'fd1_delivery' || field === 'fd2_delivery') {
-      this.currentPendingField = 'affordability_panel_active';
-      field = 'affordability_panel_active';
+      this.activeStage = '5';
+      this.currentPendingField = 'escalation_preference';
+      field = 'escalation_preference';
+      await this.runStage5Extraction(text);
+      return;
+    }
+
+    if (/\b(connect(\s+me)?\s+(?:to\s+)?(?:a\s+|the\s+)?loan\s*officer|transfer(\s+me)?\s+(?:to\s+)?(?:a\s+|the\s+)?loan\s*officer|speak\s+(?:to|with)\s+(?:a\s+|the\s+)?loan\s*officer|call\s+(?:a\s+|the\s+)?loan\s*officer|connect\s+me\s+right\s+now)\b/i.test(text)) {
+      this.activeStage = '5';
+      this.currentPendingField = 'escalation_preference';
+      this.profile.escalation_preference = 'live_transfer';
+      (this.profile as any).escalation_preference_confirmed = true;
+      return;
     }
 
     if (field === 'affordability_panel_active') {
@@ -1131,12 +1142,40 @@ export class SessionContextManager {
 
   public triggerUpgradeToVerifiedMode(): void {
     this.activeStage = '3A';
-    this.currentPendingField = 'contact_full_name';
+    this.currentPendingField = 'contact_first_name';
     this.profile.transition_pitch_delivered = true;
     this.profile.affordability_submitted = false;
     this.profile.aus_status = null;
     this.profile.affordability_aus_status = null;
-    console.log('[context-manager]: Explicit upgrade to verified mode triggered! Active stage set to 3A, pending field set to contact_full_name.');
+
+    // Reset contact details, OTP, consent, and prefill state so 7-step auth sequence runs cleanly in order
+    (this.profile as any).contact_first_name = null;
+    (this.profile as any).contact_first_name_confirmed = false;
+    (this.profile as any).contactFirstName = null;
+    (this.profile as any).contact_last_name = null;
+    (this.profile as any).contact_last_name_confirmed = false;
+    (this.profile as any).contactLastName = null;
+    this.profile.contact_name = null;
+    this.profile.contact_name_confirmed = false;
+    this.profile.contact_email = null;
+    this.profile.contact_mobile = null;
+    (this.profile as any).contact_info_confirmed = false;
+    (this.profile as any).contact_confirm_needs_correction = false;
+    (this.profile as any)._contactCorrectionAcknowledged = false;
+    this.profile.otp_verified = false;
+    (this.profile as any)._otpReadyToShow = false;
+    (this.profile as any)._otpInstructionDelivered = false;
+    this.profile.soft_pull_consent = null;
+    this.profile.soft_pull_disclosure_delivered = false;
+    (this.profile as any).soft_pull_disclosure_delivered_at = 0;
+    this.profile.prefilled_fields_confirmed = {};
+    (this.profile as any).prefill_name_address_delivered = false;
+    (this.profile as any).prefill_employer_delivered = false;
+    (this.profile as any).prefill_accounts_delivered = false;
+    (this.profile as any).prefill_credit_range_delivered = false;
+    (this.profile as any).affordability_panel_intro_delivered = false;
+
+    console.log('[context-manager]: Explicit upgrade to verified mode triggered! Active stage set to 3A, pending field set to contact_first_name.');
   }
 
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢
@@ -1282,13 +1321,14 @@ export class SessionContextManager {
    * Marks contact info as confirmed, generates mock OTP, and advances to otp_verification.
    */
   public handleContactInfoConfirmed(): void {
-    if (this.currentPendingField !== 'contact_confirm_display') {
+    if (this.currentPendingField !== 'contact_confirm_display' && this.currentPendingField !== 'contact_confirm_correction') {
       console.warn(`[context-manager] Received contact_info_confirmed but current field is ${this.currentPendingField}. Ignoring.`);
       return;
     }
 
     // Mark confirmed and generate mock OTP
     (this.profile as any).contact_info_confirmed = true;
+    (this.profile as any).contact_confirm_needs_correction = false;
     const mockOtp = '123456';
     (this.profile as any)._pendingOtp = mockOtp;
     console.log(`[OTP-Service]: Contact info confirmed by borrower. Generated mock OTP: ${mockOtp}`);
@@ -1302,7 +1342,86 @@ export class SessionContextManager {
   private async runStage3AExtraction(text: string): Promise<void> {
     const lastQuestion = this.getLastAssistantUtterance();
 
-    // ── v8.8 OTP Gate: Step 0 — collect contact_full_name ──
+    // ── v8.8 OTP Gate: Step 0A — collect contact_first_name ──
+    if (this.currentPendingField === 'contact_first_name') {
+      const results = await extractMultipleFields(text, lastQuestion, [
+        {
+          name: 'contact_first_name',
+          description: "The borrower's first name",
+          expectedType: 'string',
+        },
+        {
+          name: 'contact_last_name',
+          description: "The borrower's last name or surname, if provided in this response",
+          expectedType: 'string',
+        },
+      ]);
+
+      if (results.contact_first_name?.value) {
+        let first = String(results.contact_first_name.value).trim();
+        let last = results.contact_last_name?.value ? String(results.contact_last_name.value).trim() : '';
+
+        // If the user provided both names in one turn (e.g. "David Patton")
+        if (!last && first.includes(' ')) {
+          const parts = first.split(/\s+/);
+          first = parts[0] || first;
+          last = parts.slice(1).join(' ');
+        }
+
+        (this.profile as any).contact_first_name = first;
+        (this.profile as any).contact_first_name_confirmed = true;
+        (this.profile as any).contactFirstName = first;
+
+        if (last) {
+          (this.profile as any).contact_last_name = last;
+          (this.profile as any).contact_last_name_confirmed = true;
+          (this.profile as any).contactLastName = last;
+          const fullName = `${first} ${last}`.trim();
+          this.profile.contact_name = fullName;
+          this.profile.borrower_name = fullName;
+          this.profile.legal_name = fullName;
+          this.profile.contact_name_confirmed = true;
+          console.log(`[context-manager]: Captured both first and last name: ${fullName}`);
+        } else {
+          this.profile.contact_name = first;
+          console.log(`[context-manager]: Captured contact first name: ${first}`);
+        }
+
+        this.advanceWorkflow();
+      }
+      return;
+    }
+
+    // ── v8.8 OTP Gate: Step 0B — collect contact_last_name ──
+    if (this.currentPendingField === 'contact_last_name') {
+      const results = await extractMultipleFields(text, lastQuestion, [
+        {
+          name: 'contact_last_name',
+          description: "The borrower's last name or surname",
+          expectedType: 'string',
+        },
+      ]);
+
+      if (results.contact_last_name?.value) {
+        const last = String(results.contact_last_name.value).trim();
+        (this.profile as any).contact_last_name = last;
+        (this.profile as any).contact_last_name_confirmed = true;
+        (this.profile as any).contactLastName = last;
+
+        const first = (this.profile as any).contact_first_name || '';
+        const fullName = [first, last].filter(Boolean).join(' ');
+        this.profile.contact_name = fullName;
+        this.profile.borrower_name = fullName;
+        this.profile.legal_name = fullName;
+        this.profile.contact_name_confirmed = true;
+
+        console.log(`[context-manager]: Captured contact last name: ${last} (Full: ${fullName})`);
+        this.advanceWorkflow();
+      }
+      return;
+    }
+
+    // ── v8.8 OTP Gate: Step 0 Fallback — collect contact_full_name ──
     if (this.currentPendingField === 'contact_full_name') {
       const results = await extractMultipleFields(text, lastQuestion, [
         {
@@ -1849,6 +1968,9 @@ export class SessionContextManager {
         confirmed.credit_range = true;
       }
       this.profile.prefilled_fields_confirmed = confirmed;
+      if (confirmed.name_address && confirmed.employer && confirmed.accounts && confirmed.credit_range) {
+        this.profile.affordability_mode = 'verified';
+      }
       this.advanceWorkflow();
     }
   }
@@ -2564,12 +2686,32 @@ export class SessionContextManager {
       });
     }
 
+    // Stage 2.5 Stated-to-Verified upgrade intent via mic/voice
+    if ((this.activeStage === '2.5' || field === 'affordability_panel_active') && this.profile.affordability_mode === 'stated' && !allFields.some(f => f.name === 'upgrade_to_verified_intent')) {
+      allFields.push({
+        name: 'upgrade_to_verified_intent',
+        description: 'whether the borrower wants to upgrade their scenario from stated to verified mode, pull soft credit, or run the verified review',
+        expectedType: 'string',
+        additionalInstructions:
+          'Classify if the borrower wants to upgrade from stated mode to verified numbers, run the soft credit review, or switch to verified mode. ' +
+          'Extract "upgrade" for: "upgrade to verified", "upgrade", "verified mode", "run credit review", "pull my credit", ' +
+          '"soft pull", "verify numbers", "switch to verified", "upgrade my scenario", "yes upgrade". Return null otherwise.'
+      });
+    }
+
     return { allFields, pendingIsNumeric };
   }
 
   private applyStage2ExtractionResults(results: any, pendingIsNumeric: boolean, text: string = ''): void {
     const field = this.currentPendingField;
     let anyUpdates = false;
+
+    // Handle LLM-classified upgrade intent during Stage 2.5
+    if (results.upgrade_to_verified_intent?.value === 'upgrade') {
+      console.log(`[context-manager] Stage 2.5: upgrade_to_verified_intent extracted via LLM -> triggering upgradeToVerifiedMode!`);
+      this.triggerUpgradeToVerifiedMode();
+      return;
+    }
 
     // Handle LLM-classified submission intent during Stage 2.5
     if (results.submit_review_intent?.value === 'submit') {
@@ -3220,9 +3362,11 @@ export class SessionContextManager {
       }
     } else if (this.activeStage === '3A') {
       const confirmed = this.profile.prefilled_fields_confirmed || {};
-      // -- v8.8 OTP Gate: contact_full_name → contact_email → contact_mobile → contact_confirm_display → otp_verification → soft_pull_authorization → prefill walkthrough --
-      if (!(this.profile as any).contact_first_name || !(this.profile as any).contact_last_name) {
-        this.currentPendingField = 'contact_full_name';
+      // -- v8.8 OTP Gate: contact_first_name → contact_last_name → contact_email → contact_mobile → contact_confirm_display → otp_verification → soft_pull_authorization → prefill walkthrough --
+      if (!(this.profile as any).contact_first_name) {
+        this.currentPendingField = 'contact_first_name';
+      } else if (!(this.profile as any).contact_last_name) {
+        this.currentPendingField = 'contact_last_name';
       } else if (!this.profile.contact_email) {
         this.currentPendingField = 'contact_email';
       } else if (!this.profile.contact_mobile) {

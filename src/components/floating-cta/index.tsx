@@ -381,6 +381,8 @@ export default function FloatingCTA() {
     const mode = "loan-officer";
     setIsOpen(true);
     setPendingMode(mode);
+    setIsAffordabilityPanelOpen(false);
+    setPanelClosedByUser(true);
     if (!hasAgreed) {
       console.log(
         `[ui-loan-officer]: 📝 User hasn't agreed to terms yet. Showing compliance gate.`
@@ -1246,12 +1248,12 @@ export default function FloatingCTA() {
                                   if (profile) setBorrowerProfile(profile);
 
                                   // Auto-OPEN the panel at Stage 2.5 — reset panelClosedByUser when entering Stage 2.5
-                                  if (stage === "2.5" && profile?.affordability_panel_rendered && !(profile as any)?.affordability_panel_closed) {
+                                  if (stage === "2.5" && pendingMode !== "loan-officer" && profile?.affordability_panel_rendered && !(profile as any)?.affordability_panel_closed) {
                                     setPanelClosedByUser(false);
                                     setIsAffordabilityPanelOpen(true);
                                   }
-                                  // Only auto-close after AUS submission completes
-                                  if (Boolean(profile?.aus_status) && isAffordabilityPanelOpen) {
+                                  // Auto-close when transferring to MLO, in stage 5, or after AUS submission completes
+                                  if ((Boolean(profile?.aus_status) || stage === "5" || pendingMode === "loan-officer") && isAffordabilityPanelOpen) {
                                     setIsAffordabilityPanelOpen(false);
                                     setPanelClosedByUser(true);
                                   }
@@ -1290,6 +1292,7 @@ export default function FloatingCTA() {
                               {/* AffordabilityModal removed — panel is now inline split-screen */}
                               <ContactConfirmCard
                                 isVisible={isContactConfirmVisible}
+                                isDiscreteMode={pendingMode === 'avatar-chat'}
                                 firstName={
                                   (borrowerProfile as any)?.contact_first_name ||
                                   (borrowerProfile as any)?.contactFirstName ||
@@ -1331,6 +1334,22 @@ export default function FloatingCTA() {
                                     }
                                   } catch (err) {
                                     console.warn('[ui-contact-confirm]: Failed to send correction signal:', err);
+                                  }
+                                }}
+                                onFieldCorrect={async (field, newValue) => {
+                                  console.log(`[ui-contact-confirm]: Field correction: ${field} = ${newValue}`);
+                                  try {
+                                    const encoder = new TextEncoder();
+                                    const payload = encoder.encode(JSON.stringify({
+                                      type: 'contact_ui_field_correction',
+                                      field,
+                                      value: newValue,
+                                    }));
+                                    if ((window as any).lkPublishData) {
+                                      await (window as any).lkPublishData(payload, { topic: 'lk-chat', reliable: true });
+                                    }
+                                  } catch (err) {
+                                    console.warn('[ui-contact-confirm]: Failed to send field correction:', err);
                                   }
                                 }}
                               />
@@ -1710,7 +1729,7 @@ export default function FloatingCTA() {
 
                     {/* ── Affordability Panel: Desktop Inline Split (lg+) ── */}
                     <AnimatePresence>
-                      {isAffordabilityPanelOpen && (() => {
+                      {isAffordabilityPanelOpen && pendingMode !== 'loan-officer' && (() => {
                         // apEligiblePrograms and apDefaultProgram are memoized at component top-level
                         // to prevent unstable references and premature tab reversions
 

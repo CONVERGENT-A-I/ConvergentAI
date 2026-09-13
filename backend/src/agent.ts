@@ -201,10 +201,32 @@ class AilanaVoiceAgent extends voice.Agent {
     }
 
     if (inAffordabilityStage && !isConditionalOrQuestion && !isUpgradeIntent && verbalSubmitPattern.test(lastUserText)) {
-      console.log(`[agent-hook]: 0ms Verbal Submit Fast-Path triggered — executing AUS findings immediately without LLM call!`);
+      const p = this.contextManager.getProfile();
+      const isStatedMode = p.affordability_mode === 'stated' || !p.otp_verified;
+      const pendingField = this.contextManager.getPendingField();
+
+      if (isStatedMode) {
+        console.log(`[agent-hook]: Voice submit in stated mode -> triggering upgrade to verified mode (contact_first_name).`);
+        this.contextManager.triggerUpgradeToVerifiedMode();
+        this.updateInstructionsCallback();
+        if (this.sendStageUpdate) {
+          this.sendStageUpdate('3A').catch(err => console.warn(err));
+        }
+        const upgradeScript = "To submit your scenario for a formal eligibility review, we'll need to upgrade to verified numbers. I'll need a few details to set up your secure account first. First — what's your first name?";
+        return createVerbatimStream(upgradeScript) as any;
+      }
+
+      if (pendingField !== 'affordability_submit_confirmation') {
+        console.log(`[agent-hook]: Voice submit in verified mode -> asking for verbal submission confirmation.`);
+        (this.contextManager as any).currentPendingField = 'affordability_submit_confirmation';
+        this.updateInstructionsCallback();
+        const confirmPrompt = "Just to confirm, are you ready to submit your scenario for the formal eligibility review?";
+        return createVerbatimStream(confirmPrompt) as any;
+      }
+
+      console.log(`[agent-hook]: 0ms Verbal Submit Fast-Path confirmed — executing AUS findings immediately!`);
 
       // 1. Instantly update the UI to show the button as "Review Submitted ✓" and ensure panel stays rendered
-      const p = this.contextManager.getProfile();
       p.affordability_submitted = true;
       p.affordability_panel_rendered = true;
       (p as any).affordability_panel_closed = false;
@@ -239,59 +261,60 @@ class AilanaVoiceAgent extends voice.Agent {
     const activeStage = this.contextManager.getActiveStage();
 
     // ── Loan Officer Transfer Fast-Path ──────────────────────────────────────
-    // Stage-gate: LO transfer is ONLY processed in Stage 5 (post-review escalation stage
-    // after findings come back).
-    // In stages 1, 2, 2.5, 3, 3A, 4: skip entirely — saves 300-900ms on every turn.
-    const LO_ELIGIBLE_STAGES = new Set(['5']);
-    const loEligibleStage = LO_ELIGIBLE_STAGES.has(activeStage);
+    const LO_ELIGIBLE_STAGES = new Set(['2.5', '4', '5']);
+    const isExplicitLoRequest = /\b(connect(\s+me)?\s+(?:to\s+)?(?:a\s+|the\s+)?loan\s*officer|transfer(\s+me)?\s+(?:to\s+)?(?:a\s+|the\s+)?loan\s*officer|speak\s+(?:to|with)\s+(?:a\s+|the\s+)?loan\s*officer|call\s+(?:a\s+|the\s+)?loan\s*officer|connect\s+me\s+right\s+now)\b/i.test(lastUserText);
+    const loEligibleStage = LO_ELIGIBLE_STAGES.has(activeStage) || isExplicitLoRequest;
 
     let loIntent: 'yes' | 'no' | 'uncertain' = 'uncertain';
 
     if (loEligibleStage) {
-      // Regex pre-filter (0ms): if no LO keywords, skip the LLM classifier entirely.
-      // Only invoke the LLM when there is a plausible signal that the user wants a transfer.
-      const LO_KEYWORD_PATTERN = /\b(connect|transfer|speak|talk|loan officer|real person|someone|schedule|call me|book|yes|sure|go ahead|do it|let's do|absolutely|definitely)\b/i;
-      const loKeywordDetected = LO_KEYWORD_PATTERN.test(lastUserText);
-
-      if (loKeywordDetected) {
-        const lastAgentMsg = [...(chatCtx?.items || [])]
-          .reverse()
-          .find((item: any) => item.role === 'assistant' || item.type === 'assistant');
-        const lastAgentText = typeof lastAgentMsg?.content === 'string'
-          ? lastAgentMsg.content
-          : Array.isArray(lastAgentMsg?.content)
-            ? lastAgentMsg.content.join(' ')
-            : null;
-
-        loIntent = await classifyLoanOfficerTransferIntent(lastUserText, lastAgentText);
-        console.log(`[agent-hook]: LO transfer classification → "${loIntent}" for: "${lastUserText}"`);
+      if (isExplicitLoRequest) {
+        loIntent = 'yes';
       } else {
-        console.log(`[agent-hook]: LO transfer pre-filter SKIPPED (no keywords, stage=${activeStage}) — 0ms.`);
+        const LO_KEYWORD_PATTERN = /\b(connect|transfer|speak|talk|loan officer|real person|someone|schedule|call me|book|yes|sure|go ahead|do it|let's do|absolutely|definitely)\b/i;
+        const loKeywordDetected = LO_KEYWORD_PATTERN.test(lastUserText);
+
+        if (loKeywordDetected) {
+          const lastAgentMsg = [...(chatCtx?.items || [])]
+            .reverse()
+            .find((item: any) => item.role === 'assistant' || item.type === 'assistant');
+          const lastAgentText = typeof lastAgentMsg?.content === 'string'
+            ? lastAgentMsg.content
+            : Array.isArray(lastAgentMsg?.content)
+              ? lastAgentMsg.content.join(' ')
+              : null;
+
+          loIntent = await classifyLoanOfficerTransferIntent(lastUserText, lastAgentText);
+          console.log(`[agent-hook]: LO transfer classification → "${loIntent}" for: "${lastUserText}"`);
+        } else {
+          console.log(`[agent-hook]: LO transfer pre-filter SKIPPED (no keywords, stage=${activeStage}) — 0ms.`);
+        }
       }
     } else {
-      console.log(`[agent-hook]: LO transfer STAGE-GATED (stage=${activeStage}, not stage 5) — skipping classifier.`);
+      console.log(`[agent-hook]: LO transfer STAGE-GATED (stage=${activeStage}) — skipping classifier.`);
     }
 
-    // ?? CRITICAL RACE CONDITION FIX: 
+    // ── CRITICAL RACE CONDITION FIX: 
     // We MUST read the profile and pending fields AFTER the await above.
-    // If the STT triggers multiple rapid concurrent llmNode calls, they would all read the same
-    // state at the top, await the intent, and then all execute the same state transition (e.g. printing a bridge line twice).
     const pending = this.contextManager.getPendingField();
     const profile = this.contextManager.getProfile();
 
     if (loIntent === 'yes') {
-      console.log(`[agent-hook]: 📞 LLM-classified Loan Officer transfer — showing popup via SYSTEM_TRIGGER_MLO_TRANSFER.`);
+      console.log(`[agent-hook]: 📞 Loan Officer transfer confirmed — transferring via SYSTEM_TRIGGER_MLO_TRANSFER.`);
       profile.escalation_preference = 'live_transfer';
       (profile as any).escalation_preference_confirmed = true;
-      this.contextManager.advanceWorkflow();
+      (profile as any).affordability_panel_closed = true;
+      profile.affordability_panel_rendered = false;
+      this.contextManager.setActiveStage('5');
+      this.contextManager.setCurrentPendingField(null);
+      if (this.sendStageUpdate) {
+        this.sendStageUpdate('5').catch(err => console.warn(err));
+      }
 
-      // Send SYSTEM_TRIGGER_MLO_TRANSFER so the frontend shows the confirmation popup.
-      // The actual SIP dial only happens AFTER the user clicks "Continue" in the popup.
       if (this.triggerMloTransfer) {
         this.triggerMloTransfer().catch(err => console.error('[agent-error]: Failed to send MLO trigger:', err));
       }
 
-      // Use the shared trigger phrase so the chat-transcript watcher also detects it.
       const scriptText = `Connecting you with a licensed loan officer now — one moment please.`;
       return createVerbatimStream(scriptText) as any;
     }
@@ -367,13 +390,13 @@ class AilanaVoiceAgent extends voice.Agent {
           return createVerbatimStream(q46s) as any;
         } else if (isExplicitPathA) {
           this._stage2ClosingOfferDelivered = false;
-          console.log('[agent-hook]: Parallel 0ms Fast-Path — Path A (Soft Pull) chosen! Transitioning directly to STAGE 3A OTP gate (contact_name)!');
+          console.log('[agent-hook]: Parallel 0ms Fast-Path — Path A (Soft Pull) chosen! Transitioning directly to STAGE 3A OTP gate (contact_first_name)!');
           this.contextManager.setActiveStage('3A');
-          this.contextManager.setCurrentPendingField('contact_name');
+          this.contextManager.setCurrentPendingField('contact_first_name');
           if (this.sendStageUpdate) {
             this.sendStageUpdate('3A').catch(err => console.warn(err));
           }
-          const script = "Perfect. Before we run your review, I'll need a few details to set up your secure login. First, what's your name?";
+          const script = "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?";
           return createVerbatimStream(script) as any;
         }
 
@@ -396,11 +419,27 @@ class AilanaVoiceAgent extends voice.Agent {
       }
     }
 
-    if (pending === 'contact_name') {
-      const attempts = this.contextManager.getFieldAttemptCount('contact_name');
+    if (pending === 'contact_first_name') {
+      const attempts = this.contextManager.getFieldAttemptCount('contact_first_name');
       const apology = attempts >= 1 ? "I'm sorry, I didn't quite catch that. " : "";
-      const scriptText = `${apology}Perfect. Before we run your review, I'll need a few details to set up your secure login. First, what's your name?`;
-      console.log('[agent-hook]: Delivering contact_name script via Deterministic ReadableStream!');
+      const scriptText = `${apology}Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?`;
+      console.log('[agent-hook]: Delivering contact_first_name script via Deterministic ReadableStream!');
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    if (pending === 'contact_last_name') {
+      const attempts = this.contextManager.getFieldAttemptCount('contact_last_name');
+      const apology = attempts >= 1 ? "I'm sorry, I didn't quite catch that. " : "";
+      const scriptText = `${apology}Thank you. And what's your last name?`;
+      console.log('[agent-hook]: Delivering contact_last_name script via Deterministic ReadableStream!');
+      return createVerbatimStream(scriptText) as any;
+    }
+
+    if (pending === 'contact_name' || pending === 'contact_full_name') {
+      const attempts = this.contextManager.getFieldAttemptCount('contact_full_name') || this.contextManager.getFieldAttemptCount('contact_name');
+      const apology = attempts >= 1 ? "I'm sorry, I didn't quite catch that. " : "";
+      const scriptText = `${apology}Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?`;
+      console.log('[agent-hook]: Delivering contact_full_name script via Deterministic ReadableStream!');
       return createVerbatimStream(scriptText) as any;
     }
 
@@ -725,6 +764,8 @@ class AilanaVoiceAgent extends voice.Agent {
       profile.affordability_panel_rendered = true;
       (profile as any).affordability_panel_closed = false;
       profile.affordability_submitted = false;
+      profile.affordability_mode = 'verified';
+      this.contextManager.getProfile().affordability_mode = 'verified';
       profile.aus_status = null;
       profile.affordability_aus_status = null;
       this.contextManager.setActiveStage('2.5');
@@ -1204,6 +1245,10 @@ export default defineAgent({
     });
 
     const performMloTransfer = async () => {
+      if (isHibernating) {
+        console.log(`[agent]: Already hibernating for MLO transfer.`);
+        return;
+      }
       isHibernating = true;
       console.log(`[agent]: 🛌 Agent hibernating for MLO transfer. Shutting down audio pipeline...`);
 
@@ -1772,6 +1817,20 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       }
     };
 
+    const deliverAgentScript = async (scriptText: string) => {
+      await contextManager.onAgentTurn(scriptText).catch(err => console.error(err));
+      if (voiceMuted) {
+        try {
+          await ctx.room.localParticipant?.sendText(scriptText, { topic: 'lk.chat' });
+        } catch {
+          await ctx.room.localParticipant?.sendChatMessage(scriptText);
+        }
+      } else {
+        metrics.startTurn();
+        session.say(scriptText, { addToChatCtx: true });
+      }
+    };
+
     const generateTextOnlyReply = async (userMessage: string) => {
       await contextManager.onUserTurn(userMessage);
       updateSessionInstructions();
@@ -1779,28 +1838,321 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       console.log(`[agent]: Text-only reply for "${userMessage}"...`);
 
       try {
-        const chatMessages = contextManager.buildTextMessages();
+        let reply: string | null = null;
+        const pending = contextManager.getPendingField();
+        const prof = contextManager.getProfile();
+        const lower = userMessage.toLowerCase().trim();
 
-        // Ensure static system prompt is at index 0, history in middle, dynamic context at end
-        const systemMessage = chatMessages[0];
-        const dynamicMessage = chatMessages[chatMessages.length - 1];
-        const historyMessages = chatMessages.slice(1, -1);
-        const slicedHistory = historyMessages.slice(-22); // keep up to 22 recent turns
-        const messages = [systemMessage, ...slicedHistory, dynamicMessage];
+        const isAffirmative = /\b(yes|yeah|yep|yup|looks?\s*(good|right|correct|fine)|that('s|\s+is)\s*(right|correct|accurate|good|fine|also\s+correct)|correct|matches|match|what\s+i\s+expect|good|fine|accurate|all\s+good|sounds\s+good|perfect|sure|confirm|confirmed|this\s+looks\s+correct|everything\s+looks\s+correct)\b/i.test(lower) &&
+          !/\b(not?\s*(right|correct|accurate|good)|wrong|mistake|change|update|no\b(?!\s*,\s*(that|it)\s*(is|looks)\s*(also\s+)?(right|correct)))\b/i.test(lower);
 
-        console.log(`[agent]: Dispatching text-only reply to LiveKit Inference LLM (prefix cached)...`);
-        const textChatCtx = new llm.ChatContext();
-        for (const msg of messages) {
-          if (msg) {
-            textChatCtx.addMessage({
-              role: (msg.role as any) || 'user',
-              content: msg.content || '',
-            });
+        const isCorrection = /\b(no|not|wrong|change|update|actually|mistake|fix|incorrect)\b/i.test(lower) && !isAffirmative;
+
+        // ── Direct Loan Officer Transfer Command ──
+        const isExplicitLoRequest = /\b(connect(\s+me)?\s+(?:to\s+)?(?:a\s+|the\s+)?loan\s*officer|transfer(\s+me)?\s+(?:to\s+)?(?:a\s+|the\s+)?loan\s*officer|speak\s+(?:to|with)\s+(?:a\s+|the\s+)?loan\s*officer|call\s+(?:a\s+|the\s+)?loan\s*officer|connect\s+me\s+right\s+now)\b/i.test(lower);
+        const isConnectLoIntent = isExplicitLoRequest || (pending === 'escalation_preference' && (
+          isAffirmative ||
+          /\b(connect|transfer|speak|talk|loan\s*officer|call|right\s*now|now)\b/i.test(lower)
+        ));
+
+        if (isConnectLoIntent) {
+          console.log(`[agent]: 📞 Discrete mode Loan Officer transfer triggered for: "${userMessage}"`);
+          prof.escalation_preference = 'live_transfer';
+          (prof as any).escalation_preference_confirmed = true;
+          (prof as any).affordability_panel_closed = true;
+          prof.affordability_panel_rendered = false;
+          contextManager.setActiveStage('5');
+          contextManager.setCurrentPendingField(null);
+          sendStageUpdate('5').catch(err => console.warn(err));
+
+          const scriptText = "Connecting you with a licensed loan officer now — one moment please.";
+          await deliverAgentScript(scriptText);
+          await performMloTransfer();
+          return;
+        }
+
+        const inAffordabilityStage = pending === 'affordability_panel_active' || contextManager.getActiveStage() === '2.5' || !!prof.affordability_panel_rendered;
+        const isUpgradeIntent = /\b(upgrade|verified\s*(?:mode|numbers|score|credit)|soft\s*(?:credit\s*)?(?:pull|review)|check\s*my\s*credit|run\s*(?:my\s*)?credit)\b/i.test(lower);
+        if (inAffordabilityStage && isUpgradeIntent && (!prof.otp_verified || prof.affordability_mode === 'stated')) {
+          contextManager.triggerUpgradeToVerifiedMode();
+          sendStageUpdate('3A').catch(err => console.warn(err));
+          reply = "I'd be happy to get that upgraded for you! Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?";
+        }
+
+        const verbalSubmitPattern = /\b(submit\s*(for\s*me|it|review|my\s*review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(?:and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|ready\s+to\s+submit)\b/i;
+        if ((pending === 'affordability_panel_active' || contextManager.getActiveStage() === '2.5') && verbalSubmitPattern.test(lower)) {
+          const isStatedMode = prof.affordability_mode === 'stated' || !prof.otp_verified;
+          if (isStatedMode) {
+            contextManager.triggerUpgradeToVerifiedMode();
+            sendStageUpdate('3A').catch(err => console.warn(err));
+            reply = "To submit your scenario for a formal eligibility review, we'll need to upgrade to verified numbers. I'll need a few details to set up your secure account first. First — what's your first name?";
+          } else {
+            (contextManager as any).currentPendingField = 'affordability_submit_confirmation';
+            reply = "Just to confirm, are you ready to submit your scenario for the formal eligibility review?";
           }
         }
-        const textStream = summarizationLlm.chat({ chatCtx: textChatCtx });
-        const textCollected = await textStream.collect();
-        const reply = textCollected.text?.replace(/<[^>]*>/g, '').replace(/<[^>]*$/, '').replace(/\s+/g, ' ').trim();
+
+        // Stage 2 Closing Offer
+        if (pending === 'stage2_closing_offer') {
+          const isExplicitPathB = /\b(build.*(?:shared|summary|stated|info|heloc|refinance|options)|what\s+i\s+shared|from\s+what\s+i\s+shared|use\s+what\s+i\s+shared|summary|explore|stated|second\s*(?:option|path|choice|one)|without|no\s+review|skip)\b/i.test(lower);
+          const isExplicitPathA = !isExplicitPathB && /\b(soft\s*pull|credit\s*review|first(?:\s*option)?|most\s*complete|yes|sure|okay|go\s*ahead|proceed|run\s*it|run\s*the\s*review)\b/i.test(lower);
+          if (isExplicitPathA) {
+            contextManager.setActiveStage('3A');
+            contextManager.setCurrentPendingField('contact_first_name');
+            sendStageUpdate('3A');
+            reply = "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?";
+          } else if (isExplicitPathB) {
+            contextManager.setActiveStage('2.5');
+            prof.affordability_mode = 'stated';
+            prof.affordability_panel_rendered = true;
+            (prof as any).affordability_panel_closed = false;
+            prof.affordability_submitted = false;
+            prof.aus_status = null;
+            prof.affordability_aus_status = null;
+            contextManager.setCurrentPendingField('affordability_panel_active');
+            sendStageUpdate('2.5');
+            const borrowerName = prof.borrower_name || prof.contact_name || prof.legal_name || 'there';
+            const isHel = prof.transaction_type === 'TT-HEL' || prof.transaction_type === 'TT-HEQ' || prof.mortgage_goal === 'heloc';
+            const isRef = prof.transaction_type === 'TT-REF' || prof.mortgage_goal === 'refinance';
+            if (isHel) {
+              reply = prof.transaction_type === 'TT-HEQ'
+                ? `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your initial results are in, and your home equity summary is ready for you. It brings together your home value, existing mortgage balance, and the loan amount target you shared with me and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?`
+                : `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your initial results are in, and your home equity summary is ready for you. It brings together your home value, existing mortgage balance, and the credit line target you shared with me and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?`;
+            } else if (isRef) {
+              reply = `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your initial results are in, and your refinance summary is ready for you. It brings together your home value, existing mortgage balance, and the refinance targets you shared with me alongside the details from your credit review, and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?`;
+            } else {
+              reply = `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your initial results are in, and your affordability summary is ready for you. It brings together the income and savings targets you shared with me and the details from your credit review, and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?`;
+            }
+          }
+        } else if (pending === 'contact_first_name') {
+          reply = "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?";
+        } else if (pending === 'contact_last_name') {
+          reply = "Thank you. And what's your last name?";
+        } else if (pending === 'contact_name' || pending === 'contact_full_name') {
+          reply = "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?";
+        } else if (pending === 'contact_email') {
+          if (prof.contact_mobile) {
+            reply = "I have your mobile number. Could you also share the email address you'd like to use for your account?";
+          } else {
+            reply = "Great. Now, what email address and mobile number would you like to use for your account?";
+          }
+        } else if (pending === 'contact_mobile') {
+          if (prof.contact_email) {
+            reply = "I have your email. Could you also share the mobile number you'd like to use?";
+          } else {
+            reply = "Could you share the mobile number you'd like to use for your account?";
+          }
+        } else if (pending === 'contact_confirm_display') {
+          if (isAffirmative) {
+            contextManager.handleContactInfoConfirmed();
+            (prof as any)._otpInstructionDelivered = true;
+            (prof as any)._otpReadyToShow = true;
+            sendStageUpdate(contextManager.getActiveStage());
+            reply = "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely on your screen when it arrives, and you're all set.";
+          } else if (isCorrection) {
+            (prof as any).contact_confirm_needs_correction = true;
+            contextManager.advanceWorkflow();
+            reply = "No problem at all. What would you like to update — your name, email, or mobile number?";
+          } else {
+            const fn = (prof as any).contact_first_name || '';
+            const ln = (prof as any).contact_last_name || '';
+            const name = `${fn} ${ln}`.trim() || prof.contact_name || 'your name';
+            const email = prof.contact_email || 'your email';
+            const phone = formatPhoneForSpeech(prof.contact_mobile || '');
+            reply = `I have ${name}, ${email}, and ${phone}. Your details are on screen — do they all look correct?`;
+          }
+        } else if (pending === 'contact_confirm_correction') {
+          reply = "No problem — which one would you like to update: your name, email, or mobile number?";
+        } else if (pending === 'otp_verification' && !prof.otp_verified) {
+          (prof as any)._otpReadyToShow = true;
+          reply = "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely on your screen when it arrives, and you're all set.";
+        } else if (pending === 'soft_pull_authorization') {
+          if (!prof.soft_pull_disclosure_delivered) {
+            prof.soft_pull_disclosure_delivered = true;
+            (prof as any).soft_pull_disclosure_delivered_at = Date.now();
+            reply = "Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry — it will not affect your credit score in any way. You are the one authorizing it, and your data is used only to process your initial eligibility review and pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?";
+          } else if (isAffirmative) {
+            prof.soft_pull_consent = 'accepted';
+            prof.prefilled_fields_confirmed = {};
+            const crsResult = await callCrsSoftPull(prof);
+            if (crsResult) {
+              prof.credit_range = crsResult.creditRange;
+              (prof as any).crs_open_accounts = crsResult.openAccounts;
+              (prof as any).crs_late_payments = crsResult.latePaymentsLast24Mo;
+              prof.employer = 'Convergent AI';
+              prof.legal_name = prof.contact_name || prof.borrower_name || crsResult.legalName || 'Valued Borrower';
+              if (crsResult.physicalAddress) prof.physical_address = crsResult.physicalAddress;
+            }
+            contextManager.advanceWorkflow();
+            (prof as any).prefill_name_address_delivered = true;
+            const name = prof.contact_name || prof.legal_name || prof.borrower_name || 'Valued Borrower';
+            const address = prof.physical_address || (prof.zip_code ? `address on file in zip code ${prof.zip_code}` : 'address on file');
+            reply = `Thank you. I've processed that soft pull. First, I have your name listed as ${name}, and your physical address as ${address}. Does that sound right, or is anything out of date?`;
+          } else if (/\b(no|not right now|don't authorize|cancel)\b/i.test(lower)) {
+            prof.soft_pull_consent = 'declined';
+            contextManager.advanceWorkflow();
+            reply = "Absolutely — we can explore your affordability summary using the information you've already shared.";
+          }
+        } else if (pending === 'prefill_name_address') {
+          const name = prof.contact_name || prof.legal_name || prof.borrower_name || 'Valued Borrower';
+          const address = prof.physical_address || (prof.zip_code ? `address on file in zip code ${prof.zip_code}` : 'address on file');
+          if (isAffirmative) {
+            prof.prefilled_fields_confirmed = prof.prefilled_fields_confirmed || {};
+            prof.prefilled_fields_confirmed.name_address = true;
+            contextManager.advanceWorkflow();
+            (prof as any).prefill_employer_delivered = true;
+            const employer = prof.employer || 'Convergent AI';
+            reply = `Great. Next, I have your employer listed as ${employer}. Does that sound correct, or has anything changed?`;
+          } else if (!isCorrection && !(prof as any).needs_prefill_correction) {
+            reply = `Thank you. I've processed that soft pull. First, I have your name listed as ${name}, and your physical address as ${address}. Does that sound right, or is anything out of date?`;
+          }
+        } else if (pending === 'prefill_employer') {
+          const employer = prof.employer || 'Convergent AI';
+          if (isAffirmative) {
+            prof.prefilled_fields_confirmed = prof.prefilled_fields_confirmed || {};
+            prof.prefilled_fields_confirmed.employer = true;
+            contextManager.advanceWorkflow();
+            (prof as any).prefill_accounts_delivered = true;
+            const openAccounts = (prof as any).crs_open_accounts ?? 3;
+            const latePayments = (prof as any).crs_late_payments ?? 0;
+            const accountWord = openAccounts === 1 ? 'account' : 'accounts';
+            const paymentWord = latePayments === 1 ? 'payment' : 'payments';
+            const lateText = latePayments === 0 ? 'no late payments' : `${latePayments} late ${paymentWord}`;
+            reply = `Perfect. For your accounts summary, I have ${openAccounts} open ${accountWord} and ${lateText} in the last 24 months. Does that match what you know, or is anything off?`;
+          } else if (!isCorrection && !(prof as any).needs_prefill_correction) {
+            reply = `Great. Next, I have your employer listed as ${employer}. Does that sound correct, or has anything changed?`;
+          }
+        } else if (pending === 'prefill_accounts') {
+          if (isAffirmative) {
+            prof.prefilled_fields_confirmed = prof.prefilled_fields_confirmed || {};
+            prof.prefilled_fields_confirmed.accounts = true;
+            contextManager.advanceWorkflow();
+            (prof as any).prefill_credit_range_delivered = true;
+            let creditScoreNum = 700;
+            if (prof.credit_range) {
+              const m = prof.credit_range.match(/\d+/);
+              if (m) creditScoreNum = parseInt(m[0], 10);
+            }
+            let creditCategory = 'Good';
+            if (creditScoreNum >= 740) creditCategory = 'Excellent';
+            else if (creditScoreNum >= 670) creditCategory = 'Good';
+            else if (creditScoreNum >= 580) creditCategory = 'Fair';
+            else creditCategory = 'Poor';
+            reply = `Lastly, we retrieved your credit profile showing a category rating in the ${creditCategory} range. Does that match what you expect or is anything out of date?`;
+          } else if (!isCorrection && !(prof as any).needs_prefill_correction) {
+            const openAccounts = (prof as any).crs_open_accounts ?? 3;
+            const latePayments = (prof as any).crs_late_payments ?? 0;
+            const accountWord = openAccounts === 1 ? 'account' : 'accounts';
+            const paymentWord = latePayments === 1 ? 'payment' : 'payments';
+            const lateText = latePayments === 0 ? 'no late payments' : `${latePayments} late ${paymentWord}`;
+            reply = `Perfect. For your accounts summary, I have ${openAccounts} open ${accountWord} and ${lateText} in the last 24 months. Does that match what you know, or is anything off?`;
+          }
+        } else if (pending === 'prefill_credit_range') {
+          if (isAffirmative) {
+            prof.prefilled_fields_confirmed = prof.prefilled_fields_confirmed || {};
+            prof.prefilled_fields_confirmed.credit_range = true;
+            prof.affordability_mode = 'verified';
+            contextManager.getProfile().affordability_mode = 'verified';
+            contextManager.advanceWorkflow();
+            (prof as any).affordability_panel_intro_delivered = true;
+            prof.affordability_panel_rendered = true;
+            (prof as any).affordability_panel_closed = false;
+            prof.affordability_submitted = false;
+            prof.aus_status = null;
+            prof.affordability_aus_status = null;
+            contextManager.setActiveStage('2.5');
+            contextManager.setCurrentPendingField('affordability_panel_active');
+            sendStageUpdate('2.5');
+            const borrowerName = prof.borrower_name || prof.contact_name || prof.legal_name || 'there';
+            const isHel = prof.transaction_type === 'TT-HEL' || prof.transaction_type === 'TT-HEQ' || prof.mortgage_goal === 'heloc';
+            const isRef = prof.transaction_type === 'TT-REF' || prof.mortgage_goal === 'refinance';
+            if (isHel) {
+              reply = prof.transaction_type === 'TT-HEQ'
+                ? `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your initial results are in, and your home equity summary is ready for you. It brings together your home value, existing mortgage balance, and the loan amount target you shared with me alongside the details from your credit review, and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?`
+                : `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your initial results are in, and your home equity summary is ready for you. It brings together your home value, existing mortgage balance, and the credit line target you shared with me alongside the details from your credit review, and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?`;
+            } else if (isRef) {
+              reply = `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your initial results are in, and your refinance summary is ready for you. It brings together your home value, existing mortgage balance, and the refinance targets you shared with me alongside the details from your credit review, and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?`;
+            } else {
+              reply = `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your initial results are in, and your affordability summary is ready for you. It brings together the income and savings targets you shared with me and the details from your credit review, and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?`;
+            }
+          } else if (!isCorrection && !(prof as any).needs_prefill_correction) {
+            let creditScoreNum = 700;
+            if (prof.credit_range) {
+              const m = prof.credit_range.match(/\d+/);
+              if (m) creditScoreNum = parseInt(m[0], 10);
+            }
+            let creditCategory = 'Good';
+            if (creditScoreNum >= 740) creditCategory = 'Excellent';
+            else if (creditScoreNum >= 670) creditCategory = 'Good';
+            else if (creditScoreNum >= 580) creditCategory = 'Fair';
+            else creditCategory = 'Poor';
+            reply = `Lastly, we retrieved your credit profile showing a category rating in the ${creditCategory} range. Does that match what you expect or is anything out of date?`;
+          }
+        } else if (pending === 'affordability_submit_confirmation') {
+          if (isAffirmative || /\b(submit|yes|sure|go\s*ahead|proceed|run\s*it)\b/i.test(lower)) {
+            prof.affordability_submitted = true;
+            prof.aus_status = 'approve_eligible';
+            (prof as any).affordability_aus_status = 'approve_eligible';
+            contextManager.setActiveStage('5');
+            contextManager.setCurrentPendingField('escalation_preference');
+            sendStageUpdate('5').catch(err => console.warn(err));
+            const borrowerName = prof.borrower_name || prof.contact_name || prof.legal_name || 'there';
+            const isRef = prof.transaction_type === 'TT-REF' || prof.mortgage_goal === 'refinance';
+            const isHel = prof.transaction_type === 'TT-HEL' || prof.transaction_type === 'TT-HEQ' || prof.mortgage_goal === 'heloc';
+            if (isRef) {
+              reply = `Good news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for the refinance scenario you built. Your estimated payment comparison is ready for you — it shows your estimated new payment alongside your current payment reference point. Your licensed loan officer will reach out to walk you through next steps and lock in your rate — or I can connect you right now if you'd like.`;
+            } else if (isHel) {
+              reply = prof.transaction_type === 'TT-HEQ'
+                ? `Good news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity loan. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like.`
+                : `Good news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity line of credit. Your licensed loan officer will reach out to walk you through the next steps — including the formal application, appraisal scheduling, and the terms of your line — or I can connect you right now if you'd like.`;
+            } else {
+              reply = `Wonderful news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built. Your estimated payment range has been calculated and is included in your pre-qualification letter. I've sent your pre-qualification letter to your email on file — it's issued by your lending institution, it's valid for ninety days, and it's exactly what real estate agents like to see with an offer. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like.`;
+            }
+          } else {
+            reply = "No problem — feel free to explore your numbers in the panel, and let me know whenever you're ready to submit.";
+          }
+        } else if (pending === 'fd1_delivery' || pending === 'fd2_delivery') {
+          contextManager.setActiveStage('5');
+          contextManager.setCurrentPendingField('escalation_preference');
+          sendStageUpdate('5').catch(err => console.warn(err));
+          const borrowerName = prof.borrower_name || prof.contact_name || prof.legal_name || 'there';
+          const isRef = prof.transaction_type === 'TT-REF' || prof.mortgage_goal === 'refinance';
+          const isHel = prof.transaction_type === 'TT-HEL' || prof.transaction_type === 'TT-HEQ' || prof.mortgage_goal === 'heloc';
+          if (isRef) {
+            reply = `Good news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for the refinance scenario you built. Your estimated payment comparison is ready for you — it shows your estimated new payment alongside your current payment reference point. Your licensed loan officer will reach out to walk you through next steps and lock in your rate — or I can connect you right now if you'd like.`;
+          } else if (isHel) {
+            reply = prof.transaction_type === 'TT-HEQ'
+              ? `Good news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity loan. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like.`
+              : `Good news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity line of credit. Your licensed loan officer will reach out to walk you through the next steps — including the formal application, appraisal scheduling, and the terms of your line — or I can connect you right now if you'd like.`;
+          } else {
+            reply = `Wonderful news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built. Your estimated payment range has been calculated and is included in your pre-qualification letter. I've sent your pre-qualification letter to your email on file — it's issued by your lending institution, it's valid for ninety days, and it's exactly what real estate agents like to see with an offer. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like.`;
+          }
+        }
+
+        if (!reply) {
+          const chatMessages = contextManager.buildTextMessages();
+
+          // Ensure static system prompt is at index 0, history in middle, dynamic context at end
+          const systemMessage = chatMessages[0];
+          const dynamicMessage = chatMessages[chatMessages.length - 1];
+          const historyMessages = chatMessages.slice(1, -1);
+          const slicedHistory = historyMessages.slice(-22); // keep up to 22 recent turns
+          const messages = [systemMessage, ...slicedHistory, dynamicMessage];
+
+          console.log(`[agent]: Dispatching text-only reply to LiveKit Inference LLM (prefix cached)...`);
+          const textChatCtx = new llm.ChatContext();
+          for (const msg of messages) {
+            if (msg) {
+              textChatCtx.addMessage({
+                role: (msg.role as any) || 'user',
+                content: msg.content || '',
+              });
+            }
+          }
+          const textStream = summarizationLlm.chat({ chatCtx: textChatCtx });
+          const textCollected = await textStream.collect();
+          reply = textCollected.text?.replace(/<[^>]*>/g, '').replace(/<[^>]*$/, '').replace(/\s+/g, ' ').trim() || null;
+        }
 
         if (reply) {
           contextManager.onAgentTurn(reply).catch(err =>
@@ -1836,15 +2188,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         (prof as any).affordability_panel_closed = false;
         await sendStageUpdate(contextManager.getActiveStage());
         const recoveryScript = "It looks like the affordability panel may have closed — I'm trying to bring it back right now. If it doesn't reappear in a moment, you can refresh the page and I'll pick up right where we left off, or we can continue walking through your numbers verbally. Which would you prefer?";
-        if (voiceMuted) {
-          await generateTextOnlyReply(recoveryScript);
-        } else {
-          metrics.startTurn();
-          session.say(recoveryScript, { addToChatCtx: true });
-          contextManager.onAgentTurn(recoveryScript).catch(err =>
-            console.error('[agent-error]: Failed to save agent turn:', err)
-          );
-        }
+        await deliverAgentScript(recoveryScript);
         return;
       }
 
@@ -1872,14 +2216,8 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         updateSessionInstructions();
         await sendStageUpdate(contextManager.getActiveStage());
 
-        const triggerPrompt = `The borrower clicked 'Upgrade to Verified Mode' on their screen. Enthusiastically acknowledge that you will upgrade their scenario to verified numbers, and ask for their first name to begin setting up their secure login: "I'd be happy to get that upgraded for you! Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?"`;
-        if (voiceMuted) {
-          await generateTextOnlyReply(triggerPrompt);
-        } else {
-          metrics.startTurn();
-          metrics.markGenerateReply();
-          session.generateReply({ userInput: triggerPrompt });
-        }
+        const upgradeScript = "I'd be happy to get that upgraded for you! Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?";
+        await deliverAgentScript(upgradeScript);
         return;
       }
 
@@ -1891,15 +2229,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       if (messageText === 'SYSTEM_LOAN_OFFICER_CANCELLED') {
         console.log(`[agent]: 🚫 User cancelled MLO transfer. Triggering fallback.`);
         const scriptText = "I see you closed the transfer window. Are you still deciding, or is there another question I can help you with first?";
-        if (voiceMuted) {
-          await generateTextOnlyReply(scriptText);
-        } else {
-          metrics.startTurn();
-          session.say(scriptText, { addToChatCtx: true });
-          contextManager.onAgentTurn(scriptText).catch(err =>
-            console.error('[agent-error]: Failed to save agent turn:', err)
-          );
-        }
+        await deliverAgentScript(scriptText);
         return;
       }
 
@@ -2104,13 +2434,11 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         console.log(`[agent]: Soft pull disclosure ALREADY delivered (ignoring duplicate trigger from ${reason}).`);
         return;
       }
+      p.soft_pull_disclosure_delivered = true;
+      (p as any).soft_pull_disclosure_delivered_at = Date.now();
       console.log(`[agent]: Triggering clean agent turn to deliver soft pull disclosure [triggered by ${reason}].`);
-      if (voiceMuted) {
-        const scriptText = "Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry — it will not affect your credit score in any way. You are the one authorizing it, and your data is used only to process your initial eligibility review and pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?";
-        generateTextOnlyReply(scriptText).catch(err => console.error(err));
-      } else {
-        session.generateReply({ userInput: "OTP verified. Deliver the soft credit inquiry disclosure to the borrower." });
-      }
+      const scriptText = "Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry — it will not affect your credit score in any way. You are the one authorizing it, and your data is used only to process your initial eligibility review and pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?";
+      deliverAgentScript(scriptText).catch(err => console.error(err));
     };
 
     const deliverOtpInstructionsOnce = (reason: string) => {
@@ -2123,16 +2451,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       (p as any)._otpReadyToShow = true;
       console.log(`[agent]: Triggering agent speech for OTP instructions [triggered by ${reason}].`);
       const scriptText = "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely on your screen when it arrives, and you're all set.";
-      if (voiceMuted) {
-        generateTextOnlyReply(scriptText).catch(err => console.error(err));
-      } else {
-        metrics.startTurn();
-        metrics.markAgentSpeaking();
-        session.say(scriptText, { addToChatCtx: true });
-        contextManager.onAgentTurn(scriptText).catch(err =>
-          console.error('[agent-error]: Failed to save agent turn:', err)
-        );
-      }
+      deliverAgentScript(scriptText).catch(err => console.error(err));
       sendStageUpdate(contextManager.getActiveStage()).catch(err =>
         console.error('[agent-error]: Failed to send stage update after OTP dispatch:', err)
       );
@@ -2174,15 +2493,39 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
               (contextManager.getProfile() as any).contact_confirm_needs_correction = true;
               contextManager.advanceWorkflow();
               const scriptText = "No problem at all. What would you like to update — your name, email, or mobile number?";
-              if (voiceMuted) {
-                generateTextOnlyReply(scriptText).catch(err => console.error(err));
-              } else {
-                metrics.startTurn();
-                metrics.markAgentSpeaking();
-                session.say(scriptText, { addToChatCtx: true });
-                contextManager.onAgentTurn(scriptText).catch(err => console.error(err));
+              deliverAgentScript(scriptText).catch(err => console.error(err));
+              updateSessionInstructions();
+              return;
+            }
+            if (parsed.type === 'contact_ui_field_correction') {
+              const { field, value } = parsed;
+              const profile = contextManager.getProfile();
+              console.log(`[agent]: contact_ui_field_correction received from UI: field=${field}, value=${value}`);
+              if (field === 'firstName') {
+                const val = String(value || '').trim();
+                (profile as any).contact_first_name = val;
+                (profile as any).contactFirstName = val;
+                const lastName = (profile as any).contact_last_name || (profile as any).contactLastName || '';
+                profile.contact_name = [val, lastName].filter(Boolean).join(' ');
+                profile.borrower_name = profile.contact_name;
+                profile.legal_name = profile.contact_name;
+              } else if (field === 'lastName') {
+                const val = String(value || '').trim();
+                (profile as any).contact_last_name = val;
+                (profile as any).contactLastName = val;
+                const firstName = (profile as any).contact_first_name || (profile as any).contactFirstName || '';
+                profile.contact_name = [firstName, val].filter(Boolean).join(' ');
+                profile.borrower_name = profile.contact_name;
+                profile.legal_name = profile.contact_name;
+              } else if (field === 'email') {
+                profile.contact_email = String(value || '').toLowerCase().trim();
+              } else if (field === 'mobile') {
+                profile.contact_mobile = String(value || '').replace(/\D/g, '');
               }
               updateSessionInstructions();
+              sendStageUpdate(contextManager.getActiveStage()).catch(err =>
+                console.error('[agent-error]: Failed to send stage update after field correction:', err)
+              );
               return;
             }
             await handleSystemMessages(parsed.message ?? str, identity);
@@ -2230,15 +2573,39 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
                 (contextManager.getProfile() as any).contact_confirm_needs_correction = true;
                 contextManager.advanceWorkflow();
                 const scriptText = "No problem at all. What would you like to update — your name, email, or mobile number?";
-                if (voiceMuted) {
-                  generateTextOnlyReply(scriptText).catch(err => console.error(err));
-                } else {
-                  metrics.startTurn();
-                  metrics.markAgentSpeaking();
-                  session.say(scriptText, { addToChatCtx: true });
-                  contextManager.onAgentTurn(scriptText).catch(err => console.error(err));
+                deliverAgentScript(scriptText).catch(err => console.error(err));
+                updateSessionInstructions();
+                return;
+              }
+              if (parsed.type === 'contact_ui_field_correction') {
+                const { field, value } = parsed;
+                const profile = contextManager.getProfile();
+                console.log(`[agent]: contact_ui_field_correction received from UI (TextStream): field=${field}, value=${value}`);
+                if (field === 'firstName') {
+                  const val = String(value || '').trim();
+                  (profile as any).contact_first_name = val;
+                  (profile as any).contactFirstName = val;
+                  const lastName = (profile as any).contact_last_name || (profile as any).contactLastName || '';
+                  profile.contact_name = [val, lastName].filter(Boolean).join(' ');
+                  profile.borrower_name = profile.contact_name;
+                  profile.legal_name = profile.contact_name;
+                } else if (field === 'lastName') {
+                  const val = String(value || '').trim();
+                  (profile as any).contact_last_name = val;
+                  (profile as any).contactLastName = val;
+                  const firstName = (profile as any).contact_first_name || (profile as any).contactFirstName || '';
+                  profile.contact_name = [firstName, val].filter(Boolean).join(' ');
+                  profile.borrower_name = profile.contact_name;
+                  profile.legal_name = profile.contact_name;
+                } else if (field === 'email') {
+                  profile.contact_email = String(value || '').toLowerCase().trim();
+                } else if (field === 'mobile') {
+                  profile.contact_mobile = String(value || '').replace(/\D/g, '');
                 }
                 updateSessionInstructions();
+                sendStageUpdate(contextManager.getActiveStage()).catch(err =>
+                  console.error('[agent-error]: Failed to send stage update after field correction:', err)
+                );
                 return;
               }
               await handleSystemMessages(parsed.message ?? fullText, participant?.identity);

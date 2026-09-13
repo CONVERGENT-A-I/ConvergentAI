@@ -381,6 +381,8 @@ export function buildLayer3TurnContext(
   // If stage2_closing_offer, OTP, or consent instructions take over, skip the generic task.
   const hasSpecificOverride =
     pendingField === 'stage2_closing_offer' ||
+    pendingField === 'contact_first_name' ||
+    pendingField === 'contact_last_name' ||
     pendingField === 'contact_full_name' ||
     pendingField === 'contact_email' ||
     pendingField === 'contact_mobile' ||
@@ -396,6 +398,32 @@ export function buildLayer3TurnContext(
         label = 'estimated property value';
       }
       taskLine = `CURRENT TASK:\nConfirm the value of "${profile.pending_confirm_value}" for ${label}. Do NOT ask for the next field yet.`;
+    } else if (pendingField === 'prefill_name_address') {
+      const name = profile.contact_name || profile.legal_name || profile.borrower_name || 'Valued Borrower';
+      const address = profile.physical_address || (profile.zip_code ? `address on file in zip code ${profile.zip_code}` : 'address on file');
+      taskLine = `CURRENT TASK:\nPrefill walkthrough: Name and Address\n\nAsk: "Thank you. I've processed that soft pull. First, I have your name listed as ${name}, and your physical address as ${address}. Does that sound right, or is anything out of date?"\nDO NOT ASK FOR ANY OTHER FIELD.`;
+    } else if (pendingField === 'prefill_employer') {
+      const employer = profile.employer || 'Convergent AI';
+      taskLine = `CURRENT TASK:\nPrefill walkthrough: Employer\n\nAsk: "Great. Next, I have your employer listed as ${employer}. Does that sound correct, or has anything changed?"\nDO NOT ASK FOR ANY OTHER FIELD.`;
+    } else if (pendingField === 'prefill_accounts') {
+      const openAccounts = (profile as any).crs_open_accounts ?? 3;
+      const latePayments = (profile as any).crs_late_payments ?? 0;
+      const accountWord = openAccounts === 1 ? 'account' : 'accounts';
+      const paymentWord = latePayments === 1 ? 'payment' : 'payments';
+      const lateText = latePayments === 0 ? 'no late payments' : `${latePayments} late ${paymentWord}`;
+      taskLine = `CURRENT TASK:\nPrefill walkthrough: Accounts Summary\n\nAsk: "Perfect. For your accounts summary, I have ${openAccounts} open ${accountWord} and ${lateText} in the last 24 months. Does that match what you know, or is anything off?"\nDO NOT ASK FOR ANY OTHER FIELD.`;
+    } else if (pendingField === 'prefill_credit_range') {
+      let creditScoreNum = 700;
+      if (profile.credit_range) {
+        const m = profile.credit_range.match(/\d+/);
+        if (m) creditScoreNum = parseInt(m[0], 10);
+      }
+      let creditCategory = 'Good';
+      if (creditScoreNum >= 740) creditCategory = 'Excellent';
+      else if (creditScoreNum >= 670) creditCategory = 'Good';
+      else if (creditScoreNum >= 580) creditCategory = 'Fair';
+      else creditCategory = 'Poor';
+      taskLine = `CURRENT TASK:\nPrefill walkthrough: Credit Category Rating\n\nAsk: "Lastly, we retrieved your credit profile showing a category rating in the ${creditCategory} range. Does that match what you expect or is anything out of date?"\nNEVER quote exact numeric credit score. Only the range category. DO NOT ASK FOR ANY OTHER FIELD.`;
     } else if (pendingField === 'property_type') {
       if (profile.property_type && !profile.zip_code) {
         taskLine = `CURRENT TASK:\nCollect zip_code (borrower already specified ${profile.property_type})\n\nAsk: "What city or zip code are you looking in?"\nDO NOT repeat the property type choices.`;
@@ -471,10 +499,20 @@ NEVER quote payment amounts. NEVER mention loan programs. NEVER say "FHA" or "co
 
   // ── OTP Gate Instruction Blocks (v8.7) ────────────────────────────────────
   let otpBlock = '';
-  if (pendingField === 'contact_full_name') {
+  if (pendingField === 'contact_first_name') {
+    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT FIRST NAME ***
+You MUST ask for the borrower's first name to set up their secure login.
+Say EXACTLY: "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?"
+Do NOT ask for last name, email, or mobile yet. Do NOT mention the soft pull until after OTP is verified.`;
+  } else if (pendingField === 'contact_last_name') {
+    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT LAST NAME ***
+You MUST ask for the borrower's last name.
+Say EXACTLY: "Thank you. And what's your last name?"
+Do NOT ask for email or mobile yet. Do NOT mention the soft pull until after OTP is verified.`;
+  } else if (pendingField === 'contact_full_name') {
     otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT FULL NAME ***
 You MUST ask for the borrower's full name to set up their secure login.
-Say EXACTLY: "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what is your full name?"
+Say EXACTLY: "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?"
 Do NOT ask for email or mobile yet. Do NOT mention the soft pull until after OTP is verified.`;
   } else if (pendingField === 'contact_email') {
     otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT EMAIL AND MOBILE ***
