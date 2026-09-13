@@ -1142,7 +1142,7 @@ export class SessionContextManager {
 
   public triggerUpgradeToVerifiedMode(): void {
     this.activeStage = '3A';
-    this.currentPendingField = 'contact_first_name';
+    this.currentPendingField = 'contact_full_name';
     this.profile.transition_pitch_delivered = true;
     this.profile.affordability_submitted = false;
     this.profile.aus_status = null;
@@ -1175,7 +1175,7 @@ export class SessionContextManager {
     (this.profile as any).prefill_credit_range_delivered = false;
     (this.profile as any).affordability_panel_intro_delivered = false;
 
-    console.log('[context-manager]: Explicit upgrade to verified mode triggered! Active stage set to 3A, pending field set to contact_first_name.');
+    console.log('[context-manager]: Explicit upgrade to verified mode triggered! Active stage set to 3A, pending field set to contact_full_name.');
   }
 
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢
@@ -1421,8 +1421,8 @@ export class SessionContextManager {
       return;
     }
 
-    // ── v8.8 OTP Gate: Step 0 Fallback — collect contact_full_name ──
-    if (this.currentPendingField === 'contact_full_name') {
+    // ── v8.8 OTP Gate: Step 0 — collect contact_full_name ──
+    if (this.currentPendingField === 'contact_full_name' || this.currentPendingField === 'contact_name') {
       const results = await extractMultipleFields(text, lastQuestion, [
         {
           name: 'contact_first_name',
@@ -1447,10 +1447,17 @@ export class SessionContextManager {
       ]);
 
       if (results.contact_first_name?.value) {
-        const first = String(results.contact_first_name.value).trim();
+        let first = String(results.contact_first_name.value).trim();
         const middle = results.contact_middle_name?.value ? String(results.contact_middle_name.value).trim() : '';
-        const last = results.contact_last_name?.value ? String(results.contact_last_name.value).trim() : '';
+        let last = results.contact_last_name?.value ? String(results.contact_last_name.value).trim() : '';
         const suffix = results.contact_suffix?.value ? String(results.contact_suffix.value).trim() : '';
+
+        // If the LLM returned the entire full name in first name (e.g. "David Patton")
+        if (!last && first.includes(' ')) {
+          const parts = first.split(/\s+/);
+          first = parts[0] || first;
+          last = parts.slice(1).join(' ');
+        }
 
         (this.profile as any).contact_first_name = first;
         (this.profile as any).contact_first_name_confirmed = true;
@@ -1462,17 +1469,21 @@ export class SessionContextManager {
           (this.profile as any).contact_last_name = last;
           (this.profile as any).contact_last_name_confirmed = true;
           (this.profile as any).contactLastName = last;
+        } else {
+          (this.profile as any).contact_last_name = first;
+          (this.profile as any).contact_last_name_confirmed = true;
+          (this.profile as any).contactLastName = first;
         }
         
         if (suffix) (this.profile as any).contact_suffix = suffix;
 
-        const fullName = [first, middle, last, suffix].filter(Boolean).join(' ');
-        this.profile.contact_name = fullName;
-        this.profile.borrower_name = fullName;
-        this.profile.legal_name = fullName;
+        const fullName = [first, middle, (last && last !== first ? last : ''), suffix].filter(Boolean).join(' ');
+        this.profile.contact_name = fullName || first;
+        this.profile.borrower_name = this.profile.contact_name;
+        this.profile.legal_name = this.profile.contact_name;
         this.profile.contact_name_confirmed = true;
         
-        console.log(`[context-manager]: Captured contact full name: ${fullName}`);
+        console.log(`[context-manager]: Captured contact full name: ${this.profile.contact_name}`);
         this.advanceWorkflow();
       }
       return;
@@ -2947,8 +2958,8 @@ export class SessionContextManager {
       if (offerVal === 'soft_pull') {
         // Path A: OTP gate → soft pull → prefill → Stage 2.5 Verified
         this.activeStage = '3A';
-        this.currentPendingField = 'contact_first_name';
-        console.log('[context-manager]: Path A chosen via LLM — Stage 2 closing offer accepted. Transitioning to STAGE 3A OTP gate (contact_first_name)!');
+        this.currentPendingField = 'contact_full_name';
+        console.log('[context-manager]: Path A chosen via LLM — Stage 2 closing offer accepted. Transitioning to STAGE 3A OTP gate (contact_full_name)!');
         return;
       } else if (offerVal === 'explain') {
         console.log('[context-manager]: stage2_closing_offer explanation requested via LLM.');
@@ -3362,11 +3373,9 @@ export class SessionContextManager {
       }
     } else if (this.activeStage === '3A') {
       const confirmed = this.profile.prefilled_fields_confirmed || {};
-      // -- v8.8 OTP Gate: contact_first_name → contact_last_name → contact_email → contact_mobile → contact_confirm_display → otp_verification → soft_pull_authorization → prefill walkthrough --
-      if (!(this.profile as any).contact_first_name) {
-        this.currentPendingField = 'contact_first_name';
-      } else if (!(this.profile as any).contact_last_name) {
-        this.currentPendingField = 'contact_last_name';
+      // -- v8.8 OTP Gate: contact_full_name → contact_email → contact_mobile → contact_confirm_display → otp_verification → soft_pull_authorization → prefill walkthrough --
+      if (!this.profile.contact_name && !((this.profile as any).contact_first_name && (this.profile as any).contact_last_name)) {
+        this.currentPendingField = 'contact_full_name';
       } else if (!this.profile.contact_email) {
         this.currentPendingField = 'contact_email';
       } else if (!this.profile.contact_mobile) {

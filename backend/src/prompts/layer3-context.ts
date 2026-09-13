@@ -512,7 +512,7 @@ Do NOT ask for email or mobile yet. Do NOT mention the soft pull until after OTP
   } else if (pendingField === 'contact_full_name') {
     otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT FULL NAME ***
 You MUST ask for the borrower's full name to set up their secure login.
-Say EXACTLY: "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?"
+Say EXACTLY: "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your full name?"
 Do NOT ask for email or mobile yet. Do NOT mention the soft pull until after OTP is verified.`;
   } else if (pendingField === 'contact_email') {
     otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT EMAIL AND MOBILE ***

@@ -190,13 +190,13 @@ class AilanaVoiceAgent extends voice.Agent {
     const verbalSubmitPattern = /\b(submit\s*(for\s*me|it|review|my\s*review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(?:and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|do\s+it\s+for\s+me|send\s+it|yes\s+submit|let'?s\s+submit|go\s+ahead|let'?s\s+go|proceed|ready\s+to\s+submit|i'?m\s+ready|yes\s+please|sounds\s+good)\b/i;
 
     if (inAffordabilityStage && isUpgradeIntent && (!this.contextManager.getProfile().otp_verified || this.contextManager.getProfile().affordability_mode === 'stated')) {
-      console.log(`[agent-hook]: Voice upgrade request detected in Stage 2.5 ("${lastUserText}") — initiating Stage 3A contact_first_name!`);
+      console.log(`[agent-hook]: Voice upgrade request detected in Stage 2.5 ("${lastUserText}") — initiating Stage 3A contact_full_name!`);
       this.contextManager.triggerUpgradeToVerifiedMode();
       this.updateInstructionsCallback();
       if (this.sendStageUpdate) {
         this.sendStageUpdate('3A').catch(err => console.warn(err));
       }
-      const upgradeScript = "I'd be happy to get that upgraded for you! Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?";
+      const upgradeScript = "I'd be happy to get that upgraded for you! Before we run your review, I'll need a few details to set up your secure account. First — what's your full name?";
       return createVerbatimStream(upgradeScript) as any;
     }
 
@@ -206,13 +206,13 @@ class AilanaVoiceAgent extends voice.Agent {
       const pendingField = this.contextManager.getPendingField();
 
       if (isStatedMode) {
-        console.log(`[agent-hook]: Voice submit in stated mode -> triggering upgrade to verified mode (contact_first_name).`);
+        console.log(`[agent-hook]: Voice submit in stated mode -> triggering upgrade to verified mode (contact_full_name).`);
         this.contextManager.triggerUpgradeToVerifiedMode();
         this.updateInstructionsCallback();
         if (this.sendStageUpdate) {
           this.sendStageUpdate('3A').catch(err => console.warn(err));
         }
-        const upgradeScript = "To submit your scenario for a formal eligibility review, we'll need to upgrade to verified numbers. I'll need a few details to set up your secure account first. First — what's your first name?";
+        const upgradeScript = "To submit your scenario for a formal eligibility review, we'll need to upgrade to verified numbers. I'll need a few details to set up your secure account first. First — what's your full name?";
         return createVerbatimStream(upgradeScript) as any;
       }
 
@@ -390,13 +390,13 @@ class AilanaVoiceAgent extends voice.Agent {
           return createVerbatimStream(q46s) as any;
         } else if (isExplicitPathA) {
           this._stage2ClosingOfferDelivered = false;
-          console.log('[agent-hook]: Parallel 0ms Fast-Path — Path A (Soft Pull) chosen! Transitioning directly to STAGE 3A OTP gate (contact_first_name)!');
+          console.log('[agent-hook]: Parallel 0ms Fast-Path — Path A (Soft Pull) chosen! Transitioning directly to STAGE 3A OTP gate (contact_full_name)!');
           this.contextManager.setActiveStage('3A');
-          this.contextManager.setCurrentPendingField('contact_first_name');
+          this.contextManager.setCurrentPendingField('contact_full_name');
           if (this.sendStageUpdate) {
             this.sendStageUpdate('3A').catch(err => console.warn(err));
           }
-          const script = "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?";
+          const script = "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your full name?";
           return createVerbatimStream(script) as any;
         }
 
@@ -438,7 +438,7 @@ class AilanaVoiceAgent extends voice.Agent {
     if (pending === 'contact_name' || pending === 'contact_full_name') {
       const attempts = this.contextManager.getFieldAttemptCount('contact_full_name') || this.contextManager.getFieldAttemptCount('contact_name');
       const apology = attempts >= 1 ? "I'm sorry, I didn't quite catch that. " : "";
-      const scriptText = `${apology}Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?`;
+      const scriptText = `${apology}Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your full name?`;
       console.log('[agent-hook]: Delivering contact_full_name script via Deterministic ReadableStream!');
       return createVerbatimStream(scriptText) as any;
     }
@@ -1876,7 +1876,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         if (inAffordabilityStage && isUpgradeIntent && (!prof.otp_verified || prof.affordability_mode === 'stated')) {
           contextManager.triggerUpgradeToVerifiedMode();
           sendStageUpdate('3A').catch(err => console.warn(err));
-          reply = "I'd be happy to get that upgraded for you! Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?";
+          reply = "I'd be happy to get that upgraded for you! Before we run your review, I'll need a few details to set up your secure account. First — what's your full name?";
         }
 
         const verbalSubmitPattern = /\b(submit\s*(for\s*me|it|review|my\s*review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(?:and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|ready\s+to\s+submit)\b/i;
@@ -1885,7 +1885,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           if (isStatedMode) {
             contextManager.triggerUpgradeToVerifiedMode();
             sendStageUpdate('3A').catch(err => console.warn(err));
-            reply = "To submit your scenario for a formal eligibility review, we'll need to upgrade to verified numbers. I'll need a few details to set up your secure account first. First — what's your first name?";
+            reply = "To submit your scenario for a formal eligibility review, we'll need to upgrade to verified numbers. I'll need a few details to set up your secure account first. First — what's your full name?";
           } else {
             (contextManager as any).currentPendingField = 'affordability_submit_confirmation';
             reply = "Just to confirm, are you ready to submit your scenario for the formal eligibility review?";
@@ -1898,9 +1898,9 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           const isExplicitPathA = !isExplicitPathB && /\b(soft\s*pull|credit\s*review|first(?:\s*option)?|most\s*complete|yes|sure|okay|go\s*ahead|proceed|run\s*it|run\s*the\s*review)\b/i.test(lower);
           if (isExplicitPathA) {
             contextManager.setActiveStage('3A');
-            contextManager.setCurrentPendingField('contact_first_name');
+            contextManager.setCurrentPendingField('contact_full_name');
             sendStageUpdate('3A');
-            reply = "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?";
+            reply = "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your full name?";
           } else if (isExplicitPathB) {
             contextManager.setActiveStage('2.5');
             prof.affordability_mode = 'stated';
@@ -1924,12 +1924,12 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
               reply = `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your initial results are in, and your affordability summary is ready for you. It brings together the income and savings targets you shared with me and the details from your credit review, and shows how your numbers compare with typical program guideline ranges. One important note before we look at it together: this is an educational summary to help you explore — it is not a loan decision, and you can submit for the formal eligibility review at any time, no matter what these ranges show. Would you like to walk through it together?`;
             }
           }
+        } else if (pending === 'contact_name' || pending === 'contact_full_name') {
+          reply = "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your full name?";
         } else if (pending === 'contact_first_name') {
           reply = "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?";
         } else if (pending === 'contact_last_name') {
           reply = "Thank you. And what's your last name?";
-        } else if (pending === 'contact_name' || pending === 'contact_full_name') {
-          reply = "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?";
         } else if (pending === 'contact_email') {
           if (prof.contact_mobile) {
             reply = "I have your mobile number. Could you also share the email address you'd like to use for your account?";
@@ -2501,7 +2501,17 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
               const { field, value } = parsed;
               const profile = contextManager.getProfile();
               console.log(`[agent]: contact_ui_field_correction received from UI: field=${field}, value=${value}`);
-              if (field === 'firstName') {
+              if (field === 'fullName' || field === 'name') {
+                const val = String(value || '').trim();
+                profile.contact_name = val;
+                profile.borrower_name = val;
+                profile.legal_name = val;
+                const parts = val.split(/\s+/);
+                (profile as any).contact_first_name = parts[0] || val;
+                (profile as any).contactFirstName = parts[0] || val;
+                (profile as any).contact_last_name = parts.slice(1).join(' ') || parts[0] || val;
+                (profile as any).contactLastName = (profile as any).contact_last_name;
+              } else if (field === 'firstName') {
                 const val = String(value || '').trim();
                 (profile as any).contact_first_name = val;
                 (profile as any).contactFirstName = val;
@@ -2581,7 +2591,17 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
                 const { field, value } = parsed;
                 const profile = contextManager.getProfile();
                 console.log(`[agent]: contact_ui_field_correction received from UI (TextStream): field=${field}, value=${value}`);
-                if (field === 'firstName') {
+                if (field === 'fullName' || field === 'name') {
+                  const val = String(value || '').trim();
+                  profile.contact_name = val;
+                  profile.borrower_name = val;
+                  profile.legal_name = val;
+                  const parts = val.split(/\s+/);
+                  (profile as any).contact_first_name = parts[0] || val;
+                  (profile as any).contactFirstName = parts[0] || val;
+                  (profile as any).contact_last_name = parts.slice(1).join(' ') || parts[0] || val;
+                  (profile as any).contactLastName = (profile as any).contact_last_name;
+                } else if (field === 'firstName') {
                   const val = String(value || '').trim();
                   (profile as any).contact_first_name = val;
                   (profile as any).contactFirstName = val;

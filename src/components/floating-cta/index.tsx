@@ -1293,21 +1293,15 @@ export default function FloatingCTA() {
                               <ContactConfirmCard
                                 isVisible={isContactConfirmVisible}
                                 isDiscreteMode={pendingMode === 'avatar-chat'}
-                                firstName={
-                                  (borrowerProfile as any)?.contact_first_name ||
-                                  (borrowerProfile as any)?.contactFirstName ||
-                                  (borrowerProfile?.contact_name ? borrowerProfile.contact_name.split(' ')[0] : '') ||
-                                  (borrowerProfile?.borrowerName ? borrowerProfile.borrowerName.split(' ')[0] : '')
-                                }
-                                lastName={
-                                  (borrowerProfile as any)?.contact_last_name ||
-                                  (borrowerProfile as any)?.contactLastName ||
-                                  (borrowerProfile?.contact_name && borrowerProfile.contact_name.includes(' ')
-                                    ? borrowerProfile.contact_name.split(' ').slice(1).join(' ')
-                                    : '') ||
-                                  (borrowerProfile?.borrowerName && borrowerProfile.borrowerName.includes(' ')
-                                    ? borrowerProfile.borrowerName.split(' ').slice(1).join(' ')
-                                    : '')
+                                fullName={
+                                  borrowerProfile?.contact_name ||
+                                  borrowerProfile?.borrowerName ||
+                                  borrowerProfile?.legal_name ||
+                                  [
+                                    (borrowerProfile as any)?.contact_first_name || (borrowerProfile as any)?.contactFirstName,
+                                    (borrowerProfile as any)?.contact_last_name || (borrowerProfile as any)?.contactLastName,
+                                  ].filter(Boolean).join(' ') ||
+                                  ''
                                 }
                                 email={borrowerProfile?.contact_email}
                                 mobile={borrowerProfile?.contact_mobile}

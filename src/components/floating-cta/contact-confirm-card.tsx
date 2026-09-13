@@ -7,20 +7,22 @@ import { ShieldCheck, User, Mail, Phone, Pencil, Check, X, ArrowRight } from 'lu
 export interface ContactConfirmCardProps {
   isVisible: boolean;
   isDiscreteMode?: boolean;
+  fullName?: string | null;
   firstName?: string | null;
   lastName?: string | null;
   email?: string | null;
   mobile?: string | null;
   onConfirm?: () => void;
   onCorrect?: () => void;
-  onFieldCorrect?: (field: 'firstName' | 'lastName' | 'email' | 'mobile', newValue: string) => void;
+  onFieldCorrect?: (field: 'fullName' | 'firstName' | 'lastName' | 'email' | 'mobile', newValue: string) => void;
 }
 
-type EditableField = 'firstName' | 'lastName' | 'email' | 'mobile';
+type EditableField = 'fullName' | 'email' | 'mobile';
 
 export function ContactConfirmCard({
   isVisible,
   isDiscreteMode = false,
+  fullName,
   firstName,
   lastName,
   email,
@@ -29,10 +31,11 @@ export function ContactConfirmCard({
   onCorrect,
   onFieldCorrect,
 }: ContactConfirmCardProps) {
+  const initialFullName = fullName || [firstName, lastName].filter(Boolean).join(' ') || '';
+
   // Local state initialized from props
   const [localValues, setLocalValues] = useState({
-    firstName: firstName || '',
-    lastName: lastName || '',
+    fullName: initialFullName,
     email: email || '',
     mobile: mobile || '',
   });
@@ -45,16 +48,13 @@ export function ContactConfirmCard({
 
   // Sync props to local values if not currently editing that specific field
   useEffect(() => {
-    if (activeEditingField !== 'firstName' && firstName !== undefined) {
-      setLocalValues((prev) => ({ ...prev, firstName: firstName || '' }));
+    if (activeEditingField !== 'fullName') {
+      const derived = fullName || [firstName, lastName].filter(Boolean).join(' ') || '';
+      if (derived) {
+        setLocalValues((prev) => ({ ...prev, fullName: derived }));
+      }
     }
-  }, [firstName, activeEditingField]);
-
-  useEffect(() => {
-    if (activeEditingField !== 'lastName' && lastName !== undefined) {
-      setLocalValues((prev) => ({ ...prev, lastName: lastName || '' }));
-    }
-  }, [lastName, activeEditingField]);
+  }, [fullName, firstName, lastName, activeEditingField]);
 
   useEffect(() => {
     if (activeEditingField !== 'email' && email !== undefined) {
@@ -84,14 +84,9 @@ export function ContactConfirmCard({
     const trimmed = editInputValue.trim();
 
     // Validation
-    if (field === 'firstName') {
+    if (field === 'fullName') {
       if (!trimmed) {
-        setFieldError('Please enter your first name.');
-        return;
-      }
-    } else if (field === 'lastName') {
-      if (!trimmed) {
-        setFieldError('Please enter your last name.');
+        setFieldError('Please enter your full name.');
         return;
       }
     } else if (field === 'email') {
@@ -155,36 +150,21 @@ export function ContactConfirmCard({
               </p>
             </div>
 
-            {/* Info rows: First Name, Last Name, Email, Phone */}
+            {/* Info rows: Full Name, Email, Phone */}
             <div className="space-y-2.5 mb-2">
               <EditableInfoRow
                 icon={<User className="w-4 h-4 text-[#00b4d8]" />}
-                label="First Name"
-                fieldKey="firstName"
-                value={localValues.firstName || '—'}
-                isEditing={activeEditingField === 'firstName'}
+                label="Full Name"
+                fieldKey="fullName"
+                value={localValues.fullName || '—'}
+                isEditing={activeEditingField === 'fullName'}
                 editValue={editInputValue}
-                fieldError={activeEditingField === 'firstName' ? fieldError : null}
-                hasSavedRecently={recentSavedField === 'firstName'}
-                onStartEdit={() => handleStartEdit('firstName')}
+                fieldError={activeEditingField === 'fullName' ? fieldError : null}
+                hasSavedRecently={recentSavedField === 'fullName'}
+                onStartEdit={() => handleStartEdit('fullName')}
                 onCancelEdit={handleCancelEdit}
                 onChangeEditValue={setEditInputValue}
-                onSave={() => handleSaveEdit('firstName')}
-              />
-
-              <EditableInfoRow
-                icon={<User className="w-4 h-4 text-[#00b4d8]" />}
-                label="Last Name"
-                fieldKey="lastName"
-                value={localValues.lastName || '—'}
-                isEditing={activeEditingField === 'lastName'}
-                editValue={editInputValue}
-                fieldError={activeEditingField === 'lastName' ? fieldError : null}
-                hasSavedRecently={recentSavedField === 'lastName'}
-                onStartEdit={() => handleStartEdit('lastName')}
-                onCancelEdit={handleCancelEdit}
-                onChangeEditValue={setEditInputValue}
-                onSave={() => handleSaveEdit('lastName')}
+                onSave={() => handleSaveEdit('fullName')}
               />
 
               <EditableInfoRow

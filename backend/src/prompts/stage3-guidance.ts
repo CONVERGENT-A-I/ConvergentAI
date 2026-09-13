@@ -135,7 +135,8 @@ CURRENT TASK BEHAVIOR — FOLLOW EXACTLY IN ORDER:
   * Collect the last name on this turn. Do NOT ask for email or mobile yet.
 
 - When CURRENT TASK is 'contact_full_name':
-  * Ask: "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?"
+  * Ask: "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your full name?"
+  * Collect the borrower's full name on this turn. Do NOT ask for email or mobile yet.
 
 - When CURRENT TASK is 'contact_email':
   * Ask: "Great. Now, what email address and mobile number would you like to use for your account?"
