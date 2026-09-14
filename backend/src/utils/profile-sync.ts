@@ -27,7 +27,7 @@ export function applyContactUpdates(profile: any, updates: any): void {
     if (fStrip.endsWith(lStrip)) {
       const fn = explicitFirst;
       const parts = fn.split(/\s+/);
-      explicitFirst = parts[0];
+      explicitFirst = parts[0] || null;
       explicitLast = parts.slice(1).join(' ') || explicitLast;
     }
   }
@@ -35,7 +35,7 @@ export function applyContactUpdates(profile: any, updates: any): void {
   // If first name has spaces and no explicit last name was given, split it
   if (explicitFirst && !explicitLast && explicitFirst.includes(' ')) {
     const parts = explicitFirst.split(/\s+/);
-    explicitFirst = parts[0];
+    explicitFirst = parts[0] || null;
     explicitLast = parts.slice(1).join(' ');
   }
 
