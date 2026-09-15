@@ -5,6 +5,38 @@ export function applyContactUpdates(profile: any, updates: any): void {
   let explicitLast = updates.contact_last_name ? String(updates.contact_last_name).trim() : null;
   let explicitSuffix = updates.contact_suffix ? String(updates.contact_suffix).trim() : null;
 
+  // Route generic alias 'fullName' to explicitFirst so it flows through the normalization and deduplication engines
+  if (!explicitFirst && !explicitLast && (updates.name || updates.fullName)) {
+    explicitFirst = String(updates.name || updates.fullName).trim();
+    explicitMiddle = null;
+    explicitSuffix = null;
+  }
+
+  // Deduplicate adjacent repeated tokens (e.g. STT artifact "David Patten PATTEN" -> "David Patten")
+  function deduplicateTokens(str: string | null): string | null {
+    if (!str) return str;
+    const tokens = str.split(/\s+/);
+    const result: string[] = [];
+    for (let i = 0; i < tokens.length; i++) {
+      const currentToken = tokens[i];
+      if (!currentToken) continue;
+
+      if (result.length > 0) {
+        const lastToken = result[result.length - 1];
+        if (lastToken && lastToken.toLowerCase() === currentToken.toLowerCase()) {
+          continue;
+        }
+      }
+      result.push(currentToken);
+    }
+    return result.join(' ');
+  }
+
+  explicitFirst = deduplicateTokens(explicitFirst);
+  explicitMiddle = deduplicateTokens(explicitMiddle);
+  explicitLast = deduplicateTokens(explicitLast);
+  explicitSuffix = deduplicateTokens(explicitSuffix);
+
   // Normalize ALL CAPS extractions from STT spelling
   function normalizeCase(str: string): string {
     if (!str) return str;
@@ -18,19 +50,6 @@ export function applyContactUpdates(profile: any, updates: any): void {
   explicitMiddle = normalizeCase(explicitMiddle as string);
   explicitLast = normalizeCase(explicitLast as string);
 
-  // Deduplicate: If LLM extracted the full name into first name (e.g. "David L Patten") 
-  // and also extracted the last name ("LPatten")
-  if (explicitFirst && explicitLast) {
-    const fStrip = explicitFirst.toLowerCase().replace(/\s+/g, '');
-    const lStrip = explicitLast.toLowerCase().replace(/\s+/g, '');
-    // If explicitFirst ends with explicitLast (ignoring spaces), it already contains the full name
-    if (fStrip.endsWith(lStrip)) {
-      const fn = explicitFirst;
-      const parts = fn.split(/\s+/);
-      explicitFirst = parts[0] || null;
-      explicitLast = parts.slice(1).join(' ') || explicitLast;
-    }
-  }
 
   // If first name has spaces and no explicit last name was given, split it
   if (explicitFirst && !explicitLast && explicitFirst.includes(' ')) {
@@ -66,19 +85,6 @@ export function applyContactUpdates(profile: any, updates: any): void {
   }
   if (explicitSuffix !== null) {
     profile.contact_suffix = suffix;
-  }
-
-  // Also handle alias field 'name' or 'fullName' if passed generically
-  if (updates.name || updates.fullName) {
-    const fn = String(updates.name || updates.fullName).trim();
-    if (fn) {
-      // Re-run the split logic
-      const parts = fn.split(/\s+/);
-      profile.contact_first_name = parts[0];
-      profile.contact_last_name = parts.slice(1).join(' ') || parts[0];
-      profile.contact_middle_name = '';
-      profile.contact_suffix = '';
-    }
   }
 
   // Recompute full name

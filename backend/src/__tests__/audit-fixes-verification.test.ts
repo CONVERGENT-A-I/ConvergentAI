@@ -551,11 +551,10 @@ console.log('--- Suite 11: Latency Optimizations, Sentinel Fixes, Metadata & Rep
   assert(allMatched, 'All standard voice confirmation phrases match affirmative pattern');
 }
 
-// 11.9: Silent-turn reprompt entries exist for contact_first_name, contact_last_name, and contact_confirm_display
+// 11.9: Silent-turn reprompt entries exist for contact_full_name and contact_confirm_display
 {
   const agentCode = fs.readFileSync(new URL('../agent.ts', import.meta.url), 'utf-8');
-  assert(agentCode.includes("contact_first_name: 'I apologize for the interruption"), 'PENDING_FIELD_REPROMPT has contact_first_name entry');
-  assert(agentCode.includes("contact_last_name: 'I apologize for that"), 'PENDING_FIELD_REPROMPT has contact_last_name entry');
+  assert(agentCode.includes("contact_full_name: 'I apologize for the interruption"), 'PENDING_FIELD_REPROMPT has contact_full_name entry');
   assert(agentCode.includes("contact_confirm_display: 'I apologize for the interruption"), 'PENDING_FIELD_REPROMPT has contact_confirm_display entry');
 }
 

@@ -1343,84 +1343,20 @@ export class SessionContextManager {
   private async runStage3AExtraction(text: string): Promise<void> {
     const lastQuestion = this.getLastAssistantUtterance();
 
-    // ── v8.8 OTP Gate: Step 0A — collect contact_first_name ──
-    if (this.currentPendingField === 'contact_first_name') {
-      const results = await extractMultipleFields(text, lastQuestion, [
-        {
-          name: 'contact_first_name',
-          description: "The borrower's first name",
-          expectedType: 'string',
-        },
-        {
-          name: 'contact_last_name',
-          description: "The borrower's last name or surname, if provided in this response",
-          expectedType: 'string',
-        },
-      ]);
-
-      if (results.contact_first_name?.value) {
-        applyContactUpdates(this.profile, {
-          contact_first_name: results.contact_first_name.value,
-          contact_last_name: results.contact_last_name?.value,
-        });
-        console.log(`[context-manager]: Captured contact name: ${this.profile.contact_name}`);
-
-        this.advanceWorkflow();
-      }
-      return;
-    }
-
-    // ── v8.8 OTP Gate: Step 0B — collect contact_last_name ──
-    if (this.currentPendingField === 'contact_last_name') {
-      const results = await extractMultipleFields(text, lastQuestion, [
-        {
-          name: 'contact_last_name',
-          description: "The borrower's last name or surname",
-          expectedType: 'string',
-        },
-      ]);
-
-      if (results.contact_last_name?.value) {
-        applyContactUpdates(this.profile, {
-          contact_last_name: results.contact_last_name.value,
-        });
-        console.log(`[context-manager]: Captured contact last name: ${(this.profile as any).contact_last_name} (Full: ${this.profile.contact_name})`);
-        this.advanceWorkflow();
-      }
-      return;
-    }
 
     // ── v8.8 OTP Gate: Step 0 — collect contact_full_name ──
     if (this.currentPendingField === 'contact_full_name' || this.currentPendingField === 'contact_name') {
       const results = await extractMultipleFields(text, lastQuestion, [
         {
-          name: 'contact_first_name',
-          description: "The borrower's first name",
-          expectedType: 'string',
-        },
-        {
-          name: 'contact_middle_name',
-          description: "The borrower's middle name or middle initial (if provided)",
-          expectedType: 'string',
-        },
-        {
-          name: 'contact_last_name',
-          description: "The borrower's last name or surname (pay attention to multi-word last names)",
-          expectedType: 'string',
-        },
-        {
-          name: 'contact_suffix',
-          description: "The borrower's suffix (e.g. Jr., III), if provided",
+          name: 'contact_full_name',
+          description: "The borrower's full name. If they spell their name out loud (e.g., 'John J O H N'), extract ONLY the actual name ('John'). Do not include the spelling artifacts.",
           expectedType: 'string',
         }
       ]);
 
-      if (results.contact_first_name?.value) {
+      if (results.contact_full_name?.value) {
         applyContactUpdates(this.profile, {
-          contact_first_name: results.contact_first_name.value,
-          contact_middle_name: results.contact_middle_name?.value,
-          contact_last_name: results.contact_last_name?.value,
-          contact_suffix: results.contact_suffix?.value,
+          fullName: results.contact_full_name.value
         });
         console.log(`[context-manager]: Captured contact full name: ${this.profile.contact_name}`);
         this.advanceWorkflow();
@@ -1470,8 +1406,8 @@ export class SessionContextManager {
           additionalInstructions: 'Return "confirmed" if yes, correct, looks good, confirm, that is right, or affirmative. Return "correction" if no, wrong, change, update, fix, mistake, or if they provide corrected contact details. Return null if unclear.',
         },
         {
-          name: 'fullName',
-          description: 'corrected full name, first name, or last name if the user mentioned a correction',
+          name: 'contact_full_name',
+          description: 'corrected full name, if provided',
           expectedType: 'string',
           additionalInstructions: 'Only return a value if the user explicitly corrected their name. Return null otherwise.',
         },
@@ -1490,7 +1426,7 @@ export class SessionContextManager {
       ]);
 
       let intent = results.confirm_intent?.value as string | null;
-      let fullNameVal = results.fullName?.value ? String(results.fullName.value).trim() : null;
+      let fullNameVal = results.contact_full_name?.value ? String(results.contact_full_name.value).trim() : null;
       let emailVal = results.contact_email?.value ? String(results.contact_email.value).toLowerCase().trim() : null;
       let mobileVal = results.contact_mobile?.value ? String(results.contact_mobile.value).replace(/\D/g, '') : null;
 
@@ -1546,8 +1482,8 @@ export class SessionContextManager {
     if (this.currentPendingField === 'contact_confirm_correction') {
       const results = await extractMultipleFields(text, lastQuestion, [
         {
-          name: 'fullName',
-          description: 'corrected full name, first name, or last name, if the user mentioned one',
+          name: 'contact_full_name',
+          description: 'corrected full name, if the user mentioned one',
           expectedType: 'string',
           additionalInstructions: 'Extract ONLY if the user explicitly corrected their name in this utterance. Return null otherwise.',
         },
@@ -1565,7 +1501,7 @@ export class SessionContextManager {
         },
       ]);
 
-      let fullNameVal = results.fullName?.value ? String(results.fullName.value).trim() : null;
+      let fullNameVal = results.contact_full_name?.value ? String(results.contact_full_name.value).trim() : null;
       let emailVal = results.contact_email?.value ? String(results.contact_email.value).toLowerCase().trim() : null;
       let mobileVal = results.contact_mobile?.value ? String(results.contact_mobile.value).replace(/\D/g, '') : null;
 

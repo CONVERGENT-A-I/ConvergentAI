@@ -481,21 +481,7 @@ class AilanaVoiceAgent extends voice.Agent {
       }
     }
 
-    if (pending === 'contact_first_name') {
-      const attempts = this.contextManager.getFieldAttemptCount('contact_first_name');
-      const apology = attempts >= 1 ? "I'm sorry, I didn't quite catch that. " : "";
-      const scriptText = `${apology}Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?`;
-      console.log('[agent-hook]: Delivering contact_first_name script via Deterministic ReadableStream!');
-      return createVerbatimStream(scriptText) as any;
-    }
 
-    if (pending === 'contact_last_name') {
-      const attempts = this.contextManager.getFieldAttemptCount('contact_last_name');
-      const apology = attempts >= 1 ? "I'm sorry, I didn't quite catch that. " : "";
-      const scriptText = `${apology}Thank you. And what's your last name?`;
-      console.log('[agent-hook]: Delivering contact_last_name script via Deterministic ReadableStream!');
-      return createVerbatimStream(scriptText) as any;
-    }
 
     if (pending === 'contact_name' || pending === 'contact_full_name') {
       const attempts = this.contextManager.getFieldAttemptCount('contact_full_name') || this.contextManager.getFieldAttemptCount('contact_name');
@@ -568,9 +554,7 @@ class AilanaVoiceAgent extends voice.Agent {
         return createVerbatimStream(scriptText) as any;
       }
 
-      const fn = (profile as any).contact_first_name || '';
-      const ln = (profile as any).contact_last_name || '';
-      const name = `${fn} ${ln}`.trim() || profile.contact_name || 'your name';
+      const name = profile.contact_name || 'your name';
       const email = profile.contact_email || 'your email';
       const phone = formatPhoneForSpeech(profile.contact_mobile || '');
 
@@ -1532,9 +1516,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       heloc_risk_acknowledged: 'I apologize for the interruption. I want to make sure you understand the structure and collateral on a home equity line — did you have any questions about that before we continue?',
       heloc_rate_comfort: 'I apologize for that. How comfortable are you with a variable interest rate that may change over time, or is fixed predictability more important?',
       // Stage 3A — Soft Pull / OTP / Prefill
-      contact_name: 'I apologize for the interruption. Could you tell me what name you would like on your secure account?',
-      contact_first_name: 'I apologize for the interruption. Could you tell me what first name you would like on your secure account?',
-      contact_last_name: 'I apologize for that. What is your last name?',
+      contact_full_name: 'I apologize for the interruption. Could you tell me what name you would like on your secure account?',
       contact_email: 'I apologize for that. What email and mobile number would you like to use for your account?',
       contact_mobile: 'I apologize for the interruption. What mobile number should I send your verification code to?',
       contact_confirm_display: 'I apologize for the interruption. I have your name, email, and mobile shown on screen, do they all look correct? If not, please spell out the correction for me, or you can update it directly on the screen.',
@@ -1988,10 +1970,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           }
         } else if (pending === 'contact_name' || pending === 'contact_full_name') {
           reply = "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your full name?";
-        } else if (pending === 'contact_first_name') {
-          reply = "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your first name?";
-        } else if (pending === 'contact_last_name') {
-          reply = "Thank you. And what's your last name?";
+
         } else if (pending === 'contact_email') {
           if (prof.contact_mobile) {
             reply = "I have your mobile number. Could you also share the email address you'd like to use for your account?";
@@ -2016,9 +1995,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             contextManager.advanceWorkflow();
             reply = "No problem at all. What would you like to update — your name, email, or mobile number?";
           } else {
-            const fn = (prof as any).contact_first_name || '';
-            const ln = (prof as any).contact_last_name || '';
-            const name = `${fn} ${ln}`.trim() || prof.contact_name || 'your name';
+            const name = prof.contact_name || 'your name';
             const email = prof.contact_email || 'your email';
             const phone = formatPhoneForSpeech(prof.contact_mobile || '');
             reply = `I have ${name}, ${email}, and ${phone}. Your details are on screen, do they all look correct? If not, please spell out the correction for me, or you can update it directly on the screen.`;

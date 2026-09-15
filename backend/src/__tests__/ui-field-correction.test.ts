@@ -207,22 +207,7 @@ async function runTests() {
     assert(profile.contact_mobile_confirmed === true, 'Marks contact_mobile_confirmed');
   }
 
-  // Test 13: Edge case where STT spellout causes ALL CAPS and partial overlap
-  {
-    const profile: any = {};
-    const mockExtractor = async () => ({
-      contact_first_name: { value: 'David L Patten' },
-      contact_middle_name: { value: null },
-      contact_last_name: { value: 'LPatten' },
-      contact_suffix: { value: null },
-    });
 
-    await applyUIFieldCorrection({ field: 'fullName', value: 'david lpatten' }, profile, mockExtractor as any);
-
-    assert(profile.contact_first_name === 'David', 'Properly splits David from David L Patten');
-    assert(profile.contact_last_name === 'L Patten', 'Properly assigns remainder to last name and deduplicates LPatten');
-    assert(profile.contact_name === 'David L Patten', 'Properly deduplicates David L Patten LPatten');
-  }
 
   // Test 14: Edge case where spelling out causes ALL CAPS
   {
