@@ -2274,6 +2274,15 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
 
         // Atomic guard: claim greeting generation immediately before any async boundary
         if (greetingGenerated) {
+          // Participant reconnected or switched channels. Send SYSTEM_AGENT_READY immediately
+          // so the frontend knows the agent is alive and hides the loading screen.
+          try {
+            const readyPayload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_AGENT_READY" }));
+            await ctx.room.localParticipant?.publishData(readyPayload, { reliable: true, topic: "lk-chat" });
+            console.log(`[agent]: Participant reconnected — Sent SYSTEM_AGENT_READY signal.`);
+          } catch (e) {
+            console.warn(`[agent]: Failed to send SYSTEM_AGENT_READY on reconnect:`, e);
+          }
           return;
         }
         greetingGenerated = true;
@@ -2294,7 +2303,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             await session.start({
               agent: vadAgent,
               room: ctx.room,
-              inputOptions: { noiseCancellation: BackgroundVoiceCancellation() },
+              inputOptions: { noiseCancellation: BackgroundVoiceCancellation(), closeOnDisconnect: false },
             });
             console.log(`[agent]: Session started on SYSTEM_CHANNEL_START.`);
           }
@@ -2322,7 +2331,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           await session.start({
             agent: vadAgent,
             room: ctx.room,
-            inputOptions: { noiseCancellation: BackgroundVoiceCancellation() },
+            inputOptions: { noiseCancellation: BackgroundVoiceCancellation(), closeOnDisconnect: false },
           });
         }
 
@@ -2402,7 +2411,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         await session.start({
           agent: vadAgent,
           room: ctx.room,
-          inputOptions: { noiseCancellation: BackgroundVoiceCancellation() },
+          inputOptions: { noiseCancellation: BackgroundVoiceCancellation(), closeOnDisconnect: false },
         });
         console.log(`[agent]: Realtime session started successfully.`);
 
@@ -2727,7 +2736,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             await session.start({
               agent: vadAgent,
               room: ctx.room,
-              inputOptions: { noiseCancellation: BackgroundVoiceCancellation() },
+              inputOptions: { noiseCancellation: BackgroundVoiceCancellation(), closeOnDisconnect: false },
             });
 
             // Save the newly created RoomAudioOutput for fallback
@@ -2831,7 +2840,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           await session.start({
             agent: vadAgent,
             room: ctx.room,
-            inputOptions: { noiseCancellation: BackgroundVoiceCancellation() },
+            inputOptions: { noiseCancellation: BackgroundVoiceCancellation(), closeOnDisconnect: false },
           });
 
           isAvatarInitDone = true;

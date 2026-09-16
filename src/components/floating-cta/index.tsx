@@ -56,6 +56,17 @@ import {
 import { OtpVerificationModal } from "./otp-verification-modal";
 import { ContactConfirmCard } from "./contact-confirm-card";
 import VideoStage from "../video-stage";
+import {
+  saveSession,
+  loadSession,
+  clearSession,
+  clearStaleOnRefresh,
+  markTabAlive,
+  isSessionRecoverable,
+  type ChatEntry,
+  type AilanaSessionSnapshot,
+} from "../../lib/session-storage";
+import { SessionRecoveryBanner } from "./session-recovery-banner";
 
 export default function FloatingCTA() {
   const [isOpen, setIsOpen] = useState(false);
@@ -82,6 +93,14 @@ export default function FloatingCTA() {
   const [isContactConfirmVisible, setIsContactConfirmVisible] = useState<boolean>(false);
   const [panelClosedByUser, setPanelClosedByUser] = useState<boolean>(false);
   const isSubmittingAfterOtpRef = useRef<boolean>(false);
+
+  // ── Session Persistence ──
+  // hasRecoverableSession: shows the "Continue Session" banner when the user reopens the CTA
+  const [hasRecoverableSession, setHasRecoverableSession] = useState<boolean>(false);
+  const [recoverySnapshot, setRecoverySnapshot] = useState<AilanaSessionSnapshot | null>(null);
+  const [restoredTranscript, setRestoredTranscript] = useState<ChatEntry[]>([]);
+  // Accumulates all live chat turns so they can be saved with each snapshot
+  const chatTranscriptRef = useRef<ChatEntry[]>([]);
 
   // ── Stable Affordability Panel Program Selections (PUR, REF, HEL) ──
   const apEligiblePrograms = useMemo<('conventional' | 'fha' | 'va' | 'usda')[]>(() => {
@@ -255,6 +274,7 @@ export default function FloatingCTA() {
   useEffect(() => {
     if (mloClosingCountdown === null) return;
     if (mloClosingCountdown <= 0) {
+      clearSession();
       setIsOpen(false);
       setMloClosingCountdown(null);
       return;
@@ -265,7 +285,11 @@ export default function FloatingCTA() {
     return () => clearTimeout(timer);
   }, [mloClosingCountdown]);
 
-  const fetchToken = async (mode?: PendingMode, forceNewRoom = false) => {
+  const fetchToken = async (
+    mode?: PendingMode,
+    forceNewRoom = false,
+    roomOverride?: string
+  ) => {
     // Prevent concurrent duplicate calls (e.g. compliance agree + mode button)
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
@@ -298,11 +322,11 @@ export default function FloatingCTA() {
 
       const urlRoom = searchParams.get("room");
       const activeMode = mode ?? pendingMode;
+      const effectiveRoom = roomOverride || (!forceNewRoom ? roomName : null);
       const generatedRoomName =
         urlRoom ||
-        (!forceNewRoom && roomName
-          ? roomName
-          : `room-${Math.random().toString(36).substring(2, 11)}`);
+        effectiveRoom ||
+        `room-${Math.random().toString(36).substring(2, 11)}`;
 
       if (!roomName || roomName !== generatedRoomName) {
         setRoomName(generatedRoomName);
@@ -481,9 +505,106 @@ export default function FloatingCTA() {
     // Left empty intentionally to prevent pre-fetch timeouts/expiration
   }, []);
 
+  // ── Session Persistence: mount-time setup ────────────────────────────────────
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    // 1. Clear localStorage if this is a page refresh (sessionStorage flag absent)
+    clearStaleOnRefresh();
+    // 2. Mark this tab as alive so future reconnects know it wasn't a refresh
+    markTabAlive();
+    // 3. Check for a recoverable session and surface the banner on next CTA open
+    if (isSessionRecoverable()) {
+      const snap = loadSession();
+      if (snap) {
+        setHasRecoverableSession(true);
+        setRecoverySnapshot(snap);
+      }
+    }
+    // 4. Clear session when the user closes the browser tab / window
+    const handleTabClose = () => clearSession();
+    window.addEventListener("beforeunload", handleTabClose);
+    return () => window.removeEventListener("beforeunload", handleTabClose);
+  }, []);
+
+  /**
+   * Build and persist a full session snapshot to localStorage.
+   * Called after every meaningful state change (stage update, AUS submit, etc.)
+   * Uses closure over current state — must be called inside a React event or effect.
+   */
+  const saveSessionSnapshot = useCallback((
+    overrides: Partial<{
+      stage: string;
+      profile: any;
+      flowPh: string;
+      mode: string;
+      panelOpen: boolean;
+      ausSubmitted: boolean;
+      panelClosed: boolean;
+    }> = {}
+  ) => {
+    const rn = roomName;
+    if (!rn) return; // Don't save until we have a room
+    const snap: AilanaSessionSnapshot = {
+      sessionId: rn,
+      roomName: rn,
+      activeStage: overrides.stage ?? activeStage,
+      flowPhase: overrides.flowPh ?? (flowPhaseRef.current === "idle" ? "live" : flowPhaseRef.current),
+      pendingMode: overrides.mode ?? pendingMode,
+      borrowerProfile: overrides.profile !== undefined ? overrides.profile : borrowerProfile,
+      isAffordabilityPanelOpen: overrides.panelOpen ?? isAffordabilityPanelOpen,
+      hasSubmittedAus: overrides.ausSubmitted ?? hasSubmittedAus,
+      panelClosedByUser: overrides.panelClosed ?? panelClosedByUser,
+      chatTranscript: chatTranscriptRef.current,
+      timestamp: Date.now(),
+    };
+    saveSession(snap);
+  }, [roomName, activeStage, flowPhaseRef, pendingMode, borrowerProfile, isAffordabilityPanelOpen, hasSubmittedAus, panelClosedByUser]);
+
+  /**
+   * Restore a session snapshot: hydrate all UI state from the stored snapshot
+   * and reconnect to the same LiveKit room.
+   */
+  const restoreSessionSnapshot = useCallback((snap: AilanaSessionSnapshot) => {
+    console.log("[session-restore]: ♻️ Restoring session from localStorage", snap);
+    setActiveStage(snap.activeStage);
+    setBorrowerProfile(snap.borrowerProfile);
+    setIsAffordabilityPanelOpen(snap.isAffordabilityPanelOpen);
+    setHasSubmittedAus(snap.hasSubmittedAus);
+    setPanelClosedByUser(snap.panelClosedByUser);
+    setRestoredTranscript(snap.chatTranscript);
+    chatTranscriptRef.current = snap.chatTranscript;
+    // Reconnect to the exact same room
+    setRoomName(snap.roomName);
+    setHasRecoverableSession(false);
+    setRecoverySnapshot(null);
+
+    // Reset LiveKit connection flags for clean reconnect
+    setToken(null);
+    setLkUrl(null);
+    setIsLkConnected(false);
+    setIsAgentReady(false);
+    setIsVideoReady(false);
+    setIsOffline(false);
+    setConnectionStatus("Connection restored. Continuing your session…");
+    setFlowPhase("connecting");
+    flowPhaseRef.current = "connecting";
+
+    const mode = (snap.pendingMode as PendingMode) ?? "video";
+    setPendingMode(mode);
+    // Fetch token for the exact saved room
+    fetchToken(mode, false, snap.roomName);
+  }, []);
+
   // Centralised session reset — nukes all LiveKit / flow state so the
   // intro → compliance → live flow can replay cleanly.
+  // On closing or end call, it clears local storage and recovery state.
   const resetSession = () => {
+    clearSession();
+    setHasRecoverableSession(false);
+    setRecoverySnapshot(null);
+    chatTranscriptRef.current = [];
+    setRestoredTranscript([]);
+
     stopConnectingSound();
     setFlowPhase("idle");
     flowPhaseRef.current = "idle";
@@ -512,6 +633,16 @@ export default function FloatingCTA() {
     setPanelClosedByUser(false);
     // Bump key so LiveKitRoom remounts fresh on next open
     setSessionKey((k) => k + 1);
+  };
+
+  /** Explicitly wipes the saved session (Start Fresh / End Session button). */
+  const clearSessionAndReset = () => {
+    clearSession();
+    setHasRecoverableSession(false);
+    setRecoverySnapshot(null);
+    chatTranscriptRef.current = [];
+    setRestoredTranscript([]);
+    restartSession();
   };
 
   // Full restart: tear down the broken connection and establish a fresh one.
@@ -585,13 +716,19 @@ export default function FloatingCTA() {
     const handleOnline = () => {
       setIsOffline(false);
       if (flowPhaseRef.current === "error") {
-        // Connection was lost and is now back — auto-restart the session
-        // since the old LiveKit room / agent is dead anyway.
-        setConnectionStatus("Connection restored. Restarting session…");
-        // Small delay so the user sees the "restored" message briefly
-        setTimeout(() => {
-          restartSession();
-        }, 1200);
+        const savedSnap = loadSession();
+        if (savedSnap) {
+          console.log("[session-restore]: 🌐 Network back online — continuing session from snapshot:", savedSnap);
+          setConnectionStatus("Connection restored. Continuing your session…");
+          setTimeout(() => {
+            restoreSessionSnapshot(savedSnap);
+          }, 600);
+        } else {
+          setConnectionStatus("Connection restored. Restarting session…");
+          setTimeout(() => {
+            restartSession();
+          }, 1200);
+        }
       }
     };
 
@@ -1055,36 +1192,53 @@ export default function FloatingCTA() {
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 0 }}
-                          className="flex flex-col items-center justify-center"
+                          className="flex flex-col items-center justify-center w-full px-4"
                         >
-                          <motion.div
-                            animate={{
-                              y: [0, -8, 0],
-                              rotate: [0, 0, -15, 15, -10, 10, 0, 0],
-                            }}
-                            transition={{
-                              duration: 4,
-                              repeat: Infinity,
-                              ease: "easeInOut",
-                            }}
-                            className="origin-bottom relative z-10 w-32 h-32 md:w-44 md:h-44 mb-8 rounded-full overflow-hidden border-[6px] md:border-8 border-[#0B0F19] shadow-[0_0_40px_rgba(0,180,216,0.3)]"
-                          >
-                            <Image
-                              src={friendlyAvatar}
-                              alt="AI Assistant"
-                              fill
-                              sizes="(max-width: 768px) 128px, 176px"
-                              className="object-cover"
-                            />
-                          </motion.div>
-                          <button
-                            onClick={() => { }}
-                            className="relative z-10 bg-[#0B0F19]/80 backdrop-blur-sm px-6 md:px-8 py-3 md:py-4 rounded-2xl shadow-lg border border-white/10 transform -translate-y-4 max-w-[280px] md:max-w-sm text-center cursor-pointer hover:bg-white/5 transition-colors"
-                          >
-                            <p className="text-gray-200 font-medium text-sm md:text-lg">
-                              Get instant answers to your mortgage questions...
-                            </p>
-                          </button>
+                          {/* Session Recovery Banner — shown when a saved session exists */}
+                          {hasRecoverableSession && recoverySnapshot ? (
+                            <div className="w-full max-w-sm">
+                              <SessionRecoveryBanner
+                                snapshot={recoverySnapshot}
+                                onContinue={() => {
+                                  restoreSessionSnapshot(recoverySnapshot);
+                                }}
+                                onStartFresh={() => {
+                                  clearSessionAndReset();
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <>
+                              <motion.div
+                                animate={{
+                                  y: [0, -8, 0],
+                                  rotate: [0, 0, -15, 15, -10, 10, 0, 0],
+                                }}
+                                transition={{
+                                  duration: 4,
+                                  repeat: Infinity,
+                                  ease: "easeInOut",
+                                }}
+                                className="origin-bottom relative z-10 w-32 h-32 md:w-44 md:h-44 mb-8 rounded-full overflow-hidden border-[6px] md:border-8 border-[#0B0F19] shadow-[0_0_40px_rgba(0,180,216,0.3)]"
+                              >
+                                <Image
+                                  src={friendlyAvatar}
+                                  alt="AI Assistant"
+                                  fill
+                                  sizes="(max-width: 768px) 128px, 176px"
+                                  className="object-cover"
+                                />
+                              </motion.div>
+                              <button
+                                onClick={() => { }}
+                                className="relative z-10 bg-[#0B0F19]/80 backdrop-blur-sm px-6 md:px-8 py-3 md:py-4 rounded-2xl shadow-lg border border-white/10 transform -translate-y-4 max-w-[280px] md:max-w-sm text-center cursor-pointer hover:bg-white/5 transition-colors"
+                              >
+                                <p className="text-gray-200 font-medium text-sm md:text-lg">
+                                  Get instant answers to your mortgage questions...
+                                </p>
+                              </button>
+                            </>
+                          )}
                         </motion.div>
                       )}
 
@@ -1283,6 +1437,12 @@ export default function FloatingCTA() {
                                       setIsOtpModalOpen(true);
                                     }
                                   }
+
+                                  // Persist the updated state to localStorage on every stage update
+                                  // Use setTimeout(0) so state setters above have flushed before we read them
+                                  setTimeout(() => {
+                                    saveSessionSnapshot({ stage, profile: profile ?? undefined });
+                                  }, 0);
                                 }}
                                 onTriggerMloTransfer={() => {
                                   console.log("[ui-stage]: 📞 Voice-triggered automatic Loan Officer handoff — showing confirmation popup!");
@@ -1526,6 +1686,12 @@ export default function FloatingCTA() {
                                     <InRoomChatPanel
                                       isActive={pendingMode === "avatar-chat"}
                                       onTriggerLoanOfficer={() => handleAIAction("loan-officer")}
+                                      initialTranscript={restoredTranscript.length > 0 ? restoredTranscript : undefined}
+                                      onNewMessage={(entry) => {
+                                        chatTranscriptRef.current = [...chatTranscriptRef.current, entry];
+                                        // Persist updated transcript with current state
+                                        saveSessionSnapshot({});
+                                      }}
                                     />
                                   </div>
                                 </div>
@@ -1575,12 +1741,19 @@ export default function FloatingCTA() {
                             "We're having trouble reaching our AI services. Please check your connection and try again."}
                         </p>
                         <button
-                          onClick={() => restartSession()}
+                          onClick={() => {
+                            const saved = loadSession();
+                            if (saved) {
+                              restoreSessionSnapshot(saved);
+                            } else {
+                              restartSession();
+                            }
+                          }}
                           disabled={isOffline}
                           className="flex items-center gap-2 bg-white text-black px-8 py-3 rounded-xl font-bold hover:bg-[#00b4d8] hover:text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <RefreshCw className="h-4 w-4" />
-                          {isOffline ? "Waiting for Internet..." : "Start New Session"}
+                          {isOffline ? "Waiting for Internet..." : loadSession() ? "Continue Session" : "Start New Session"}
                         </button>
                       </motion.div>
                     )}
@@ -1652,6 +1825,16 @@ export default function FloatingCTA() {
                           <button
                             onClick={async () => {
                               setMloClosingCountdown(null);
+                              // Restore session snapshot so Stage 5 profile & panel state are correct
+                              const savedSnap = loadSession();
+                              if (savedSnap) {
+                                console.log("[ui]: ♻️ Hydrating Stage 5 context from localStorage before returning to Ailana.");
+                                setActiveStage(savedSnap.activeStage);
+                                setBorrowerProfile(savedSnap.borrowerProfile);
+                                setIsAffordabilityPanelOpen(savedSnap.isAffordabilityPanelOpen);
+                                setHasSubmittedAus(savedSnap.hasSubmittedAus);
+                                setPanelClosedByUser(savedSnap.panelClosedByUser);
+                              }
                               if (isLkConnected) {
                                 console.log("[ui]: ☀️ Returning to Ailana from Loan Officer call. Waking up agent in existing session...");
                                 setFlowPhase("live");
@@ -1663,7 +1846,12 @@ export default function FloatingCTA() {
                                   console.warn("[ui]: Failed to send SYSTEM_RESUME_AGENT", e);
                                 }
                               } else {
-                                restartSession("video");
+                                const saved = loadSession();
+                                if (saved) {
+                                  restoreSessionSnapshot(saved);
+                                } else {
+                                  restartSession("video");
+                                }
                               }
                             }}
                             className="w-full py-2.5 sm:py-3.5 rounded-xl bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white text-sm sm:text-base font-bold hover:shadow-[0_0_20px_rgba(0,180,216,0.4)] transition-all flex items-center justify-center gap-2 cursor-pointer relative overflow-hidden group"
@@ -1676,6 +1864,7 @@ export default function FloatingCTA() {
                           <button
                             onClick={() => {
                               setMloClosingCountdown(0);
+                              clearSession();
                               setIsOpen(false);
                             }}
                             className="w-full py-2.5 sm:py-3 rounded-xl border border-white/20 text-gray-300 hover:text-white hover:bg-white/10 text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
