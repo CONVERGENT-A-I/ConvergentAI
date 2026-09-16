@@ -2175,6 +2175,12 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         return;
       }
 
+      if (messageText === 'SYSTEM_END_SESSION') {
+        console.warn(`[agent]: SYSTEM_END_SESSION received. Instantly terminating session to free resources.`);
+        ctx.room.disconnect();
+        return;
+      }
+
       // ── Issue 1 Fix: Affordability Calculator disappeared from frontend ──────
       // Fires when the frontend widget unmounts unexpectedly while the user was using it.
       // Ailana verbalizes the issue, attempts to reopen the panel, and offers a verbal fallback.
@@ -2351,6 +2357,28 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       }
     };
 
+    let reaperTimeout: NodeJS.Timeout | null = null;
+    ctx.room.on(RoomEvent.ParticipantConnected, (participant: any) => {
+      if (participant?.identity?.startsWith('guest_')) {
+        console.log(`[agent]: Guest participant connected: ${participant.identity}. Clearing any active Reaper.`);
+        if (reaperTimeout) {
+          clearTimeout(reaperTimeout);
+          reaperTimeout = null;
+        }
+      }
+    });
+
+    ctx.room.on(RoomEvent.ParticipantDisconnected, (participant: any) => {
+      if (participant?.identity?.startsWith('guest_')) {
+        console.warn(`[agent]: Guest participant disconnected: ${participant.identity}. Starting 10-minute Reaper timeout.`);
+        if (reaperTimeout) clearTimeout(reaperTimeout);
+        reaperTimeout = setTimeout(() => {
+          console.error(`[agent]: Reaper timeout expired. Abandoned session detected. Disconnecting agent to prevent resource leak.`);
+          ctx.room.disconnect();
+        }, 10 * 60 * 1000);
+      }
+    });
+
     ctx.room.on(RoomEvent.ChatMessage, async (msg, participant) => {
       try {
         const identity = participant?.identity ?? (msg as any).participantIdentity;
@@ -2481,6 +2509,36 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             const parsed = JSON.parse(str);
             if (parsed.message === "SYSTEM_METRIC_RENDER_DELTA" && parsed.client_render_ms !== undefined) {
               metrics.markClientRenderMs(parsed.client_render_ms);
+              return;
+            }
+
+            if (parsed.message === 'SYSTEM_RESTORE_STATE' && parsed.snapshot) {
+              console.log(`[agent]: SYSTEM_RESTORE_STATE received. Rehydrating SessionContextManager from localStorage snapshot.`);
+              const snap = parsed.snapshot;
+              contextManager.hydrateFromSnapshot(snap.activeStage, snap.borrowerProfile);
+              
+              // Restore historical chat messages into LLM context if not already populated
+              if (snap.chatTranscript && Array.isArray(snap.chatTranscript)) {
+                console.log(`[agent]: Rehydrating LLM context window with ${snap.chatTranscript.length} historical messages.`);
+                // Filter and push historical messages that aren't already in the agent's context
+                for (const entry of snap.chatTranscript) {
+                  const role: 'user' | 'assistant' = entry.role === 'agent' ? 'assistant' : 'user';
+                  // To avoid duplicates, check if the LLM context already has this text (approximate)
+                  const existing = session.chatCtx.items.find(m => {
+                    if ((m as any).type !== 'message' || !(m as any).content) return false;
+                    const text = typeof (m as any).content === 'string' ? (m as any).content : JSON.stringify((m as any).content);
+                    return text.includes(entry.text);
+                  });
+                  if (!existing) {
+                    session.chatCtx.items.push(new llm.ChatMessage({ role, content: entry.text }));
+                  }
+                }
+              }
+              
+              updateSessionInstructions();
+              sendStageUpdate(contextManager.getActiveStage()).catch(err =>
+                console.error('[agent-error]: Failed to sync restored stage:', err)
+              );
               return;
             }
 

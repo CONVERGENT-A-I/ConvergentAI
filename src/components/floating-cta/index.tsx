@@ -230,6 +230,7 @@ export default function FloatingCTA() {
   const participantIdentityRef = useRef<string | null>(null);
   // Track current phase in a ref so async callbacks (fetchToken) always read the latest value
   const flowPhaseRef = useRef<FlowPhase>("idle");
+  const pendingRestoreRef = useRef<AilanaSessionSnapshot | null>(null);
 
   const [mloClosingCountdown, setMloClosingCountdown] = useState<number | null>(
     null
@@ -274,7 +275,6 @@ export default function FloatingCTA() {
   useEffect(() => {
     if (mloClosingCountdown === null) return;
     if (mloClosingCountdown <= 0) {
-      clearSession();
       setIsOpen(false);
       setMloClosingCountdown(null);
       return;
@@ -573,6 +573,7 @@ export default function FloatingCTA() {
     setPanelClosedByUser(snap.panelClosedByUser);
     setRestoredTranscript(snap.chatTranscript);
     chatTranscriptRef.current = snap.chatTranscript;
+    pendingRestoreRef.current = snap;
     // Reconnect to the exact same room
     setRoomName(snap.roomName);
     setHasRecoverableSession(false);
@@ -599,7 +600,8 @@ export default function FloatingCTA() {
   // intro → compliance → live flow can replay cleanly.
   // On closing or end call, it clears local storage and recovery state.
   const resetSession = () => {
-    clearSession();
+    // We intentionally DO NOT clearSession() here anymore, 
+    // so the user can resume if they simply closed/minimized the widget.
     setHasRecoverableSession(false);
     setRecoverySnapshot(null);
     chatTranscriptRef.current = [];
@@ -637,6 +639,11 @@ export default function FloatingCTA() {
 
   /** Explicitly wipes the saved session (Start Fresh / End Session button). */
   const clearSessionAndReset = () => {
+    if ((window as any).lkPublishData) {
+      const payload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_END_SESSION" }));
+      (window as any).lkPublishData(payload, { topic: "lk-chat", reliable: true }).catch(() => {});
+      console.log("[ui]: 🛑 Sent SYSTEM_END_SESSION to backend to explicitly terminate agent.");
+    }
     clearSession();
     setHasRecoverableSession(false);
     setRecoverySnapshot(null);
@@ -689,6 +696,14 @@ export default function FloatingCTA() {
   useEffect(() => {
     if (isOpen) {
       hasOpenedRef.current = true;
+      // Re-check local storage when opening the widget in the same tab
+      if (isSessionRecoverable()) {
+        const snap = loadSession();
+        if (snap) {
+          setHasRecoverableSession(true);
+          setRecoverySnapshot(snap);
+        }
+      }
     } else if (!isOpen && hasOpenedRef.current) {
       resetSession();
       hasOpenedRef.current = false;
@@ -697,6 +712,21 @@ export default function FloatingCTA() {
       // (the LiveKitRoom connects but no backend agent is running for it).
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isLkConnected && pendingRestoreRef.current) {
+      if ((window as any).lkPublishData) {
+        const payload = new TextEncoder().encode(JSON.stringify({
+          message: "SYSTEM_RESTORE_STATE",
+          snapshot: pendingRestoreRef.current
+        }));
+        (window as any).lkPublishData(payload, { topic: 'lk-chat', reliable: true })
+          .then(() => console.log("[session-restore]: 📤 Sent SYSTEM_RESTORE_STATE to rehydrate agent context."))
+          .catch(console.error);
+      }
+      pendingRestoreRef.current = null;
+    }
+  }, [isLkConnected]);
 
   // Browser network state guard: show a clear alert when connectivity drops.
   useEffect(() => {
@@ -1864,7 +1894,6 @@ export default function FloatingCTA() {
                           <button
                             onClick={() => {
                               setMloClosingCountdown(0);
-                              clearSession();
                               setIsOpen(false);
                             }}
                             className="w-full py-2.5 sm:py-3 rounded-xl border border-white/20 text-gray-300 hover:text-white hover:bg-white/10 text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"

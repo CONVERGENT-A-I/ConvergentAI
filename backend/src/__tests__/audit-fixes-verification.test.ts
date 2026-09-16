@@ -416,7 +416,7 @@ console.log('--- Suite 11: Latency Optimizations, Sentinel Fixes, Metadata & Rep
   p.occupancy = 'primary';
   p.occupancy_confirmed = true;
   // timeline, existing_relationship, co_borrower are unconfirmed
-  
+
   // Test the conditional logic
   const fields: string[] = [];
   if (!p.mortgage_goal_confirmed) fields.push('mortgage_goal');
@@ -456,7 +456,7 @@ console.log('--- Suite 11: Latency Optimizations, Sentinel Fixes, Metadata & Rep
   (scm.getProfile() as any).affordability_profile_correction = '__pending__';
   // Correction extraction execution
   (scm.getProfile() as any).affordability_profile_correction = 'processed';
-  
+
   // Verify sweep does not find unresolved __pending__
   const unresolved: string[] = [];
   for (const key of Object.keys(scm.getProfile())) {
@@ -485,7 +485,7 @@ console.log('--- Suite 11: Latency Optimizations, Sentinel Fixes, Metadata & Rep
   let parsed: any = {};
   try {
     parsed = JSON.parse(rawMetadata);
-  } catch (e) {}
+  } catch (e) { }
 
   const scm = new SessionContextManager({} as any, {} as any);
   if (parsed.applicationId) scm.setApplicationId(parsed.applicationId);
@@ -545,7 +545,7 @@ console.log('--- Suite 11: Latency Optimizations, Sentinel Fixes, Metadata & Rep
     'Yes, that is right'
   ];
   const regex = /\b(yes|yeah|yep|yup|looks?\s*(good|right|correct|fine)|that('s|\s+is)\s*(right|correct|accurate|good|fine|also\s+correct)|correct|matches|match|what\s+i\s+expect|good|fine|accurate|all\s+good|sounds\s+good|perfect|sure|confirm|confirmed|this\s+looks\s+correct|everything\s+looks\s+correct)\b/i;
-  
+
   const allMatched = testPhrases.every(phrase => regex.test(phrase.toLowerCase().trim()));
   assert(allMatched, 'All standard voice confirmation phrases match affirmative pattern');
 }
@@ -592,6 +592,28 @@ console.log('--- Suite 11: Latency Optimizations, Sentinel Fixes, Metadata & Rep
   (scm.getProfile() as any).contact_confirm_needs_correction = false;
   scm.advanceWorkflow();
   assert(scm.getPendingField() === 'contact_confirm_display', 'advanceWorkflow routes back to contact_confirm_display once correction flag is cleared');
+}
+
+// SUITE 12: Session Recovery State Rehydration (2 Tests)
+console.log('\n--- Suite 12: Session Recovery State Rehydration ---');
+{
+  const scm = new SessionContextManager({} as any, {} as any);
+  scm.setActiveStage('1');
+  scm.getProfile().borrower_name = 'Old Name';
+
+  const recoverySnapshot = {
+    activeStage: '3A',
+    borrowerProfile: {
+      borrower_name: 'Resumed Name',
+      has_co_borrower: true
+    }
+  };
+
+  scm.hydrateFromSnapshot(recoverySnapshot.activeStage, recoverySnapshot.borrowerProfile);
+
+  assert(scm.getActiveStage() === '3A', 'hydrateFromSnapshot overwrites activeStage correctly');
+  assert(scm.getProfile().borrower_name === 'Resumed Name', 'hydrateFromSnapshot merges profile data correctly');
+  assert((scm.getProfile() as any).has_co_borrower === true, 'hydrateFromSnapshot merges new profile keys correctly');
 }
 
 console.log(`\n======================================================`);

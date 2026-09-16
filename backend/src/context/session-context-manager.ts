@@ -621,6 +621,13 @@ export class SessionContextManager {
     this.activeStage = stage as any;
   }
 
+  hydrateFromSnapshot(stage: string, profile: any): void {
+    this.activeStage = stage as any;
+    if (profile) {
+      this.profile = { ...this.profile, ...profile };
+    }
+  }
+
   getPendingField(): string | null {
     return this.currentPendingField;
   }
