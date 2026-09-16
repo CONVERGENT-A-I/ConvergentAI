@@ -521,8 +521,7 @@ console.log('--- Suite 11: Latency Optimizations, Sentinel Fixes, Metadata & Rep
 {
   const scm = new SessionContextManager({} as any, {} as any);
   scm.setActiveStage('3A');
-  scm.getProfile().contact_first_name = 'David';
-  scm.getProfile().contact_last_name = 'Miller';
+  scm.getProfile().contact_name = 'David Miller';
   scm.getProfile().contact_email = 'david@example.com';
   scm.getProfile().contact_mobile = '555-0199';
   scm.setCurrentPendingField('contact_confirm_display');
@@ -582,8 +581,7 @@ console.log('--- Suite 11: Latency Optimizations, Sentinel Fixes, Metadata & Rep
 {
   const scm = new SessionContextManager({} as any, {} as any);
   scm.setActiveStage('3A');
-  scm.getProfile().contact_first_name = 'Sarah';
-  scm.getProfile().contact_last_name = 'Johnson';
+  scm.getProfile().contact_name = 'Sarah Johnson';
   scm.getProfile().contact_email = 'sarah@example.com';
   scm.getProfile().contact_mobile = '5551234567';
   (scm.getProfile() as any).contact_confirm_needs_correction = true;

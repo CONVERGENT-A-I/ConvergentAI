@@ -335,10 +335,6 @@ export class SessionContextManager {
         // OTP & Session Login fields
         this.profile.session_login_complete = app.stage3.sessionLoginComplete;
         this.profile.contact_on_file = app.stage3.contactOnFile;
-        (this.profile as any).contact_first_name = (app.stage3 as any).contactFirstName ?? null;
-        (this.profile as any).contact_first_name_confirmed = (app.stage3 as any).contactFirstNameConfirmed ?? false;
-        (this.profile as any).contact_last_name = (app.stage3 as any).contactLastName ?? null;
-        (this.profile as any).contact_last_name_confirmed = (app.stage3 as any).contactLastNameConfirmed ?? false;
         this.profile.contact_name = app.stage3.contactName ?? null;
         (this.profile as any).contact_name_confirmed = app.stage3.contactNameConfirmed;
         this.profile.contact_email = app.stage3.contactEmail ?? null;
@@ -659,6 +655,7 @@ export class SessionContextManager {
       'job_tenure_type',
       'soft_pull_authorization',
       'assets_details',
+      'escalation_preference',
       // Deterministic fields with async operations (like OTP modal / CRS API pull)
       'contact_name',
       'contact_email',
@@ -1150,12 +1147,6 @@ export class SessionContextManager {
     this.profile.affordability_aus_status = null;
 
     // Reset contact details, OTP, consent, and prefill state so 7-step auth sequence runs cleanly in order
-    (this.profile as any).contact_first_name = null;
-    (this.profile as any).contact_first_name_confirmed = false;
-    (this.profile as any).contactFirstName = null;
-    (this.profile as any).contact_last_name = null;
-    (this.profile as any).contact_last_name_confirmed = false;
-    (this.profile as any).contactLastName = null;
     this.profile.contact_name = null;
     this.profile.contact_name_confirmed = false;
     this.profile.contact_email = null;

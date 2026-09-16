@@ -154,7 +154,6 @@ export interface BorrowerProfile {
   contact_on_file?: boolean;
   contact_name?: string | null;
   contact_name_confirmed?: boolean;
-  contact_last_name_confirmed?: boolean;
   contact_email?: string | null;
   contact_mobile?: string | null;
   otp_verified?: boolean;

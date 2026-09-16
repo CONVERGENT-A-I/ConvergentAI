@@ -109,7 +109,7 @@ export function isQuestionOrCorrection(text: string | null | undefined): boolean
 export async function applyUIFieldCorrection(
   parsed: { field?: string; value?: any },
   profile: any,
-  extractor: typeof extractMultipleFields = extractMultipleFields,
+  _extractor: typeof extractMultipleFields = extractMultipleFields,
 ): Promise<void> {
   const { field, value } = parsed;
   console.log(`[agent]: contact_ui_field_correction received from UI: field=${field}, value=${value}`);
@@ -117,49 +117,11 @@ export async function applyUIFieldCorrection(
   if (field === 'fullName' || field === 'name') {
     const rawVal = String(value || '').trim();
     if (!rawVal) return;
-
-    try {
-      const results = await extractor(rawVal, 'What is your full name?', [
-        {
-          name: 'contact_first_name',
-          description: "The borrower's first name",
-          expectedType: 'string',
-        },
-        {
-          name: 'contact_middle_name',
-          description: "The borrower's middle name or middle initial (if provided)",
-          expectedType: 'string',
-        },
-        {
-          name: 'contact_last_name',
-          description: "The borrower's last name or surname (pay attention to multi-word last names)",
-          expectedType: 'string',
-        },
-        {
-          name: 'contact_suffix',
-          description: "The borrower's suffix (e.g. Jr., III), if provided",
-          expectedType: 'string',
-        },
-      ]);
-
-      if (results?.contact_first_name?.value) {
-        applyContactUpdates(profile, {
-          contact_first_name: results.contact_first_name.value,
-          contact_middle_name: results.contact_middle_name?.value,
-          contact_last_name: results.contact_last_name?.value,
-          contact_suffix: results.contact_suffix?.value,
-        });
-      } else {
-        applyContactUpdates(profile, { fullName: rawVal });
-      }
-    } catch (err) {
-      console.error('[agent-error]: Failed to extract full name via LLM during UI correction:', err);
-      applyContactUpdates(profile, { fullName: rawVal });
-    }
+    applyContactUpdates(profile, { fullName: rawVal });
   } else if (field === 'firstName') {
-    applyContactUpdates(profile, { contact_first_name: String(value || '').trim() });
+    applyContactUpdates(profile, { firstName: String(value || '').trim() });
   } else if (field === 'lastName') {
-    applyContactUpdates(profile, { contact_last_name: String(value || '').trim() });
+    applyContactUpdates(profile, { lastName: String(value || '').trim() });
   } else if (field === 'email') {
     applyContactUpdates(profile, { contact_email: String(value || '') });
   } else if (field === 'mobile') {
@@ -1799,10 +1761,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             session_login_complete: prof.session_login_complete,
             contact_on_file: prof.contact_on_file,
             contact_name: prof.contact_name,
-            contact_first_name: (prof as any).contact_first_name ?? (prof as any).contactFirstName ?? (prof.contact_name ? prof.contact_name.split(' ')[0] : null) ?? (prof.borrower_name ? prof.borrower_name.split(' ')[0] : null),
-            contact_last_name: (prof as any).contact_last_name ?? (prof as any).contactLastName ?? (prof.contact_name && prof.contact_name.includes(' ') ? prof.contact_name.split(' ').slice(1).join(' ') : null) ?? (prof.borrower_name && prof.borrower_name.includes(' ') ? prof.borrower_name.split(' ').slice(1).join(' ') : null),
-            contactFirstName: (prof as any).contact_first_name ?? (prof as any).contactFirstName ?? (prof.contact_name ? prof.contact_name.split(' ')[0] : null) ?? (prof.borrower_name ? prof.borrower_name.split(' ')[0] : null),
-            contactLastName: (prof as any).contact_last_name ?? (prof as any).contactLastName ?? (prof.contact_name && prof.contact_name.includes(' ') ? prof.contact_name.split(' ').slice(1).join(' ') : null) ?? (prof.borrower_name && prof.borrower_name.includes(' ') ? prof.borrower_name.split(' ').slice(1).join(' ') : null),
+
             contact_email: prof.contact_email,
             contact_mobile: prof.contact_mobile,
             // otp_sent = true only AFTER Ailana has delivered the "I've sent a code" line.
