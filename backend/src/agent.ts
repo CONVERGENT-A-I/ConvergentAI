@@ -1367,6 +1367,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
 
     const session = new voice.AgentSession({
       userAwayTimeout: null,
+      transcriptionTimeout: 200, // Enable UserTranscriptionTimeout event (200ms after VAD END_OF_SPEECH)
       expressive: expressiveConfig,
       turnHandling: {
         turnDetection: new inference.TurnDetector(),
@@ -1434,6 +1435,8 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
     // generation cycles (SDK-internal thinking→listening rounds that complete
     // in <200ms and should never trigger a re-prompt).
     let thinkingStartAt = 0;
+    // Timestamp when agent last finished speaking (used to see if a noise interrupted her)
+    let lastSpeakingStateEndedAt = 0;
 
     // Map of pending field → natural re-ask wording.
     // Only used as a fallback when Ailana produced zero speech for a user turn.
@@ -1536,6 +1539,9 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         }
 
         if (newState === 'listening' && (session as any)._started && !voiceMuted && !isHibernating) {
+          if (oldState === 'speaking') {
+            lastSpeakingStateEndedAt = Date.now();
+          }
           backchannelEngine.reset();
           prepareContext().catch(err => console.error('[agent-error]: Idle prepareContext failed:', err));
 
@@ -1622,6 +1628,49 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       metrics.markSttComplete(transcript);
       metrics.markUserTurnEnd();
       metrics.startTurn();
+    });
+
+    // STT: VAD detected speech but no transcript was produced (e.g. a sneeze, cough, or throat clear)
+    // If this noise interrupted Ailana, she will go silent. This guard safely re-prompts her.
+    session.on(voice.AgentSessionEventTypes.UserTranscriptionTimeout as any, (ev: any) => {
+      console.log(`[agent-hook]: Transient noise detected (no words produced). Duration: ${ev?.speechDuration}ms.`);
+      
+      // ONLY re-prompt if Ailana was speaking when this noise started (i.e. it interrupted her).
+      // If the noise started AFTER she had already finished speaking, it's just background noise.
+      if (ev.vadSpeechStartedAt <= lastSpeakingStateEndedAt) {
+        if (currentAgentState === 'listening' && (session as any)._started) {
+          const pendingField = contextManager.getPendingField();
+          const repromptText = pendingField ? PENDING_FIELD_REPROMPT[pendingField] : null;
+          if (repromptText) {
+            console.log(`[silent-turn-guard]: Detected transient noise interrupt. Scheduling re-prompt for field="${pendingField}" in 2s.`);
+          if (silentTurnTimer !== null) clearTimeout(silentTurnTimer);
+          silentTurnTimer = setTimeout(() => {
+            silentTurnTimer = null;
+            if (currentAgentState !== 'listening') {
+              console.log(`[silent-turn-guard]: Interrupt re-prompt cancelled — agent moved to "${currentAgentState}".`);
+              return;
+            }
+            const currentField = contextManager.getPendingField();
+            const activeReprompt = currentField ? (PENDING_FIELD_REPROMPT[currentField] || repromptText) : repromptText;
+            if (!activeReprompt) return;
+            
+            console.log(`[silent-turn-guard]: Firing interrupt re-prompt for field="${currentField}".`);
+            try {
+              if (contextManager.getActiveStage() === '4') {
+                metrics.startTurn();
+                metrics.markGenerateReply();
+                session.generateReply({ userInput: 'The application has been submitted to underwriting. Please announce the result to the borrower.' });
+              } else {
+                session.say(activeReprompt, { addToChatCtx: true });
+                contextManager.onAgentTurn(activeReprompt).catch(e => console.warn(e));
+              }
+            } catch (err) {
+              console.warn('[silent-turn-guard]: Failed to fire interrupt re-prompt:', err);
+            }
+          }, 2000);
+        }
+      }
+    }
     });
 
     session.on(voice.AgentSessionEventTypes.ConversationItemAdded, (ev: any) => {
