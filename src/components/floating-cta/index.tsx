@@ -40,6 +40,7 @@ import { MloDetector } from "./mlo-detector";
 import { AgentReadinessCheck } from "./agent-readiness-check";
 import { AvatarStatusListener, type AvatarStatus } from "./avatar-status-listener";
 import { ChannelStartTrigger } from "./channel-start-trigger";
+import { ChatTranscriptRecorder } from "./chat-transcript-recorder";
 import { MediaGuard } from "./media-guard";
 import { LoanOfficerLiveUI, LoanOfficerQueueUI } from "./loan-officer-queue";
 import { NetworkQualityBanner } from "./network-quality-banner";
@@ -98,6 +99,7 @@ export default function FloatingCTA() {
   // hasRecoverableSession: shows the "Continue Session" banner when the user reopens the CTA
   const [hasRecoverableSession, setHasRecoverableSession] = useState<boolean>(false);
   const [recoverySnapshot, setRecoverySnapshot] = useState<AilanaSessionSnapshot | null>(null);
+  const [activeRestoreSnapshot, setActiveRestoreSnapshot] = useState<AilanaSessionSnapshot | null>(null);
   const [restoredTranscript, setRestoredTranscript] = useState<ChatEntry[]>([]);
   // Accumulates all live chat turns so they can be saved with each snapshot
   const chatTranscriptRef = useRef<ChatEntry[]>([]);
@@ -347,7 +349,10 @@ export default function FloatingCTA() {
         body: JSON.stringify({
           roomName: generatedRoomName,
           participantName: participantIdentityRef.current,
-          metadata: JSON.stringify({ mode: activeMode }),
+          metadata: JSON.stringify({
+            mode: activeMode,
+            isRestore: Boolean(pendingRestoreRef.current),
+          }),
           mode: activeMode,
         }),
       });
@@ -474,6 +479,7 @@ export default function FloatingCTA() {
         else
           console.log(`[ui] Switching channel mode to ${mode} without reconnect.`);
         setPendingMode(mode);
+        saveSessionSnapshot({ mode });
         return;
       }
       if (mode === "loan-officer")
@@ -571,13 +577,18 @@ export default function FloatingCTA() {
     setIsAffordabilityPanelOpen(snap.isAffordabilityPanelOpen);
     setHasSubmittedAus(snap.hasSubmittedAus);
     setPanelClosedByUser(snap.panelClosedByUser);
-    setRestoredTranscript(snap.chatTranscript);
-    chatTranscriptRef.current = snap.chatTranscript;
+    setRestoredTranscript(snap.chatTranscript || []);
+    chatTranscriptRef.current = snap.chatTranscript || [];
     pendingRestoreRef.current = snap;
-    // Reconnect to the exact same room
-    setRoomName(snap.roomName);
+    setActiveRestoreSnapshot(snap);
     setHasRecoverableSession(false);
     setRecoverySnapshot(null);
+
+    // Explicitly force-skip intro + compliance (user already completed these)
+    setHasAgreed(true);
+    setIsIntroComplete(true);
+    setComplianceChecked(true);
+    setIsIntroBlurring(false);
 
     // Reset LiveKit connection flags for clean reconnect
     setToken(null);
@@ -592,8 +603,12 @@ export default function FloatingCTA() {
 
     const mode = (snap.pendingMode as PendingMode) ?? "video";
     setPendingMode(mode);
-    // Fetch token for the exact saved room
-    fetchToken(mode, false, snap.roomName);
+    setRoomName("");
+    setSessionKey((k) => k + 1);
+
+    setTimeout(() => {
+      fetchToken(mode, true);
+    }, 50);
   }, []);
 
   // Centralised session reset — nukes all LiveKit / flow state so the
@@ -647,8 +662,17 @@ export default function FloatingCTA() {
     clearSession();
     setHasRecoverableSession(false);
     setRecoverySnapshot(null);
+    setActiveRestoreSnapshot(null);
+    pendingRestoreRef.current = null;
     chatTranscriptRef.current = [];
     setRestoredTranscript([]);
+    setActiveStage("1");
+    setBorrowerProfile(null);
+    setIsAffordabilityPanelOpen(false);
+    setHasSubmittedAus(false);
+    setIsOtpModalOpen(false);
+    setIsContactConfirmVisible(false);
+    setPanelClosedByUser(false);
     restartSession();
   };
 
@@ -713,20 +737,10 @@ export default function FloatingCTA() {
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    if (isLkConnected && pendingRestoreRef.current) {
-      if ((window as any).lkPublishData) {
-        const payload = new TextEncoder().encode(JSON.stringify({
-          message: "SYSTEM_RESTORE_STATE",
-          snapshot: pendingRestoreRef.current
-        }));
-        (window as any).lkPublishData(payload, { topic: 'lk-chat', reliable: true })
-          .then(() => console.log("[session-restore]: 📤 Sent SYSTEM_RESTORE_STATE to rehydrate agent context."))
-          .catch(console.error);
-      }
-      pendingRestoreRef.current = null;
-    }
-  }, [isLkConnected]);
+  const handleTranscriptUpdate = useCallback((entries: ChatEntry[]) => {
+    chatTranscriptRef.current = entries;
+    saveSessionSnapshot({});
+  }, [saveSessionSnapshot]);
 
   // Browser network state guard: show a clear alert when connectivity drops.
   useEffect(() => {
@@ -1579,6 +1593,10 @@ export default function FloatingCTA() {
                                   }
                                 }}
                               />
+                              <ChatTranscriptRecorder
+                                initialTranscript={restoredTranscript}
+                                onTranscriptUpdate={handleTranscriptUpdate}
+                              />
                               <MloDetector onMloStatusChange={handleMloStatusChange} />
                               <MediaGuard mode={pendingMode} />
                               <ActivityTracker />
@@ -1586,6 +1604,12 @@ export default function FloatingCTA() {
                               <ChannelStartTrigger
                                 isLivePhase={flowPhase === "live"}
                                 mode={pendingMode}
+                                restoreSnapshot={activeRestoreSnapshot}
+                                onRestoreSent={() => {
+                                  console.log("[session-restore]: ✅ SYSTEM_RESTORE_STATE sent. Clearing active snapshot.");
+                                  setActiveRestoreSnapshot(null);
+                                  pendingRestoreRef.current = null;
+                                }}
                               />
 
                               {/* Fallback Notification Overlay — shown only for capacity limits or connection failures */}
@@ -2211,6 +2235,18 @@ export default function FloatingCTA() {
 
       <ActionButton
         onClick={() => {
+          if (isSessionRecoverable()) {
+            const snap = loadSession();
+            if (snap) {
+              setHasRecoverableSession(true);
+              setRecoverySnapshot(snap);
+              setFlowPhase("idle");
+              flowPhaseRef.current = "idle";
+              setIsOpen(true);
+              return;
+            }
+          }
+
           setIsOpen(true);
           if (flowPhaseRef.current === "idle") {
             playConnectingSound();

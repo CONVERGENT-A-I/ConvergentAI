@@ -625,6 +625,31 @@ export class SessionContextManager {
     this.activeStage = stage as any;
     if (profile) {
       this.profile = { ...this.profile, ...profile };
+
+      // Re-establish confirmation flags for any populated fields
+      if (this.profile.mortgage_goal) this.profile.mortgage_goal_confirmed = true;
+      if (this.profile.occupancy) this.profile.occupancy_confirmed = true;
+      if (this.profile.existing_relationship) this.profile.existing_relationship_confirmed = true;
+      if (this.profile.timeline) this.profile.timeline_confirmed = true;
+      if (this.profile.co_borrower) this.profile.co_borrower_confirmed = true;
+      if (this.profile.gross_annual_income) this.profile.gross_annual_income_confirmed = true;
+      if (this.profile.monthly_debt !== undefined) this.profile.monthly_debt_confirmed = true;
+      if (this.profile.credit_range) this.profile.credit_range_confirmed = true;
+      if (this.profile.property_value) this.profile.property_value_confirmed = true;
+      if (this.profile.first_mortgage_balance !== undefined) this.profile.first_mortgage_balance_confirmed = true;
+      if (this.profile.refinance_type) this.profile.refinance_type_confirmed = true;
+      if (this.profile.target_price) this.profile.target_price_confirmed = true;
+      if (this.profile.down_payment !== undefined) this.profile.down_payment_confirmed = true;
+      if (this.profile.rent_own) this.profile.rent_own_confirmed = true;
+      if (this.profile.realtor_status) this.profile.realtor_status_confirmed = true;
+      if (this.profile.property_type) this.profile.property_type_confirmed = true;
+      if (this.profile.job_tenure_type) this.profile.job_tenure_type_confirmed = true;
+    }
+
+    if (profile?.current_pending_field) {
+      this.currentPendingField = profile.current_pending_field;
+    } else {
+      this.advanceWorkflow();
     }
   }
 

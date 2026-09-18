@@ -7,14 +7,20 @@ import {
   useRemoteParticipants,
 } from "@livekit/components-react";
 
+import { type AilanaSessionSnapshot } from "../../lib/session-storage";
+
 interface ChannelStartTriggerProps {
   isLivePhase: boolean;
   mode: string;
+  restoreSnapshot?: AilanaSessionSnapshot | null;
+  onRestoreSent?: () => void;
 }
 
 export function ChannelStartTrigger({
   isLivePhase,
   mode,
+  restoreSnapshot,
+  onRestoreSent,
 }: ChannelStartTriggerProps) {
   const { send } = useChat();
   const room = useRoomContext();
@@ -63,6 +69,37 @@ export function ChannelStartTrigger({
               `[ui-loan-officer]: 📞 Sent SYSTEM_TRANSFER_MLO message over DataChannel.`
             );
           } else {
+            if (restoreSnapshot) {
+              console.log(
+                "[ui]: ♻️ Restoring session from snapshot via direct DataChannel:",
+                restoreSnapshot
+              );
+              const restorePayload = encoder.encode(
+                JSON.stringify({
+                  message: "SYSTEM_RESTORE_STATE",
+                  snapshot: restoreSnapshot,
+                })
+              );
+              const sendRestore = async (attempt: number) => {
+                if (room.state !== "connected") return;
+                try {
+                  console.log(`[ui]: ♻️ Sending SYSTEM_RESTORE_STATE (attempt ${attempt})...`);
+                  await room.localParticipant.publishData(restorePayload, {
+                    topic: "lk-chat",
+                    reliable: true,
+                  });
+                } catch (e) {
+                  console.warn(`[ui]: Failed to send SYSTEM_RESTORE_STATE (attempt ${attempt})`, e);
+                }
+              };
+              await sendRestore(1);
+              setTimeout(() => {
+                void sendRestore(2);
+              }, 1200);
+              onRestoreSent?.();
+              return;
+            }
+
             const sendChannelStart = async (attempt: number) => {
               if (room.state !== "connected") return;
               try {
@@ -118,6 +155,8 @@ export function ChannelStartTrigger({
     agentReady,
     room.localParticipant,
     room.name,
+    restoreSnapshot,
+    onRestoreSent,
   ]);
 
   return null;

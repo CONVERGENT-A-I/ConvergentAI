@@ -1348,6 +1348,7 @@ export default defineAgent({
     let greetingGenerated = false;
     let sessionStarted = false;
     let pendingGreeting = false;
+    let isRestoredSession = false;
 
     const expressiveConfig = ailanaConfig.expressiveMode
       ? {
@@ -1728,6 +1729,15 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             // ── Track Isolating Fields (Refinance & HELOC) ──────────
             transaction_type: prof.transaction_type,
             mortgage_goal: prof.mortgage_goal,
+            mortgage_goal_confirmed: prof.mortgage_goal_confirmed,
+            occupancy: prof.occupancy,
+            occupancy_confirmed: prof.occupancy_confirmed,
+            existing_relationship: prof.existing_relationship,
+            existing_relationship_confirmed: prof.existing_relationship_confirmed,
+            timeline: prof.timeline,
+            timeline_confirmed: prof.timeline_confirmed,
+            co_borrower: prof.co_borrower,
+            co_borrower_confirmed: prof.co_borrower_confirmed,
             refinance_type: prof.refinance_type,
             property_value: prof.property_value,
             first_mortgage_balance: prof.first_mortgage_balance,
@@ -2513,17 +2523,21 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             }
 
             if (parsed.message === 'SYSTEM_RESTORE_STATE' && parsed.snapshot) {
+              if (isRestoredSession) {
+                console.log(`[agent]: SYSTEM_RESTORE_STATE already applied. Ignoring duplicate.`);
+                return;
+              }
+              isRestoredSession = true;
               console.log(`[agent]: SYSTEM_RESTORE_STATE received. Rehydrating SessionContextManager from localStorage snapshot.`);
               const snap = parsed.snapshot;
+              greetingGenerated = true;
               contextManager.hydrateFromSnapshot(snap.activeStage, snap.borrowerProfile);
               
               // Restore historical chat messages into LLM context if not already populated
               if (snap.chatTranscript && Array.isArray(snap.chatTranscript)) {
                 console.log(`[agent]: Rehydrating LLM context window with ${snap.chatTranscript.length} historical messages.`);
-                // Filter and push historical messages that aren't already in the agent's context
                 for (const entry of snap.chatTranscript) {
                   const role: 'user' | 'assistant' = entry.role === 'agent' ? 'assistant' : 'user';
-                  // To avoid duplicates, check if the LLM context already has this text (approximate)
                   const existing = session.chatCtx.items.find(m => {
                     if ((m as any).type !== 'message' || !(m as any).content) return false;
                     const text = typeof (m as any).content === 'string' ? (m as any).content : JSON.stringify((m as any).content);
@@ -2539,6 +2553,38 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
               sendStageUpdate(contextManager.getActiveStage()).catch(err =>
                 console.error('[agent-error]: Failed to sync restored stage:', err)
               );
+
+              (async () => {
+                try {
+                  if (!isAvatarInitDone) {
+                    console.log(`[agent]: Waiting for avatar initialization before firing resume greeting...`);
+                    await avatarReadyPromise;
+                  }
+                  if (!(session as any)._started) {
+                    sessionStarted = true;
+                    await session.start({
+                      agent: vadAgent,
+                      room: ctx.room,
+                      inputOptions: { noiseCancellation: BackgroundVoiceCancellation(), closeOnDisconnect: false },
+                    });
+                  }
+                  const readyPayload = new TextEncoder().encode(JSON.stringify({ message: "SYSTEM_AGENT_READY" }));
+                  await ctx.room.localParticipant?.publishData(readyPayload, { reliable: true, topic: "lk-chat" });
+
+                  const stageName = contextManager.getActiveStage();
+                  const pendingField = contextManager.getPendingField() || (contextManager.getProfile() as any)?.current_pending_field || '';
+                  const reprompt = pendingField ? PENDING_FIELD_REPROMPT[pendingField] : undefined;
+                  const resumePrompt = reprompt
+                    ? `The borrower has reconnected to continue their existing session. Give a brief, warm welcome back (e.g. "Welcome back! Let's pick right back up where we left off.") and continue the conversation by asking: "${reprompt}". Keep it natural, conversational, and concise.`
+                    : `The borrower has reconnected to continue their existing session at Stage ${stageName}. Give a brief, warm welcome back (e.g. "Welcome back! Let's pick right back up where we left off.") and continue the conversation from where we left off. Keep it natural, conversational, and concise.`;
+                  metrics.startTurn();
+                  metrics.markGenerateReply();
+                  session.generateReply({ userInput: resumePrompt });
+                  console.log(`[agent]: Resume greeting fired for stage=${stageName}, pendingField=${pendingField}`);
+                } catch (e) {
+                  console.error(`[agent]: Failed to fire resume greeting:`, e);
+                }
+              })();
               return;
             }
 
@@ -2726,8 +2772,15 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
 
       ctx.room.on(RoomEvent.ParticipantConnected, (participant: any) => {
         console.log(`[avatar][${ts()}] Participant Connected: identity=${participant?.identity}`);
-        // Do NOT call markReady() here. WebRTC tracks are not subscribed yet.
-        // Wait for TrackSubscribed event so the first audio/video frames are not lost.
+        if (participant?.metadata) {
+          try {
+            const meta = typeof participant.metadata === 'string' ? JSON.parse(participant.metadata) : participant.metadata;
+            if (meta?.isRestore) {
+              console.log(`[agent]: Participant metadata marked as isRestore=true. Suppressing Q1 greeting.`);
+              greetingGenerated = true;
+            }
+          } catch { }
+        }
       });
 
       // Listen for subscription events

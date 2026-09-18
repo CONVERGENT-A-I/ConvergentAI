@@ -155,6 +155,17 @@ export function InRoomChatPanel({ isActive, onTriggerLoanOfficer, initialTranscr
     const seenStripped = new Set<string>();
     const seenIds = new Set<string>();
 
+    // Seed seen sets with initialTranscript so live messages don't duplicate items already shown in restored history
+    if (initialTranscript && initialTranscript.length > 0) {
+      initialTranscript.forEach((item, idx) => {
+        const msgId = item.id || `restored_${item.timestamp}_${idx}`;
+        seenIds.add(msgId);
+        if (item.text && item.text.trim()) {
+          seenStripped.add(normalizeForDedup(item.text));
+        }
+      });
+    }
+
     // Add manual chat messages (explicit sendText from agent or user input)
     chatMessages.forEach((msg) => {
       const msgId = msg.id || msg.timestamp.toString();
@@ -248,10 +259,10 @@ export function InRoomChatPanel({ isActive, onTriggerLoanOfficer, initialTranscr
     }
 
     return deduped;
-  }, [chatMessages, transcripts]);
+  }, [chatMessages, transcripts, initialTranscript]);
 
   // Track previous display message count to detect new arrivals and fire onNewMessage
-  const prevMsgCountRef = useRef(0);
+  const prevMsgCountRef = useRef(initialTranscript ? initialTranscript.length : 0);
   useEffect(() => {
     if (!onNewMessage) return;
     const startIdx = prevMsgCountRef.current;

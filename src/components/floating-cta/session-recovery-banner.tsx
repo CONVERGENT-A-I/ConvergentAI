@@ -1,9 +1,9 @@
-﻿"use client";
+"use client";
 
 import React from "react";
 import { motion } from "framer-motion";
 import { RotateCcw, Sparkles, X } from "lucide-react";
-import { type AilanaSessionSnapshot, getStageName } from "../../lib/session-storage";
+import { type AilanaSessionSnapshot } from "../../lib/session-storage";
 
 interface SessionRecoveryBannerProps {
   snapshot: AilanaSessionSnapshot;
@@ -16,12 +16,6 @@ export function SessionRecoveryBanner({
   onContinue,
   onStartFresh,
 }: SessionRecoveryBannerProps) {
-  const stageName = getStageName(snapshot.activeStage);
-  const borrowerName =
-    snapshot.borrowerProfile?.contact_name ||
-    snapshot.borrowerProfile?.borrower_name ||
-    null;
-
   const minutesAgo = Math.round((Date.now() - snapshot.timestamp) / 60000);
   const timeLabel =
     minutesAgo < 1
@@ -58,41 +52,23 @@ export function SessionRecoveryBanner({
         </button>
       </div>
 
-      {/* Session details */}
-      <div className="bg-white/5 border border-white/10 rounded-xl p-3 mb-4 space-y-1.5">
-        <div className="flex justify-between items-center">
-          <span className="text-gray-500 text-[11px] uppercase tracking-wider font-medium">Stage</span>
-          <span className="text-white text-xs font-semibold">{stageName}</span>
-        </div>
-        {borrowerName && (
-          <div className="flex justify-between items-center">
-            <span className="text-gray-500 text-[11px] uppercase tracking-wider font-medium">Borrower</span>
-            <span className="text-white text-xs font-semibold">{borrowerName}</span>
-          </div>
-        )}
-        <div className="flex justify-between items-center">
-          <span className="text-gray-500 text-[11px] uppercase tracking-wider font-medium">Mode</span>
-          <span className="text-white text-xs font-semibold capitalize">
-            {snapshot.pendingMode === "loan-officer" ? "Loan Officer" : snapshot.pendingMode}
-          </span>
-        </div>
-      </div>
 
       {/* Action buttons */}
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2.5">
         <button
           onClick={onContinue}
-          className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white text-sm font-bold hover:shadow-[0_0_20px_rgba(0,180,216,0.35)] transition-all flex items-center justify-center gap-2 cursor-pointer relative overflow-hidden group"
+          className="w-full py-3 rounded-xl bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white text-sm font-bold hover:shadow-[0_0_25px_rgba(0,180,216,0.4)] transition-all flex items-center justify-center gap-2 cursor-pointer relative overflow-hidden group"
         >
-          <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform" />
-          <Sparkles className="w-4 h-4 relative z-10" />
-          <span className="relative z-10">Continue Session</span>
+          <div className="absolute inset-0 bg-white/15 translate-y-full group-hover:translate-y-0 transition-transform" />
+          <Sparkles className="w-4 h-4 relative z-10 text-cyan-200" />
+          <span className="relative z-10">Continue Previous Session</span>
         </button>
         <button
           onClick={onStartFresh}
-          className="w-full py-2 rounded-xl border border-white/15 text-gray-400 hover:text-white hover:bg-white/8 text-xs font-medium transition-colors cursor-pointer"
+          className="w-full py-2.5 rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 text-gray-200 hover:text-white text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer"
         >
-          Start Fresh Instead
+          <RotateCcw className="w-3.5 h-3.5 text-gray-400" />
+          <span>New Session</span>
         </button>
       </div>
     </motion.div>

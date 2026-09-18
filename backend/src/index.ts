@@ -36,7 +36,7 @@ app.get('/api/test', (req: Request, res: Response) => {
 // LiveKit Token Generation Endpoint
 app.post('/api/get-token', async (req: Request, res: Response) => {
   try {
-    const { roomName, participantName } = req.body;
+    const { roomName, participantName, metadata } = req.body;
 
     if (!roomName || !participantName) {
       res.status(400).json({ error: 'roomName and participantName are required' });
@@ -54,6 +54,7 @@ app.post('/api/get-token', async (req: Request, res: Response) => {
 
     const at = new AccessToken(apiKey, apiSecret, {
       identity: participantName,
+      metadata: typeof metadata === 'string' ? metadata : JSON.stringify(metadata || {}),
     });
 
     at.addGrant({
