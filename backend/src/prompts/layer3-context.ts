@@ -140,6 +140,7 @@ export interface BorrowerProfile {
   declarations_confirmed?: boolean;
   ready_to_submit?: boolean;
 
+
   // ── Stage 2.5 (Affordability Panel) ──────────────────────────────────────
   affordability_panel_rendered?: boolean;
   affordability_mode?: 'stated' | 'verified' | null;
