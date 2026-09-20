@@ -1437,6 +1437,9 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
     let thinkingStartAt = 0;
     // Timestamp when agent last finished speaking (used to see if a noise interrupted her)
     let lastSpeakingStateEndedAt = 0;
+    // Timestamp when user last started speaking (VAD START_OF_SPEECH or interim transcript)
+    // Used by silent-turn-guard to avoid re-prompting while the user is actively talking.
+    let lastUserSpeechDetectedAt = 0;
 
     // Map of pending field → natural re-ask wording.
     // Only used as a fallback when Ailana produced zero speech for a user turn.
@@ -1572,41 +1575,53 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             const pendingField = contextManager.getPendingField();
             const repromptText = pendingField ? PENDING_FIELD_REPROMPT[pendingField] : null;
             if (repromptText && (session as any)._started) {
-              console.log(`[silent-turn-guard]: Detected empty turn (thinking→listening after ${thinkingDurationMs}ms, no speech). Scheduling re-prompt for field="${pendingField}" in 2s.`);
-              if (silentTurnTimer !== null) clearTimeout(silentTurnTimer);
-              silentTurnTimer = setTimeout(() => {
-                silentTurnTimer = null;
-                // Only fire if still in listening state (not speaking or thinking already)
-                if (currentAgentState !== 'listening') {
-                  console.log(`[silent-turn-guard]: Re-prompt cancelled — agent moved to "${currentAgentState}" before timer fired.`);
-                  return;
-                }
-                const currentField = contextManager.getPendingField();
-                const activeReprompt = currentField ? (PENDING_FIELD_REPROMPT[currentField] || repromptText) : repromptText;
-                if (!activeReprompt) {
-                  console.log(`[silent-turn-guard]: Re-prompt cancelled — no active reprompt text found for field="${currentField}".`);
-                  return;
-                }
-                console.log(`[silent-turn-guard]: Firing re-prompt for active field="${currentField}" (originally scheduled on "${pendingField}").`);
-                try {
-                  // For Stage 4 transitions, use generateReply so the LLM produces
-                  // the full AUS result announcement with the correct Stage 4 context,
-                  // rather than speaking a generic static re-prompt.
-                  if (contextManager.getActiveStage() === '4') {
-                    console.log(`[silent-turn-guard]: Stage 4 detected — using generateReply for AUS result delivery.`);
-                    metrics.startTurn();
-                    metrics.markGenerateReply();
-                    session.generateReply({ userInput: 'The application has been submitted to underwriting. Please announce the result to the borrower.' });
-                  } else {
-                    session.say(activeReprompt, { addToChatCtx: true });
-                    contextManager.onAgentTurn(activeReprompt).catch(err =>
-                      console.error('[agent-error]: Failed to save agent turn:', err)
-                    );
+              const msSinceSpeech = Date.now() - lastUserSpeechDetectedAt;
+              const isUserSpeaking = (session as any)._userState === 'speaking' || msSinceSpeech < 1500;
+              if (isUserSpeaking) {
+                console.log(`[silent-turn-guard]: Suppressing empty-turn re-prompt — user is actively speaking (state="${(session as any)._userState}", last speech ${msSinceSpeech}ms ago).`);
+              } else {
+                console.log(`[silent-turn-guard]: Detected empty turn (thinking→listening after ${thinkingDurationMs}ms, no speech). Scheduling re-prompt for field="${pendingField}" in 2s.`);
+                if (silentTurnTimer !== null) clearTimeout(silentTurnTimer);
+                silentTurnTimer = setTimeout(() => {
+                  silentTurnTimer = null;
+                  // Only fire if still in listening state (not speaking or thinking already)
+                  if (currentAgentState !== 'listening') {
+                    console.log(`[silent-turn-guard]: Re-prompt cancelled — agent moved to "${currentAgentState}" before timer fired.`);
+                    return;
                   }
-                } catch (err) {
-                  console.warn('[silent-turn-guard]: Failed to fire re-prompt:', err);
-                }
-              }, 2000);
+                  // Don't re-prompt if the user is speaking or started speaking since the timer was scheduled
+                  const msSinceUserSpeech = Date.now() - lastUserSpeechDetectedAt;
+                  if ((session as any)._userState === 'speaking' || msSinceUserSpeech < 2000) {
+                    console.log(`[silent-turn-guard]: Re-prompt cancelled — user is speaking (state="${(session as any)._userState}", last speech ${msSinceUserSpeech}ms ago).`);
+                    return;
+                  }
+                  const currentField = contextManager.getPendingField();
+                  const activeReprompt = currentField ? (PENDING_FIELD_REPROMPT[currentField] || repromptText) : repromptText;
+                  if (!activeReprompt) {
+                    console.log(`[silent-turn-guard]: Re-prompt cancelled — no active reprompt text found for field="${currentField}".`);
+                    return;
+                  }
+                  console.log(`[silent-turn-guard]: Firing re-prompt for active field="${currentField}" (originally scheduled on "${pendingField}").`);
+                  try {
+                    // For Stage 4 transitions, use generateReply so the LLM produces
+                    // the full AUS result announcement with the correct Stage 4 context,
+                    // rather than speaking a generic static re-prompt.
+                    if (contextManager.getActiveStage() === '4') {
+                      console.log(`[silent-turn-guard]: Stage 4 detected — using generateReply for AUS result delivery.`);
+                      metrics.startTurn();
+                      metrics.markGenerateReply();
+                      session.generateReply({ userInput: 'The application has been submitted to underwriting. Please announce the result to the borrower.' });
+                    } else {
+                      session.say(activeReprompt, { addToChatCtx: true });
+                      contextManager.onAgentTurn(activeReprompt).catch(err =>
+                        console.error('[agent-error]: Failed to save agent turn:', err)
+                      );
+                    }
+                  } catch (err) {
+                    console.warn('[silent-turn-guard]: Failed to fire re-prompt:', err);
+                  }
+                }, 2000);
+              }
             }
           } else if (oldState === 'thinking' && !wasRealThinkingCycle) {
             console.log(`[silent-turn-guard]: Ignoring preemptive-gen cycle (thinking lasted only ${thinkingDurationMs}ms).`);
@@ -1620,6 +1635,16 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
 
     // STT: final transcript ready — mark pipeline stage
     session.on(voice.AgentSessionEventTypes.UserInputTranscribed, async (ev: any) => {
+      // Any transcript (interim or final) means the user is actively speaking right now.
+      // Update timestamp and immediately cancel any pending re-prompt timer.
+      if (ev.transcript?.trim()) {
+        lastUserSpeechDetectedAt = Date.now();
+        if (silentTurnTimer !== null) {
+          console.log('[silent-turn-guard]: User speech transcribed. Cancelling pending re-prompt timer immediately.');
+          clearTimeout(silentTurnTimer);
+          silentTurnTimer = null;
+        }
+      }
       if (!ev.isFinal) return;
       if (!ev.transcript?.trim()) return;
 
@@ -1642,35 +1667,47 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           const pendingField = contextManager.getPendingField();
           const repromptText = pendingField ? PENDING_FIELD_REPROMPT[pendingField] : null;
           if (repromptText) {
-            console.log(`[silent-turn-guard]: Detected transient noise interrupt. Scheduling re-prompt for field="${pendingField}" in 2s.`);
-          if (silentTurnTimer !== null) clearTimeout(silentTurnTimer);
-          silentTurnTimer = setTimeout(() => {
-            silentTurnTimer = null;
-            if (currentAgentState !== 'listening') {
-              console.log(`[silent-turn-guard]: Interrupt re-prompt cancelled — agent moved to "${currentAgentState}".`);
+            const msSinceSpeech = Date.now() - lastUserSpeechDetectedAt;
+            const isUserSpeaking = (session as any)._userState === 'speaking' || msSinceSpeech < 1500;
+            if (isUserSpeaking) {
+              console.log(`[silent-turn-guard]: Suppressing transient-noise re-prompt — user is actively speaking (state="${(session as any)._userState}", last speech ${msSinceSpeech}ms ago).`);
               return;
             }
-            const currentField = contextManager.getPendingField();
-            const activeReprompt = currentField ? (PENDING_FIELD_REPROMPT[currentField] || repromptText) : repromptText;
-            if (!activeReprompt) return;
-            
-            console.log(`[silent-turn-guard]: Firing interrupt re-prompt for field="${currentField}".`);
-            try {
-              if (contextManager.getActiveStage() === '4') {
-                metrics.startTurn();
-                metrics.markGenerateReply();
-                session.generateReply({ userInput: 'The application has been submitted to underwriting. Please announce the result to the borrower.' });
-              } else {
-                session.say(activeReprompt, { addToChatCtx: true });
-                contextManager.onAgentTurn(activeReprompt).catch(e => console.warn(e));
+            console.log(`[silent-turn-guard]: Detected transient noise interrupt. Scheduling re-prompt for field="${pendingField}" in 2s.`);
+            if (silentTurnTimer !== null) clearTimeout(silentTurnTimer);
+            silentTurnTimer = setTimeout(() => {
+              silentTurnTimer = null;
+              if (currentAgentState !== 'listening') {
+                console.log(`[silent-turn-guard]: Interrupt re-prompt cancelled — agent moved to "${currentAgentState}".`);
+                return;
               }
-            } catch (err) {
-              console.warn('[silent-turn-guard]: Failed to fire interrupt re-prompt:', err);
-            }
-          }, 2000);
+              // Don't re-prompt if the user is speaking or started speaking since the timer was scheduled
+              const msSinceUserSpeech = Date.now() - lastUserSpeechDetectedAt;
+              if ((session as any)._userState === 'speaking' || msSinceUserSpeech < 2000) {
+                console.log(`[silent-turn-guard]: Interrupt re-prompt cancelled — user is speaking (state="${(session as any)._userState}", last speech ${msSinceUserSpeech}ms ago).`);
+                return;
+              }
+              const currentField = contextManager.getPendingField();
+              const activeReprompt = currentField ? (PENDING_FIELD_REPROMPT[currentField] || repromptText) : repromptText;
+              if (!activeReprompt) return;
+              
+              console.log(`[silent-turn-guard]: Firing interrupt re-prompt for field="${currentField}".`);
+              try {
+                if (contextManager.getActiveStage() === '4') {
+                  metrics.startTurn();
+                  metrics.markGenerateReply();
+                  session.generateReply({ userInput: 'The application has been submitted to underwriting. Please announce the result to the borrower.' });
+                } else {
+                  session.say(activeReprompt, { addToChatCtx: true });
+                  contextManager.onAgentTurn(activeReprompt).catch(e => console.warn(e));
+                }
+              } catch (err) {
+                console.warn('[silent-turn-guard]: Failed to fire interrupt re-prompt:', err);
+              }
+            }, 2000);
+          }
         }
       }
-    }
     });
 
     session.on(voice.AgentSessionEventTypes.ConversationItemAdded, (ev: any) => {
@@ -1718,6 +1755,17 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         );
       } catch {
         // session may not be fully started
+      }
+    });
+
+    session.on(voice.AgentSessionEventTypes.UserStateChanged, (ev: any) => {
+      if (ev.newState === 'speaking') {
+        lastUserSpeechDetectedAt = Date.now();
+        if (silentTurnTimer !== null) {
+          console.log('[silent-turn-guard]: User started speaking (VAD). Cancelling pending re-prompt timer immediately.');
+          clearTimeout(silentTurnTimer);
+          silentTurnTimer = null;
+        }
       }
     });
 
@@ -2430,6 +2478,10 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
     ctx.room.on(RoomEvent.ParticipantDisconnected, (participant: any) => {
       if (participant?.identity?.startsWith('guest_')) {
         console.warn(`[agent]: Guest participant disconnected: ${participant.identity}. Starting 10-minute Reaper timeout.`);
+        if (silentTurnTimer !== null) {
+          clearTimeout(silentTurnTimer);
+          silentTurnTimer = null;
+        }
         if (reaperTimeout) clearTimeout(reaperTimeout);
         reaperTimeout = setTimeout(() => {
           console.error(`[agent]: Reaper timeout expired. Abandoned session detected. Disconnecting agent to prevent resource leak.`);
