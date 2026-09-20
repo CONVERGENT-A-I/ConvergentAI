@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
-import { Shield, Info, SlidersHorizontal, CheckCircle2, RotateCcw, ArrowUpRight, Sparkles } from "lucide-react";
+import { Shield, Info, SlidersHorizontal, CheckCircle2, RotateCcw, ArrowUpRight, Sparkles, Home, DollarSign, Landmark, CreditCard, Percent, Building2, ShieldCheck, ChevronRight, ChevronDown, Star, Layers } from "lucide-react";
 
 /* ---------------------------------------------------------
    CONVERGENT-AI DESIGN TOKENS (Dark / Cyan / Fintech Motif)
@@ -218,126 +218,146 @@ const PROGRAMS: Record<ProgramId, ProgramConfig> = {
 };
 
 /* ---------------------------------------------------------
-   BENCHMARK GAUGES (DARK / NEON THEME)
+   TYPICAL RANGES (for Financial Profile progress bars)
 --------------------------------------------------------- */
-type Zone = "at" | "over";
+const TYPICAL_RANGES = {
+  income: { min: 7500, max: 20000, label: "$7,500 – $20,000" },
+  creditScore: { min: 620, max: 760, label: "620 – 760" },
+  downPctPurchase: { min: 5, max: 20, label: "5% – 20%" },
+  propertyTax: { min: 300, max: 1000, label: "$300 – $1,000" },
+  insurance: { min: 100, max: 300, label: "$100 – $300" },
+  dti: { min: 36, max: 43, label: "36% – 43%" },
+  payoff: { min: 100000, max: 400000, label: "$100k – $400k" },
+  rate: { min: 5.0, max: 8.0, label: "5.0% – 8.0%" },
+  lineAmount: { min: 25000, max: 150000, label: "$25k – $150k" },
+  cltv: { min: 60, max: 85, label: "60% – 85%" },
+  firstBalance: { min: 100000, max: 400000, label: "$100k – $400k" },
+} as const;
 
-function zoneFor(value: number, guideline: number): Zone {
-  return value <= guideline ? "at" : "over";
+/* ---------------------------------------------------------
+   PROGRAM ICONS
+--------------------------------------------------------- */
+function ProgramIcon({ programId, className }: { programId: ProgramId | "other"; className?: string }) {
+  const cn = className || "w-4 h-4";
+  switch (programId) {
+    case "conventional": return <Home className={cn} />;
+    case "fha": return <Building2 className={cn} />;
+    case "va": return <Star className={cn} />;
+    case "usda": return <Layers className={cn} />;
+    case "other": return <Layers className={cn} />;
+  }
 }
 
-const ZONE_COLORS: Record<Zone, { fg: string; bg: string; label: string }> = {
-  at: { fg: T.green, bg: T.greenBg, label: "At or under guideline" },
-  over: { fg: T.amber, bg: T.amberBg, label: "Over guideline" },
-};
-
-interface BenchmarkGaugeProps {
+/* ---------------------------------------------------------
+   FINANCIAL PROFILE ITEM
+--------------------------------------------------------- */
+interface ProfileItemProps {
+  icon: React.ReactNode;
   label: string;
-  value: number;
-  guideline: number;
-  sublabel?: string;
+  value: string;
+  progressPct: number;
+  typicalRange: string;
+  color?: string;
 }
 
-function BenchmarkGauge({ label, value, guideline, sublabel }: BenchmarkGaugeProps) {
-  const max = guideline * 1.6;
-  const zone = zoneFor(value, guideline);
-  const zc = ZONE_COLORS[zone];
-  const pct = Math.min(100, Math.max(0, (value / max) * 100));
-  const guidelinePct = Math.min(100, (guideline / max) * 100);
-  const gap = value - guideline;
-
+function ProfileItem({ icon, label, value, progressPct, typicalRange, color = T.teal }: ProfileItemProps) {
+  const clampedPct = Math.min(100, Math.max(0, progressPct));
   return (
-    <div className="flex-1 min-w-0 bg-white/[0.02] p-1.5 lg:p-2 rounded-lg border border-white/10 overflow-hidden flex flex-col justify-between">
-      <div>
-        <div className="text-[8.5px] lg:text-[10px] text-slate-400 font-medium leading-tight truncate">{label}</div>
-        <div className="text-xs lg:text-sm font-mono font-bold text-white mt-0.5">{fmtPct(value)}</div>
-
-        {/* Gauge Bar */}
-        <div className="relative h-1 rounded-full bg-slate-800 overflow-visible mt-1 lg:mt-1.5">
-          <div style={{ width: `${guidelinePct}%` }} className="absolute left-0 top-0 bottom-0 bg-emerald-500/40 rounded-l-full" />
-          <div style={{ left: `${guidelinePct}%` }} className="absolute top-0 bottom-0 right-0 bg-amber-500/25 rounded-r-full" />
-          <div style={{ left: `calc(${guidelinePct}% - 1px)` }} className="absolute -top-0.5 -bottom-0.5 w-[1.5px] bg-white/60 z-10" />
-          <div
-            title={fmtPct(value)}
-            style={{
-              left: `calc(${pct}% - 4px)`,
-              background: zc.fg,
-              boxShadow: `0 0 5px ${zc.fg}`,
-            }}
-            className="absolute -top-1 w-2 h-2 lg:w-2 lg:h-2 rounded-full border border-slate-900 z-20 transition-all duration-200"
-          />
-        </div>
+    <div className="flex gap-2.5 items-start py-2 border-b border-white/5 last:border-b-0">
+      <div
+        className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
+        style={{ background: `${color}20`, color: color }}
+      >
+        {icon}
       </div>
-
-      <div className="mt-1 lg:mt-1.5">
-        <div style={{ color: zc.fg }} className="text-[8px] lg:text-[9.5px] font-semibold leading-tight truncate">{zc.label}</div>
-        <div className="text-[7.5px] lg:text-[8.5px] text-slate-500 mt-0.5 truncate">
-          {fmtPct(guideline)} limit{zone === "over" ? ` (+${gap.toFixed(1)}%)` : ""}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-[10px] lg:text-xs text-slate-400 font-medium">{label}</span>
+          <span className="text-[11px] lg:text-sm font-mono tabular-nums tracking-tight font-bold text-white shrink-0">{value}</span>
         </div>
-        {sublabel && <div className="text-[7.5px] lg:text-[8.5px] text-slate-500 mt-0.5 truncate">{sublabel}</div>}
+        <div className="flex items-center gap-2.5 mt-1">
+          <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-300"
+              style={{ width: `${clampedPct}%`, background: `linear-gradient(90deg, ${color}, ${color}88)` }}
+            />
+          </div>
+          <span className="text-[8px] lg:text-[9.5px] text-slate-500 shrink-0 whitespace-nowrap">
+            <span className="text-slate-600 mr-0.5">Typical Range</span> {typicalRange}
+          </span>
+        </div>
       </div>
     </div>
   );
 }
 
 /* ---------------------------------------------------------
-   PAYMENT LEDGER (STACKED BAR & TOTAL)
+   GUIDELINE STATUS BADGE
 --------------------------------------------------------- */
-interface PaymentLedgerProps {
-  segments: Segment[];
-  total: number;
-  extraLine?: { label: string; value: number } | null;
-  totalLabel?: string;
+function GuidelineStatus({ value, guideline }: { value: number; guideline: number }) {
+  const within = value <= guideline;
+  return (
+    <span
+      className="text-[7.5px] lg:text-[9.5px] font-semibold leading-tight"
+      style={{ color: within ? T.green : T.amber }}
+    >
+      {within ? "Within guidelines" : "Outside of guidelines"}
+    </span>
+  );
 }
 
-function PaymentLedger({ segments, total, extraLine, totalLabel = "Total PITIA" }: PaymentLedgerProps) {
-  const palette = ["#00b4d8", "#023e8a", "#10b981", "#8b5cf6", "#f59e0b"];
+/* ---------------------------------------------------------
+   LOAN PROGRAM CARD
+--------------------------------------------------------- */
+interface ProgramCardProps {
+  programId: ProgramId;
+  programConfig: ProgramConfig;
+  termYears: number;
+  backDti: number;
+  ltvValue: number;
+  isActive: boolean;
+  onClick: () => void;
+}
+
+function ProgramCard({ programId, programConfig, termYears, backDti, ltvValue, isActive, onClick }: ProgramCardProps) {
+  const downLabel = programConfig.minDownPct === 0 ? "0%" : `${programConfig.minDownPct}%+`;
 
   return (
-    <div className="mt-1 lg:mt-1.5">
-      {/* Proportional Bar */}
-      <div className="flex h-2 lg:h-2.5 rounded-md overflow-hidden border border-white/10 bg-slate-900">
-        {segments.map((s, i) => (
-          <div
-            key={s.label}
-            style={{
-              width: `${total > 0 ? (s.value / total) * 100 : 0}%`,
-              background: palette[i % palette.length],
-              minWidth: s.value > 0 ? 2 : 0,
-            }}
-            className="transition-all duration-200"
-            title={`${s.label}: $${fmt(s.value)}`}
-          />
-        ))}
-      </div>
-
-      {/* Legend — 2-column compact grid */}
-      <div className="grid grid-cols-2 gap-x-2 gap-y-1 mt-1 lg:mt-2">
-        {segments.filter(s => s.value > 0).map((s, i) => (
-          <div key={s.label} className="flex items-center gap-1.5 overflow-hidden">
-            <span style={{ background: palette[i % palette.length] }} className="w-1.5 h-1.5 rounded-sm shrink-0" />
-            <span className="text-[8.5px] lg:text-[10.5px] text-slate-400 truncate">{s.label}</span>
-            <span className="text-[8.5px] lg:text-[10.5px] font-mono font-semibold text-white shrink-0 ml-auto">${fmt(s.value)}</span>
-          </div>
-        ))}
-        {extraLine && (
-          <div className="flex items-center gap-1.5 overflow-hidden">
-            <span className="w-1.5 h-1.5 rounded-sm border border-dashed border-[#00b4d8] shrink-0" />
-            <span className="text-[8.5px] lg:text-[10.5px] text-[#00b4d8] truncate">{extraLine.label}</span>
-            <span className="text-[8.5px] lg:text-[10.5px] font-mono font-semibold text-[#00b4d8] shrink-0 ml-auto">${fmt(extraLine.value)}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Summary Total */}
-      <div className="flex items-center justify-between mt-1.5 lg:mt-2 pt-1.5 lg:pt-2 border-t border-white/10">
-        <span className="text-[9.5px] lg:text-xs font-semibold text-white">{totalLabel}</span>
-        <span className="text-xs lg:text-sm font-mono font-bold text-[#00b4d8] drop-shadow-[0_0_8px_rgba(0,180,216,0.35)]">
-          ${fmt(total)}
-          <span className="text-[9px] lg:text-[10.5px] font-normal text-slate-400">/mo</span>
+    <button
+      onClick={onClick}
+      className={`w-full text-left p-2 lg:p-2.5 rounded-lg border transition-all cursor-pointer group ${
+        isActive
+          ? "bg-[#00b4d8]/10 border-[#00b4d8]/40 shadow-[0_0_12px_rgba(0,180,216,0.15)]"
+          : "bg-white/[0.02] border-white/10 hover:bg-white/[0.04] hover:border-white/20"
+      }`}
+    >
+      <div className="flex items-center gap-2 mb-1.5">
+        <div
+          className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
+          style={{ background: isActive ? `${T.teal}25` : "rgba(255,255,255,0.05)", color: isActive ? T.teal : T.inkSoft }}
+        >
+          <ProgramIcon programId={programId} className="w-3.5 h-3.5" />
+        </div>
+        <span className={`text-[10px] lg:text-xs font-bold ${isActive ? "text-white" : "text-slate-300"}`}>
+          {programConfig.label} {termYears}-Year Fixed
         </span>
+        <ChevronRight className={`w-3.5 h-3.5 ml-auto shrink-0 transition-colors ${isActive ? "text-[#00b4d8]" : "text-slate-600 group-hover:text-slate-400"}`} />
       </div>
-    </div>
+      <div className="grid grid-cols-3 gap-1 pl-8">
+        <div className="min-w-0">
+          <div className="text-[7.5px] lg:text-[9px] text-slate-500">Down Payment</div>
+          <div className="text-[8.5px] lg:text-[10.5px] font-bold text-[#00b4d8]">{downLabel}</div>
+        </div>
+        <div className="min-w-0">
+          <div className="text-[7.5px] lg:text-[9px] text-slate-500">DTI</div>
+          <GuidelineStatus value={backDti} guideline={programConfig.dtiBack.guideline} />
+        </div>
+        <div className="min-w-0">
+          <div className="text-[7.5px] lg:text-[9px] text-slate-500">LTV</div>
+          <GuidelineStatus value={ltvValue} guideline={programConfig.ltv.guideline} />
+        </div>
+      </div>
+    </button>
   );
 }
 
@@ -366,6 +386,7 @@ export interface AffordabilityPanelNewProps {
   dataMode?: DataMode;
   income?: number;
   monthlyDebts?: number;
+  creditScore?: number;
   statedDownPaymentDollars?: number;
   lockedMode?: boolean;
   eligiblePrograms?: ProgramId[];
@@ -384,6 +405,7 @@ export function AffordabilityPanelNew({
   dataMode = "stated",
   income = 10000,
   monthlyDebts = 800,
+  creditScore,
   statedDownPaymentDollars,
   lockedMode = false,
   eligiblePrograms = ["conventional", "fha", "va", "usda"],
@@ -398,6 +420,7 @@ export function AffordabilityPanelNew({
   const [initialMode] = useState<ModeId>(() => resolveMode(transactionType, cashOutIntent));
   const [mode, setMode] = useState<ModeId>(initialMode);
   const [hasSubmittedLocally, setHasSubmittedLocally] = useState<boolean>(false);
+  const [assumptionsOpen, setAssumptionsOpen] = useState<boolean>(false);
 
   // Default program selection:
   // 1. Borrower-stated mortgage/loan type (e.g. FHA, VA, USDA, Conventional)
@@ -586,12 +609,147 @@ export function AffordabilityPanelNew({
   // Calculate down payment in exact dollar amount for Purchase
   const currentDownDollars = mode === "purchase" ? Math.round(((a.price as number) * (a.downPct as number)) / 100) : 0;
 
-
-
   // Available eligible programs
   const availablePrograms = (Object.entries(PROGRAMS) as [ProgramId, ProgramConfig][]).filter(([id]) =>
     eligiblePrograms.includes(id)
   );
+
+  // Overall guideline status
+  const isWithinGuidelines = calc.back <= activeProgram.dtiBack.guideline && ltvVal <= ltvGuideline;
+
+  // Mode-adaptive labels
+  const modeTitle = mode === "purchase"
+    ? "Affordability Summary"
+    : mode === "refiRT"
+      ? "Refinance Summary"
+      : mode === "refiCO"
+        ? "Cash-Out Refinance Summary"
+        : mode === "heloc"
+          ? "HELOC Summary"
+          : "Home Equity Loan Summary";
+
+  const modeSubtitle = mode === "purchase"
+    ? "Here's how your information compares to typical mortgage guidelines. You can adjust any details below to see how it impacts your estimated payment and cash to close."
+    : mode === "refiRT"
+      ? "Here's how your refinance scenario compares to typical lending guidelines. Adjust details below to explore different options."
+      : mode === "refiCO"
+        ? "Here's your cash-out refinance scenario compared to typical guidelines. Adjust the amounts below to explore your options."
+        : mode === "heloc"
+          ? "Here's how your HELOC scenario compares to typical lending guidelines. Adjust details to see how it impacts your monthly obligation."
+          : "Here's how your home equity loan compares to typical lending guidelines.";
+
+  // Hero cards content based on mode
+  const heroCards = useMemo(() => {
+    if (mode === "purchase") {
+      return [
+        {
+          icon: <Home className="w-4 h-4" />,
+          label: "Estimated Home Price",
+          value: `$${fmt(a.price as number)}`,
+          sub: "Based on your budget and market data.",
+        },
+        {
+          icon: <DollarSign className="w-4 h-4" />,
+          label: "Estimated Monthly Payment",
+          value: `$${fmt(calc.pitia)}/mo`,
+          sub: "Principal & Interest + Taxes + Insurance + HOA (estimated).",
+        },
+        {
+          icon: <Landmark className="w-4 h-4" />,
+          label: "Estimated Cash to Close",
+          value: calc.cashBand ? `$${fmt(calc.cashBand[0])} – $${fmt(calc.cashBand[1])}` : `$${fmt(calc.exactCash || 0)}`,
+          sub: "Down payment + Closing costs + Prepaids + Reserves (estimated).",
+        },
+      ];
+    }
+    if (mode === "refiRT") {
+      return [
+        {
+          icon: <Home className="w-4 h-4" />,
+          label: "Current Home Value",
+          value: `$${fmt(a.homeValue as number)}`,
+          sub: "Estimated market value of your property.",
+        },
+        {
+          icon: <DollarSign className="w-4 h-4" />,
+          label: "New Monthly Payment",
+          value: `$${fmt(calc.pitia)}/mo`,
+          sub: "Principal & Interest + Taxes + Insurance (estimated).",
+        },
+        {
+          icon: <Landmark className="w-4 h-4" />,
+          label: "Est. Monthly Savings",
+          value: typeof calc.delta === "number" && calc.delta >= 0 ? `$${fmt(Math.abs(calc.delta))}/mo` : typeof calc.delta === "number" ? `+$${fmt(Math.abs(calc.delta))}/mo` : "N/A",
+          sub: typeof calc.delta === "number" && calc.delta >= 0 ? "Compared to your current payment." : "Your new payment would be higher.",
+        },
+      ];
+    }
+    if (mode === "refiCO") {
+      return [
+        {
+          icon: <Home className="w-4 h-4" />,
+          label: "Current Home Value",
+          value: `$${fmt(a.homeValue as number)}`,
+          sub: "Estimated market value of your property.",
+        },
+        {
+          icon: <DollarSign className="w-4 h-4" />,
+          label: "New Monthly Payment",
+          value: `$${fmt(calc.pitia)}/mo`,
+          sub: "Principal & Interest + Taxes + Insurance (estimated).",
+        },
+        {
+          icon: <Landmark className="w-4 h-4" />,
+          label: "Cash-Out Amount",
+          value: calc.cashBand ? `$${fmt(calc.cashBand[0])} – $${fmt(calc.cashBand[1])}` : `$${fmt(a.cashOut as number)}`,
+          sub: "Cash proceeds from your refinance.",
+        },
+      ];
+    }
+    if (mode === "heloc") {
+      return [
+        {
+          icon: <Home className="w-4 h-4" />,
+          label: "Current Home Value",
+          value: `$${fmt(a.homeValue as number)}`,
+          sub: "Estimated market value of your property.",
+        },
+        {
+          icon: <DollarSign className="w-4 h-4" />,
+          label: "Monthly HELOC Payment",
+          value: `$${fmt(calc.pitia)}/mo`,
+          sub: "Combined 1st mortgage + HELOC draw + Taxes + Insurance.",
+        },
+        {
+          icon: <Landmark className="w-4 h-4" />,
+          label: "Credit Line Amount",
+          value: `$${fmt(a.lineAmount as number)}`,
+          sub: "Your available home equity line of credit.",
+        },
+      ];
+    }
+    // heq
+    return [
+      {
+        icon: <Home className="w-4 h-4" />,
+        label: "Current Home Value",
+        value: `$${fmt(a.homeValue as number)}`,
+        sub: "Estimated market value of your property.",
+      },
+      {
+        icon: <DollarSign className="w-4 h-4" />,
+        label: "Total Monthly Payment",
+        value: `$${fmt(calc.pitia)}/mo`,
+        sub: "Combined 1st mortgage + HE loan + Taxes + Insurance.",
+      },
+      {
+        icon: <Landmark className="w-4 h-4" />,
+        label: "HE Loan Amount",
+        value: `$${fmt(a.lineAmount as number)}`,
+        sub: "Your fixed-rate home equity loan amount.",
+      },
+    ];
+  }, [mode, a, calc]);
 
   const palette = ["#00b4d8", "#023e8a", "#10b981", "#8b5cf6", "#f59e0b"];
 
@@ -601,271 +759,392 @@ export function AffordabilityPanelNew({
 
         <div className="flex flex-col gap-2 lg:gap-2.5 p-2.5 lg:p-3">
 
-          {/* ── 1. COMPACT HERO FINANCIAL RIBBON (Target, Stated Down $, Income) ── */}
-          <div className="bg-white/[0.02] p-2 lg:p-2.5 rounded-lg border border-white/10 flex flex-wrap items-center justify-between gap-1.5 lg:gap-2">
-            <div className="flex items-center gap-2 lg:gap-2.5 flex-wrap">
-              {mode === "purchase" ? (
-                <>
-                  <div className="flex items-center gap-1">
-                    <span className="text-[8.5px] lg:text-[10px] text-slate-400 uppercase font-medium">Target:</span>
-                    <span className="font-mono tabular-nums tracking-tight text-[10.5px] lg:text-xs font-bold text-white">${fmt(a.price as number)}</span>
-                  </div>
-                  <span className="text-slate-600 text-xs">|</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-[8.5px] lg:text-[10px] text-slate-400 uppercase font-medium">Stated Down:</span>
-                    <span className="font-mono tabular-nums tracking-tight text-[10.5px] lg:text-xs font-bold text-emerald-400">
-                      ${fmt(currentDownDollars)} <span className="text-[9px] text-slate-400 font-normal">({a.downPct}%)</span>
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center gap-1">
-                    <span className="text-[8.5px] lg:text-[10px] text-slate-400 uppercase font-medium">Home Value:</span>
-                    <span className="font-mono tabular-nums tracking-tight text-[10.5px] lg:text-xs font-bold text-white">${fmt(a.homeValue as number)}</span>
-                  </div>
-                  <span className="text-slate-600 text-xs">|</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-[8.5px] lg:text-[10px] text-slate-400 uppercase font-medium">
-                      {mode === "heloc" || mode === "heq" ? "1st Balance:" : "Payoff:"}
-                    </span>
-                    <span className="font-mono tabular-nums tracking-tight text-[10.5px] lg:text-xs font-bold text-white">
-                      ${fmt(mode === "heloc" || mode === "heq" ? (a.firstBalance as number) : (a.payoff as number))}
-                    </span>
-                  </div>
-                </>
-              )}
+          {/* ── 1. HEADER: Icon + Title + Subtitle + Stated/Verified Badge ── */}
+          <div className="flex items-start gap-2.5 lg:gap-3">
+            <div
+              className="w-8 h-8 lg:w-9 lg:h-9 rounded-lg flex items-center justify-center shrink-0"
+              style={{ background: T.tealBg, color: T.teal }}
+            >
+              <Home className="w-4 h-4 lg:w-5 lg:h-5" />
             </div>
-
-            <div className="flex items-center gap-1 ml-auto">
-              <span className="text-[8.5px] lg:text-[10px] text-slate-400 uppercase font-medium">Income:</span>
-              <span className="font-mono tabular-nums tracking-tight text-[10.5px] lg:text-xs font-bold text-white">
-                ${fmt(income)}<span className="text-[8.5px] lg:text-[10px] text-slate-400 font-normal">/mo</span>
-              </span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-sm lg:text-base font-bold text-white tracking-tight">{modeTitle}</h2>
+                <span className={`text-[8px] lg:text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0 ${
+                  dataMode === "stated"
+                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                    : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                }`}>
+                  {dataMode === "stated" ? "Stated" : "Verified"}
+                </span>
+              </div>
+              <p className="text-[8.5px] lg:text-[10px] text-slate-400 leading-snug mt-0.5">{modeSubtitle}</p>
             </div>
           </div>
 
-          {/* ── 2. CONDITIONAL MODE & ELIGIBLE PROGRAM SELECTOR ── */}
-          {(!lockedMode || (mode !== "heloc" && mode !== "heq" && availablePrograms.length > 1)) && (
-            <div className="flex flex-col gap-1.5">
-              {/* Only show Mode Switcher tabs if not locked to single prequal transaction */}
-              {!lockedMode && (
-                <div className="flex gap-1 lg:gap-1.5 bg-white/[0.03] p-1 rounded-lg border border-white/10">
-                  {MODES.map((m) => {
-                    const active = m.id === mode;
-                    return (
-                      <button
-                        key={m.id}
-                        onClick={() => setMode(m.id)}
-                        className={`flex-1 text-[8.5px] lg:text-[10.5px] font-semibold py-1 px-1.5 rounded-md transition-all truncate cursor-pointer ${active
-                            ? "bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-[0_2px_8px_rgba(0,180,216,0.35)]"
-                            : "text-slate-400 hover:text-white hover:bg-white/5"
-                          }`}
-                      >
-                        {m.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Only show Loan Programs that are determined eligible for this borrower */}
-              {mode !== "heloc" && mode !== "heq" && (
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[8.5px] lg:text-[10.5px] text-slate-400 font-medium">Eligible Programs:</span>
-                  <div className="flex gap-1 flex-wrap">
-                    {availablePrograms.map(([id, p]) => {
-                      const active = id === program;
-                      return (
-                        <button
-                          key={id}
-                          onClick={() => {
-                            setUserSelectedProgram(id);
-                            setProgram(id);
-                            if (mode === "purchase" && (a.downPct as number) < p.minDownPct) update("downPct", p.minDownPct);
-                          }}
-                          className={`text-[8.5px] lg:text-[10px] font-semibold py-0.5 px-2 rounded-md border transition-all cursor-pointer ${active
-                              ? "border-[#00b4d8] bg-[#00b4d8]/15 text-[#00b4d8]"
-                              : "border-white/10 text-slate-400 hover:text-white hover:bg-white/5"
-                            }`}
-                        >
-                          {p.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+          {/* ── 1.5. CONDITIONAL MODE & ELIGIBLE PROGRAM SELECTOR ── */}
+          {!lockedMode && (
+            <div className="flex gap-1 lg:gap-1.5 bg-white/[0.03] p-1 rounded-lg border border-white/10">
+              {MODES.map((m) => {
+                const active = m.id === mode;
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => setMode(m.id)}
+                    className={`flex-1 text-[8.5px] lg:text-[10.5px] font-semibold py-1 px-1.5 rounded-md transition-all truncate cursor-pointer ${active
+                        ? "bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-[0_2px_8px_rgba(0,180,216,0.35)]"
+                        : "text-slate-400 hover:text-white hover:bg-white/5"
+                      }`}
+                  >
+                    {m.label}
+                  </button>
+                );
+              })}
             </div>
           )}
 
-          {/* ── 3. UNIFIED PAYMENT & ITEMIZATION CARD ── */}
-          <div className="bg-gradient-to-br from-[#131E35]/80 to-[#0F172A] p-2.5 lg:p-3 rounded-lg border border-[#00b4d8]/30 shadow-md">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <div className="text-[7.5px] lg:text-[9.5px] uppercase font-semibold text-slate-400 tracking-wider">
-                  {mode === "heloc" || mode === "heq" ? "Total Monthly Obligation" : "Est. Total Monthly Payment (PITIA)"}
-                </div>
-                <div className="text-base lg:text-xl font-mono tabular-nums tracking-tight font-bold text-[#00b4d8] drop-shadow-[0_0_10px_rgba(0,180,216,0.35)] mt-0.5">
-                  ${fmt(calc.pitia)}
-                  <span className="text-[9px] lg:text-xs text-slate-400 font-normal">/mo</span>
-                </div>
-              </div>
-
-              <div className="flex flex-col items-end gap-0.5 lg:gap-1">
-                <div className="text-right">
-                  <span className="text-[7.5px] lg:text-[9px] text-slate-400 uppercase mr-1">{mode === "heq" ? "2nd Loan Amount:" : "Loan Amount:"}</span>
-                  <span className="font-mono tabular-nums tracking-tight text-[10.5px] lg:text-xs font-semibold text-white">
-                    ${fmt(mode === "heloc" ? (calc.totalLiens as number) : (calc.loanAmt as number))}
+          {/* ── 2. THREE HERO METRIC CARDS ── */}
+          <div className="grid grid-cols-3 gap-1.5 lg:gap-2">
+            {heroCards.map((card, i) => (
+              <div
+                key={i}
+                className="bg-gradient-to-br from-[#131E35]/80 to-[#0F172A] p-2 lg:p-2.5 rounded-lg border border-[#00b4d8]/20 shadow-sm flex flex-col"
+              >
+                <div className="flex items-center gap-1.5 mb-1">
+                  <div
+                    className="w-5 h-5 lg:w-6 lg:h-6 rounded-md flex items-center justify-center"
+                    style={{ background: T.tealBg, color: T.teal }}
+                  >
+                    {card.icon}
+                  </div>
+                  <span className="text-[7.5px] lg:text-[9px] text-slate-400 font-medium leading-tight">
+                    {card.label} <Info className="w-2.5 h-2.5 inline-block text-slate-600 ml-0.5" />
                   </span>
                 </div>
-                {calc.upfrontFee! > 0 && activeProgram.upfrontFeeLabel && (
-                  <div className="text-[7.5px] lg:text-[9px] text-slate-400 mt-0.5 ml-2 text-right">
-                    Includes ${fmt(calc.upfrontFee as number)} {activeProgram.upfrontFeeLabel}
-                  </div>
-                )}
-                {calc.cashBand && (
-                  <div className="text-right">
-                    <span className="text-[7.5px] lg:text-[9px] text-slate-400 uppercase mr-1">
-                      {mode === "purchase" ? "Est. Cash to Close:" : "Cash-Out:"}
-                    </span>
-                    <span className="font-mono tabular-nums tracking-tight text-[10px] lg:text-[11.5px] font-semibold text-emerald-400">
-                      ${fmt(calc.cashBand[0])}–${fmt(calc.cashBand[1])}
-                    </span>
-                  </div>
-                )}
-                {(mode === "refiRT" || mode === "refiCO") && typeof calc.delta === "number" && (
-                  <div className="text-right">
-                    <span className={`text-[9px] lg:text-[10.5px] font-semibold ${calc.delta >= 0 ? "text-emerald-400" : "text-amber-400"}`}>
-                      {calc.delta >= 0 ? `Saves $${fmt(Math.abs(calc.delta))}/mo` : `Adds $${fmt(Math.abs(calc.delta))}/mo`}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Proportional Payment Bar */}
-            <div className="flex h-2 lg:h-2.5 rounded-md overflow-hidden border border-white/10 bg-slate-900 mt-2">
-              {calc.segments.map((s, i) => (
-                <div
-                  key={s.label}
-                  style={{
-                    width: `${calc.pitia > 0 ? (s.value / calc.pitia) * 100 : 0}%`,
-                    background: palette[i % palette.length],
-                    minWidth: s.value > 0 ? 2 : 0,
-                  }}
-                  className="transition-all duration-200"
-                  title={`${s.label}: $${fmt(s.value)}`}
-                />
-              ))}
-            </div>
-
-            {/* 2-Column Inline Cost Matrix */}
-            <div className="grid grid-cols-2 gap-x-2.5 gap-y-0.5 lg:gap-y-1 mt-1.5 pt-1.5 border-t border-white/10">
-              {calc.segments.filter(s => s.value > 0).map((s, i) => (
-                <div key={s.label} className="flex items-center justify-between text-[8px] lg:text-[10px]">
-                  <div className="flex items-center gap-1.5 truncate">
-                    <span style={{ background: palette[i % palette.length] }} className="w-1.5 h-1.5 rounded-xs shrink-0" />
-                    <span className="text-slate-400 truncate">{s.label}</span>
-                  </div>
-                  <span className="font-mono tabular-nums tracking-tight font-semibold text-white ml-1 shrink-0">${fmt(s.value)}</span>
+                <div className="text-sm lg:text-lg font-mono tabular-nums tracking-tight font-bold text-white leading-tight">
+                  {card.value}
                 </div>
-              ))}
-            </div>
-
-            {mode !== "heloc" && mode !== "heq" && (
-              <div className="mt-1 text-[7.5px] lg:text-[9px] text-slate-400 leading-tight">
-                {activeProgram.miNote(calc.mi as number)}
+                <div className="text-[7px] lg:text-[8.5px] text-slate-500 leading-snug mt-0.5">{card.sub}</div>
               </div>
-            )}
-
-            {mode === "refiCO" && calc.isCashOutCapped && (
-              <div className="mt-1.5 p-1.5 rounded bg-amber-500/10 border border-amber-500/30 text-[7.5px] lg:text-[9px] text-amber-300 flex items-center gap-1.5">
-                <span className="shrink-0 font-bold">⚠️ Notice:</span>
-                <span>Requested cash-out exceeds the conventional 80% LTV guideline (maximum guideline cash-out: ${fmt(calc.maxCashOutAt80 || 0)}).</span>
-              </div>
-            )}
-
-            {mode === "heloc" && typeof calc.repaymentTotal === "number" && (
-              <div className="mt-1.5 pt-1.5 border-t border-white/10 flex items-center justify-between text-[7.5px] lg:text-[9px]">
-                <span className="text-slate-400">After 10-yr draw period (yr 11–30):</span>
-                <span className="font-mono font-semibold text-slate-200">
-                  ~${fmt(calc.repaymentTotal)}/mo <span className="text-[7px] text-slate-400 font-normal">(includes ${fmt(calc.repaymentPI || 0)} P&I repayment)</span>
-                </span>
-              </div>
-            )}
+            ))}
           </div>
 
-          {/* ── 4. INLINE DTI & LTV BENCHMARK STRIP ── */}
-          <div className="bg-white/[0.02] p-2 lg:p-2.5 rounded-lg border border-white/10">
-            <div className="text-[7.5px] lg:text-[9.5px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-              DTI & LTV Benchmarks — {activeProgram.label}
-            </div>
-
-            <div className="grid grid-cols-3 gap-1.5 lg:gap-2">
-              {/* Front-End DTI */}
-              <div
-                className="bg-slate-900/60 p-1.5 lg:p-2 rounded-md flex flex-col justify-between transition-all"
-                style={{
-                  border: calc.front <= activeProgram.dtiFront.guideline
-                    ? '1px solid rgba(16,185,129,0.40)'
-                    : '1px solid rgba(245,158,11,0.40)',
-                  animation: calc.front <= activeProgram.dtiFront.guideline
-                    ? 'dti-pulse-ok 2.8s ease-in-out infinite'
-                    : 'dti-pulse-warn 2.8s ease-in-out infinite',
-                }}
-              >
-                <div className="text-[7.5px] lg:text-[9.5px] font-bold text-slate-300 truncate">Front-End DTI</div>
-                <div className="text-xs lg:text-sm font-mono tabular-nums tracking-tight font-bold text-white mt-0.5">{fmtPct(calc.front)}</div>
-                <div className={`text-[7px] lg:text-[9px] font-mono tabular-nums tracking-tight font-semibold mt-0.5 truncate ${calc.front <= activeProgram.dtiFront.guideline ? "text-emerald-400" : "text-amber-400"}`}>
-                  {calc.front <= activeProgram.dtiFront.guideline ? "At limit" : `+${(calc.front - activeProgram.dtiFront.guideline).toFixed(1)}%`} ({fmtPct(activeProgram.dtiFront.guideline)})
-                </div>
+          {/* ── 3. STATUS BANNER ── */}
+          <div
+            className="flex items-center gap-2 p-2 lg:p-2.5 rounded-lg border"
+            style={{
+              background: isWithinGuidelines ? T.greenBg : T.amberBg,
+              borderColor: isWithinGuidelines ? "rgba(16,185,129,0.3)" : "rgba(245,158,11,0.3)",
+            }}
+          >
+            <CheckCircle2
+              className="w-4 h-4 lg:w-5 lg:h-5 shrink-0"
+              style={{ color: isWithinGuidelines ? T.green : T.amber }}
+            />
+            <div>
+              <div className="text-[9px] lg:text-[11px] font-bold" style={{ color: isWithinGuidelines ? T.green : T.amber }}>
+                {isWithinGuidelines
+                  ? "You're within the typical lending guidelines for this loan program."
+                  : "Some ratios are outside typical guidelines for this program."}
               </div>
-
-              {/* Back-End DTI */}
-              <div
-                className="bg-slate-900/60 p-1.5 lg:p-2 rounded-md flex flex-col justify-between transition-all"
-                style={{
-                  border: calc.back <= activeProgram.dtiBack.guideline
-                    ? '1px solid rgba(16,185,129,0.40)'
-                    : '1px solid rgba(245,158,11,0.40)',
-                  animation: calc.back <= activeProgram.dtiBack.guideline
-                    ? 'dti-pulse-ok 2.8s ease-in-out infinite'
-                    : 'dti-pulse-warn 2.8s ease-in-out infinite',
-                }}
-              >
-                <div className="text-[7.5px] lg:text-[9.5px] font-bold text-slate-300 truncate">Back-End DTI</div>
-                <div className="text-xs lg:text-sm font-mono tabular-nums tracking-tight font-bold text-white mt-0.5">{fmtPct(calc.back)}</div>
-                <div className={`text-[7px] lg:text-[9px] font-mono tabular-nums tracking-tight font-semibold mt-0.5 truncate ${calc.back <= activeProgram.dtiBack.guideline ? "text-emerald-400" : "text-amber-400"}`}>
-                  {calc.back <= activeProgram.dtiBack.guideline ? "At limit" : `+${(calc.back - activeProgram.dtiBack.guideline).toFixed(1)}%`} ({fmtPct(activeProgram.dtiBack.guideline)})
-                </div>
-              </div>
-
-              {/* LTV / CLTV */}
-              <div className="bg-slate-900/60 p-1.5 lg:p-2 rounded-md border border-white/5 flex flex-col justify-between">
-                <div className="text-[7.5px] lg:text-[9.5px] text-slate-400 truncate">{mode === "heloc" || mode === "heq" ? "CLTV" : "LTV"}</div>
-                <div className="text-xs lg:text-sm font-mono tabular-nums tracking-tight font-bold text-white mt-0.5">{fmtPct(ltvVal)}</div>
-                <div className={`text-[7px] lg:text-[9px] font-mono tabular-nums tracking-tight font-semibold mt-0.5 truncate ${ltvVal <= ltvGuideline ? "text-emerald-400" : "text-amber-400"}`}>
-                  {ltvVal <= ltvGuideline ? "At limit" : `+${(ltvVal - ltvGuideline).toFixed(1)}%`} ({fmtPct(ltvGuideline)})
-                </div>
+              <div className="text-[7.5px] lg:text-[9px] text-slate-400 leading-tight mt-0.5">
+                {isWithinGuidelines
+                  ? "Your estimated ratios are within the recommended range and what you provided."
+                  : `Compensating factors such as ${activeProgram.compensating} may help qualification.`}
               </div>
             </div>
-
-            {dataMode === "stated" && (
-              <div className="mt-1.5 pt-1.5 border-t border-white/10">
-                <SliderRow
-                  label="Monthly Debts (your estimate)"
-                  value={statedDebts}
-                  min={0}
-                  max={5000}
-                  step={25}
-                  onChange={setStatedDebts}
-                  prefix="$"
-                  suffix="/mo"
-                />
-              </div>
-            )}
           </div>
+
+          {/* ── 4. TWO-COLUMN BODY: Financial Profile + Loan Programs ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 lg:gap-2.5">
+
+            {/* LEFT: Your Financial Profile */}
+            <div className="bg-white/[0.02] p-2.5 lg:p-3 rounded-lg border border-white/10">
+              <h3 className="text-[10px] lg:text-xs font-bold text-white mb-1.5 flex items-center gap-1.5">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-[#00b4d8]" />
+                Your Financial Profile
+              </h3>
+
+              {mode === "purchase" && (
+                <>
+                  <ProfileItem
+                    icon={<DollarSign className="w-3.5 h-3.5" />}
+                    label="Gross Monthly Income"
+                    value={`$${fmt(income)}`}
+                    progressPct={((income - TYPICAL_RANGES.income.min) / (TYPICAL_RANGES.income.max - TYPICAL_RANGES.income.min)) * 100}
+                    typicalRange={TYPICAL_RANGES.income.label}
+                    color="#10B981"
+                  />
+                  <ProfileItem
+                    icon={<CreditCard className="w-3.5 h-3.5" />}
+                    label="Credit Score"
+                    value={creditScore ? `${creditScore}` : "N/A"}
+                    progressPct={creditScore ? ((creditScore - 300) / (850 - 300)) * 100 : 0}
+                    typicalRange={TYPICAL_RANGES.creditScore.label}
+                    color="#8B5CF6"
+                  />
+                  <ProfileItem
+                    icon={<Landmark className="w-3.5 h-3.5" />}
+                    label="Down Payment"
+                    value={`$${fmt(currentDownDollars)} (${a.downPct}%)`}
+                    progressPct={((a.downPct as number) / 30) * 100}
+                    typicalRange={TYPICAL_RANGES.downPctPurchase.label}
+                    color="#00B4D8"
+                  />
+                  <ProfileItem
+                    icon={<Building2 className="w-3.5 h-3.5" />}
+                    label="Property Taxes (est.)"
+                    value={`$${fmt(Math.round(((a.price as number) * (a.taxRatePct / 100)) / 12))}/mo`}
+                    progressPct={(() => {
+                      const monthlyTax = ((a.price as number) * (a.taxRatePct / 100)) / 12;
+                      return ((monthlyTax - TYPICAL_RANGES.propertyTax.min) / (TYPICAL_RANGES.propertyTax.max - TYPICAL_RANGES.propertyTax.min)) * 100;
+                    })()}
+                    typicalRange={TYPICAL_RANGES.propertyTax.label}
+                    color="#F59E0B"
+                  />
+                  <ProfileItem
+                    icon={<ShieldCheck className="w-3.5 h-3.5" />}
+                    label="Homeowners Insurance (est.)"
+                    value={`$${fmt(a.insurance)}/mo`}
+                    progressPct={((a.insurance - TYPICAL_RANGES.insurance.min) / (TYPICAL_RANGES.insurance.max - TYPICAL_RANGES.insurance.min)) * 100}
+                    typicalRange={TYPICAL_RANGES.insurance.label}
+                    color="#06B6D4"
+                  />
+                  <ProfileItem
+                    icon={<Percent className="w-3.5 h-3.5" />}
+                    label="Debt-to-Income Ratio"
+                    value={fmtPct(calc.back)}
+                    progressPct={(calc.back / 60) * 100}
+                    typicalRange={TYPICAL_RANGES.dti.label}
+                    color={calc.back <= activeProgram.dtiBack.guideline ? "#10B981" : "#F59E0B"}
+                  />
+                </>
+              )}
+
+              {(mode === "refiRT" || mode === "refiCO") && (
+                <>
+                  <ProfileItem
+                    icon={<DollarSign className="w-3.5 h-3.5" />}
+                    label="Gross Monthly Income"
+                    value={`$${fmt(income)}`}
+                    progressPct={((income - TYPICAL_RANGES.income.min) / (TYPICAL_RANGES.income.max - TYPICAL_RANGES.income.min)) * 100}
+                    typicalRange={TYPICAL_RANGES.income.label}
+                    color="#10B981"
+                  />
+                  <ProfileItem
+                    icon={<CreditCard className="w-3.5 h-3.5" />}
+                    label="Credit Score"
+                    value={creditScore ? `${creditScore}` : "N/A"}
+                    progressPct={creditScore ? ((creditScore - 300) / (850 - 300)) * 100 : 0}
+                    typicalRange={TYPICAL_RANGES.creditScore.label}
+                    color="#8B5CF6"
+                  />
+                  <ProfileItem
+                    icon={<Landmark className="w-3.5 h-3.5" />}
+                    label="Current Balance"
+                    value={`$${fmt(a.payoff as number)}`}
+                    progressPct={((a.payoff as number) / (a.homeValue as number)) * 100}
+                    typicalRange={TYPICAL_RANGES.payoff.label}
+                    color="#00B4D8"
+                  />
+                  <ProfileItem
+                    icon={<Percent className="w-3.5 h-3.5" />}
+                    label="New Interest Rate"
+                    value={`${(a.rate as number).toFixed(3)}%`}
+                    progressPct={((a.rate as number) - 3) / (10 - 3) * 100}
+                    typicalRange={TYPICAL_RANGES.rate.label}
+                    color="#F59E0B"
+                  />
+                  <ProfileItem
+                    icon={<ShieldCheck className="w-3.5 h-3.5" />}
+                    label="Homeowners Insurance (est.)"
+                    value={`$${fmt(a.insurance)}/mo`}
+                    progressPct={((a.insurance - TYPICAL_RANGES.insurance.min) / (TYPICAL_RANGES.insurance.max - TYPICAL_RANGES.insurance.min)) * 100}
+                    typicalRange={TYPICAL_RANGES.insurance.label}
+                    color="#06B6D4"
+                  />
+                  <ProfileItem
+                    icon={<Percent className="w-3.5 h-3.5" />}
+                    label="Debt-to-Income Ratio"
+                    value={fmtPct(calc.back)}
+                    progressPct={(calc.back / 60) * 100}
+                    typicalRange={TYPICAL_RANGES.dti.label}
+                    color={calc.back <= activeProgram.dtiBack.guideline ? "#10B981" : "#F59E0B"}
+                  />
+                  {mode === "refiCO" && (
+                    <ProfileItem
+                      icon={<DollarSign className="w-3.5 h-3.5" />}
+                      label="Cash-Out Requested"
+                      value={`$${fmt(a.cashOut as number)}`}
+                      progressPct={Math.min(100, ((a.cashOut as number) / (calc.maxCashOutAt80 || (a.cashOut as number) * 1.5)) * 100)}
+                      typicalRange={calc.maxCashOutAt80 ? `Max at 80% LTV: $${fmt(calc.maxCashOutAt80)}` : "Varies by LTV"}
+                      color={calc.isCashOutCapped ? "#F59E0B" : "#10B981"}
+                    />
+                  )}
+                </>
+              )}
+
+              {(mode === "heloc" || mode === "heq") && (
+                <>
+                  <ProfileItem
+                    icon={<DollarSign className="w-3.5 h-3.5" />}
+                    label="Gross Monthly Income"
+                    value={`$${fmt(income)}`}
+                    progressPct={((income - TYPICAL_RANGES.income.min) / (TYPICAL_RANGES.income.max - TYPICAL_RANGES.income.min)) * 100}
+                    typicalRange={TYPICAL_RANGES.income.label}
+                    color="#10B981"
+                  />
+                  <ProfileItem
+                    icon={<CreditCard className="w-3.5 h-3.5" />}
+                    label="Credit Score"
+                    value={creditScore ? `${creditScore}` : "N/A"}
+                    progressPct={creditScore ? ((creditScore - 300) / (850 - 300)) * 100 : 0}
+                    typicalRange={TYPICAL_RANGES.creditScore.label}
+                    color="#8B5CF6"
+                  />
+                  <ProfileItem
+                    icon={<Landmark className="w-3.5 h-3.5" />}
+                    label="1st Mortgage Balance"
+                    value={`$${fmt(a.firstBalance as number)}`}
+                    progressPct={((a.firstBalance as number) / (a.homeValue as number)) * 100}
+                    typicalRange={TYPICAL_RANGES.firstBalance.label}
+                    color="#00B4D8"
+                  />
+                  <ProfileItem
+                    icon={<DollarSign className="w-3.5 h-3.5" />}
+                    label={mode === "heloc" ? "Credit Line Amount" : "HE Loan Amount"}
+                    value={`$${fmt(a.lineAmount as number)}`}
+                    progressPct={((a.lineAmount as number) / 200000) * 100}
+                    typicalRange={TYPICAL_RANGES.lineAmount.label}
+                    color="#8B5CF6"
+                  />
+                  <ProfileItem
+                    icon={<Percent className="w-3.5 h-3.5" />}
+                    label="CLTV"
+                    value={fmtPct(calc.cltv as number)}
+                    progressPct={((calc.cltv as number) / 100) * 100}
+                    typicalRange={TYPICAL_RANGES.cltv.label}
+                    color={(calc.cltv as number) <= 85 ? "#10B981" : "#F59E0B"}
+                  />
+                  <ProfileItem
+                    icon={<Percent className="w-3.5 h-3.5" />}
+                    label="Debt-to-Income Ratio"
+                    value={fmtPct(calc.back)}
+                    progressPct={(calc.back / 60) * 100}
+                    typicalRange={TYPICAL_RANGES.dti.label}
+                    color={calc.back <= activeProgram.dtiBack.guideline ? "#10B981" : "#F59E0B"}
+                  />
+                </>
+              )}
+            </div>
+
+            {/* RIGHT: Potential Loan Programs */}
+            <div className="bg-white/[0.02] p-2.5 lg:p-3 rounded-lg border border-white/10">
+              {mode !== "heloc" && mode !== "heq" ? (
+                <>
+                  <h3 className="text-[10px] lg:text-xs font-bold text-[#00b4d8] mb-0.5">Potential Loan Programs</h3>
+                  <p className="text-[7.5px] lg:text-[9px] text-slate-400 leading-snug mb-2">
+                    Based on the information you&apos;ve provided, here are programs that may be available to you. Final eligibility and loan terms are determined by the lender.
+                  </p>
+                  <div className="flex flex-col gap-1.5">
+                    {availablePrograms.map(([id, p]) => (
+                      <ProgramCard
+                        key={id}
+                        programId={id}
+                        programConfig={p}
+                        termYears={a.term as number || 30}
+                        backDti={calc.back}
+                        ltvValue={ltvVal}
+                        isActive={id === program}
+                        onClick={() => {
+                          setUserSelectedProgram(id);
+                          setProgram(id);
+                          if (mode === "purchase" && (a.downPct as number) < p.minDownPct) update("downPct", p.minDownPct);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </>
+              ) : (
+                /* HELOC / HEQ: Single program detail view */
+                <>
+                  <h3 className="text-[10px] lg:text-xs font-bold text-[#00b4d8] mb-0.5">
+                    {mode === "heloc" ? "HELOC Details" : "Home Equity Loan Details"}
+                  </h3>
+                  <p className="text-[7.5px] lg:text-[9px] text-slate-400 leading-snug mb-2">
+                    {mode === "heloc"
+                      ? "Your home equity line of credit details based on current market rates and your equity position."
+                      : "Your fixed-rate home equity loan details based on your equity position."}
+                  </p>
+
+                  {/* Payment Breakdown */}
+                  <div className="bg-gradient-to-br from-[#131E35]/80 to-[#0F172A] p-2.5 rounded-lg border border-[#00b4d8]/20 shadow-sm">
+                    <div className="text-[8px] lg:text-[9.5px] uppercase font-semibold text-slate-400 tracking-wider mb-1.5">Payment Breakdown</div>
+                    <div className="flex h-2 lg:h-2.5 rounded-md overflow-hidden border border-white/10 bg-slate-900">
+                      {calc.segments.map((s, i) => (
+                        <div
+                          key={s.label}
+                          style={{
+                            width: `${calc.pitia > 0 ? (s.value / calc.pitia) * 100 : 0}%`,
+                            background: palette[i % palette.length],
+                            minWidth: s.value > 0 ? 2 : 0,
+                          }}
+                          className="transition-all duration-200"
+                          title={`${s.label}: $${fmt(s.value)}`}
+                        />
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-1 gap-y-0.5 mt-1.5 pt-1.5 border-t border-white/10">
+                      {calc.segments.filter(s => s.value > 0).map((s, i) => (
+                        <div key={s.label} className="flex items-center justify-between text-[8.5px] lg:text-[10px]">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <span style={{ background: palette[i % palette.length] }} className="w-1.5 h-1.5 rounded-xs shrink-0" />
+                            <span className="text-slate-400 truncate">{s.label}</span>
+                          </div>
+                          <span className="font-mono tabular-nums tracking-tight font-semibold text-white ml-1 shrink-0">${fmt(s.value)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-white/10">
+                      <span className="text-[9px] lg:text-[10.5px] font-semibold text-white">Total Monthly</span>
+                      <span className="text-xs lg:text-sm font-mono font-bold text-[#00b4d8] drop-shadow-[0_0_8px_rgba(0,180,216,0.35)]">
+                        ${fmt(calc.pitia)}<span className="text-[9px] font-normal text-slate-400">/mo</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* DTI & CLTV Status */}
+                  <div className="grid grid-cols-2 gap-1.5 mt-2">
+                    <div className="bg-slate-900/60 p-2 rounded-md border border-white/5">
+                      <div className="text-[8px] lg:text-[9.5px] text-slate-500">DTI</div>
+                      <div className="text-xs lg:text-sm font-mono font-bold text-white">{fmtPct(calc.back)}</div>
+                      <GuidelineStatus value={calc.back} guideline={activeProgram.dtiBack.guideline} />
+                    </div>
+                    <div className="bg-slate-900/60 p-2 rounded-md border border-white/5">
+                      <div className="text-[8px] lg:text-[9.5px] text-slate-500">CLTV</div>
+                      <div className="text-xs lg:text-sm font-mono font-bold text-white">{fmtPct(calc.cltv as number)}</div>
+                      <GuidelineStatus value={calc.cltv as number} guideline={85} />
+                    </div>
+                  </div>
+
+                  {mode === "heloc" && typeof calc.repaymentTotal === "number" && (
+                    <div className="mt-2 p-2 rounded-lg bg-white/[0.02] border border-white/5 text-[7.5px] lg:text-[9px] text-slate-400">
+                      <span className="font-semibold text-slate-300">After 10-yr draw period:</span> ~${fmt(calc.repaymentTotal)}/mo
+                      <span className="text-slate-500"> (includes ${fmt(calc.repaymentPI || 0)} P&I repayment)</span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* ── Cash-out capped warning ── */}
+          {mode === "refiCO" && calc.isCashOutCapped && (
+            <div className="p-1.5 lg:p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[7.5px] lg:text-[9px] text-amber-300 flex items-center gap-1.5">
+              <span className="shrink-0 font-bold">⚠️ Notice:</span>
+              <span>Requested cash-out exceeds the conventional 80% LTV guideline (maximum guideline cash-out: ${fmt(calc.maxCashOutAt80 || 0)}).</span>
+            </div>
+          )}
 
           {/* ── 5. STATED MODE UPGRADE RIBBON ── */}
           {dataMode === "stated" && onRequestSoftPull && (
@@ -885,93 +1164,119 @@ export function AffordabilityPanelNew({
             </div>
           )}
 
-          {/* ── 6. SCENARIO ASSUMPTIONS (Compact 2-Column Grid) ── */}
-          <div className="bg-white/[0.01] p-2 lg:p-2.5 rounded-lg border border-white/5">
-            <div className="flex items-center justify-between mb-1">
+          {/* ── 6. COLLAPSIBLE SCENARIO ASSUMPTIONS ── */}
+          <div className="bg-white/[0.01] rounded-lg border border-white/5 overflow-hidden">
+            <button
+              onClick={() => setAssumptionsOpen(!assumptionsOpen)}
+              className="w-full flex items-center justify-between p-2 lg:p-2.5 cursor-pointer hover:bg-white/[0.02] transition-colors"
+            >
               <div className="flex items-center gap-1 text-[8.5px] lg:text-[10.5px] font-bold text-[#00b4d8]">
                 <SlidersHorizontal className="w-3 h-3" /> Adjust Scenario Assumptions
               </div>
-              <button
-                onClick={() => {
-                  const baselines = getBaselineAssumptions();
-                  setAssump((prev) => ({ ...prev, [mode]: baselines[mode] }));
-                  if (dataMode === "stated") {
-                    setStatedDebts(monthlyDebts);
-                  }
-                }}
-                className="text-[8px] lg:text-[10px] text-slate-400 hover:text-white transition flex items-center gap-1 cursor-pointer"
-                title="Reset to your stated numbers"
-              >
-                <RotateCcw className="w-2.5 h-2.5" /> Reset
-              </button>
-            </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const baselines = getBaselineAssumptions();
+                    setAssump((prev) => ({ ...prev, [mode]: baselines[mode] }));
+                    if (dataMode === "stated") {
+                      setStatedDebts(monthlyDebts);
+                    }
+                  }}
+                  className="text-[8px] lg:text-[10px] text-slate-400 hover:text-white transition flex items-center gap-1 cursor-pointer"
+                  title="Reset to your stated numbers"
+                >
+                  <RotateCcw className="w-2.5 h-2.5" /> Reset
+                </button>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${assumptionsOpen ? "rotate-180" : ""}`} />
+              </div>
+            </button>
 
-            <div className="grid grid-cols-2 gap-x-2.5 lg:gap-x-3.5 gap-y-1 lg:gap-y-1.5">
-              {mode === "purchase" && (
-                <>
-                  <SliderRow label="Target Price" value={a.price as number} min={100000} max={1500000} step={5000} onChange={(v) => update("price", v)} prefix="$" />
-                  <SliderRow label={`Down ($${fmt(currentDownDollars)})`} value={a.downPct as number} min={activeProgram.minDownPct} max={40} step={0.5} onChange={(v) => update("downPct", v)} suffix="%" />
-                  <SliderRow label="Interest Rate" value={a.rate as number} min={3.5} max={10} step={0.125} onChange={(v) => update("rate", v)} suffix="%" />
-                  <SliderRow label="HOA Dues" value={a.hoaFee as number} min={0} max={600} step={10} onChange={(v) => update("hoaFee", v)} prefix="$" suffix="/mo" />
-                  <SliderRow label="Insurance" value={a.insurance} min={40} max={400} step={10} onChange={(v) => update("insurance", v)} prefix="$" suffix="/mo" />
-                  <ToggleRow label="Loan Term" options={[15, 30]} value={a.term as number} onChange={(v) => update("term", v)} suffix="-yr" />
-                </>
-              )}
-              {(mode === "refiRT" || mode === "refiCO") && (
-                <>
-                  <SliderRow label="Home Value" value={a.homeValue as number} min={150000} max={1500000} step={5000} onChange={(v) => update("homeValue", v)} prefix="$" />
-                  <SliderRow label="Payoff Balance" value={a.payoff as number} min={50000} max={a.homeValue as number} step={5000} onChange={(v) => update("payoff", v)} prefix="$" />
-                  <SliderRow label="Interest Rate" value={a.rate as number} min={3.5} max={10} step={0.125} onChange={(v) => update("rate", v)} suffix="%" />
-                  {mode === "refiCO" ? (
-                    <SliderRow label="Cash-Out" value={a.cashOut as number} min={0} max={250000} step={2500} onChange={(v) => update("cashOut", v)} prefix="$" />
-                  ) : (
-                    <SliderRow label="HOA Dues" value={a.hoaFee as number} min={0} max={600} step={10} onChange={(v) => update("hoaFee", v)} prefix="$" suffix="/mo" />
+            {assumptionsOpen && (
+              <div className="p-2 lg:p-2.5 pt-0 border-t border-white/5">
+                <div className="grid grid-cols-2 gap-x-2.5 lg:gap-x-3.5 gap-y-1 lg:gap-y-1.5">
+                  {mode === "purchase" && (
+                    <>
+                      <SliderRow label="Target Price" value={a.price as number} min={100000} max={1500000} step={5000} onChange={(v) => update("price", v)} prefix="$" />
+                      <SliderRow label={`Down ($${fmt(currentDownDollars)})`} value={a.downPct as number} min={activeProgram.minDownPct} max={40} step={0.5} onChange={(v) => update("downPct", v)} suffix="%" />
+                      <SliderRow label="Interest Rate" value={a.rate as number} min={3.5} max={10} step={0.125} onChange={(v) => update("rate", v)} suffix="%" />
+                      <SliderRow label="HOA Dues" value={a.hoaFee as number} min={0} max={600} step={10} onChange={(v) => update("hoaFee", v)} prefix="$" suffix="/mo" />
+                      <SliderRow label="Insurance" value={a.insurance} min={40} max={400} step={10} onChange={(v) => update("insurance", v)} prefix="$" suffix="/mo" />
+                      <ToggleRow label="Loan Term" options={[15, 30]} value={a.term as number} onChange={(v) => update("term", v)} suffix="-yr" />
+                    </>
                   )}
-                  <SliderRow label="Insurance" value={a.insurance} min={40} max={400} step={10} onChange={(v) => update("insurance", v)} prefix="$" suffix="/mo" />
-                  <ToggleRow label="Loan Term" options={[15, 30]} value={a.term as number} onChange={(v) => update("term", v)} suffix="-yr" />
-                </>
-              )}
-              {mode === "heloc" && (
-                <>
-                  <SliderRow label="Home Value" value={a.homeValue as number} min={150000} max={1500000} step={5000} onChange={(v) => update("homeValue", v)} prefix="$" />
-                  <SliderRow label="1st Balance" value={a.firstBalance as number} min={50000} max={a.homeValue as number} step={5000} onChange={(v) => update("firstBalance", v)} prefix="$" />
-                  <SliderRow label="Credit Line" value={a.lineAmount as number} min={10000} max={300000} step={2500} onChange={(v) => update("lineAmount", v)} prefix="$" />
-                  <SliderRow label="Draw Rate" value={a.drawRate as number} min={5} max={14} step={0.25} onChange={(v) => update("drawRate", v)} suffix="%" />
-                  <SliderRow label="Insurance" value={a.insurance} min={40} max={400} step={10} onChange={(v) => update("insurance", v)} prefix="$" suffix="/mo" />
-                </>
-              )}
-              {mode === "heq" && (
-                <>
-                  <SliderRow label="Home Value" value={a.homeValue as number} min={150000} max={1500000} step={5000} onChange={(v) => update("homeValue", v)} prefix="$" />
-                  <SliderRow label="1st Balance" value={a.firstBalance as number} min={50000} max={a.homeValue as number} step={5000} onChange={(v) => update("firstBalance", v)} prefix="$" />
-                  <SliderRow label="Loan Amount" value={a.lineAmount as number} min={10000} max={300000} step={2500} onChange={(v) => update("lineAmount", v)} prefix="$" />
-                  <SliderRow label="Fixed Rate" value={a.rate as number} min={4.5} max={14} step={0.125} onChange={(v) => update("rate", v)} suffix="%" />
-                  <SliderRow label="Insurance" value={a.insurance} min={40} max={400} step={10} onChange={(v) => update("insurance", v)} prefix="$" suffix="/mo" />
-                  <ToggleRow label="Loan Term" options={[10, 15, 20]} value={a.term as number} onChange={(v) => update("term", v)} suffix="-yr" />
-                </>
-              )}
-            </div>
+                  {(mode === "refiRT" || mode === "refiCO") && (
+                    <>
+                      <SliderRow label="Home Value" value={a.homeValue as number} min={150000} max={1500000} step={5000} onChange={(v) => update("homeValue", v)} prefix="$" />
+                      <SliderRow label="Payoff Balance" value={a.payoff as number} min={50000} max={a.homeValue as number} step={5000} onChange={(v) => update("payoff", v)} prefix="$" />
+                      <SliderRow label="Interest Rate" value={a.rate as number} min={3.5} max={10} step={0.125} onChange={(v) => update("rate", v)} suffix="%" />
+                      {mode === "refiCO" ? (
+                        <SliderRow label="Cash-Out" value={a.cashOut as number} min={0} max={250000} step={2500} onChange={(v) => update("cashOut", v)} prefix="$" />
+                      ) : (
+                        <SliderRow label="HOA Dues" value={a.hoaFee as number} min={0} max={600} step={10} onChange={(v) => update("hoaFee", v)} prefix="$" suffix="/mo" />
+                      )}
+                      <SliderRow label="Insurance" value={a.insurance} min={40} max={400} step={10} onChange={(v) => update("insurance", v)} prefix="$" suffix="/mo" />
+                      <ToggleRow label="Loan Term" options={[15, 30]} value={a.term as number} onChange={(v) => update("term", v)} suffix="-yr" />
+                    </>
+                  )}
+                  {mode === "heloc" && (
+                    <>
+                      <SliderRow label="Home Value" value={a.homeValue as number} min={150000} max={1500000} step={5000} onChange={(v) => update("homeValue", v)} prefix="$" />
+                      <SliderRow label="1st Balance" value={a.firstBalance as number} min={50000} max={a.homeValue as number} step={5000} onChange={(v) => update("firstBalance", v)} prefix="$" />
+                      <SliderRow label="Credit Line" value={a.lineAmount as number} min={10000} max={300000} step={2500} onChange={(v) => update("lineAmount", v)} prefix="$" />
+                      <SliderRow label="Draw Rate" value={a.drawRate as number} min={5} max={14} step={0.25} onChange={(v) => update("drawRate", v)} suffix="%" />
+                      <SliderRow label="Insurance" value={a.insurance} min={40} max={400} step={10} onChange={(v) => update("insurance", v)} prefix="$" suffix="/mo" />
+                    </>
+                  )}
+                  {mode === "heq" && (
+                    <>
+                      <SliderRow label="Home Value" value={a.homeValue as number} min={150000} max={1500000} step={5000} onChange={(v) => update("homeValue", v)} prefix="$" />
+                      <SliderRow label="1st Balance" value={a.firstBalance as number} min={50000} max={a.homeValue as number} step={5000} onChange={(v) => update("firstBalance", v)} prefix="$" />
+                      <SliderRow label="Loan Amount" value={a.lineAmount as number} min={10000} max={300000} step={2500} onChange={(v) => update("lineAmount", v)} prefix="$" />
+                      <SliderRow label="Fixed Rate" value={a.rate as number} min={4.5} max={14} step={0.125} onChange={(v) => update("rate", v)} suffix="%" />
+                      <SliderRow label="Insurance" value={a.insurance} min={40} max={400} step={10} onChange={(v) => update("insurance", v)} prefix="$" suffix="/mo" />
+                      <ToggleRow label="Loan Term" options={[10, 15, 20]} value={a.term as number} onChange={(v) => update("term", v)} suffix="-yr" />
+                    </>
+                  )}
+                </div>
 
-            {onSubmitReview && dataMode === "pulled" && (
-              <div className="pt-2 lg:pt-2">
-                {isSubmitted || hasSubmittedLocally ? (
-                  <button
-                    disabled
-                    className="w-full text-[10.5px] lg:text-xs font-bold py-1.5 lg:py-2 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 cursor-default flex items-center justify-center gap-1.5 shadow-[0_2px_8px_rgba(16,185,129,0.2)]"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Review Submitted
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setHasSubmittedLocally(true);
-                      onSubmitReview();
-                    }}
-                    className="w-full text-[10.5px] lg:text-xs font-bold py-1.5 lg:py-2 rounded-lg bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-[0_4px_12px_rgba(0,180,216,0.35)] hover:opacity-90 transition cursor-pointer"
-                  >
-                    Submit for Formal Underwriting Review
-                  </button>
+                {dataMode === "stated" && (
+                  <div className="mt-1.5 pt-1.5 border-t border-white/10">
+                    <SliderRow
+                      label="Monthly Debts (your estimate)"
+                      value={statedDebts}
+                      min={0}
+                      max={5000}
+                      step={25}
+                      onChange={setStatedDebts}
+                      prefix="$"
+                      suffix="/mo"
+                    />
+                  </div>
+                )}
+
+                {onSubmitReview && dataMode === "pulled" && (
+                  <div className="pt-2 lg:pt-2">
+                    {isSubmitted || hasSubmittedLocally ? (
+                      <button
+                        disabled
+                        className="w-full text-[10.5px] lg:text-xs font-bold py-1.5 lg:py-2 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 cursor-default flex items-center justify-center gap-1.5 shadow-[0_2px_8px_rgba(16,185,129,0.2)]"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Review Submitted
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setHasSubmittedLocally(true);
+                          onSubmitReview();
+                        }}
+                        className="w-full text-[10.5px] lg:text-xs font-bold py-1.5 lg:py-2 rounded-lg bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-[0_4px_12px_rgba(0,180,216,0.35)] hover:opacity-90 transition cursor-pointer"
+                      >
+                        Submit for Formal Underwriting Review
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             )}
