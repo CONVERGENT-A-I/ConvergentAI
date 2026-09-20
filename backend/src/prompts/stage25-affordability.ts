@@ -27,7 +27,7 @@ export function buildStage25Instructions(profile: BorrowerProfile): string {
     )
     : isRef
       ? `"I've opened your interactive refinance scenario explorer for you. Feel free to adjust your estimated property value or target loan balance to see how your monthly savings and guideline ranges respond in real time. Take all the time you'd like to explore — I'm right here if you have any questions along the way!"`
-      : `"I've opened your interactive scenario explorer for you. Feel free to adjust the purchase price or down payment sliders to see how your estimated payments and guideline ranges respond in real time. Take all the time you'd like to explore — I'm right here if you'd like to talk through any of the numbers or loan options along the way!"`;
+      : `"I've opened up the interactive Affordability Panel, which reflects the information you shared along with details from your soft credit review, if you chose to run one. Feel free to use the sliders to adjust your purchase price or down payment and explore different options — your estimated payments and guideline ranges will update in real time. Take all the time you'd like to explore, and I'm right here if you'd like to talk through any of the numbers or loan options along the way!"`;
 
   let initialProgram = 'conventional';
   if (profile.current_mortgage_type && ['fha', 'va', 'usda', 'conventional'].includes(profile.current_mortgage_type)) {
