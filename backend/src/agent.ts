@@ -240,14 +240,6 @@ class AilanaVoiceAgent extends voice.Agent {
         return createVerbatimStream(upgradeScript) as any;
       }
 
-      if (pendingField !== 'affordability_submit_confirmation') {
-        console.log(`[agent-hook]: Voice submit in verified mode -> asking for verbal submission confirmation.`);
-        (this.contextManager as any).currentPendingField = 'affordability_submit_confirmation';
-        this.updateInstructionsCallback();
-        const confirmPrompt = "Just to confirm, are you ready to submit your scenario for the formal eligibility review?";
-        return createVerbatimStream(confirmPrompt) as any;
-      }
-
       console.log(`[agent-hook]: 0ms Verbal Submit Fast-Path confirmed — executing AUS findings immediately!`);
 
       // 1. Instantly update the UI to show the button as "Review Submitted ✓" and ensure panel stays rendered
@@ -1997,8 +1989,24 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             sendStageUpdate('3A').catch(err => console.warn(err));
             reply = "To submit your scenario for a formal eligibility review, we'll need to upgrade to verified numbers. I'll need a few details to set up your secure account first. First — what's your full name?";
           } else {
-            (contextManager as any).currentPendingField = 'affordability_submit_confirmation';
-            reply = "Just to confirm, are you ready to submit your scenario for the formal eligibility review?";
+            prof.affordability_submitted = true;
+            prof.aus_status = 'approve_eligible';
+            (prof as any).affordability_aus_status = 'approve_eligible';
+            contextManager.setActiveStage('5');
+            contextManager.setCurrentPendingField('escalation_preference');
+            sendStageUpdate('5').catch(err => console.warn(err));
+            const borrowerName = prof.borrower_name || prof.contact_name || prof.legal_name || 'there';
+            const isRef = prof.transaction_type === 'TT-REF' || prof.mortgage_goal === 'refinance';
+            const isHel = prof.transaction_type === 'TT-HEL' || prof.transaction_type === 'TT-HEQ' || prof.mortgage_goal === 'heloc';
+            if (isRef) {
+              reply = `Good news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for the refinance scenario you built. Your estimated payment comparison is ready for you — it shows your estimated new payment alongside your current payment reference point. Your licensed loan officer will reach out to walk you through next steps and lock in your rate — or I can connect you right now if you'd like.`;
+            } else if (isHel) {
+              reply = prof.transaction_type === 'TT-HEQ'
+                ? `Good news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity loan. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like.`
+                : `Good news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity line of credit. Your licensed loan officer will reach out to walk you through the next steps — including the formal application, appraisal scheduling, and the terms of your line — or I can connect you right now if you'd like.`;
+            } else {
+              reply = `Wonderful news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built. Your estimated payment range has been calculated and is included in your pre-qualification letter. I've sent your pre-qualification letter to your email on file — it's issued by your lending institution, it's valid for ninety days, and it's exactly what real estate agents like to see with an offer. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like.`;
+            }
           }
         }
 
@@ -2192,29 +2200,6 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             else if (creditScoreNum >= 580) creditCategory = 'Fair';
             else creditCategory = 'Poor';
             reply = `Lastly, we retrieved your credit profile showing a category rating in the ${creditCategory} range. Does that match what you expect or is anything out of date?`;
-          }
-        } else if (pending === 'affordability_submit_confirmation') {
-          if (isAffirmative || /\b(submit|yes|sure|go\s*ahead|proceed|run\s*it)\b/i.test(lower)) {
-            prof.affordability_submitted = true;
-            prof.aus_status = 'approve_eligible';
-            (prof as any).affordability_aus_status = 'approve_eligible';
-            contextManager.setActiveStage('5');
-            contextManager.setCurrentPendingField('escalation_preference');
-            sendStageUpdate('5').catch(err => console.warn(err));
-            const borrowerName = prof.borrower_name || prof.contact_name || prof.legal_name || 'there';
-            const isRef = prof.transaction_type === 'TT-REF' || prof.mortgage_goal === 'refinance';
-            const isHel = prof.transaction_type === 'TT-HEL' || prof.transaction_type === 'TT-HEQ' || prof.mortgage_goal === 'heloc';
-            if (isRef) {
-              reply = `Good news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for the refinance scenario you built. Your estimated payment comparison is ready for you — it shows your estimated new payment alongside your current payment reference point. Your licensed loan officer will reach out to walk you through next steps and lock in your rate — or I can connect you right now if you'd like.`;
-            } else if (isHel) {
-              reply = prof.transaction_type === 'TT-HEQ'
-                ? `Good news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity loan. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like.`
-                : `Good news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity line of credit. Your licensed loan officer will reach out to walk you through the next steps — including the formal application, appraisal scheduling, and the terms of your line — or I can connect you right now if you'd like.`;
-            } else {
-              reply = `Wonderful news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built. Your estimated payment range has been calculated and is included in your pre-qualification letter. I've sent your pre-qualification letter to your email on file — it's issued by your lending institution, it's valid for ninety days, and it's exactly what real estate agents like to see with an offer. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like.`;
-            }
-          } else {
-            reply = "No problem — feel free to explore your numbers in the panel, and let me know whenever you're ready to submit.";
           }
         } else if (pending === 'fd1_delivery' || pending === 'fd2_delivery') {
           contextManager.setActiveStage('5');

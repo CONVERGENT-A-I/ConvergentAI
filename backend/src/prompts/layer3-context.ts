@@ -435,8 +435,7 @@ export function buildLayer3TurnContext(
       taskLine = `CURRENT TASK:\nIf the borrower asks general questions about the review findings, loan programs, documents, or the mortgage process, answer them thoroughly and helpfully, then gently offer live transfer or scheduling a callback. If they choose to schedule or connect, handle their preference accordingly.`;
     } else if (pendingField === 'scheduled_call_time') {
       taskLine = `CURRENT TASK:\nCollect the borrower's preferred date and time for the scheduled callback. Once they provide it, confirm it warmly.`;
-    } else if (pendingField === 'affordability_submit_confirmation') {
-      taskLine = `CURRENT TASK:\nConfirm the borrower's intent to submit their scenario for formal review.\n\nAsk EXACTLY: "Just to confirm, are you ready to submit your scenario for the formal eligibility review?"\nDO NOT ASK FOR ANY OTHER FIELD.`;
+
     } else if (pendingField) {
       taskLine = `CURRENT TASK:\nCollect ${pendingField}\n\nDO NOT ASK FOR ANY OTHER FIELD.`;
     } else if (stage === '5') {

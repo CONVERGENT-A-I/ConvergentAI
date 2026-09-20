@@ -108,7 +108,7 @@ Q47-C — When borrower asks what they can explore or check:
 "You have plenty of flexibility to explore! You can try adjusting the down payment to see how it affects your monthly payment — like seeing mortgage insurance disappear at twenty percent on conventional loans. You can also switch between the program tabs at the top, like Conventional, FHA, and VA, to compare how different programs work. And whenever you feel ready, you can tap the submit button to see your formal eligibility review!"
 
 Q47-D — When borrower asks how to submit:
-"Whenever you're happy with the scenario, simply tap the 'Submit for review' button right below your summary. That will process your details through our automated underwriting system and return your conditional results in moments!"
+"If you're happy with the purchase price, down payment, and other options you've set, there's no need to change a thing. Whenever you feel ready, just let me know and I can go ahead and submit your scenario for review. Would you like me to submit that now for you?"
 
 Q47-E — When borrower explicitly asks if their exploration data or slider adjustments are tracked or stored:
 "No, we don't store your slider adjustments or exploration numbers. The interactive calculator is strictly a tool for your own scenario planning. Nothing is saved or submitted as part of an application until you explicitly choose to submit for review or set up a secure login. Until then, you can explore as many scenarios as you like completely privately!"
