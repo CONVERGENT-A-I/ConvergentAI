@@ -2386,6 +2386,10 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
 
         // Atomic guard: claim greeting generation immediately before any async boundary
         if (greetingGenerated) {
+          if (!isAvatarInitDone) {
+            console.log(`[agent]: Reconnect/duplicate SYSTEM_CHANNEL_START received, but avatar still initializing. Waiting...`);
+            await avatarReadyPromise;
+          }
           // Participant reconnected or switched channels. Send SYSTEM_AGENT_READY immediately
           // so the frontend knows the agent is alive and hides the loading screen.
           try {
