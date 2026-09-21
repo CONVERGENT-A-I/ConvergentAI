@@ -20,8 +20,8 @@ export function ts(): string {
 export class LatencyTracker {
   private sessionStartAt = Date.now();
   private turnNumber = 0;
-  private pendingUserTurnEnd?: number;
-  private pendingGenerateReply?: number;
+  private pendingUserTurnEnd: number | undefined;
+  private pendingGenerateReply: number | undefined;
 
   // Per-turn pipeline stage timestamps
   private t_stt_start: number | undefined;

@@ -27,22 +27,7 @@ export function InRoomChatPanel({ isActive, onTriggerLoanOfficer, initialTranscr
   // Guard: track the ID of the last message that triggered the LO popup so it only fires once
   const lastTriggeredMsgIdRef = useRef<string | null>(null);
 
-  // Monitor transcript for automated Loan Officer handoff trigger
-  // lastTriggeredMsgIdRef ensures we only fire once per unique agent message,
-  // even as subsequent chat messages cause this effect to re-run.
-  useEffect(() => {
-    const lastMsg = chatMessages[chatMessages.length - 1];
-    if (!lastMsg) return;
-    if (lastMsg.from?.identity === room?.localParticipant?.identity) return;
-    if (lastMsg.message?.includes("transfer you to the available Loan Officer")) {
-      const msgId = (lastMsg as any).id ?? lastMsg.timestamp;
-      if (msgId !== lastTriggeredMsgIdRef.current) {
-        lastTriggeredMsgIdRef.current = msgId;
-        console.log("[ui-chat]: Detected Loan Officer transfer trigger in agent speech.");
-        onTriggerLoanOfficer?.();
-      }
-    }
-  }, [chatMessages, room, onTriggerLoanOfficer]);
+
 
   // Set avatar voice state: mutes/unmutes client-side audio AND tells the backend
   // to switch between voice (Realtime API) and text-only (Chat Completions API)
