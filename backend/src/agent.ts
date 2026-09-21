@@ -195,6 +195,14 @@ class AilanaVoiceAgent extends voice.Agent {
         : '';
     const userAskedQuestion = isQuestionOrCorrection(lastUserText) || (initialProfile as any).last_extracted_offer_val === 'explain';
 
+    // ── Ignore Historical Messages ──
+    // If the session was just restored, the last user message is from the past.
+    // We should not trigger any active intents or transitions based on it.
+    if (lastUserMsg && (lastUserMsg as any).isRestored) {
+      console.log(`[agent-hook]: Skipping intent processing for restored historical message: "${lastUserText}"`);
+      return chatCtx;
+    }
+
     // ── Ignore Empty Turns ──
     // If the VAD triggered on pure noise and the STT transcribed nothing, stay silent.
     // This prevents noise from triggering fallbacks (e.g. military_rural fallback).
@@ -2668,7 +2676,9 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
                     return text.includes(entry.text);
                   });
                   if (!existing) {
-                    session.chatCtx.items.push(new llm.ChatMessage({ role, content: entry.text }));
+                    const newMsg = new llm.ChatMessage({ role, content: entry.text });
+                    (newMsg as any).isRestored = true;
+                    session.chatCtx.items.push(newMsg);
                   }
                 }
               }
