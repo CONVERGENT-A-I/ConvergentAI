@@ -2928,6 +2928,11 @@ export class SessionContextManager {
   }
 
   private parseDollarString(s: string): number | null {
+    if (!s) return null;
+    const lower = s.toLowerCase().trim();
+    if (/\b(none|zero|no\s+debts?|nothing|nil|n\/a)\b/i.test(lower)) {
+      return 0;
+    }
     const cleaned = s.replace(/[^\d.]/g, '');
     const n = parseFloat(cleaned);
     return isNaN(n) ? null : Math.round(n);

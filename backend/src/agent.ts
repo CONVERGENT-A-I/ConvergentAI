@@ -500,6 +500,14 @@ class AilanaVoiceAgent extends voice.Agent {
         return createVerbatimStream(otpScript) as any;
       }
 
+      // Check if user indicates they will edit/fix/type their details on screen
+      const isOnScreenCorrection = /\b(on\s+(the\s+)?screen|type(\s+it)?|typing|edit(\s+it)?\s+myself|fix(\s+it)?\s+myself|screen)\b/i.test(lower);
+      if (isOnScreenCorrection) {
+        console.log(`[agent-hook]: User indicated on-screen correction ("${lastUserText}"). Yielding gracefully to visual UI.`);
+        const yieldScript = "Sounds good! Go ahead and make your changes on screen, and click Continue when you're ready.";
+        return createVerbatimStream(yieldScript) as any;
+      }
+
       if (isCorrection && !(profile as any)._contactCorrectionAcknowledged) {
         console.log(`[agent-hook]: Voice correction of contact details requested ("${lastUserText}").`);
         (profile as any).contact_confirm_needs_correction = true;
@@ -1919,7 +1927,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       }
     };
 
-    const deliverAgentScript = async (scriptText: string) => {
+    const deliverAgentScript = async (scriptText: string, triggerReason?: string) => {
       await contextManager.onAgentTurn(scriptText).catch(err => console.error(err));
       if (voiceMuted) {
         try {
@@ -1929,6 +1937,9 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         }
       } else {
         metrics.startTurn();
+        if (triggerReason) {
+          metrics.markUiEventStart(triggerReason);
+        }
         session.say(scriptText, { addToChatCtx: true });
       }
     };
@@ -2058,12 +2069,15 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             reply = "Could you share the mobile number you'd like to use for your account?";
           }
         } else if (pending === 'contact_confirm_display') {
+          const isOnScreenCorrection = /\b(on\s+(the\s+)?screen|type(\s+it)?|typing|edit(\s+it)?\s+myself|fix(\s+it)?\s+myself|screen)\b/i.test(lower);
           if (isAffirmative) {
             contextManager.handleContactInfoConfirmed();
             (prof as any)._otpInstructionDelivered = true;
             (prof as any)._otpReadyToShow = true;
             sendStageUpdate(contextManager.getActiveStage());
             reply = "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely on your screen when it arrives, and you're all set.";
+          } else if (isOnScreenCorrection) {
+            reply = "Sounds good! Go ahead and make your changes on screen, and click Continue when you're ready.";
           } else if (isCorrection) {
             (prof as any).contact_confirm_needs_correction = true;
             contextManager.advanceWorkflow();
@@ -2461,17 +2475,37 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
     });
 
     ctx.room.on(RoomEvent.ParticipantDisconnected, (participant: any) => {
-      if (participant?.identity?.startsWith('guest_')) {
-        console.warn(`[agent]: Guest participant disconnected: ${participant.identity}. Starting 10-minute Reaper timeout.`);
+      const identity = participant?.identity || '';
+      console.warn(`[agent]: Participant disconnected: ${identity}`);
+
+      if (identity.startsWith('guest_')) {
         if (silentTurnTimer !== null) {
           clearTimeout(silentTurnTimer);
           silentTurnTimer = null;
         }
-        if (reaperTimeout) clearTimeout(reaperTimeout);
-        reaperTimeout = setTimeout(() => {
-          console.error(`[agent]: Reaper timeout expired. Abandoned session detected. Disconnecting agent to prevent resource leak.`);
-          ctx.room.disconnect();
-        }, 10 * 60 * 1000);
+        if (reaperTimeout) {
+          clearTimeout(reaperTimeout);
+          reaperTimeout = null;
+        }
+
+        // Check if any other human guest remains in the room
+        const remainingGuests = [...ctx.room.remoteParticipants.values()].filter(
+          p => p.identity?.startsWith('guest_') && p.identity !== identity
+        );
+
+        if (remainingGuests.length === 0) {
+          console.log(`[agent]: 🛑 Human guest left (${identity}) and room "${ctx.room.name}" is now empty. Initiating zero-buffer immediate teardown.`);
+          try {
+            if ((session as any)._started) {
+              session.close();
+            }
+            ctx.room.disconnect();
+          } catch (teardownErr) {
+            console.error(`[agent]: Error during zero-buffer teardown:`, teardownErr);
+          }
+        } else {
+          console.log(`[agent]: Guest ${identity} disconnected, but ${remainingGuests.length} other guest(s) still present in room.`);
+        }
       }
     });
 
@@ -2569,7 +2603,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       (p as any).soft_pull_disclosure_delivered_at = Date.now();
       console.log(`[agent]: Triggering clean agent turn to deliver soft pull disclosure [triggered by ${reason}].`);
       const scriptText = "Before we proceed, I want to be clear about what this involves. This is a soft credit inquiry — it will not affect your credit score in any way. You are the one authorizing it, and your data is used only to process your initial eligibility review and pre-fill your mortgage application. Do you authorize the soft credit inquiry on that basis?";
-      deliverAgentScript(scriptText).catch(err => console.error(err));
+      deliverAgentScript(scriptText, reason).catch(err => console.error(err));
     };
 
     const deliverOtpInstructionsOnce = (reason: string) => {
@@ -2582,7 +2616,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       (p as any)._otpReadyToShow = true;
       console.log(`[agent]: Triggering agent speech for OTP instructions [triggered by ${reason}].`);
       const scriptText = "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely on your screen when it arrives, and you're all set.";
-      deliverAgentScript(scriptText).catch(err => console.error(err));
+      deliverAgentScript(scriptText, reason).catch(err => console.error(err));
       sendStageUpdate(contextManager.getActiveStage()).catch(err =>
         console.error('[agent-error]: Failed to send stage update after OTP dispatch:', err)
       );
@@ -2694,7 +2728,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
               (contextManager.getProfile() as any).contact_confirm_needs_correction = true;
               contextManager.advanceWorkflow();
               const scriptText = "No problem at all. What would you like to update — your name, email, or mobile number?";
-              deliverAgentScript(scriptText).catch(err => console.error(err));
+              deliverAgentScript(scriptText, 'DataReceived:contact_info_needs_correction').catch(err => console.error(err));
               updateSessionInstructions();
               return;
             }
@@ -2751,7 +2785,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
                 (contextManager.getProfile() as any).contact_confirm_needs_correction = true;
                 contextManager.advanceWorkflow();
                 const scriptText = "No problem at all. What would you like to update — your name, email, or mobile number?";
-                deliverAgentScript(scriptText).catch(err => console.error(err));
+                deliverAgentScript(scriptText, `TextStreamHandler:${topic}:contact_info_needs_correction`).catch(err => console.error(err));
                 updateSessionInstructions();
                 return;
               }

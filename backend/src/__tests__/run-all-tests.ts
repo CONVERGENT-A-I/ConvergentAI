@@ -21,6 +21,7 @@ const testFiles = [
   'stage10-edge-cases-boundaries.test.ts',
   'audit-fixes-verification.test.ts',
   'ui-field-correction.test.ts',
+  'production-fixes.test.ts',
 ];
 
 console.log('🚀 Running Complete ConvergentAI Multi-Track Test Suite...\n');

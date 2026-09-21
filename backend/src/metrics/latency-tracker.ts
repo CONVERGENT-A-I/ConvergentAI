@@ -34,6 +34,9 @@ export class LatencyTracker {
   private t_tts_first_byte: number | undefined;
   private t_tts_complete: number | undefined;
 
+  private isUiEventTurn = false;
+  private uiEventName: string | undefined;
+
   startTurn(): number {
     this.turnNumber += 1;
     // Cancel any pending avatar-frame fallback timeout from the previous turn
@@ -42,6 +45,13 @@ export class LatencyTracker {
       this._avatarFrameTimeoutHandle = undefined;
     }
     // Reset pipeline timestamps for new turn
+    // Clear stale pendingUserTurnEnd if it was set more than 1000ms ago (e.g. from an old voice turn)
+    // and wasn't just set by markUserTurnEnd() or markUiEventStart()
+    if (this.pendingUserTurnEnd && Date.now() - this.pendingUserTurnEnd > 1000) {
+      this.pendingUserTurnEnd = undefined;
+      this.isUiEventTurn = false;
+      this.uiEventName = undefined;
+    }
     // NOTE: t_stt_duration_ms is intentionally NOT cleared here.
     // markSttComplete() sets it just before startTurn() is called (in the
     // UserInputTranscribed handler). Clearing it here would wipe the value
@@ -62,6 +72,14 @@ export class LatencyTracker {
   }
 
   markUserTurnEnd(): void {
+    this.isUiEventTurn = false;
+    this.uiEventName = undefined;
+    this.pendingUserTurnEnd = Date.now();
+  }
+
+  markUiEventStart(eventName?: string): void {
+    this.isUiEventTurn = true;
+    this.uiEventName = eventName;
     this.pendingUserTurnEnd = Date.now();
   }
 
@@ -255,6 +273,10 @@ export class LatencyTracker {
                    `  • Network Transit Overhead (RTT): ${networkHopTime}ms\n`;
     }
 
+    const e2eLabel = this.isUiEventTurn
+      ? `  • E2E Latency (UI Event [${this.uiEventName || 'action'}] → Avatar Frame): ${e2e}\n`
+      : `  • E2E Latency (User End → Avatar Frame): ${e2e}\n`;
+
     console.log(
       `\n[pipeline][${ts()}] ── TURN ${this.turnNumber} METRICS SUMMARY${fallbackTag} ──\n` +
       `  • STT Processing: ${sttDone}\n` +
@@ -264,7 +286,7 @@ export class LatencyTracker {
       `  • TTS TTFB (TTS Start → First Audio Byte): ${tts_ttfb}\n` +
       `  • TTS Total (TTS Start → Complete): ${tts_total}\n` +
       renderLine +
-      `  • E2E Latency (User End → Avatar Frame): ${e2e}\n` +
+      e2eLabel +
       `───────────────────────────────────────────────────`
     );
   }
