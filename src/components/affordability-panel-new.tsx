@@ -1166,15 +1166,24 @@ export function AffordabilityPanelNew({
 
           {/* ── 6. COLLAPSIBLE SCENARIO ASSUMPTIONS ── */}
           <div className="bg-white/[0.01] rounded-lg border border-white/5 overflow-hidden">
-            <button
+            <div
+              role="button"
+              tabIndex={0}
               onClick={() => setAssumptionsOpen(!assumptionsOpen)}
-              className="w-full flex items-center justify-between p-2 lg:p-2.5 cursor-pointer hover:bg-white/[0.02] transition-colors"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setAssumptionsOpen(!assumptionsOpen);
+                }
+              }}
+              className="w-full flex items-center justify-between p-2 lg:p-2.5 cursor-pointer hover:bg-white/[0.02] transition-colors select-none"
             >
               <div className="flex items-center gap-1 text-[8.5px] lg:text-[10.5px] font-bold text-[#00b4d8]">
                 <SlidersHorizontal className="w-3 h-3" /> Adjust Scenario Assumptions
               </div>
               <div className="flex items-center gap-1.5">
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     const baselines = getBaselineAssumptions();
@@ -1190,7 +1199,7 @@ export function AffordabilityPanelNew({
                 </button>
                 <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${assumptionsOpen ? "rotate-180" : ""}`} />
               </div>
-            </button>
+            </div>
 
             {assumptionsOpen && (
               <div className="p-2 lg:p-2.5 pt-0 border-t border-white/5">
