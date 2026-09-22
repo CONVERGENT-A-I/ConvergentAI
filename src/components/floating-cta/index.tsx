@@ -601,7 +601,12 @@ export default function FloatingCTA() {
     setFlowPhase("connecting");
     flowPhaseRef.current = "connecting";
 
-    const mode = (snap.pendingMode as PendingMode) ?? "video";
+    // If the session was left off in Loan Officer mode, force them back to Ailana.
+    // We cannot resume a SIP call, and they should speak to Ailana to continue their flow.
+    let mode = (snap.pendingMode as PendingMode) ?? "video";
+    if (mode === "loan-officer") {
+      mode = "video";
+    }
     setPendingMode(mode);
     setRoomName("");
     setSessionKey((k) => k + 1);

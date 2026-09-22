@@ -161,6 +161,7 @@ class AilanaVoiceAgent extends voice.Agent {
   public sayCallback: ((text: string) => Promise<void>) | null = null;
   public onAgentTurnCallback: ((text: string) => Promise<void>) | null = null;
   private _stage2ClosingOfferDelivered = false;
+  public activeFieldAtTurnStart: string | null = null;
 
   constructor(
     options: voice.AgentOptions<any>,
@@ -200,6 +201,21 @@ class AilanaVoiceAgent extends voice.Agent {
     // We should not trigger any active intents or transitions based on it.
     if (lastUserMsg && (lastUserMsg as any).isRestored) {
       console.log(`[agent-hook]: Skipping intent processing for restored historical message: "${lastUserText}"`);
+      return chatCtx;
+    }
+
+    // ── Ignore System Injected Prompts ──
+    const isSystemInjectedPrompt = (text: string) => {
+      const t = text.toLowerCase();
+      return t.includes('the borrower has reconnected') || 
+             t.includes('the borrower has returned') ||
+             t.includes('please say exactly:') ||
+             t.includes('the application has been submitted to underwriting') ||
+             t.includes('the eligibility review has returned with status');
+    };
+
+    if (isSystemInjectedPrompt(lastUserText)) {
+      console.log(`[agent-hook]: Skipping intent processing for system-injected prompt: "${lastUserText}"`);
       return chatCtx;
     }
 
@@ -491,7 +507,7 @@ class AilanaVoiceAgent extends voice.Agent {
       );
     };
 
-    if (pending === 'contact_confirm_display') {
+    if (pending === 'contact_confirm_display' && this.activeFieldAtTurnStart === 'contact_confirm_display') {
       const lower = lastUserText.toLowerCase().trim();
       const isAffirmative = isAffirmativeConfirmation(lastUserText);
       const isCorrection = /\b(no|not|wrong|change|update|actually|mistake|fix|incorrect)\b/i.test(lower) && !isAffirmative;
@@ -1022,6 +1038,7 @@ class AilanaVoiceAgent extends voice.Agent {
       // to a new (non-boundary) field. If we read it AFTER the await, the boundary
       // check sees the wrong field and the 0ms path is taken instead of the wait.
       const activeField = this.contextManager.getPendingField();
+      this.activeFieldAtTurnStart = activeField;
       const isBoundary = this.contextManager.isStageBoundaryField(activeField);
       const isDeterministic = this.contextManager.isDeterministicField(activeField);
 
@@ -2466,6 +2483,9 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           await generateTextOnlyReply(messageText);
         } else {
           // For typed inputs in voice session, we run extraction and update instructions BEFORE calling generateReply
+          if (vadAgent) {
+            (vadAgent as any).activeFieldAtTurnStart = contextManager.getPendingField();
+          }
           await contextManager.onUserTurn(messageText);
           updateSessionInstructions();
           session.generateReply({ userInput: messageText });
@@ -2643,8 +2663,10 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         const identity = participant?.identity;
         if (topic === 'lk-chat' && identity !== ctx.room.localParticipant?.identity) {
           const str = new TextDecoder().decode(payload);
-          if (str.length > 8000) {
-            console.warn(`[agent-security]: Oversized DataReceived payload (>8000 chars) from ${identity} — ignoring.`);
+          const isRestoreMsg = str.includes('"SYSTEM_RESTORE_STATE"');
+          const maxLen = isRestoreMsg ? 500000 : 8000;
+          if (str.length > maxLen) {
+            console.warn(`[agent-security]: Oversized DataReceived payload (>${maxLen} chars) from ${identity} — ignoring.`);
             return;
           }
           try {
@@ -2771,8 +2793,10 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           let fullText = '';
           for await (const chunk of stream) {
             fullText += chunk;
-            if (fullText.length > 8000) {
-              console.warn(`[agent-security]: Oversized message (>8000 chars) from ${participant?.identity} — truncating and ignoring.`);
+            const isRestoreMsg = fullText.includes('"SYSTEM_RESTORE_STATE"');
+            const maxLen = isRestoreMsg ? 500000 : 8000;
+            if (fullText.length > maxLen) {
+              console.warn(`[agent-security]: Oversized message (>${maxLen} chars) from ${participant?.identity} — truncating and ignoring.`);
               return;
             }
           }
