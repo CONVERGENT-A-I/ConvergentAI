@@ -29,6 +29,7 @@ export default function AffordabilitySandboxPage() {
   const [statedDown, setStatedDown] = useState<number>(82500); // 15% of $550k
   const [lockedMode, setLockedMode] = useState<boolean>(true); // Clean prequal locked mode
   const [eligiblePrograms, setEligiblePrograms] = useState<('conventional' | 'fha' | 'va' | 'usda')[]>(['conventional', 'fha']);
+  const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
 
   const panelComponent = (
     <AffordabilityPanelNew
@@ -41,6 +42,7 @@ export default function AffordabilitySandboxPage() {
       statedDownPaymentDollars={statedDown}
       lockedMode={lockedMode}
       eligiblePrograms={eligiblePrograms}
+      isSubmitted={isSubmitted}
       initialAssumptions={{
         purchase: { price: 550000, downPct: 15, rate: 6.375, term: 30, insurance: 130, hoaFee: 0 },
         refiRT: { homeValue: 500000, payoff: 300000, rate: 6.125, term: 30, insurance: 120, hoaFee: 0, currentPayment: 2204 },
@@ -49,9 +51,11 @@ export default function AffordabilitySandboxPage() {
       }}
       onRequestSoftPull={() => {
         setPanelMode('pulled');
+        setIsSubmitted(false);
         alert('Soft credit review authorized! Switching to Verified Mode with bureau-verified numbers.');
       }}
       onSubmitReview={() => {
+        setIsSubmitted(true);
         alert('Application submitted for formal underwriting review!');
       }}
     />
@@ -183,7 +187,7 @@ export default function AffordabilitySandboxPage() {
                     <label className="text-[11px] text-gray-300 font-medium block mb-1">Data Mode</label>
                     <div className="flex gap-1.5">
                       <button
-                        onClick={() => setPanelMode('stated')}
+                        onClick={() => { setPanelMode('stated'); setIsSubmitted(false); }}
                         className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold border transition cursor-pointer ${
                           panelMode === 'stated'
                             ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
@@ -193,7 +197,7 @@ export default function AffordabilitySandboxPage() {
                         Stated Mode
                       </button>
                       <button
-                        onClick={() => setPanelMode('pulled')}
+                        onClick={() => { setPanelMode('pulled'); setIsSubmitted(false); }}
                         className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold border transition cursor-pointer ${
                           panelMode === 'pulled'
                             ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.2)]'

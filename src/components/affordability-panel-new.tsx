@@ -397,6 +397,7 @@ export interface AffordabilityPanelNewProps {
   onValuesChange?: (values: PanelValuesPayload) => void;
   isSubmitted?: boolean;
   vaSubsequentUse?: boolean;
+  defaultAssumptionsOpen?: boolean;
 }
 
 export function AffordabilityPanelNew({
@@ -416,11 +417,19 @@ export function AffordabilityPanelNew({
   onValuesChange,
   isSubmitted = false,
   vaSubsequentUse = false,
+  defaultAssumptionsOpen = true,
 }: AffordabilityPanelNewProps) {
   const [initialMode] = useState<ModeId>(() => resolveMode(transactionType, cashOutIntent));
   const [mode, setMode] = useState<ModeId>(initialMode);
   const [hasSubmittedLocally, setHasSubmittedLocally] = useState<boolean>(false);
-  const [assumptionsOpen, setAssumptionsOpen] = useState<boolean>(false);
+  const [assumptionsOpen, setAssumptionsOpen] = useState<boolean>(defaultAssumptionsOpen);
+
+  const effectiveSubmitted = isSubmitted || hasSubmittedLocally;
+
+  const handleSubmitReview = () => {
+    setHasSubmittedLocally(true);
+    onSubmitReview?.();
+  };
 
   // Default program selection:
   // 1. Borrower-stated mortgage/loan type (e.g. FHA, VA, USDA, Conventional)
@@ -1156,10 +1165,43 @@ export function AffordabilityPanelNew({
                 </div>
               </div>
               <button
+                type="button"
                 onClick={onRequestSoftPull}
                 className="text-[8.5px] lg:text-[10.5px] font-bold py-1 px-2.5 rounded-md bg-gradient-to-r from-[#00b4d8] to-[#023e8a] text-white shadow-[0_2px_8px_rgba(0,180,216,0.3)] hover:opacity-90 transition cursor-pointer flex items-center gap-1 shrink-0"
               >
                 Upgrade <ArrowUpRight className="w-2.5 h-2.5" />
+              </button>
+            </div>
+          )}
+
+          {/* ── 5B. VERIFIED MODE SUBMIT FOR REVIEW RIBBON ── */}
+          {(dataMode === "pulled" || (dataMode as string) === "verified") && onSubmitReview && (
+            <div className="bg-gradient-to-r from-[#10b981]/15 to-[#023e8a]/25 rounded-lg p-1.5 lg:p-2 border border-[#10b981]/40 flex items-center justify-between gap-2 shadow-[0_0_15px_rgba(16,185,129,0.12)]">
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#10b981] shrink-0" />
+                <div className="text-[8px] lg:text-[10px] text-slate-300 leading-tight">
+                  <span className="font-bold text-white">Ready for formal review?</span> Submit your scenario for eligibility findings.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleSubmitReview}
+                disabled={effectiveSubmitted}
+                className={`text-[8.5px] lg:text-[10.5px] font-bold py-1 px-2.5 rounded-md text-white transition flex items-center gap-1 shrink-0 cursor-pointer ${
+                  effectiveSubmitted
+                    ? "bg-emerald-700/60 cursor-not-allowed opacity-80"
+                    : "bg-gradient-to-r from-[#10b981] to-[#023e8a] shadow-[0_2px_8px_rgba(16,185,129,0.35)] hover:opacity-90"
+                }`}
+              >
+                {effectiveSubmitted ? (
+                  <>
+                    <CheckCircle2 className="w-2.5 h-2.5 text-emerald-200" /> Review Submitted ✓
+                  </>
+                ) : (
+                  <>
+                    Submit for Review <ArrowUpRight className="w-2.5 h-2.5" />
+                  </>
+                )}
               </button>
             </div>
           )}
