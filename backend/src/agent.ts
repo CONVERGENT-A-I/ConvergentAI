@@ -201,7 +201,7 @@ class AilanaVoiceAgent extends voice.Agent {
     // We should not trigger any active intents or transitions based on it.
     if (lastUserMsg && (lastUserMsg as any).isRestored) {
       console.log(`[agent-hook]: Skipping intent processing for restored historical message: "${lastUserText}"`);
-      return chatCtx;
+      return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
     }
 
     // ── Ignore System Injected Prompts ──
@@ -216,7 +216,7 @@ class AilanaVoiceAgent extends voice.Agent {
 
     if (isSystemInjectedPrompt(lastUserText)) {
       console.log(`[agent-hook]: Skipping intent processing for system-injected prompt: "${lastUserText}"`);
-      return chatCtx;
+      return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
     }
 
     // ── Ignore Empty Turns ──
@@ -1687,13 +1687,17 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       
       // ONLY re-prompt if Ailana was speaking when this noise started (i.e. it interrupted her).
       // If the noise started AFTER she had already finished speaking, it's just background noise.
-      if (ev.vadSpeechStartedAt <= lastSpeakingStateEndedAt) {
-        if (currentAgentState === 'listening' && (session as any)._started) {
+      const wasSpeaking = currentAgentState === 'speaking';
+      const justFinishedSpeaking = Date.now() - lastSpeakingStateEndedAt < 1500;
+      const interruptedAgent = wasSpeaking || justFinishedSpeaking;
+
+      if (interruptedAgent) {
+        if ((session as any)._started) {
           const pendingField = contextManager.getPendingField();
           const repromptText = pendingField ? PENDING_FIELD_REPROMPT[pendingField] : null;
           if (repromptText) {
             const msSinceSpeech = Date.now() - lastUserSpeechDetectedAt;
-            const isUserSpeaking = (session as any)._userState === 'speaking' || msSinceSpeech < 1500;
+            const isUserSpeaking = (session as any)._userState === 'speaking';
             if (isUserSpeaking) {
               console.log(`[silent-turn-guard]: Suppressing transient-noise re-prompt — user is actively speaking (state="${(session as any)._userState}", last speech ${msSinceSpeech}ms ago).`);
               return;
@@ -1723,8 +1727,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
                   metrics.markGenerateReply();
                   session.generateReply({ userInput: 'The application has been submitted to underwriting. Please announce the result to the borrower.' });
                 } else {
-                  session.say(activeReprompt, { addToChatCtx: true });
-                  contextManager.onAgentTurn(activeReprompt).catch(e => console.warn(e));
+                  session.generateReply({ userInput: `The user accidentally interrupted you with a noise but didn't say anything. Please gently re-prompt them: "${activeReprompt}"` });
                 }
               } catch (err) {
                 console.warn('[silent-turn-guard]: Failed to fire interrupt re-prompt:', err);
@@ -1739,7 +1742,13 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       const item = ev.item as llm.ChatMessage;
       if (item?.role === 'assistant' && item.textContent) {
         hasSpeechThisTurn = true;
-        if (silentTurnTimer !== null) {
+        
+        // ── Silent-turn guard fix ──
+        // Only clear the timer if this is a NEW generation (agent is thinking).
+        // If the agent is 'listening', this is just the LiveKit SDK committing
+        // an old interrupted turn to the history, which should NOT cancel our timer!
+        if (silentTurnTimer !== null && currentAgentState === 'thinking') {
+          console.log('[silent-turn-guard]: New LLM generation started (ConversationItemAdded while thinking). Cancelling re-prompt timer.');
           clearTimeout(silentTurnTimer);
           silentTurnTimer = null;
         }
@@ -2692,6 +2701,17 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
                 console.log(`[agent]: Rehydrating LLM context window with ${snap.chatTranscript.length} historical messages.`);
                 for (const entry of snap.chatTranscript) {
                   const role: 'user' | 'assistant' = entry.role === 'agent' ? 'assistant' : 'user';
+                  
+                  // ── PREVENT HANDOFF LOOP ──
+                  // Strip out historical intents requesting a loan officer so the LLM doesn't 
+                  // eagerly fire the transfer tool the moment the user reconnects.
+                  const lowerText = entry.text.toLowerCase();
+                  const isHandoffIntent = /\b(loan officer|representative|human|agent|talk to someone|connect me|advisor|real person)\b/.test(lowerText);
+                  if (role === 'user' && isHandoffIntent) {
+                    console.log(`[agent-hook]: Stripping historical handoff turn to prevent resume loop: "${entry.text}"`);
+                    continue;
+                  }
+
                   const existing = session.chatCtx.items.find(m => {
                     if ((m as any).type !== 'message' || !(m as any).content) return false;
                     const text = typeof (m as any).content === 'string' ? (m as any).content : JSON.stringify((m as any).content);

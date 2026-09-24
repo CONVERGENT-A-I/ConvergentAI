@@ -572,6 +572,7 @@ export default function FloatingCTA() {
    */
   const restoreSessionSnapshot = useCallback((snap: AilanaSessionSnapshot) => {
     console.log("[session-restore]: ♻️ Restoring session from localStorage", snap);
+    playConnectingSound();
     setActiveStage(snap.activeStage);
     setBorrowerProfile(snap.borrowerProfile);
     setIsAffordabilityPanelOpen(snap.isAffordabilityPanelOpen);
