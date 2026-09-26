@@ -511,7 +511,7 @@ Do NOT ask for anything else.`;
     const phone = profile.contact_mobile || 'your phone number';
     otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: CONTACT CONFIRMATION DISPLAY ***
 The borrower's details are on screen.
-Read back all values: "I have ${fullName}, ${email}, and ${phone}. Your details are on screen — do they all look correct? If not, please manually update your name, email, or phone number directly on the screen."
+Read back all values: "I have ${fullName}, ${email}, and ${phone}. Your details are on screen — is this information correct? If not, please manually update your name, email, or phone number directly on the screen."
 If they say yes, advance to OTP.
 If they say no with a correction inline, acknowledge the correction.
 If they say no without a correction, ask which one to update.

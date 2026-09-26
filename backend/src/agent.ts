@@ -554,7 +554,7 @@ class AilanaVoiceAgent extends voice.Agent {
         this.sendStageUpdate(this.contextManager.getActiveStage()).catch(err => console.warn(err));
       }
 
-      const script = `${prefix}I have ${name}, ${email}, and ${phone}. Your details are on screen, do they all look correct? If not, please spell out the correction for me, or you can update it directly on the screen.`;
+      const script = `${prefix}I have ${name}, ${email}, and ${phone}. Your details are on screen — is this information correct? If not, please spell out the correction for me, or you can update it directly on the screen.`;
       return createVerbatimStream(script) as any;
     }
 
@@ -1513,7 +1513,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       contact_full_name: 'I apologize for the interruption. Could you tell me what name you would like on your secure account?',
       contact_email: 'I apologize for that. What email and mobile number would you like to use for your account?',
       contact_mobile: 'I apologize for the interruption. What mobile number should I send your verification code to?',
-      contact_confirm_display: 'I apologize for the interruption. I have your name, email, and mobile shown on screen, do they all look correct? If not, please spell out the correction for me, or you can update it directly on the screen.',
+      contact_confirm_display: 'I apologize for the interruption. I have your name, email, and mobile shown on screen — is this information correct? If not, please spell out the correction for me, or you can update it directly on the screen.',
       contact_confirm_correction: 'I apologize — which one would you like to fix: your name, email, or mobile number?',
       otp_verification: 'I apologize for that. Please enter the one-time verification code on your screen whenever you\'re ready.',
       soft_pull_authorization: 'I apologize for that interruption. Before we proceed — this is a soft credit inquiry that will not affect your credit score. You are authorizing it, and your data is used only to process your eligibility review. Do you authorize the soft credit inquiry on that basis?',
@@ -2120,7 +2120,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             const name = prof.contact_name || 'your name';
             const email = prof.contact_email || 'your email';
             const phone = formatPhoneForSpeech(prof.contact_mobile || '');
-            reply = `I have ${name}, ${email}, and ${phone}. Your details are on screen, do they all look correct? If not, please spell out the correction for me, or you can update it directly on the screen.`;
+            reply = `I have ${name}, ${email}, and ${phone}. Your details are on screen — is this information correct? If not, please spell out the correction for me, or you can update it directly on the screen.`;
           }
         } else if (pending === 'contact_confirm_correction') {
           reply = "No problem — which one would you like to update: your name, email, or mobile number?";

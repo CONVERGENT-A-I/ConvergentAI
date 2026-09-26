@@ -86,11 +86,11 @@ Thank you. Now, what email and mobile number would you like to use for your acco
 02:47
 Email would be david.patton@gmail.com and the phone number will be +1-326-428-1906.
 02:47
-I have David L. Patton, david.patton@gmail.com, and +1 (326) 428-1906. Your details are on screen, do they all look correct? If not, please spell out the correction for me, or you can update it directly on the screen.
+I have David L. Patton, david.patton@gmail.com, and +1 (326) 428-1906. Your details are on screen — is this information correct? If not, please spell out the correction for me, or you can update it directly on the screen.
 02:48
 Uh, no, it's actually E in Patton, like it's PATTEN. Uh, both in full name and email.
 02:48
-Got it, I've updated that. I have David L. Patten, david.patten@gmail.com, and +1 (326) 428-1906. Your details are on screen, do they all look correct? If not, please spell out the correction for me, or you can update it directly on the screen.
+Got it, I've updated that. I have David L. Patten, david.patten@gmail.com, and +1 (326) 428-1906. Your details are on screen — is this information correct? If not, please spell out the correction for me, or you can update it directly on the screen.
 02:48
 Uh, yes, they look uh amazing. Uh, they are correct.
 02:48
