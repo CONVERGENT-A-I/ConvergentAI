@@ -7,6 +7,7 @@ import {
   AffordabilityPanelNew,
   type DataMode as AffordabilityDataMode,
   type TransactionType,
+  type PanelValuesPayload,
 } from '../affordability-panel-new';
 
 export interface AffordabilityModalProps {
@@ -178,6 +179,8 @@ export function AffordabilityModal({
           ? 'Home Equity Loan Summary'
           : 'Affordability Summary';
 
+
+
   return (
     <AnimatePresence>
       <motion.div
@@ -253,6 +256,7 @@ export function AffordabilityModal({
               vaSubsequentUse={!!borrowerProfile?.va_subsequent_use}
               onRequestSoftPull={onUpgrade}
               onSubmitReview={() => onSubmitSuccess?.('approve_eligible')}
+
             />
 
           </div>

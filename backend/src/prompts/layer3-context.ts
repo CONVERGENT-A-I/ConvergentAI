@@ -166,7 +166,6 @@ export interface BorrowerProfile {
   pmi_explained?: boolean;
   transition_pitch_delivered?: boolean;
   dti_above_hard_ceiling?: boolean;
-  current_panel_values?: Record<string, any> | null;
 
   // ── Stage 4 ──────────────────────────────────────────────────────────────
   aus_status?: 'waiting' | 'approve' | 'approve_eligible' | 'approve_with_conditions' | 'refer' | 'suspend' | 'timeout' | null;
@@ -511,7 +510,7 @@ Do NOT ask for anything else.`;
     const phone = profile.contact_mobile || 'your phone number';
     otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: CONTACT CONFIRMATION DISPLAY ***
 The borrower's details are on screen.
-Read back all values: "I have ${fullName}, ${email}, and ${phone}. Your details are on screen — is this information correct? If not, please manually update your name, email, or phone number directly on the screen."
+Read back all values: "I have ${fullName}, ${email}, and ${phone}. Your details are on screen — do they all look correct? If not, please manually update your name, email, or phone number directly on the screen."
 If they say yes, advance to OTP.
 If they say no with a correction inline, acknowledge the correction.
 If they say no without a correction, ask which one to update.
@@ -531,7 +530,6 @@ Do NOT ask them to read the code out loud. Do NOT ask for anything else. Wait fo
 
 
   // ── Stage 2.5 affordability panel block ───────────────────────────────────
-  const pv = profile.current_panel_values;
   const stage25Block = [
     '=== BORROWER PROFILE (Stage 2.5 — Affordability Panel) ===',
     `Panel Rendered:            ${!!profile.affordability_panel_rendered}`,
@@ -540,27 +538,9 @@ Do NOT ask them to read the code out loud. Do NOT ask for anything else. Wait fo
     `AUS Review Result:         ${profile.affordability_aus_status ?? 'not yet submitted'}`,
     `Pre-Qual Letter Emailed:   ${!!profile.affordability_prequel_letter_sent}`,
     '',
-    '--- Current Panel Slider State (borrower-set values) ---',
-    pv ? [
-      `Active Mode:               ${pv.mode ?? 'unknown'}`,
-      `Active Program:            ${pv.program ?? 'unknown'}`,
-      pv.price          ? `Purchase Price:            $${Math.round(pv.price).toLocaleString()}` : null,
-      pv.homeValue      ? `Home Value:                $${Math.round(pv.homeValue).toLocaleString()}` : null,
-      pv.downPayment    ? `Down Payment:              $${Math.round(pv.downPayment).toLocaleString()}` : null,
-      pv.downPct !== undefined ? `Down Payment %:            ${pv.downPct.toFixed(1)}%` : null,
-      pv.loanAmount     ? `Est. Loan Amount:          $${Math.round(pv.loanAmount).toLocaleString()}` : null,
-      pv.monthlyPayment ? `Est. Monthly Payment:      $${Math.round(pv.monthlyPayment).toLocaleString()}/mo` : null,
-      pv.frontDti !== undefined ? `Front-End DTI:             ${pv.frontDti.toFixed(1)}%` : null,
-      pv.backDti  !== undefined ? `Back-End DTI:              ${pv.backDti.toFixed(1)}%` : null,
-      pv.ltv      !== undefined ? `LTV:                       ${pv.ltv.toFixed(1)}%` : null,
-      pv.cltv     !== undefined ? `CLTV:                      ${pv.cltv.toFixed(1)}%` : null,
-      pv.lineAmount     ? `Line/Loan Amount:          $${Math.round(pv.lineAmount).toLocaleString()}` : null,
-    ].filter(Boolean).join('\n')
-    : [
-      `Purchase Price (Stated):   ${profile.affordability_purchase_price || profile.target_price ? `$${(profile.affordability_purchase_price || profile.target_price || 0).toLocaleString()}` : 'not set'}`,
-      `Down Payment (Stated):     ${profile.affordability_down_payment || profile.down_payment ? `$${(profile.affordability_down_payment || profile.down_payment || 0).toLocaleString()}` : 'not set'}`,
-      'No slider interactions yet.',
-    ].join('\n'),
+    '--- Initial Targets ---',
+    `Purchase Price (Stated):   ${profile.affordability_purchase_price || profile.target_price ? `$${(profile.affordability_purchase_price || profile.target_price || 0).toLocaleString()}` : 'not set'}`,
+    `Down Payment (Stated):     ${profile.affordability_down_payment || profile.down_payment ? `$${(profile.affordability_down_payment || profile.down_payment || 0).toLocaleString()}` : 'not set'}`,
     '=== END STAGE 2.5 ===',
   ].filter(Boolean).join('\n');
 

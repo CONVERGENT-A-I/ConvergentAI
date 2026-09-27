@@ -394,7 +394,7 @@ export interface AffordabilityPanelNewProps {
   initialAssumptions?: Partial<Record<ModeId, Partial<Assumptions>>>;
   onRequestSoftPull?: () => void;
   onSubmitReview?: () => void;
-  onValuesChange?: (values: PanelValuesPayload) => void;
+
   isSubmitted?: boolean;
   vaSubsequentUse?: boolean;
   defaultAssumptionsOpen?: boolean;
@@ -414,7 +414,7 @@ export function AffordabilityPanelNew({
   initialAssumptions = {},
   onRequestSoftPull,
   onSubmitReview,
-  onValuesChange,
+
   isSubmitted = false,
   vaSubsequentUse = false,
   defaultAssumptionsOpen = true,
@@ -618,29 +618,7 @@ export function AffordabilityPanelNew({
   // Calculate down payment in exact dollar amount for Purchase
   const currentDownDollars = mode === "purchase" ? Math.round(((a.price as number) * (a.downPct as number)) / 100) : 0;
 
-  // Debounce notification of values to parent/backend
-  useEffect(() => {
-    if (!onValuesChange) return;
-    const timer = setTimeout(() => {
-      onValuesChange({
-        mode,
-        program,
-        price:          mode === 'purchase' ? (a.price as number) : undefined,
-        homeValue:      (mode === 'refiRT' || mode === 'refiCO' || mode === 'heloc' || mode === 'heq')
-                          ? (a.homeValue as number) : undefined,
-        downPayment:    mode === 'purchase' ? currentDownDollars : undefined,
-        downPct:        mode === 'purchase' ? (a.downPct as number) : undefined,
-        loanAmount:     calc.loanAmt,
-        monthlyPayment: calc.pitia,
-        frontDti:       calc.front,
-        backDti:        calc.back,
-        ltv:            calc.ltv as number | undefined,
-        cltv:           calc.cltv as number | undefined,
-        lineAmount:     (mode === 'heloc' || mode === 'heq') ? (a.lineAmount as number) : undefined,
-      });
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [mode, program, calc, a, currentDownDollars, onValuesChange]);
+
 
   // Available eligible programs
   const availablePrograms = (Object.entries(PROGRAMS) as [ProgramId, ProgramConfig][]).filter(([id]) =>

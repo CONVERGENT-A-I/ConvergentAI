@@ -554,7 +554,7 @@ class AilanaVoiceAgent extends voice.Agent {
         this.sendStageUpdate(this.contextManager.getActiveStage()).catch(err => console.warn(err));
       }
 
-      const script = `${prefix}I have ${name}, ${email}, and ${phone}. Your details are on screen — is this information correct? If not, please spell out the correction for me, or you can update it directly on the screen.`;
+      const script = `${prefix}I have ${name}, ${email}, and ${phone}. Your details are on screen — do they all look correct? If not, please spell out the correction for me, or you can update it directly on the screen.`;
       return createVerbatimStream(script) as any;
     }
 
@@ -1513,11 +1513,11 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       contact_full_name: 'I apologize for the interruption. Could you tell me what name you would like on your secure account?',
       contact_email: 'I apologize for that. What email and mobile number would you like to use for your account?',
       contact_mobile: 'I apologize for the interruption. What mobile number should I send your verification code to?',
-      contact_confirm_display: 'I apologize for the interruption. I have your name, email, and mobile shown on screen — is this information correct? If not, please spell out the correction for me, or you can update it directly on the screen.',
+      contact_confirm_display: 'I apologize for the interruption. I have your name, email, and mobile shown on screen — do they all look correct? If not, please spell out the correction for me, or you can update it directly on the screen.',
       contact_confirm_correction: 'I apologize — which one would you like to fix: your name, email, or mobile number?',
       otp_verification: 'I apologize for that. Please enter the one-time verification code on your screen whenever you\'re ready.',
       soft_pull_authorization: 'I apologize for that interruption. Before we proceed — this is a soft credit inquiry that will not affect your credit score. You are authorizing it, and your data is used only to process your eligibility review. Do you authorize the soft credit inquiry on that basis?',
-      prefill_name_address: 'I apologize for the interruption. I have your name and address on file — does that information look correct, or is anything out of date?',
+      prefill_name_address: 'I apologize for the interruption. I have your name and address on file — is that information correct, or is anything out of date?',
       prefill_employer: 'I apologize for that. I have your employer information on file — does that sound correct?',
       prefill_accounts: 'I apologize for the interruption. I have your accounts summary on file — does that match what you know?',
       prefill_credit_range: 'I apologize for that. We retrieved your credit profile showing a category rating — does that match what you expect?',
@@ -1842,6 +1842,17 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
     const sendStageUpdate = async (stage: string) => {
       try {
         const prof = contextManager.getProfile();
+        const parsedRangeScore = (() => {
+          if (!prof.credit_range) return null;
+          const match = String(prof.credit_range).match(/\d+/);
+          return match ? parseInt(match[0], 10) : null;
+        })();
+        const resolvedScore = (prof.credit_score && !isNaN(Number(prof.credit_score))) ? Number(prof.credit_score) : parsedRangeScore;
+        const resolvedStatedScore = (prof.stated_credit_score && !isNaN(Number(prof.stated_credit_score))) ? Number(prof.stated_credit_score) : resolvedScore;
+        const resolvedVerifiedScore = (prof.verified_credit_score && !isNaN(Number(prof.verified_credit_score)))
+          ? Number(prof.verified_credit_score)
+          : (prof.affordability_mode === 'verified' ? resolvedScore : null);
+
         const payload = new TextEncoder().encode(JSON.stringify({
           message: "SYSTEM_STAGE_UPDATE",
           stage,
@@ -1881,12 +1892,12 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             currentMortgageType: prof.current_mortgage_type,
             refinance_subtrack: prof.refinance_subtrack,
             preferred_program: (prof as any).preferred_program ?? prof.current_mortgage_type ?? null,
-            credit_score: prof.credit_score ?? (prof.credit_range ? parseInt(prof.credit_range, 10) : null),
-            creditScore: prof.credit_score ?? (prof.credit_range ? parseInt(prof.credit_range, 10) : null),
-            stated_credit_score: prof.stated_credit_score ?? (prof.credit_range ? parseInt(prof.credit_range, 10) : null),
-            statedCreditScore: prof.stated_credit_score ?? (prof.credit_range ? parseInt(prof.credit_range, 10) : null),
-            verified_credit_score: prof.verified_credit_score ?? (prof.affordability_mode === 'verified' && prof.credit_range ? parseInt(prof.credit_range, 10) : null),
-            verifiedCreditScore: prof.verified_credit_score ?? (prof.affordability_mode === 'verified' && prof.credit_range ? parseInt(prof.credit_range, 10) : null),
+            credit_score: resolvedScore,
+            creditScore: resolvedScore,
+            stated_credit_score: resolvedStatedScore,
+            statedCreditScore: resolvedStatedScore,
+            verified_credit_score: resolvedVerifiedScore,
+            verifiedCreditScore: resolvedVerifiedScore,
             va_subsequent_use: prof.va_subsequent_use,
             remaining_term_years: prof.remaining_term_years,
             // ── Affordability Panel state ────────────────────────────
@@ -1901,7 +1912,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             affordability_panel_closed: (prof as any).affordability_panel_closed,
             affordability_submitted: prof.affordability_submitted,
             dti_above_hard_ceiling: prof.dti_above_hard_ceiling,
-            current_panel_values: prof.current_panel_values,
+
             // ── Session login / OTP state ────────────────────────────
             otp_verified: prof.otp_verified,
             session_login_complete: prof.session_login_complete,
@@ -2125,7 +2136,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             const name = prof.contact_name || 'your name';
             const email = prof.contact_email || 'your email';
             const phone = formatPhoneForSpeech(prof.contact_mobile || '');
-            reply = `I have ${name}, ${email}, and ${phone}. Your details are on screen — is this information correct? If not, please spell out the correction for me, or you can update it directly on the screen.`;
+            reply = `I have ${name}, ${email}, and ${phone}. Your details are on screen — do they all look correct? If not, please spell out the correction for me, or you can update it directly on the screen.`;
           }
         } else if (pending === 'contact_confirm_correction') {
           reply = "No problem — which one would you like to update: your name, email, or mobile number?";
@@ -2341,10 +2352,6 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         return;
       }
 
-      if (messageText === 'SYSTEM_PANEL_VALUES_UPDATE') {
-        // Silent update handled directly in DataReceived / TextStreamHandler
-        return;
-      }
 
       if (messageText.startsWith('SYSTEM_AUS_SUBMITTED:')) {
         const status = messageText.split(':')[1];
@@ -2809,16 +2816,6 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
               );
               return;
             }
-            if (parsed.message === 'SYSTEM_PANEL_VALUES_UPDATE' && parsed.panelValues) {
-              const pv = parsed.panelValues;
-              console.log('[agent]: SYSTEM_PANEL_VALUES_UPDATE received from UI:', pv);
-              const prof = contextManager.getProfile();
-              prof.current_panel_values = pv;
-              if (pv.price !== undefined) prof.affordability_purchase_price = pv.price;
-              if (pv.downPayment !== undefined) prof.affordability_down_payment = pv.downPayment;
-              updateSessionInstructions();
-              return;
-            }
             await handleSystemMessages(parsed.message ?? str, identity);
           } catch {
             await handleSystemMessages(str, identity);
@@ -2876,16 +2873,6 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
                 sendStageUpdate(contextManager.getActiveStage()).catch(err =>
                   console.error('[agent-error]: Failed to send stage update after field correction:', err)
                 );
-                return;
-              }
-              if (parsed.message === 'SYSTEM_PANEL_VALUES_UPDATE' && parsed.panelValues) {
-                const pv = parsed.panelValues;
-                console.log('[agent]: SYSTEM_PANEL_VALUES_UPDATE received from UI (TextStream):', pv);
-                const prof = contextManager.getProfile();
-                prof.current_panel_values = pv;
-                if (pv.price !== undefined) prof.affordability_purchase_price = pv.price;
-                if (pv.downPayment !== undefined) prof.affordability_down_payment = pv.downPayment;
-                updateSessionInstructions();
                 return;
               }
               await handleSystemMessages(parsed.message ?? fullText, participant?.identity);

@@ -1192,7 +1192,13 @@ export default function FloatingCTA() {
                             <button
                               type="button"
                               disabled={!isAffordabilityAvailable}
-                              onClick={() => setIsAffordabilityPanelOpen((prev) => !prev)}
+                              onClick={() => {
+                                setIsAffordabilityPanelOpen((prev) => {
+                                  const next = !prev;
+                                  setPanelClosedByUser(!next);
+                                  return next;
+                                });
+                              }}
                               title={
                                 isAffordabilityAvailable
                                   ? (isAffordabilityPanelOpen ? "Close Affordability Summary" : "Open Affordability Summary")
@@ -2136,20 +2142,7 @@ export default function FloatingCTA() {
                           }
                         };
 
-                        const handlePanelValuesChange = async (values: PanelValuesPayload) => {
-                          try {
-                            const encoder = new TextEncoder();
-                            const payload = encoder.encode(JSON.stringify({
-                              message: 'SYSTEM_PANEL_VALUES_UPDATE',
-                              panelValues: values,
-                            }));
-                            if ((window as any).lkPublishData) {
-                              await (window as any).lkPublishData(payload, { topic: 'lk-chat', reliable: false });
-                            }
-                          } catch (err) {
-                            console.warn('[ui-affordability]: Failed to publish panel values update:', err);
-                          }
-                        };
+
 
                         const panelNode = (
                           <AffordabilityPanelNew
@@ -2167,7 +2160,7 @@ export default function FloatingCTA() {
                             initialAssumptions={apInitialAssumptions}
                             onRequestSoftPull={handleSoftPull}
                             onSubmitReview={handleSubmitReview}
-                            onValuesChange={handlePanelValuesChange}
+
                           />
                         );
 
