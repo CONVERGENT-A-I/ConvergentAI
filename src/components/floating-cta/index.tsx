@@ -53,6 +53,7 @@ import {
   AffordabilityPanelNew,
   type DataMode as AffordabilityDataMode,
   type TransactionType,
+  type PanelValuesPayload,
 } from "../affordability-panel-new";
 import { OtpVerificationModal } from "./otp-verification-modal";
 import { ContactConfirmCard } from "./contact-confirm-card";
@@ -1451,13 +1452,26 @@ export default function FloatingCTA() {
                                   setActiveStage(stage);
                                   if (profile) setBorrowerProfile(profile);
 
-                                  // Auto-OPEN the panel at Stage 2.5 — reset panelClosedByUser when entering Stage 2.5
-                                  if (stage === "2.5" && pendingMode !== "loan-officer" && profile?.affordability_panel_rendered && !(profile as any)?.affordability_panel_closed) {
-                                    setPanelClosedByUser(false);
+                                  // Auto-OPEN the panel at Stage 2.5 — only if not already submitted and not closed by user
+                                  const isAusSubmitted = Boolean(
+                                    hasSubmittedAus ||
+                                    profile?.affordability_submitted ||
+                                    profile?.affordability_aus_status ||
+                                    profile?.aus_status
+                                  );
+
+                                  if (
+                                    stage === "2.5" &&
+                                    pendingMode !== "loan-officer" &&
+                                    profile?.affordability_panel_rendered &&
+                                    !(profile as any)?.affordability_panel_closed &&
+                                    !panelClosedByUser &&
+                                    !isAusSubmitted
+                                  ) {
                                     setIsAffordabilityPanelOpen(true);
                                   }
                                   // Auto-close when transferring to MLO, in stage 5, or after AUS submission completes
-                                  if ((Boolean(profile?.aus_status) || stage === "5" || pendingMode === "loan-officer") && isAffordabilityPanelOpen) {
+                                  if ((isAusSubmitted || stage === "5" || pendingMode === "loan-officer") && isAffordabilityPanelOpen) {
                                     setIsAffordabilityPanelOpen(false);
                                     setPanelClosedByUser(true);
                                   }
@@ -1988,6 +2002,21 @@ export default function FloatingCTA() {
                         const apDownPayment = borrowerProfile?.down_payment ?? borrowerProfile?.downPayment ?? borrowerProfile?.affordability_down_payment ?? 70000;
                         const apDownPct = apTargetPrice > 0 ? Math.round((apDownPayment / apTargetPrice) * 100 * 10) / 10 : 20;
 
+                        const apCreditScore = (() => {
+                          if (borrowerProfile?.verified_credit_score) return Number(borrowerProfile.verified_credit_score);
+                          if (borrowerProfile?.verifiedCreditScore)   return Number(borrowerProfile.verifiedCreditScore);
+                          if (borrowerProfile?.stated_credit_score)   return Number(borrowerProfile.stated_credit_score);
+                          if (borrowerProfile?.statedCreditScore)     return Number(borrowerProfile.statedCreditScore);
+                          if (borrowerProfile?.credit_score)          return Number(borrowerProfile.credit_score);
+                          if (borrowerProfile?.creditScore)           return Number(borrowerProfile.creditScore);
+                          const rawRange = borrowerProfile?.credit_range || borrowerProfile?.creditRange;
+                          if (rawRange) {
+                            const match = String(rawRange).match(/\d+/);
+                            if (match) return parseInt(match[0], 10);
+                          }
+                          return undefined; // panel shows N/A — no fabrication
+                        })();
+
                         // ── Phase 3: Dynamic transaction type derivation ──
                         const apTransactionType: TransactionType =
                           borrowerProfile?.transaction_type ||
@@ -2093,6 +2122,8 @@ export default function FloatingCTA() {
 
                         const handleSubmitReview = async () => {
                           setHasSubmittedAus(true);
+                          setIsAffordabilityPanelOpen(false);
+                          setPanelClosedByUser(true);
                           console.log('[ui-affordability]: Submitted review via new panel');
                           try {
                             const encoder = new TextEncoder();
@@ -2105,6 +2136,21 @@ export default function FloatingCTA() {
                           }
                         };
 
+                        const handlePanelValuesChange = async (values: PanelValuesPayload) => {
+                          try {
+                            const encoder = new TextEncoder();
+                            const payload = encoder.encode(JSON.stringify({
+                              message: 'SYSTEM_PANEL_VALUES_UPDATE',
+                              panelValues: values,
+                            }));
+                            if ((window as any).lkPublishData) {
+                              await (window as any).lkPublishData(payload, { topic: 'lk-chat', reliable: false });
+                            }
+                          } catch (err) {
+                            console.warn('[ui-affordability]: Failed to publish panel values update:', err);
+                          }
+                        };
+
                         const panelNode = (
                           <AffordabilityPanelNew
                             transactionType={apTransactionType}
@@ -2112,6 +2158,7 @@ export default function FloatingCTA() {
                             dataMode={apDataMode}
                             income={apMonthlyIncome}
                             monthlyDebts={apMonthlyDebts}
+                            creditScore={apCreditScore}
                             statedDownPaymentDollars={apDownPayment}
                             lockedMode={true}
                             eligiblePrograms={apEligiblePrograms}
@@ -2120,6 +2167,7 @@ export default function FloatingCTA() {
                             initialAssumptions={apInitialAssumptions}
                             onRequestSoftPull={handleSoftPull}
                             onSubmitReview={handleSubmitReview}
+                            onValuesChange={handlePanelValuesChange}
                           />
                         );
 

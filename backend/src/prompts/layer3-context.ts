@@ -531,18 +531,38 @@ Do NOT ask them to read the code out loud. Do NOT ask for anything else. Wait fo
 
 
   // ── Stage 2.5 affordability panel block ───────────────────────────────────
+  const pv = profile.current_panel_values;
   const stage25Block = [
     '=== BORROWER PROFILE (Stage 2.5 — Affordability Panel) ===',
     `Panel Rendered:            ${!!profile.affordability_panel_rendered}`,
-    `Purchase Price (Slider):   ${profile.affordability_purchase_price ? `$${profile.affordability_purchase_price.toLocaleString()}` : 'not set'}`,
-    `Down Payment (Slider):     ${profile.affordability_down_payment ? `$${profile.affordability_down_payment.toLocaleString()}` : 'not set'}`,
-    `Income Band Status:        ${profile.affordability_income_band ?? 'not computed'}`,
-    `DTI Band Status:           ${profile.affordability_dti_band ?? 'not computed'}`,
+    `Affordability Mode:        ${profile.affordability_mode ?? 'stated'}`,
     `Submitted for Review:      ${!!profile.affordability_submitted}`,
     `AUS Review Result:         ${profile.affordability_aus_status ?? 'not yet submitted'}`,
     `Pre-Qual Letter Emailed:   ${!!profile.affordability_prequel_letter_sent}`,
+    '',
+    '--- Current Panel Slider State (borrower-set values) ---',
+    pv ? [
+      `Active Mode:               ${pv.mode ?? 'unknown'}`,
+      `Active Program:            ${pv.program ?? 'unknown'}`,
+      pv.price          ? `Purchase Price:            $${Math.round(pv.price).toLocaleString()}` : null,
+      pv.homeValue      ? `Home Value:                $${Math.round(pv.homeValue).toLocaleString()}` : null,
+      pv.downPayment    ? `Down Payment:              $${Math.round(pv.downPayment).toLocaleString()}` : null,
+      pv.downPct !== undefined ? `Down Payment %:            ${pv.downPct.toFixed(1)}%` : null,
+      pv.loanAmount     ? `Est. Loan Amount:          $${Math.round(pv.loanAmount).toLocaleString()}` : null,
+      pv.monthlyPayment ? `Est. Monthly Payment:      $${Math.round(pv.monthlyPayment).toLocaleString()}/mo` : null,
+      pv.frontDti !== undefined ? `Front-End DTI:             ${pv.frontDti.toFixed(1)}%` : null,
+      pv.backDti  !== undefined ? `Back-End DTI:              ${pv.backDti.toFixed(1)}%` : null,
+      pv.ltv      !== undefined ? `LTV:                       ${pv.ltv.toFixed(1)}%` : null,
+      pv.cltv     !== undefined ? `CLTV:                      ${pv.cltv.toFixed(1)}%` : null,
+      pv.lineAmount     ? `Line/Loan Amount:          $${Math.round(pv.lineAmount).toLocaleString()}` : null,
+    ].filter(Boolean).join('\n')
+    : [
+      `Purchase Price (Stated):   ${profile.affordability_purchase_price || profile.target_price ? `$${(profile.affordability_purchase_price || profile.target_price || 0).toLocaleString()}` : 'not set'}`,
+      `Down Payment (Stated):     ${profile.affordability_down_payment || profile.down_payment ? `$${(profile.affordability_down_payment || profile.down_payment || 0).toLocaleString()}` : 'not set'}`,
+      'No slider interactions yet.',
+    ].join('\n'),
     '=== END STAGE 2.5 ===',
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 
   const blocks: string[] = [];
   blocks.push(stage1Block);

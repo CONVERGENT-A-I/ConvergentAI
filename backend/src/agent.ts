@@ -1853,6 +1853,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             targetPrice: prof.target_price,
             downPayment: prof.down_payment,
             creditRange: prof.credit_range,
+            credit_range: prof.credit_range,
             military_rural: prof.military_rural,
             militaryRural: prof.military_rural,
             zipCode: prof.zip_code,
@@ -1880,9 +1881,12 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             currentMortgageType: prof.current_mortgage_type,
             refinance_subtrack: prof.refinance_subtrack,
             preferred_program: (prof as any).preferred_program ?? prof.current_mortgage_type ?? null,
-            credit_score: prof.credit_score,
-            stated_credit_score: prof.stated_credit_score,
-            verified_credit_score: prof.verified_credit_score,
+            credit_score: prof.credit_score ?? (prof.credit_range ? parseInt(prof.credit_range, 10) : null),
+            creditScore: prof.credit_score ?? (prof.credit_range ? parseInt(prof.credit_range, 10) : null),
+            stated_credit_score: prof.stated_credit_score ?? (prof.credit_range ? parseInt(prof.credit_range, 10) : null),
+            statedCreditScore: prof.stated_credit_score ?? (prof.credit_range ? parseInt(prof.credit_range, 10) : null),
+            verified_credit_score: prof.verified_credit_score ?? (prof.affordability_mode === 'verified' && prof.credit_range ? parseInt(prof.credit_range, 10) : null),
+            verifiedCreditScore: prof.verified_credit_score ?? (prof.affordability_mode === 'verified' && prof.credit_range ? parseInt(prof.credit_range, 10) : null),
             va_subsequent_use: prof.va_subsequent_use,
             remaining_term_years: prof.remaining_term_years,
             // ── Affordability Panel state ────────────────────────────
@@ -1897,6 +1901,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             affordability_panel_closed: (prof as any).affordability_panel_closed,
             affordability_submitted: prof.affordability_submitted,
             dti_above_hard_ceiling: prof.dti_above_hard_ceiling,
+            current_panel_values: prof.current_panel_values,
             // ── Session login / OTP state ────────────────────────────
             otp_verified: prof.otp_verified,
             session_login_complete: prof.session_login_complete,
@@ -2336,10 +2341,18 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         return;
       }
 
+      if (messageText === 'SYSTEM_PANEL_VALUES_UPDATE') {
+        // Silent update handled directly in DataReceived / TextStreamHandler
+        return;
+      }
+
       if (messageText.startsWith('SYSTEM_AUS_SUBMITTED:')) {
         const status = messageText.split(':')[1];
         console.log(`[agent]: SYSTEM_AUS_SUBMITTED received. Status: ${status}`);
         await contextManager.applyAusResult(status as any);
+        const prof = contextManager.getProfile();
+        prof.affordability_panel_rendered = false;
+        (prof as any).affordability_panel_closed = true;
         updateSessionInstructions();
         await sendStageUpdate(contextManager.getActiveStage());
 
@@ -2796,6 +2809,16 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
               );
               return;
             }
+            if (parsed.message === 'SYSTEM_PANEL_VALUES_UPDATE' && parsed.panelValues) {
+              const pv = parsed.panelValues;
+              console.log('[agent]: SYSTEM_PANEL_VALUES_UPDATE received from UI:', pv);
+              const prof = contextManager.getProfile();
+              prof.current_panel_values = pv;
+              if (pv.price !== undefined) prof.affordability_purchase_price = pv.price;
+              if (pv.downPayment !== undefined) prof.affordability_down_payment = pv.downPayment;
+              updateSessionInstructions();
+              return;
+            }
             await handleSystemMessages(parsed.message ?? str, identity);
           } catch {
             await handleSystemMessages(str, identity);
@@ -2853,6 +2876,16 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
                 sendStageUpdate(contextManager.getActiveStage()).catch(err =>
                   console.error('[agent-error]: Failed to send stage update after field correction:', err)
                 );
+                return;
+              }
+              if (parsed.message === 'SYSTEM_PANEL_VALUES_UPDATE' && parsed.panelValues) {
+                const pv = parsed.panelValues;
+                console.log('[agent]: SYSTEM_PANEL_VALUES_UPDATE received from UI (TextStream):', pv);
+                const prof = contextManager.getProfile();
+                prof.current_panel_values = pv;
+                if (pv.price !== undefined) prof.affordability_purchase_price = pv.price;
+                if (pv.downPayment !== undefined) prof.affordability_down_payment = pv.downPayment;
+                updateSessionInstructions();
                 return;
               }
               await handleSystemMessages(parsed.message ?? fullText, participant?.identity);

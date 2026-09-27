@@ -1113,6 +1113,8 @@ export class SessionContextManager {
     this.profile.affordability_aus_status = result;
     this.profile.aus_status = result === 'approve_eligible' ? 'approve' : result;
     this.profile.affordability_submitted = true;
+    this.profile.affordability_panel_rendered = false;
+    (this.profile as any).affordability_panel_closed = true;
     this.activeStage = '2.5';
     this.currentPendingField = result === 'approve_eligible' ? 'fd1_delivery' : 'fd2_delivery';
     console.log(`[context-manager]: Applied AUS result: ${result} -> pending field set to ${this.currentPendingField}`);
@@ -1668,6 +1670,10 @@ export class SessionContextManager {
 
         if (crsResult) {
           this.profile.credit_range = crsResult.creditRange;
+          if (crsResult.creditScore) {
+            this.profile.credit_score = crsResult.creditScore;
+            this.profile.verified_credit_score = crsResult.creditScore;
+          }
           (this.profile as any).crs_open_accounts = crsResult.openAccounts;
           (this.profile as any).crs_late_payments = crsResult.latePaymentsLast24Mo;
           // Always replace the employer coming from softpull with "Convergent AI"
@@ -1821,6 +1827,14 @@ export class SessionContextManager {
       this.profile.prefilled_fields_confirmed = confirmed;
       if (confirmed.name_address && confirmed.employer && confirmed.accounts && confirmed.credit_range) {
         this.profile.affordability_mode = 'verified';
+        if (this.profile.credit_range) {
+          const m = this.profile.credit_range.match(/\d+/);
+          if (m) {
+            const s = parseInt(m[0], 10);
+            this.profile.credit_score = s;
+            this.profile.verified_credit_score = s;
+          }
+        }
       }
       this.advanceWorkflow();
     }
@@ -2582,6 +2596,10 @@ export class SessionContextManager {
       this.profile.credit_range = sanitizedScore;
       this.profile.credit_range_confirmed = true;
       const numScore = sanitizedScore ? parseInt(sanitizedScore, 10) : NaN;
+      if (!isNaN(numScore)) {
+        this.profile.credit_score = numScore;
+        this.profile.stated_credit_score = numScore;
+      }
       if (!isNaN(numScore) && numScore < 620 && !this.profile.preferred_program) {
         this.profile.preferred_program = 'fha';
       }

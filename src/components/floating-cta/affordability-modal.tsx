@@ -35,6 +35,25 @@ export function AffordabilityModal({
   const debt = borrowerProfile?.monthly_debt ?? borrowerProfile?.totalMonthlyDebt ?? 500;
   const downPct = targetPrice > 0 ? Math.round((downPayment / targetPrice) * 100 * 10) / 10 : 20;
 
+  const creditScore = (() => {
+    const rawVal =
+      borrowerProfile?.verified_credit_score ??
+      borrowerProfile?.verifiedCreditScore ??
+      borrowerProfile?.stated_credit_score ??
+      borrowerProfile?.statedCreditScore ??
+      borrowerProfile?.credit_score ??
+      borrowerProfile?.creditScore;
+    if (rawVal !== undefined && rawVal !== null && !isNaN(Number(rawVal)) && Number(rawVal) > 0) {
+      return Number(rawVal);
+    }
+    const rangeVal = borrowerProfile?.credit_range ?? borrowerProfile?.creditRange;
+    if (rangeVal) {
+      const match = String(rangeVal).match(/\d+/);
+      if (match) return parseInt(match[0], 10);
+    }
+    return undefined;
+  })();
+
   const eligiblePrograms: ('conventional' | 'fha' | 'va' | 'usda')[] = ['conventional', 'fha'];
   const mr = borrowerProfile?.military_rural ?? borrowerProfile?.militaryRural;
   if (mr === 'military' || mr === 'both') eligiblePrograms.push('va');
@@ -224,6 +243,7 @@ export function AffordabilityModal({
               dataMode={dataMode}
               income={monthlyIncome}
               monthlyDebts={debt}
+              creditScore={creditScore}
               statedDownPaymentDollars={downPayment}
               lockedMode={true}
               eligiblePrograms={eligiblePrograms}
