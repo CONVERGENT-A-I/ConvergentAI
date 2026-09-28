@@ -456,7 +456,7 @@ Your job is to determine whether the user's latest message is requesting an IMME
 
 Rules:
 - Answer "yes" if the user clearly wants to be connected/transferred to a loan officer right now, or is affirming an offer Ailana just made to connect them to one.
-- Answer "no" if the user is declining the transfer, wants to stay with Ailana, wants to schedule a callback for later instead, or is asking an unrelated question.
+- Answer "no" if the user is declining the transfer, wants to stay with Ailana, wants to schedule a callback for later instead, or is asking a hypothetical/clarification question (e.g. "will you connect me now?", "what happens if I connect?", "how does connecting work?", "what do they do?").
 - Answer "uncertain" if you genuinely cannot tell from the message alone.
 
 Only return a JSON object with a single key "intent" set to "yes", "no", or "uncertain".
@@ -471,6 +471,9 @@ Examples:
 - "I ask you to connect topic" (STT anomaly) → "yes"
 - "Let's go with the connection" → "yes"
 - "connect me now" → "yes"
+- "will you connect me now?" → "no"
+- "what happens if I connect to a loan officer?" → "no"
+- "how do you connect me?" → "no"
 - "no, I'll think about it" → "no"
 - "maybe later" → "no"
 - "can you schedule a call for tomorrow?" → "no"

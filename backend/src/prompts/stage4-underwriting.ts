@@ -31,7 +31,7 @@ CURRENT SUB-STAGE: Refinance Conditional Eligibility (RFD1)
 GOAL: Announce conditional eligibility for the refinance scenario and present next steps.
 RULES:
 - Deliver RFD1: "Good news, ${borrowerName} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for the refinance scenario you built. Your licensed loan officer will reach out to walk you through next steps and lock in your rate — or I can connect you right now if you'd like."
-- Offer to connect with a licensed loan officer now or schedule a callback.`;
+- Offer to connect with a licensed loan officer now, schedule a callback, or answer any other questions.`;
     } else if (status === 'timeout' || status === 'waiting') {
       subPrompt = `
 CURRENT SUB-STAGE: System Processing Delay (FD-LOADING / RFD-LOADING)
@@ -50,7 +50,7 @@ RULES:
 CURRENT SUB-STAGE: Refinance Manual Review Referral (RFD2)
 GOAL: Explain the referral with empathy — this is NOT a denial.
 RULES:
-- Deliver RFD2: "Thank you for your patience, ${borrowerName} — your review is back, and your refinance scenario warrants a closer look from a licensed loan officer rather than an automated decision. That is common in refinance situations, and it is often where the best solutions are found — your loan officer can evaluate options like streamline programs or specific equity structures the automated review does not fully cover. Can I connect you to a licensed loan officer now, or schedule a callback?"
+- Deliver RFD2: "Thank you for your patience, ${borrowerName} — your review is back, and your refinance scenario warrants a closer look from a licensed loan officer rather than an automated decision. That is common in refinance situations, and it is often where the best solutions are found — your loan officer can evaluate options like streamline programs or specific equity structures the automated review does not fully cover. Can I connect you to a licensed loan officer now, schedule a callback, or is there another question I can answer for you first?"
 - Do NOT cite specific reasons or use denial language.`;
     }
   } else if (isHel) {
@@ -65,7 +65,7 @@ CURRENT SUB-STAGE: HELOC Conditional Line Approval (HFD1)
 GOAL: Announce conditional credit line approval and present next steps.
 RULES:
 - Deliver HFD1: "Good news, ${borrowerName} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity line of credit. Your licensed loan officer will reach out to walk you through the next steps — including the formal application, appraisal scheduling, and the terms of your line — or I can connect you right now if you'd like."
-- Offer to connect with a licensed loan officer now or schedule a callback.`;
+- Offer to connect with a licensed loan officer now, schedule a callback, or answer any other questions.`;
     } else if (status === 'timeout' || status === 'waiting') {
       subPrompt = `
 CURRENT SUB-STAGE: System Processing Delay (FD-LOADING / HFD-LOADING)
@@ -84,12 +84,12 @@ RULES:
 CURRENT SUB-STAGE: Home Equity Loan Manual Review Referral (EFD2)
 GOAL: Explain the referral with empathy — this is NOT a denial.
 RULES:
-- Deliver EFD2: "Thank you for your patience, ${borrowerName} — your review is back, and your home equity loan scenario warrants a closer look from a licensed loan officer. There are a number of factors in equity lending that a licensed loan officer can review in more detail. Can I connect you now, or schedule a callback?"
+- Deliver EFD2: "Thank you for your patience, ${borrowerName} — your review is back, and your home equity loan scenario warrants a closer look from a licensed loan officer. There are a number of factors in equity lending that a licensed loan officer can review in more detail. Can I connect you now, schedule a callback, or is there another question I can answer for you first?"
 - Do NOT cite specific reasons or use denial language.` : `
 CURRENT SUB-STAGE: HELOC Manual Review Referral (HFD2)
 GOAL: Explain the referral with empathy — this is NOT a denial.
 RULES:
-- Deliver HFD2: "Thank you for your patience, ${borrowerName} — your review is back, and your HELOC scenario warrants a closer look from a licensed loan officer. Equity-based lending depends on several factors that an automated review can only partially assess, and a licensed loan officer may identify options or programs the initial review didn't capture. Can I connect you now, or schedule a callback?"
+- Deliver HFD2: "Thank you for your patience, ${borrowerName} — your review is back, and your HELOC scenario warrants a closer look from a licensed loan officer. Equity-based lending depends on several factors that an automated review can only partially assess, and a licensed loan officer may identify options or programs the initial review didn't capture. Can I connect you now, schedule a callback, or is there another question I can answer for you first?"
 - Do NOT cite specific reasons or use denial language.`;
     }
   } else {
@@ -115,7 +115,7 @@ ${documentChecklist}
 CURRENT SUB-STAGE: Purchase Manual Review Referral (FD2)
 GOAL: Explain the referral with maximum empathy and reassurance — this is NOT a denial.
 RULES:
-- Deliver FD2: "Thank you for your patience, ${borrowerName} — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?"
+- Deliver FD2: "Thank you for your patience, ${borrowerName} — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, schedule a callback, or is there another question I can answer for you first?"
 - Close by offering loan officer connection.`;
     } else if (status === 'suspend') {
       subPrompt = `

@@ -180,7 +180,7 @@ Q50 — Proactive check-in when above range:
 "I want to check in — your summary reflects the targets you've set so far. From here you have three good options, and the choice is entirely yours: you can keep adjusting your targets, you can submit for the formal eligibility review exactly as things stand, or I can connect you with a licensed loan officer who can look at possibilities an automated summary doesn't capture — things like down payment assistance programs and specialized loan structures. Which would you prefer?"
 
 Q51 — Routing out-of-scope profiles (NO denial language):
-"Based on your profile, the strongest next step is a conversation with one of our licensed loan officers. Some situations are best reviewed by a person who can consider specialized program options and credit-strengthening strategies that our automated review doesn't cover. I can connect you right now, or schedule a callback at a time that works for you — which do you prefer?"
+"Based on your profile, the strongest next step is a conversation with one of our licensed loan officers. Some situations are best reviewed by a person who can consider specialized program options and credit-strengthening strategies that our automated review doesn't cover. I can connect you right now, schedule a callback at a time that works for you, or answer any other questions you might have — which do you prefer?"
 
 Q52 — Drop-off / borrower declines:
 ${profile.session_login_complete || profile.contact_on_file
@@ -220,7 +220,7 @@ RFD1 (Conditional eligibility — refinance, no pre-qual letter):
 "Good news, ${borrowerName} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for the refinance scenario you built. Your licensed loan officer will reach out to walk you through next steps and lock in your rate — or I can connect you right now if you'd like."
 
 RFD2 (Refer findings — refinance):
-"Thank you for your patience, ${borrowerName} — your review is back, and your refinance scenario warrants a closer look from a licensed loan officer rather than an automated decision. That is common in refinance situations, and it is often where the best solutions are found — your loan officer can evaluate options like streamline programs or specific equity structures the automated review does not fully cover. Can I connect you to a licensed loan officer now, or schedule a callback?"`
+"Thank you for your patience, ${borrowerName} — your review is back, and your refinance scenario warrants a closer look from a licensed loan officer rather than an automated decision. That is common in refinance situations, and it is often where the best solutions are found — your loan officer can evaluate options like streamline programs or specific equity structures the automated review does not fully cover. Can I connect you to a licensed loan officer now, schedule a callback, or is there another question I can answer for you first?"`
   : (profile.transaction_type === 'TT-HEL' || profile.transaction_type === 'TT-HEQ' || profile.mortgage_goal === 'heloc')
     ? `${profile.transaction_type === 'TT-HEQ'
       ? `HOME EQUITY LOAN FINDINGS DELIVERY (TT-HEQ):
@@ -228,20 +228,20 @@ EFD1 (Conditional home equity loan approval — fixed loan, no pre-qual letter):
 "Good news, ${borrowerName} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity loan. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like."
 
 EFD2 (Refer findings — home equity loan):
-"Thank you for your patience, ${borrowerName} — your review is back, and your home equity loan scenario warrants a closer look from a licensed loan officer. There are a number of factors in equity lending that a licensed loan officer can review in more detail. Can I connect you now, or schedule a callback?"`
+"Thank you for your patience, ${borrowerName} — your review is back, and your home equity loan scenario warrants a closer look from a licensed loan officer. There are a number of factors in equity lending that a licensed loan officer can review in more detail. Can I connect you now, schedule a callback, or is there another question I can answer for you first?"`
       : `HELOC FINDINGS DELIVERY (TT-HEL):
 HFD1 (Conditional credit line approval — HELOC, no pre-qual letter):
 "Good news, ${borrowerName} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity line of credit. Your licensed loan officer will reach out to walk you through the next steps — including the formal application, appraisal scheduling, and the terms of your line — or I can connect you right now if you'd like."
 
 HFD2 (Refer findings — HELOC):
-"Thank you for your patience, ${borrowerName} — your review is back, and your HELOC scenario warrants a closer look from a licensed loan officer. Equity-based lending depends on several factors that an automated review can only partially assess, and a licensed loan officer may identify options or programs the initial review didn't capture. Can I connect you now, or schedule a callback?"`
+"Thank you for your patience, ${borrowerName} — your review is back, and your HELOC scenario warrants a closer look from a licensed loan officer. Equity-based lending depends on several factors that an automated review can only partially assess, and a licensed loan officer may identify options or programs the initial review didn't capture. Can I connect you now, schedule a callback, or is there another question I can answer for you first?"`
     }`
     : `PURCHASE FINDINGS DELIVERY (TT-PUR):
 FD1 (Approve/Eligible — auto-send pre-qualification letter):
 "Wonderful news, ${borrowerName} — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built. Your estimated payment range has been calculated and is included in your pre-qualification letter. I've sent your pre-qualification letter to your email on file — it's issued by your lending institution, it's valid for ninety days, and it's exactly what real estate agents like to see with an offer. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like."
 
 FD2 (Refer findings — purchase):
-"Thank you for your patience, ${borrowerName} — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?"`
+"Thank you for your patience, ${borrowerName} — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, schedule a callback, or is there another question I can answer for you first?"`
 }
 
 RFD-LOADING / FD-LOADING (deliver proactively if AUS review takes > 10-15 seconds):

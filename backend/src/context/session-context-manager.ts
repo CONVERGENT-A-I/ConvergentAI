@@ -687,7 +687,6 @@ export class SessionContextManager {
       'job_tenure_type',
       'soft_pull_authorization',
       'assets_details',
-      'escalation_preference',
       // Deterministic fields with async operations (like OTP modal / CRS API pull)
       'contact_name',
       'contact_email',
@@ -2057,7 +2056,7 @@ export class SessionContextManager {
           name: 'escalation_preference', 
           description: 'preference for live transfer, scheduled callback, or declined',
           expectedType: 'string',
-          additionalInstructions: 'Extract if the user prefers to speak to a loan officer right now (live_transfer), or schedule a callback for later (scheduled_call), or declines both (declined).' 
+          additionalInstructions: 'Extract if the user explicitly orders or agrees to speak to a loan officer right now (live_transfer), or explicitly agrees to schedule a callback for later (scheduled_call), or declines both (declined). CRITICAL: If the user is asking a hypothetical question (e.g. "will you connect me?", "what happens if I connect?", "how does scheduling work?"), DO NOT extract a value—return null so the agent can answer the question first.' 
         },
         {
           name: 'scheduled_call_time',

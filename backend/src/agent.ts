@@ -101,7 +101,7 @@ export function isQuestionOrCorrection(text: string | null | undefined): boolean
     'already told', 'just told', 'already said', 'i shared', 'i gave',
     'worried', 'concerned', 'wondering', 'curious', 'elaborate', 'clarify',
     'clarification', 'more info', 'more information', 'tell me more', 'sounds expensive',
-    'sounds high', 'what about', 'how come', 'is that'
+    'sounds high', 'what about', 'how come', 'is that', 'question', 'ask'
   ];
   return keywords.some(k => t.includes(k));
 }
@@ -302,13 +302,17 @@ class AilanaVoiceAgent extends voice.Agent {
 
     // ── Loan Officer Transfer Fast-Path ──────────────────────────────────────
     const LO_ELIGIBLE_STAGES = new Set(['2.5', '4', '5']);
-    const isExplicitLoRequest = /\b(connect(\s+me)?\s+(?:to\s+)?(?:a\s+|the\s+)?loan\s*officer|transfer(\s+me)?\s+(?:to\s+)?(?:a\s+|the\s+)?loan\s*officer|speak\s+(?:to|with)\s+(?:a\s+|the\s+)?loan\s*officer|call\s+(?:a\s+|the\s+)?loan\s*officer|connect\s+me\s+right\s+now)\b/i.test(lastUserText);
+    const isHypotheticalOrExploratoryQuestion = /\b(what happens if|what would happen|why (?:would|should)|how (?:do|does|will|would)|what does|what if|tell me about|what is a)\b/i.test(lastUserText);
+    const isExplicitLoRequest = !isHypotheticalOrExploratoryQuestion && /\b(connect(\s+me)?\s+(?:to\s+)?(?:a\s+|the\s+)?loan\s*officer|transfer(\s+me)?\s+(?:to\s+)?(?:a\s+|the\s+)?loan\s*officer|speak\s+(?:to|with)\s+(?:a\s+|the\s+)?loan\s*officer|call\s+(?:a\s+|the\s+)?loan\s*officer|connect\s+me\s+right\s+now)\b/i.test(lastUserText);
     const loEligibleStage = LO_ELIGIBLE_STAGES.has(activeStage) || isExplicitLoRequest;
 
     let loIntent: 'yes' | 'no' | 'uncertain' = 'uncertain';
 
     if (loEligibleStage) {
-      if (isExplicitLoRequest) {
+      if (isHypotheticalOrExploratoryQuestion) {
+        loIntent = 'no';
+        console.log(`[agent-hook]: LO transfer classifier SKIPPED (hypothetical/exploratory question detected) — 0ms.`);
+      } else if (isExplicitLoRequest) {
         loIntent = 'yes';
       } else {
         const LO_KEYWORD_PATTERN = /\b(connect|transfer|speak|talk|loan officer|real person|someone|schedule|call me|book|yes|sure|go ahead|do it|let's do|absolutely|definitely)\b/i;
@@ -979,7 +983,7 @@ class AilanaVoiceAgent extends voice.Agent {
         if (isApprove) {
           scriptText = `Good news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for the refinance scenario you built. Your estimated payment comparison is ready for you — it shows your estimated new payment alongside your current payment reference point. Your licensed loan officer will reach out to walk you through next steps and lock in your rate — or I can connect you right now if you'd like.`;
         } else {
-          scriptText = `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your review is back, and your refinance scenario warrants a closer look from a licensed loan officer rather than an automated decision. That is common in refinance situations, and it is often where the best solutions are found — your loan officer can evaluate options like streamline programs or specific equity structures the automated review does not fully cover. Can I connect you to a licensed loan officer now, or schedule a callback?`;
+          scriptText = `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your review is back, and your refinance scenario warrants a closer look from a licensed loan officer rather than an automated decision. That is common in refinance situations, and it is often where the best solutions are found — your loan officer can evaluate options like streamline programs or specific equity structures the automated review does not fully cover. Can I connect you to a licensed loan officer now, schedule a callback, or is there another question I can answer for you first?`;
         }
       } else if (isHel) {
         if (isApprove) {
@@ -988,14 +992,14 @@ class AilanaVoiceAgent extends voice.Agent {
             : `Good news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you appear conditionally eligible for a home equity line of credit. Your licensed loan officer will reach out to walk you through the next steps — including the formal application, appraisal scheduling, and the terms of your line — or I can connect you right now if you'd like.`;
         } else {
           scriptText = profile.transaction_type === 'TT-HEQ'
-            ? `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your review is back, and your home equity loan scenario warrants a closer look from a licensed loan officer. There are a number of factors in equity lending that a licensed loan officer can review in more detail. Can I connect you now, or schedule a callback?`
-            : `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your review is back, and your HELOC scenario warrants a closer look from a licensed loan officer. Equity-based lending depends on several factors that an automated review can only partially assess, and a licensed loan officer may identify options or programs the initial review didn't capture. Can I connect you now, or schedule a callback?`;
+            ? `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your review is back, and your home equity loan scenario warrants a closer look from a licensed loan officer. There are a number of factors in equity lending that a licensed loan officer can review in more detail. Can I connect you now, schedule a callback, or is there another question I can answer for you first?`
+            : `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your review is back, and your HELOC scenario warrants a closer look from a licensed loan officer. Equity-based lending depends on several factors that an automated review can only partially assess, and a licensed loan officer may identify options or programs the initial review didn't capture. Can I connect you now, schedule a callback, or is there another question I can answer for you first?`;
         }
       } else {
         if (isApprove) {
           scriptText = `Wonderful news${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your eligibility review came back, and based on the information you provided, you're conditionally eligible for the scenario you built. Your estimated payment range has been calculated and is included in your pre-qualification letter. I've sent your pre-qualification letter to your email on file — it's issued by your lending institution, it's valid for ninety days, and it's exactly what real estate agents like to see with an offer. Your licensed loan officer will reach out to walk you through next steps — or I can connect you right now if you'd like.`;
         } else {
-          scriptText = `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, or schedule a callback?`;
+          scriptText = `Thank you for your patience${borrowerName !== 'there' ? ', ' + borrowerName : ''} — your review is back, and your scenario needs a closer look from a person rather than an automated decision. That's genuinely common, and it's often where a licensed loan officer finds the best path — they can consider options the automated review can't. Can I connect you to a licensed loan officer now, schedule a callback, or is there another question I can answer for you first?`;
         }
       }
 
@@ -1049,7 +1053,7 @@ class AilanaVoiceAgent extends voice.Agent {
       const text = userMessage.textContent.trim();
       const isQuestionOrHesitation =
         /\?$/.test(text) ||
-        /\b(what|why|how|can i|could i|does|is it|explain|tell me|wait|hold on|what if|who|meaning|clarify)\b/i.test(text);
+        /\b(what|why|how|can i|could i|does|is it|explain|tell me|wait|hold on|what if|who|meaning|clarify|question|ask)\b/i.test(text);
 
       if (isQuestionOrHesitation) {
         console.log(`[agent-hook]: Question/hesitation detected on field "${activeField}". Staying on current field to answer user question.`);
@@ -1524,7 +1528,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
       // Stage 4
       checklist_acknowledgement: 'I apologize for that interruption. Do you have these documents available, or would you like to go through any of them?',
       // Stage 5
-      escalation_preference: 'I apologize for the interruption. Would you like me to connect you directly with a licensed loan officer now, or would you prefer to schedule a callback?',
+      escalation_preference: 'I apologize for the interruption. Would you like me to connect you directly with a licensed loan officer now, schedule a callback, or is there another question I can answer for you first?',
       scheduled_call_time: 'I apologize for that. What date and time works best for your scheduled callback?',
     };
 
@@ -2012,11 +2016,12 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         const isCorrection = /\b(no|not|wrong|change|update|actually|mistake|fix|incorrect)\b/i.test(lower) && !isAffirmative;
 
         // ── Direct Loan Officer Transfer Command ──
-        const isExplicitLoRequest = /\b(connect(\s+me)?\s+(?:to\s+)?(?:a\s+|the\s+)?loan\s*officer|transfer(\s+me)?\s+(?:to\s+)?(?:a\s+|the\s+)?loan\s*officer|speak\s+(?:to|with)\s+(?:a\s+|the\s+)?loan\s*officer|call\s+(?:a\s+|the\s+)?loan\s*officer|connect\s+me\s+right\s+now)\b/i.test(lower);
-        const isConnectLoIntent = isExplicitLoRequest || (pending === 'escalation_preference' && (
+        const isHypotheticalOrQuestion = isQuestionOrCorrection(userMessage) || /\b(what happens if|why (?:would|should)|how (?:do|does|will|would)|what does|what if|will you)\b/i.test(lower);
+        const isExplicitLoRequest = !isHypotheticalOrQuestion && /\b(connect(\s+me)?\s+(?:to\s+)?(?:a\s+|the\s+)?loan\s*officer|transfer(\s+me)?\s+(?:to\s+)?(?:a\s+|the\s+)?loan\s*officer|speak\s+(?:to|with)\s+(?:a\s+|the\s+)?loan\s*officer|call\s+(?:a\s+|the\s+)?loan\s*officer|connect\s+me\s+right\s+now)\b/i.test(lower);
+        const isConnectLoIntent = !isHypotheticalOrQuestion && (isExplicitLoRequest || (pending === 'escalation_preference' && (
           isAffirmative ||
-          /\b(connect|transfer|speak|talk|loan\s*officer|call|right\s*now|now)\b/i.test(lower)
-        ));
+          /\b(connect|transfer|speak|talk|loan\s*officer|call|right\s*now)\b/i.test(lower)
+        )));
 
         if (isConnectLoIntent) {
           console.log(`[agent]: 📞 Discrete mode Loan Officer transfer triggered for: "${userMessage}"`);
