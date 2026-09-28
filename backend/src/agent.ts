@@ -20,6 +20,7 @@ import { RoomEvent, TrackKind } from '@livekit/rtc-node';
 import { fileURLToPath } from 'url';
 import { applyContactUpdates } from './utils/profile-sync.js';
 import * as openai from '@livekit/agents-plugin-openai';
+import * as silero from '@livekit/agents-plugin-silero';
 import { ailanaConfig } from './config/ailana-config.js';
 import { SessionContextManager } from './context/session-context-manager.js';
 import { LatencyTracker, ts } from './metrics/latency-tracker.js';
@@ -32,6 +33,7 @@ import {
 } from './prompts/index.js';
 import type { BorrowerProfile } from './prompts/layer3-context.js';
 import { logPromptBudget } from './context/context-budget.js';
+import { AvatarSession } from '@livekit/agents-plugin-lemonslice';
 import { BackchannelEngine } from './utils/backchannel-engine.js';
 import { OpenAI } from 'openai';
 import { sendPrequalLetterEmail } from './utils/email-sender.js';
@@ -1146,8 +1148,8 @@ export default defineAgent({
     console.log('[agent-startup] ══ Environment variable audit ══');
     console.log(`[agent-startup]  CARTESIA_KEY          : ${envCheck('CARTESIA_KEY', ailanaConfig.cartesiaKey)}`);
     console.log(`[agent-startup]  CARTESIA_VOICE_ID    : ${ailanaConfig.cartesiaVoiceId ? '✓ ' + ailanaConfig.cartesiaVoiceId : '✗ MISSING'}`);
+    console.log(`[agent-startup]  LEMONSLICE_API_KEY    : ${envCheck('LEMONSLICE_API_KEY', ailanaConfig.lemonsliceApiKey)}`);
     console.log(`[agent-startup]  LEMONSLICE_AGENT_ID   : ${ailanaConfig.lemonsliceAgentId ? '✓ ' + ailanaConfig.lemonsliceAgentId : '✗ MISSING'}`);
-    console.log(`[agent-startup]  AVATAR MODE           : LiveKit Inference (model=lemonslice/${ailanaConfig.lemonsliceAgentId || 'MISSING'})`);
     console.log(`[agent-startup]  CEREBRAS_API_KEY      : ${envCheck('CEREBRAS_API_KEY', ailanaConfig.cerebrasApiKey)}`);
     console.log(`[agent-startup]  LIVEKIT_URL           : ${process.env.LIVEKIT_URL ?? '✗ MISSING'}`);
     console.log(`[agent-startup]  LIVEKIT_API_KEY       : ${process.env.LIVEKIT_API_KEY ? '✓ present' : '✗ MISSING'}`);
@@ -1342,9 +1344,10 @@ export default defineAgent({
       }
     };
 
-    const createVadAgent = () => {
+    const createVadAgent = (customVad: any) => {
       console.log('[agent]: Creating LiveKit Inference agent (Gemma 4 31B LLM + Cartesia Ink-2 STT + Cartesia Sonic-3.6 TTS + TurnDetector)...');
       return new AilanaVoiceAgent({
+        vad: customVad,
         instructions: contextManager.getStaticInstructions(),
         stt: sessionStt,
         llm: new inference.LLM({
@@ -1353,18 +1356,13 @@ export default defineAgent({
         tts: sessionTts,
         turnHandling: {
           turnDetection: new inference.TurnDetector(),
+          interruption: {
+            mode: 'adaptive' as const,
+          },
           endpointing: {
             mode: 'dynamic' as const,
             minDelay: 100,
             maxDelay: 500, // Aggressively tightened to 500ms max trailing silence
-          },
-          interruption: {
-            mode: 'vad' as const,
-            minDuration: 500,
-            minWords: 1,
-            resumeFalseInterruption: true,
-            falseInterruptionTimeout: 1500,
-            discardAudioIfUninterruptible: true,
           },
           preemptiveGeneration: {
             enabled: false,
@@ -1373,7 +1371,8 @@ export default defineAgent({
       }, contextManager, updateSessionInstructions, metrics, (stage: string) => sendStageUpdate(stage), sendMloPopupTrigger);
     };
 
-    let vadAgent = createVadAgent();
+    const customVad = await silero.VAD.load({ minSpeechDuration: 0.25 });
+    let vadAgent = createVadAgent(customVad);
     logPromptBudget('voice_static', buildVoiceInstructions());
     logPromptBudget('text_full', buildBaseInstructions());
     let voiceMuted = false;
@@ -1398,15 +1397,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
 
     console.log(`[agent]: Expressive mode configured: ${ailanaConfig.expressiveMode ? '✅ ENABLED (Cartesia Sonic-3.6)' : '❌ DISABLED'}`);
 
-    const sessionVad = new inference.VAD({
-      model: 'silero',
-      minSpeechDuration: 250,
-      activationThreshold: 0.55,
-      minSilenceDuration: 300,
-    });
-
     const session = new voice.AgentSession({
-      vad: sessionVad,
       userAwayTimeout: null,
       transcriptionTimeout: 200, // Enable UserTranscriptionTimeout event (200ms after VAD END_OF_SPEECH)
       expressive: expressiveConfig,
@@ -1418,12 +1409,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           maxDelay: 500,
         },
         interruption: {
-          mode: 'vad' as const,
-          minDuration: 500,
-          minWords: 1,
-          resumeFalseInterruption: true,
-          falseInterruptionTimeout: 1500,
-          discardAudioIfUninterruptible: true,
+          mode: 'adaptive' as const,
         },
         preemptiveGeneration: {
           enabled: false,
@@ -1446,7 +1432,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
     const backchannelEngine = new BackchannelEngine();
 
     const createAgentForRotation = () => {
-      vadAgent = createVadAgent();
+      vadAgent = createVadAgent(customVad);
       wireAgentCallbacks(vadAgent);
 
       return vadAgent;
@@ -2911,14 +2897,29 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
     await ctx.connect();
     console.log(`[agent]: Connected to room: ${ctx.room.name}`);
 
-    // ── LemonSlice Avatar Session (via LiveKit Inference) ──────────────────
+    // ── LemonSlice Avatar Session ─────────────────────────────────────────
+    // Start the avatar AFTER connecting so it can join the same room.
     // The avatar publishes its video/audio as a native LiveKit participant;
     // the frontend simply renders those tracks — no separate WebRTC session needed.
-    // Powered entirely through LiveKit Cloud Inference using LIVEKIT_API_KEY / LIVEKIT_API_SECRET.
+    const lsApiKey = ailanaConfig.lemonsliceApiKey;
     const lsAgentId = ailanaConfig.lemonsliceAgentId;
-    console.log(`[avatar][${ts()}] LemonSlice avatar via LiveKit Inference: Agent ID: ${lsAgentId || 'MISSING'}, Model: lemonslice/${lsAgentId}`);
+    console.log(`[avatar][${ts()}] LemonSlice credentials check: API Key ${lsApiKey ? 'PRESENT (len=' + lsApiKey.length + ', ends with ' + lsApiKey.slice(-4) + ')' : 'MISSING'}, Agent ID: ${lsAgentId || 'MISSING'}`);
 
-    if (lsAgentId) {
+    if (lsApiKey && lsAgentId) {
+      // Quick LemonSlice API reachability test (non-blocking)
+      (async () => {
+        const t0 = Date.now();
+        try {
+          const resp = await fetch('https://api.lemon-slice.com/v1/agents', {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${lsApiKey}` },
+          });
+          const dur = Date.now() - t0;
+          console.log(`[avatar][${ts()}] LemonSlice API ping: HTTP ${resp.status} in ${dur}ms`);
+        } catch (err: any) {
+          console.error(`[avatar][${ts()}] LemonSlice API ping FAILED: ${err?.message ?? err}`);
+        }
+      })();
 
       // Helper to send avatar status messages to frontend
       const sendAvatarStatus = async (status: string, detail?: string) => {
@@ -3018,11 +3019,14 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           console.log(`[avatar][${ts()}] │      BLOCKING until LemonSlice responds...                   │`);
           console.log(`[avatar][${ts()}] └─────────────────────────────────────────────────────────────┘`);
           try {
-            const avatarSession = new inference.AvatarSession({
-              model: `lemonslice/${lsAgentId}`,
-              extraKwargs: {
-                prompt: 'You are Ailana, a professional AI mortgage advisor in her mid-30s. You are warm, composed, and confident - the kind of person a member trusts with one of the biggest financial decisions of their life. You represent a credit union, so your manner is approachable but polished, never salesy or performative. Facial expression and movement: stay subtle and controlled at all times. Rest with a calm, closed or barely-parted mouth between utterances. When speaking, use small, measured mouth movements rather than wide or exaggerated openings - this applies especially to the very first word of any sentence, including greetings like "Hi" or "Hello." Avoid theatrical or cartoonish expressions; think understated warmth, not enthusiasm. Head movement is gentle and occasional. CRITICAL: Eye contact must be soft and extremely steady. Do NOT dart eyes around or make erratic eye movements. Blink naturally and softly. Eyebrow movement is minimal. Your overall demeanor is that of a trusted advisor sitting across a desk from someone - calm, attentive, unhurried.',
-                idle_prompt: 'You are Ailana, a professional AI mortgage advisor in her mid-30s. You are warm, composed, and confident — the kind of person a member trusts with one of the biggest financial decisions of their life. You represent a credit union, so your manner is approachable but polished, never salesy or performative. Facial expression and movement: stay subtle and controlled at all times. Rest with a calm, closed or barely-parted mouth between utterances. When speaking, use small, measured mouth movements rather than wide or exaggerated openings — this applies especially to the very first word of any sentence, including greetings like "Hi" or "Hello." Avoid theatrical or cartoonish expressions; think understated warmth, not enthusiasm. Head movement is gentle and occasional. CRITICAL: Eye contact must be soft and extremely steady. Do NOT dart eyes around or make erratic eye movements. Blink naturally and softly. Eyebrow movement is minimal. Your overall demeanor is that of a trusted advisor sitting across a desk from someone — calm, attentive, unhurried.',
+            const avatarSession = new AvatarSession({
+              agentId: lsAgentId,
+              apiKey: lsApiKey,
+              // agentPrompt controls expressions WHILE SPEAKING
+              agentPrompt: 'You are Ailana, a professional AI mortgage advisor in her mid-30s. You are warm, composed, and confident - the kind of person a member trusts with one of the biggest financial decisions of their life. You represent a credit union, so your manner is approachable but polished, never salesy or performative. Facial expression and movement: stay subtle and controlled at all times. Rest with a calm, closed or barely-parted mouth between utterances. When speaking, use small, measured mouth movements rather than wide or exaggerated openings - this applies especially to the very first word of any sentence, including greetings like "Hi" or "Hello." Avoid theatrical or cartoonish expressions; think understated warmth, not enthusiasm. Head movement is gentle and occasional. CRITICAL: Eye contact must be soft and extremely steady. Do NOT dart eyes around or make erratic eye movements. Blink naturally and softly. Eyebrow movement is minimal. Your overall demeanor is that of a trusted advisor sitting across a desk from someone - calm, attentive, unhurried.',
+              // agent_idle_prompt controls expressions WHILE LISTENING/IDLE
+              extraPayload: {
+                agent_idle_prompt: 'You are Ailana, a professional AI mortgage advisor in her mid-30s. You are warm, composed, and confident — the kind of person a member trusts with one of the biggest financial decisions of their life. You represent a credit union, so your manner is approachable but polished, never salesy or performative. Facial expression and movement: stay subtle and controlled at all times. Rest with a calm, closed or barely-parted mouth between utterances. When speaking, use small, measured mouth movements rather than wide or exaggerated openings — this applies especially to the very first word of any sentence, including greetings like "Hi" or "Hello." Avoid theatrical or cartoonish expressions; think understated warmth, not enthusiasm. Head movement is gentle and occasional. CRITICAL: Eye contact must be soft and extremely steady. Do NOT dart eyes around or make erratic eye movements. Blink naturally and softly. Eyebrow movement is minimal. Your overall demeanor is that of a trusted advisor sitting across a desk from someone — calm, attentive, unhurried.',
                 model: 'flash',
               },
             });
@@ -3033,10 +3037,18 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             console.log(`[avatar][${ts()}] ┌─────────────────────────────────────────────────────────────┐`);
             console.log(`[avatar][${ts()}] │  ✅  LEMONSLICE API RESPONDED — SUCCESS (attempt ${attempt}/${AVATAR_MAX_RETRIES})         │`);
             console.log(`[avatar][${ts()}] │      avatarSession.start() resolved in ${elapsed}ms                  │`);
-            console.log(`[avatar][${ts()}] │      Starting AgentSession with native DataStreamAudioOutput...    │`);
+            console.log(`[avatar][${ts()}] │      Starting AgentSession and restoring DataStreamAudioOutput...  │`);
             console.log(`[avatar][${ts()}] └─────────────────────────────────────────────────────────────┘`);
 
-            // Start the AgentSession (canonical LiveKit pattern: native DataStreamAudioOutput bound directly)
+            // Save the DataStreamAudioOutput set by LemonSlice
+            const dataStreamAudio = session.output.audio;
+
+            // Temporarily clear it so session.start creates a RoomAudioOutput for fallback
+            if (session.output) {
+              (session.output as any).audio = undefined;
+            }
+
+            // Start the AgentSession (audioEnabled: true creates the audio track for transcription)
             sessionStarted = true;
             await session.start({
               agent: vadAgent,
@@ -3044,12 +3056,20 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
               inputOptions: { noiseCancellation: BackgroundVoiceCancellation(), closeOnDisconnect: false },
             });
 
+            // Save the newly created RoomAudioOutput for fallback
+            const roomAudioOutput = session.output?.audio;
+
+            // Restore the DataStreamAudioOutput so TTS audio goes directly to the avatar
+            if (dataStreamAudio && session.output) {
+              session.output.audio = dataStreamAudio;
+            }
+
             // Listen for LemonSlice disconnection mid-conversation to trigger audio fallback
             ctx.room.on(RoomEvent.ParticipantDisconnected, (p: any) => {
               if (p.identity?.startsWith('lemonslice') || p.identity?.includes('avatar')) {
                 console.warn(`[avatar][${ts()}] ⚠️ LemonSlice participant disconnected mid-conversation! Routing audio back to LiveKit room fallback.`);
-                if (session.output) {
-                  (session.output as any).audio = undefined;
+                if (roomAudioOutput && session.output) {
+                  session.output.audio = roomAudioOutput;
                 }
               }
             });
@@ -3154,7 +3174,8 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         clearTimeout(backupTimeout);
       }
     } else {
-      console.warn(`[avatar][${ts()}] LemonSlice Agent ID missing — avatar DISABLED.`);
+      console.warn(`[avatar][${ts()}] LemonSlice credentials missing — avatar DISABLED.`);
+      console.warn(`[avatar][${ts()}]   LEMONSLICE_API_KEY   : ${lsApiKey ? 'present' : 'MISSING'}`);
       console.warn(`[avatar][${ts()}]   LEMONSLICE_AGENT_ID  : ${lsAgentId ? lsAgentId : 'MISSING'}`);
       isAvatarInitDone = true;
       resolveAvatarReady();
