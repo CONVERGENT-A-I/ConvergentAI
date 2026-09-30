@@ -1357,7 +1357,10 @@ export default defineAgent({
         turnHandling: {
           turnDetection: new inference.TurnDetector(),
           interruption: {
-            mode: 'adaptive' as const,
+            // [TODO: FUTURE UPGRADE] When migrating to LiveKit Inference LemonSlice (which fixes native
+            // audio stream synchronizers), uncomment the line below and remove `enabled: false`.
+            // mode: 'adaptive' as const,
+            enabled: false,
           },
           endpointing: {
             mode: 'dynamic' as const,
@@ -1371,7 +1374,9 @@ export default defineAgent({
       }, contextManager, updateSessionInstructions, metrics, (stage: string) => sendStageUpdate(stage), sendMloPopupTrigger);
     };
 
-    const customVad = await silero.VAD.load({ minSpeechDuration: 0.25 });
+    // Note: In @livekit/agents-plugin-silero (Node.js), all durations are in milliseconds (unlike Python SDK which uses seconds).
+    // 250ms filters brief mic clicks, throat clears, and transient noise before triggering speech.
+    const customVad = await silero.VAD.load({ minSpeechDuration: 250 });
     let vadAgent = createVadAgent(customVad);
     logPromptBudget('voice_static', buildVoiceInstructions());
     logPromptBudget('text_full', buildBaseInstructions());
@@ -1398,6 +1403,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
     console.log(`[agent]: Expressive mode configured: ${ailanaConfig.expressiveMode ? '✅ ENABLED (Cartesia Sonic-3.6)' : '❌ DISABLED'}`);
 
     const session = new voice.AgentSession({
+      vad: customVad, // Apply the 250ms VAD shield here as well
       userAwayTimeout: null,
       transcriptionTimeout: 200, // Enable UserTranscriptionTimeout event (200ms after VAD END_OF_SPEECH)
       expressive: expressiveConfig,
@@ -1409,7 +1415,10 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           maxDelay: 500,
         },
         interruption: {
-          mode: 'adaptive' as const,
+          // [TODO: FUTURE UPGRADE] When migrating to LiveKit Inference LemonSlice (which fixes native
+          // audio stream synchronizers), uncomment the line below and remove `enabled: false`.
+          // mode: 'adaptive' as const,
+          enabled: false,
         },
         preemptiveGeneration: {
           enabled: false,
@@ -1463,6 +1472,10 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
     // silent. This guard detects that case and re-asks the pending question.
     let hasSpeechThisTurn = false;
     let silentTurnTimer: ReturnType<typeof setTimeout> | null = null;
+    
+    // ── Layer 2.5 Custom Interruption state ───────────────────────────────────
+    let customInterruptTimer: ReturnType<typeof setTimeout> | null = null;
+    let hasInterruptedThisTurn = false;
     // Timestamp when agent entered 'thinking' — used to ignore preemptive-
     // generation cycles (SDK-internal thinking→listening rounds that complete
     // in <200ms and should never trigger a re-prompt).
@@ -1556,6 +1569,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
         }
 
         if (newState === 'speaking') {
+          hasInterruptedThisTurn = false; // Reset the Layer 2.5 interrupt flag
           if (oldState === 'thinking') {
             metrics.markAgentSpeaking();
           }
@@ -1675,6 +1689,17 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           console.log('[silent-turn-guard]: User speech transcribed. Cancelling pending re-prompt timer immediately.');
           clearTimeout(silentTurnTimer);
           silentTurnTimer = null;
+        }
+
+        // ── Layer 2.5 Verification ──
+        if (currentAgentState === 'speaking' && !hasInterruptedThisTurn) {
+          console.log(`[layer-2.5]: Verified human speech ("${ev.transcript.trim()}"). Halting avatar.`);
+          if (customInterruptTimer) {
+            clearTimeout(customInterruptTimer);
+            customInterruptTimer = null;
+          }
+          hasInterruptedThisTurn = true;
+          session.interrupt();
         }
       }
       if (!ev.isFinal) return;
@@ -1806,6 +1831,15 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           console.log('[silent-turn-guard]: User started speaking (VAD). Cancelling pending re-prompt timer immediately.');
           clearTimeout(silentTurnTimer);
           silentTurnTimer = null;
+        }
+
+        // ── Layer 2.5 Intercept ──
+        if (currentAgentState === 'speaking' && !hasInterruptedThisTurn) {
+          if (customInterruptTimer) clearTimeout(customInterruptTimer);
+          customInterruptTimer = setTimeout(() => {
+            console.log('[layer-2.5]: VAD triggered but no words transcribed in 500ms. Ignoring transient noise.');
+            customInterruptTimer = null;
+          }, 500);
         }
       }
     });
