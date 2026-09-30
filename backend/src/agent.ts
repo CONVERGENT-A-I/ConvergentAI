@@ -1361,6 +1361,7 @@ export default defineAgent({
             // audio stream synchronizers), uncomment the line below and remove `enabled: false`.
             // mode: 'adaptive' as const,
             enabled: false,
+            discardAudioIfUninterruptible: false, // CRITICAL for Layer 2.5: Must keep STT running while agent speaks
           },
           endpointing: {
             mode: 'dynamic' as const,
@@ -1419,6 +1420,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
           // audio stream synchronizers), uncomment the line below and remove `enabled: false`.
           // mode: 'adaptive' as const,
           enabled: false,
+          discardAudioIfUninterruptible: false, // CRITICAL for Layer 2.5: Must keep STT running while agent speaks
         },
         preemptiveGeneration: {
           enabled: false,
@@ -1699,7 +1701,7 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
             customInterruptTimer = null;
           }
           hasInterruptedThisTurn = true;
-          session.interrupt();
+          session.interrupt({ force: true });
         }
       }
       if (!ev.isFinal) return;
