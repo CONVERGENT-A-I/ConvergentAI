@@ -2814,11 +2814,9 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
                   const stageName = contextManager.getActiveStage();
                   const pendingField = contextManager.getPendingField() || (contextManager.getProfile() as any)?.current_pending_field || '';
                   const reprompt = pendingField ? PENDING_FIELD_REPROMPT[pendingField] : undefined;
-                  // Strip apology prefix — apologies suit mid-conversation glitches, not session resumption
-                  const cleanReprompt = reprompt?.replace(/^I apologize[^.]*\.\s*/i, '') || reprompt;
-                  const resumePrompt = cleanReprompt
-                    ? `The borrower has reconnected to continue their existing session. Give a brief, warm welcome back (e.g. "Welcome back! Let's pick right back up where we left off.") and continue the conversation by asking: "${cleanReprompt}". Keep it natural, conversational, and concise.`
-                    : `The borrower has reconnected to continue their existing session at Stage ${stageName}. Give a brief, warm welcome back (e.g. "Welcome back! Let's pick right back up where we left off.") and continue the conversation from where we left off. Keep it natural, conversational, and concise.`;
+                  const resumePrompt = reprompt
+                    ? `The borrower has returned to continue their application. Warmly welcome them back (e.g., "Welcome back! It's great to connect with you again..."). The last thing they were asked was: "${reprompt}". Please seamlessly resume the conversation by asking them that question again. IMPORTANT: The question text may contain an apology for an interruption — ignore and remove that apology completely. Just ask the core question. Be friendly, concise, and do NOT apologize.`
+                    : `The borrower has returned to continue their application at Stage ${stageName}. Warmly welcome them back (e.g., "Welcome back! It's great to connect with you again. Let's pick right back up where we left off...") and smoothly resume the conversation based on their profile context. Be friendly, concise, and do NOT apologize.`;
                   metrics.startTurn();
                   metrics.markGenerateReply();
                   session.generateReply({ userInput: resumePrompt });
