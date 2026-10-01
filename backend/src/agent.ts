@@ -2814,8 +2814,10 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
                   const stageName = contextManager.getActiveStage();
                   const pendingField = contextManager.getPendingField() || (contextManager.getProfile() as any)?.current_pending_field || '';
                   const reprompt = pendingField ? PENDING_FIELD_REPROMPT[pendingField] : undefined;
-                  const resumePrompt = reprompt
-                    ? `The borrower has reconnected to continue their existing session. Give a brief, warm welcome back (e.g. "Welcome back! Let's pick right back up where we left off.") and continue the conversation by asking: "${reprompt}". Keep it natural, conversational, and concise.`
+                  // Strip apology prefix — apologies suit mid-conversation glitches, not session resumption
+                  const cleanReprompt = reprompt?.replace(/^I apologize[^.]*\.\s*/i, '') || reprompt;
+                  const resumePrompt = cleanReprompt
+                    ? `The borrower has reconnected to continue their existing session. Give a brief, warm welcome back (e.g. "Welcome back! Let's pick right back up where we left off.") and continue the conversation by asking: "${cleanReprompt}". Keep it natural, conversational, and concise.`
                     : `The borrower has reconnected to continue their existing session at Stage ${stageName}. Give a brief, warm welcome back (e.g. "Welcome back! Let's pick right back up where we left off.") and continue the conversation from where we left off. Keep it natural, conversational, and concise.`;
                   metrics.startTurn();
                   metrics.markGenerateReply();
