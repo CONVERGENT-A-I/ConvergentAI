@@ -1390,6 +1390,10 @@ export default defineAgent({
 
     const expressiveConfig = ailanaConfig.expressiveMode
       ? {
+        speechSteering: {
+          disfluencies: false,
+          nonverbalSounds: false,
+        },
         ttsInstructionsAppend: `
 MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
 - Maintain a warm, composed, and confident credit union advisor demeanor.
@@ -1397,6 +1401,15 @@ MORTGAGE ADVISOR EXPRESSIVE DELIVERY GUIDELINES:
 - For sensitive topics (e.g. debt disclosures, automated refer findings), adopt a calm, empathetic, and reassuring register.
 - Use natural, unhurried pacing with slight pauses when discussing numbers or financial disclosures.
 - NEVER use casual disfluencies, giggling, theatrical laughter, or dramatic sighs.
+EMOTION CONSTRAINTS:
+- Strongly prefer these expression labels: neutral, calm, content, peaceful, serene, grateful, affectionate, sympathetic, confident, contemplative.
+- Avoid high-energy expression labels: excited, amazed, surprised, angry, panicked, triumphant, elated, scared.
+- NEVER use unprofessional or incongruent expression labels: flirtatious, sarcastic, ironic, disgusted, or joking/comedic.
+PROSODY CONSTRAINTS:
+- Do NOT use the "fast" or "loud" prosody markers. Only "slow" is permitted for reading back numbers, dates, or codes.
+- Use "soft" sparingly and only for genuinely gentle moments.
+PAUSE CONSTRAINTS:
+- Keep break durations brief (250ms to 500ms, e.g. <expr type="break" label="300ms"/>). Never exceed 1s to prevent avatar visual freezing.
 `.trim(),
       }
       : false;
