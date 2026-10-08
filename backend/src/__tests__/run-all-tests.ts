@@ -23,6 +23,7 @@ const testFiles = [
   'ui-field-correction.test.ts',
   'production-fixes.test.ts',
   'expressive-mode-e1-e2-e3.test.ts',
+  'verbal-submit-flow.test.ts',
 ];
 
 console.log('🚀 Running Complete ConvergentAI Multi-Track Test Suite...\n');

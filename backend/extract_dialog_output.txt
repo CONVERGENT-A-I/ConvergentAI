@@ -1,0 +1,350 @@
+[agent] DATABASE_URL status: ✅ PRESENT
+[agent]: Receiving job for room: undefined
+[agent]: Loading Cartesia STT via LiveKit Inference (ink-2)...
+[agent]: Loading Cartesia TTS via LiveKit Inference (cartesia/sonic-3.6)...
+[agent]: Creating LiveKit Inference agent (Gemma 4 31B LLM + Cartesia Ink-2 STT + Cartesia Sonic-3.6 TTS + TurnDetector)...
+[agent]: Expressive mode configured: ✅ ENABLED (Cartesia Sonic-3.6)
+[agent]: Connected to room: room-5b1sjb8nn
+[avatar][23:47:09.852] LemonSlice credentials check: API Key PRESENT (len=41, ends with Gfbs), Agent ID: agent_81e2fba6344a11bc
+[avatar][23:47:09.853] ┌─────────────────────────────────────────────────────────────┐
+[avatar][23:47:09.853] │  🔄  ATTEMPT 1/3 — Calling LemonSlice avatarSession.start()   │
+[avatar][23:47:09.853] │      agentId = agent_81e2fba6344a11bc
+[avatar][23:47:09.853] │      BLOCKING until LemonSlice responds...                   │
+[avatar][23:47:09.853] └─────────────────────────────────────────────────────────────┘
+[agent]: Guest participant connected: guest_6501. Clearing any active Reaper.
+[avatar][23:47:09.863] Participant Connected: identity=guest_6501
+[agent]: Channel started (video).
+[agent]: SYSTEM_CHANNEL_START received before avatar ready. Waiting for avatar initialization...
+[avatar][23:47:09.894] LemonSlice API ping FAILED: fetch failed
+[avatar][23:47:10.020] TrackSubscribed event fired: identity=guest_6501, kind=1, subscribed=true
+[agent]: Channel started (video).
+[agent]: Reconnect/duplicate SYSTEM_CHANNEL_START received, but avatar still initializing. Waiting...
+[avatar][23:47:12.083] ┌─────────────────────────────────────────────────────────────┐
+[avatar][23:47:12.083] │  ✅  LEMONSLICE API RESPONDED — SUCCESS (attempt 1/3)         │
+[avatar][23:47:12.083] │      avatarSession.start() resolved in 2229ms                  │
+[avatar][23:47:12.083] │      Starting AgentSession and restoring DataStreamAudioOutput...  │
+[avatar][23:47:12.083] └─────────────────────────────────────────────────────────────┘
+[avatar][23:47:12.279] ▶  Avatar API call succeeded. Sending SYSTEM_AVATAR_CONNECTED to frontend. Waiting for participant...
+[avatar][23:47:12.280] Checking existing remote participants. Count=1
+[avatar][23:47:12.280] Found remote participant: identity=guest_6501
+[agent]: Ready — model=LiveKit Inference (google/gemma-4-31b-it + cartesia/ink-2 + cartesia/sonic-3.6 + LemonSlice Avatar), prompt=mvp-1, compact@6 turns / 6000 tokens
+[avatar][23:47:12.307] Sent SYSTEM_AVATAR_CONNECTED to frontend
+[avatar][23:47:13.855] Participant Connected: identity=lemonslice-avatar-agent
+[avatar][23:47:14.074] 📹  LemonSlice track published — kind=1 source=2
+[avatar][23:47:14.105] 🎯  TrackSubscribed from avatar — triggering markAvatarFirstFrame() as safety net
+[avatar][23:47:14.106] TrackSubscribed event fired: identity=lemonslice-avatar-agent, kind=1, subscribed=true
+[avatar][23:47:14.106] LemonSlice participant track subscribed — kind=1
+[avatar][23:47:14.119] 📹  LemonSlice track published — kind=2 source=1
+[avatar][23:47:14.294] 🎯  TrackSubscribed from avatar — triggering markAvatarFirstFrame() as safety net
+[avatar][23:47:14.294] TrackSubscribed event fired: identity=lemonslice-avatar-agent, kind=2, subscribed=true
+[avatar][23:47:14.294] LemonSlice participant track subscribed — kind=2
+[avatar][23:47:14.294] ╔══════════════════════════════════════════════════════════════╗
+[avatar][23:47:14.294] ║  ✅  AVATAR READY — LemonSlice participant joined the room    ║
+[avatar][23:47:14.294] ║      Conversation is now unblocked. Greeting will fire.       ║
+[avatar][23:47:14.294] ╚══════════════════════════════════════════════════════════════╝
+[agent]: Avatar ready. Resuming deferred SYSTEM_CHANNEL_START handler.
+[agent]: Sent SYSTEM_AGENT_READY signal.
+[agent]: Greeting fired.
+[agent]: Participant reconnected — Sent SYSTEM_AGENT_READY signal.
+[agent]: Channel started (video).
+[agent]: Participant reconnected — Sent SYSTEM_AGENT_READY signal.
+[agent]: Participant disconnected: guest_6501
+[agent]: 🛑 Human guest left (guest_6501) and room "room-5b1sjb8nn" is now empty. Initiating zero-buffer immediate teardown.
+[pipeline][23:47:17.156] ── TURN 1 METRICS SUMMARY ──
+[agent] DATABASE_URL status: ✅ PRESENT
+[agent]: Receiving job for room: undefined
+[agent]: Loading Cartesia STT via LiveKit Inference (ink-2)...
+[agent]: Loading Cartesia TTS via LiveKit Inference (cartesia/sonic-3.6)...
+[agent]: Creating LiveKit Inference agent (Gemma 4 31B LLM + Cartesia Ink-2 STT + Cartesia Sonic-3.6 TTS + TurnDetector)...
+[agent]: Expressive mode configured: ✅ ENABLED (Cartesia Sonic-3.6)
+[agent]: Connected to room: room-r46sq4x6n
+[avatar][23:47:37.228] LemonSlice credentials check: API Key PRESENT (len=41, ends with Gfbs), Agent ID: agent_81e2fba6344a11bc
+[avatar][23:47:37.231] ┌─────────────────────────────────────────────────────────────┐
+[avatar][23:47:37.231] │  🔄  ATTEMPT 1/3 — Calling LemonSlice avatarSession.start()   │
+[avatar][23:47:37.231] │      agentId = agent_81e2fba6344a11bc
+[avatar][23:47:37.231] │      BLOCKING until LemonSlice responds...                   │
+[avatar][23:47:37.231] └─────────────────────────────────────────────────────────────┘
+[avatar][23:47:37.242] LemonSlice API ping FAILED: fetch failed
+[avatar][23:47:38.206] ┌─────────────────────────────────────────────────────────────┐
+[avatar][23:47:38.206] │  ✅  LEMONSLICE API RESPONDED — SUCCESS (attempt 1/3)         │
+[avatar][23:47:38.207] │      avatarSession.start() resolved in 975ms                  │
+[avatar][23:47:38.207] │      Starting AgentSession and restoring DataStreamAudioOutput...  │
+[avatar][23:47:38.207] └─────────────────────────────────────────────────────────────┘
+[avatar][23:47:38.254] ▶  Avatar API call succeeded. Sending SYSTEM_AVATAR_CONNECTED to frontend. Waiting for participant...
+[avatar][23:47:38.255] Checking existing remote participants. Count=0
+[agent]: Ready — model=LiveKit Inference (google/gemma-4-31b-it + cartesia/ink-2 + cartesia/sonic-3.6 + LemonSlice Avatar), prompt=mvp-1, compact@6 turns / 6000 tokens
+[avatar][23:47:38.276] Sent SYSTEM_AVATAR_CONNECTED to frontend
+[agent]: Guest participant connected: guest_4301. Clearing any active Reaper.
+[avatar][23:47:38.677] Participant Connected: identity=guest_4301
+[avatar][23:47:38.716] TrackSubscribed event fired: identity=guest_4301, kind=1, subscribed=true
+[agent]: Channel started (video).
+[agent]: SYSTEM_CHANNEL_START received before avatar ready. Waiting for avatar initialization...
+[agent]: Channel started (video).
+[agent]: Reconnect/duplicate SYSTEM_CHANNEL_START received, but avatar still initializing. Waiting...
+[avatar][23:47:39.920] Participant Connected: identity=lemonslice-avatar-agent
+[avatar][23:47:40.092] 📹  LemonSlice track published — kind=1 source=2
+[avatar][23:47:40.128] 🎯  TrackSubscribed from avatar — triggering markAvatarFirstFrame() as safety net
+[avatar][23:47:40.128] TrackSubscribed event fired: identity=lemonslice-avatar-agent, kind=1, subscribed=true
+[avatar][23:47:40.128] LemonSlice participant track subscribed — kind=1
+[avatar][23:47:40.129] 📹  LemonSlice track published — kind=2 source=1
+[avatar][23:47:40.300] 🎯  TrackSubscribed from avatar — triggering markAvatarFirstFrame() as safety net
+[avatar][23:47:40.300] TrackSubscribed event fired: identity=lemonslice-avatar-agent, kind=2, subscribed=true
+[avatar][23:47:40.300] LemonSlice participant track subscribed — kind=2
+[avatar][23:47:40.300] ╔══════════════════════════════════════════════════════════════╗
+[avatar][23:47:40.300] ║  ✅  AVATAR READY — LemonSlice participant joined the room    ║
+[avatar][23:47:40.300] ║      Conversation is now unblocked. Greeting will fire.       ║
+[avatar][23:47:40.300] ╚══════════════════════════════════════════════════════════════╝
+[agent]: Avatar ready. Resuming deferred SYSTEM_CHANNEL_START handler.
+[agent]: Sent SYSTEM_AGENT_READY signal.
+[agent]: Greeting fired.
+[agent]: Participant reconnected — Sent SYSTEM_AGENT_READY signal.
+[agent]: Channel started (video).
+[agent]: Participant reconnected — Sent SYSTEM_AGENT_READY signal.
+[pipeline][23:47:43.340] ── TURN 1 METRICS SUMMARY ──
+[pipeline][23:48:12.405] STT final transcript: "I'm looking to purchase a new home and would like to see if I'm eligible for a mortgage."
+[pipeline][23:48:12.405] STT complete (?): "I'm looking to purchase a new home and would like to see if I'm eligible for a mortgage."
+[pipeline][23:48:13.168] LLM metrics — TTFT=454ms  prompt_tokens=4404  cached_tokens=0 [CACHE MISS/COLD]  completion_tokens=72
+[pipeline][23:48:15.338] ── TURN 2 METRICS SUMMARY ──
+[pipeline][23:48:28.193] STT final transcript: "I did my primary residence."
+[pipeline][23:48:28.193] STT complete (?): "I did my primary residence."
+[pipeline][23:48:28.691] LLM metrics — TTFT=281ms  prompt_tokens=4485  cached_tokens=2688 [CACHE HIT: 2688 tokens]  completion_tokens=61
+[pipeline][23:48:31.338] ── TURN 3 METRICS SUMMARY ──
+[pipeline][23:48:42.617] STT final transcript: "Uh, first time with your institution and I'm hoping there might be some advantages."
+[pipeline][23:48:42.617] STT complete (?): "Uh, first time with your institution and I'm hoping there might be some advantages."
+[pipeline][23:48:43.453] LLM metrics — TTFT=331ms  prompt_tokens=4574  cached_tokens=2560 [CACHE HIT: 2560 tokens]  completion_tokens=133
+[pipeline][23:48:45.340] ── TURN 4 METRICS SUMMARY ──
+[pipeline][23:49:08.200] STT final transcript: "I'd like to have the whole process wrapped up in 30 to 45 days."
+[pipeline][23:49:08.200] STT complete (?): "I'd like to have the whole process wrapped up in 30 to 45 days."
+[pipeline][23:49:09.229] LLM metrics — TTFT=370ms  prompt_tokens=4735  cached_tokens=2880 [CACHE HIT: 2880 tokens]  completion_tokens=65
+[pipeline][23:49:11.738] ── TURN 5 METRICS SUMMARY ──
+[pipeline][23:49:19.048] STT final transcript: "I'd be applying on my own."
+[pipeline][23:49:19.048] STT complete (?): "I'd be applying on my own."
+[pipeline][23:49:20.761] LLM metrics — TTFT=996ms  prompt_tokens=6172  cached_tokens=2048 [CACHE HIT: 2048 tokens]  completion_tokens=130
+[pipeline][23:49:23.338] ── TURN 6 METRICS SUMMARY ──
+[pipeline][23:49:45.999] STT final transcript: "84,000 per year."
+[pipeline][23:49:45.999] STT complete (?): "84,000 per year."
+[pipeline][23:49:47.180] LLM metrics — TTFT=585ms  prompt_tokens=6157  cached_tokens=2048 [CACHE HIT: 2048 tokens]  completion_tokens=67
+[pipeline][23:49:49.739] ── TURN 7 METRICS SUMMARY ──
+[pipeline][23:50:04.598] STT final transcript: "Currently 1,200 a month. but I pay a lot of those credit cards off. Does that count?"
+[pipeline][23:50:04.598] STT complete (?): "Currently 1,200 a month. but I pay a lot of those credit cards off. Does that count?"
+[pipeline][23:50:05.614] LLM metrics — TTFT=355ms  prompt_tokens=6257  cached_tokens=4288 [CACHE HIT: 4288 tokens]  completion_tokens=126
+[pipeline][23:50:08.138] ── TURN 8 METRICS SUMMARY ──
+[pipeline][23:50:26.198] STT final transcript: "Yes, correct."
+[pipeline][23:50:26.199] STT complete (?): "Yes, correct."
+[pipeline][23:50:26.974] LLM metrics — TTFT=337ms  prompt_tokens=6399  cached_tokens=4160 [CACHE HIT: 4160 tokens]  completion_tokens=62
+[pipeline][23:50:29.339] ── TURN 9 METRICS SUMMARY ──
+[pipeline][23:50:39.600] STT final transcript: "I really don't know what the score is. I haven't checked it lately."
+[pipeline][23:50:39.600] STT complete (?): "I really don't know what the score is. I haven't checked it lately."
+[pipeline][23:50:40.582] LLM metrics — TTFT=356ms  prompt_tokens=6489  cached_tokens=4416 [CACHE HIT: 4416 tokens]  completion_tokens=102
+[pipeline][23:50:42.539] ── TURN 10 METRICS SUMMARY ──
+[pipeline][23:50:56.795] STT final transcript: "Not say good."
+[pipeline][23:50:56.795] STT complete (?): "Not say good."
+[pipeline][23:50:57.672] LLM metrics — TTFT=324ms  prompt_tokens=6010  cached_tokens=3584 [CACHE HIT: 3584 tokens]  completion_tokens=80
+[pipeline][23:51:00.138] ── TURN 11 METRICS SUMMARY ──
+[pipeline][23:51:11.809] STT final transcript: "I would say it's in the good range."
+[pipeline][23:51:11.809] STT complete (?): "I would say it's in the good range."
+[pipeline][23:51:12.872] LLM metrics — TTFT=487ms  prompt_tokens=6110  cached_tokens=0 [CACHE MISS/COLD]  completion_tokens=61
+[pipeline][23:51:15.338] ── TURN 12 METRICS SUMMARY ──
+[pipeline][23:51:24.814] STT final transcript: "From my savings, I wouldn't want to spend more than 15,000."
+[pipeline][23:51:24.814] STT complete (?): "From my savings, I wouldn't want to spend more than 15,000."
+[pipeline][23:51:25.925] LLM metrics — TTFT=326ms  prompt_tokens=6201  cached_tokens=3584 [CACHE HIT: 3584 tokens]  completion_tokens=95
+[pipeline][23:51:28.539] ── TURN 13 METRICS SUMMARY ──
+[pipeline][23:51:42.789] STT final transcript: "I'm currently renting and I'm hoping that I'm eligible for a mortgage because I'd like to have my own place."
+[pipeline][23:51:42.789] STT complete (?): "I'm currently renting and I'm hoping that I'm eligible for a mortgage because I'd like to have my own place."
+[pipeline][23:51:43.942] LLM metrics — TTFT=365ms  prompt_tokens=6333  cached_tokens=4160 [CACHE HIT: 4160 tokens]  completion_tokens=120
+[pipeline][23:51:46.139] ── TURN 14 METRICS SUMMARY ──
+[pipeline][23:52:05.977] STT final transcript: "I've been connected with a real estate agent yet. I just want to make sure that I'm eligible for a mortgage before I take the time."
+[pipeline][23:52:05.977] STT complete (?): "I've been connected with a real estate agent yet. I just want to make sure that I'm eligible for a mortgage before I take the time."
+[pipeline][23:52:07.098] LLM metrics — TTFT=323ms  prompt_tokens=6494  cached_tokens=4480 [CACHE HIT: 4480 tokens]  completion_tokens=107
+[pipeline][23:52:09.344] ── TURN 15 METRICS SUMMARY ──
+[pipeline][23:52:23.376] STT final transcript: "Correct. I have not connected with a real estate agent."
+[pipeline][23:52:23.376] STT complete (?): "Correct. I have not connected with a real estate agent."
+[pipeline][23:52:24.283] LLM metrics — TTFT=416ms  prompt_tokens=6619  cached_tokens=4352 [CACHE HIT: 4352 tokens]  completion_tokens=69
+[pipeline][23:52:26.538] ── TURN 16 METRICS SUMMARY ──
+[pipeline][23:52:37.799] STT final transcript: "Couple houses I've looked at are in the 300,000. range."
+[pipeline][23:52:37.799] STT complete (?): "Couple houses I've looked at are in the 300,000. range."
+[pipeline][23:52:39.473] LLM metrics — TTFT=297ms  prompt_tokens=6718  cached_tokens=4736 [CACHE HIT: 4736 tokens]  completion_tokens=87
+[pipeline][23:52:40.940] ── TURN 17 METRICS SUMMARY ──
+[pipeline][23:52:58.384] STT final transcript: "I prefer a single family home and I'm looking in the Chattanooga, Tennessee area."
+[pipeline][23:52:58.384] STT complete (?): "I prefer a single family home and I'm looking in the Chattanooga, Tennessee area."
+[pipeline][23:53:01.338] ── TURN 18 METRICS SUMMARY ──
+[pipeline][23:53:10.979] STT final transcript: "I don't have any military history."
+[pipeline][23:53:10.979] STT complete (?): "I don't have any military history."
+[pipeline][23:53:12.018] LLM metrics — TTFT=280ms  prompt_tokens=6886  cached_tokens=4864 [CACHE HIT: 4864 tokens]  completion_tokens=81
+[pipeline][23:53:14.139] ── TURN 19 METRICS SUMMARY ──
+[pipeline][23:53:29.401] STT final transcript: "I'm salaried and I've been at my employer for 2 years."
+[pipeline][23:53:29.401] STT complete (?): "I'm salaried and I've been at my employer for 2 years."
+[pipeline][23:53:32.538] ── TURN 20 METRICS SUMMARY ──
+[pipeline][23:54:02.263] STT final transcript: "I would like to go with the soft ball."
+[pipeline][23:54:02.263] STT complete (?): "I would like to go with the soft ball."
+[pipeline][23:54:05.338] ── TURN 21 METRICS SUMMARY ──
+[pipeline][23:54:12.981] STT final transcript: "David Patton."
+[pipeline][23:54:12.981] STT complete (?): "David Patton."
+[pipeline][23:54:15.738] ── TURN 22 METRICS SUMMARY ──
+[pipeline][23:54:23.181] STT final transcript: "David L. Patton.@gmail.com."
+[pipeline][23:54:23.181] STT complete (?): "David L. Patton.@gmail.com."
+[pipeline][23:54:26.138] ── TURN 23 METRICS SUMMARY ──
+[pipeline][23:54:33.006] STT final transcript: "My phone number is My phone number is 727-439-0393."
+[pipeline][23:54:33.006] STT complete (?): "My phone number is My phone number is 727-439-0393."
+[pipeline][23:54:34.178] LLM metrics — TTFT=358ms  prompt_tokens=6240  cached_tokens=2048 [CACHE HIT: 2048 tokens]  completion_tokens=118
+[pipeline][23:54:35.326] ⚠️  Avatar first-frame timeout — ActiveSpeakersChanged never fired. Firing [TIMEOUT_FALLBACK] estimate. This is a LiveKit SDK event-drop, NOT real avatar lag.
+[pipeline][23:54:36.327] ── TURN 24 METRICS SUMMARY [TIMEOUT_FALLBACK] ──
+[pipeline][23:55:07.865] STT final transcript: "Well, both my name and email address are spelled incorrectly. so I will correct them."
+[pipeline][23:55:07.865] STT complete (?): "Well, both my name and email address are spelled incorrectly. so I will correct them."
+[pipeline][23:55:11.739] ── TURN 25 METRICS SUMMARY ──
+[pipeline][23:55:17.421] STT final transcript: "Both."
+[pipeline][23:55:17.421] STT complete (?): "Both."
+[pipeline][23:55:18.384] LLM metrics — TTFT=320ms  prompt_tokens=6417  cached_tokens=3968 [CACHE HIT: 3968 tokens]  completion_tokens=56
+[pipeline][23:55:20.939] ── TURN 26 METRICS SUMMARY ──
+[agent]: contact_ui_field_correction received from UI: field=email, value=davidlpatten@gmail.com
+[agent]: contact_ui_field_correction received from UI: field=fullName, value=David Patten
+[pipeline][23:55:42.255] STT final transcript: "Okay. I've corrected them."
+[pipeline][23:55:42.255] STT complete (?): "Okay. I've corrected them."
+[pipeline][23:55:46.538] ── TURN 27 METRICS SUMMARY ──
+[agent]: Triggering clean agent turn to deliver soft pull disclosure [triggered by DataReceived:otp_submit].
+[pipeline][23:55:56.938] ── TURN 28 METRICS SUMMARY ──
+[pipeline][23:56:16.398] STT final transcript: "Yes, I do."
+[pipeline][23:56:16.398] STT complete (?): "Yes, I do."
+[pipeline][23:56:19.738] ── TURN 29 METRICS SUMMARY ──
+[pipeline][23:56:37.997] STT final transcript: "That is correct."
+[pipeline][23:56:37.997] STT complete (?): "That is correct."
+[pipeline][23:56:41.738] ── TURN 30 METRICS SUMMARY ──
+[pipeline][23:56:48.382] STT final transcript: "That's also correct."
+[pipeline][23:56:48.382] STT complete (?): "That's also correct."
+[pipeline][23:56:51.739] ── TURN 31 METRICS SUMMARY ──
+[pipeline][23:57:01.386] STT final transcript: "Yes, that matches."
+[pipeline][23:57:01.386] STT complete (?): "Yes, that matches."
+[pipeline][23:57:04.539] ── TURN 32 METRICS SUMMARY ──
+[pipeline][23:57:17.007] STT final transcript: "Uh, it's what I expected because I mentioned to you that I thought it was good."
+[pipeline][23:57:17.007] STT complete (?): "Uh, it's what I expected because I mentioned to you that I thought it was good."
+[pipeline][23:57:19.009] STT final transcript: "So, I guess that aligned."
+[pipeline][23:57:19.009] STT complete (?): "So, I guess that aligned."
+[pipeline][23:57:22.138] ── TURN 34 METRICS SUMMARY ──
+[agent]: Creating LiveKit Inference agent (Gemma 4 31B LLM + Cartesia Ink-2 STT + Cartesia Sonic-3.6 TTS + TurnDetector)...
+[pipeline][23:58:02.398] STT final transcript: "Yes, I would. What what do we do next?"
+[pipeline][23:58:02.398] STT complete (9986ms): "Yes, I would. What what do we do next?"
+[pipeline][23:58:03.849] LLM metrics — TTFT=1005ms  prompt_tokens=9143  cached_tokens=2048 [CACHE HIT: 2048 tokens]  completion_tokens=197
+[pipeline][23:58:06.138] ── TURN 35 METRICS SUMMARY ──
+[pipeline][23:58:37.596] STT final transcript: "Did you what was your question?"
+[pipeline][23:58:37.596] STT complete (?): "Did you what was your question?"
+[pipeline][23:58:38.410] LLM metrics — TTFT=320ms  prompt_tokens=9356  cached_tokens=7040 [CACHE HIT: 7040 tokens]  completion_tokens=137
+[pipeline][23:58:40.538] ── TURN 36 METRICS SUMMARY ──
+[pipeline][23:59:02.005] STT final transcript: "Yeah, I see it. Uh, I'm not sure what I'm looking at. I mean, how do I know what to change or review?"
+[pipeline][23:59:02.005] STT complete (?): "Yeah, I see it. Uh, I'm not sure what I'm looking at. I mean, how do I know what to change or review?"
+[pipeline][23:59:03.574] LLM metrics — TTFT=541ms  prompt_tokens=9535  cached_tokens=7232 [CACHE HIT: 7232 tokens]  completion_tokens=240
+[pipeline][23:59:05.740] ── TURN 37 METRICS SUMMARY ──
+[pipeline][23:59:47.796] STT final transcript: "Uh, it certainly helps. And so it says that um, my debt ratio is 42.5 and it's kind of in an orange color. Does that mean I'm out of range?"
+[pipeline][23:59:47.796] STT complete (?): "Uh, it certainly helps. And so it says that um, my debt ratio is 42.5 and it's kind of in an orange color. Does that mean I'm out of range?"
+[pipeline][23:59:48.958] LLM metrics — TTFT=373ms  prompt_tokens=9827  cached_tokens=7424 [CACHE HIT: 7424 tokens]  completion_tokens=136
+[pipeline][23:59:51.338] ── TURN 38 METRICS SUMMARY ──
+[pipeline][00:00:16.396] STT final transcript: "Well, would I be eligible for a mortgage with these ratios?"
+[pipeline][00:00:16.396] STT complete (?): "Well, would I be eligible for a mortgage with these ratios?"
+[pipeline][00:00:17.856] LLM metrics — TTFT=401ms  prompt_tokens=9985  cached_tokens=7744 [CACHE HIT: 7744 tokens]  completion_tokens=206
+[pipeline][00:00:19.739] ── TURN 39 METRICS SUMMARY ──
+[pipeline][00:01:00.200] STT final transcript: "I think it looks as good as I would like it to be. I mean, it's the price range I'm looking for. It's using the money that I have available and uh, it has my income. So go ahead and submit it."
+[pipeline][00:01:00.200] STT complete (?): "I think it looks as good as I would like it to be. I mean, it's the price range I'm looking for. It's using the money that I have available and uh, it has my income. So go ahead and submit it."
+[pipeline][00:01:03.738] ── TURN 40 METRICS SUMMARY ──
+[pipeline][00:01:35.213] STT final transcript: "Sure, go ahead and connect me."
+[pipeline][00:01:35.213] STT complete (?): "Sure, go ahead and connect me."
+[pipeline][00:01:38.538] ── TURN 41 METRICS SUMMARY ──
+[pipeline][00:02:09.796] STT final transcript: "Uh, connect me now."
+[pipeline][00:02:09.796] STT complete (?): "Uh, connect me now."
+[agent]: 📞 Sent SYSTEM_TRIGGER_MLO_TRANSFER (popup only) — waiting for user confirmation.
+[agent]: 🛌 Agent hibernating for MLO transfer. Shutting down audio pipeline...
+[agent]: 📞 Sent SYSTEM_TRIGGER_MLO_TRANSFER to frontend over DataChannel.
+[agent]: Failed to interrupt session: Error: This generation handle does not allow interruptions
+    at SpeechHandle.interrupt (file:///app/backend/node_modules/@livekit/agents/dist/voice/speech_handle.js:142:13)
+    at AgentActivity.interrupt (file:///app/backend/node_modules/@livekit/agents/dist/voice/agent_activity.js:1716:52)
+    at AgentSession.interrupt (file:///app/backend/node_modules/@livekit/agents/dist/voice/agent_session.js:607:26)
+    at performMloTransfer (file:///app/backend/dist/agent.js:1155:29)
+    at async handleSystemMessages (file:///app/backend/dist/agent.js:2284:17)
+    at async Room.<anonymous> (file:///app/backend/dist/agent.js:2680:25)
+[agent]: 🔇 All tracks unsubscribed. User and loan officer now on direct line.
+[agent]: 📞 SIP Transfer initiated successfully: {
+[avatar][00:02:10.415] Participant Connected: identity=sip-fspbx-room-r46sq4x6n
+[pipeline][00:02:12.350] ⚠️  Avatar first-frame timeout — ActiveSpeakersChanged never fired. Firing [TIMEOUT_FALLBACK] estimate. This is a LiveKit SDK event-drop, NOT real avatar lag.
+[pipeline][00:02:13.350] ── TURN 42 METRICS SUMMARY [TIMEOUT_FALLBACK] ──
+[agent]: Participant disconnected: sip-fspbx-room-r46sq4x6n
+[agent]: Participant disconnected: guest_4301
+[agent]: 🛑 Human guest left (guest_4301) and room "room-r46sq4x6n" is now empty. Initiating zero-buffer immediate teardown.
+[agent] DATABASE_URL status: ✅ PRESENT
+[agent]: Receiving job for room: undefined
+[agent]: Loading Cartesia STT via LiveKit Inference (ink-2)...
+[agent]: Loading Cartesia TTS via LiveKit Inference (cartesia/sonic-3.6)...
+[agent]: Creating LiveKit Inference agent (Gemma 4 31B LLM + Cartesia Ink-2 STT + Cartesia Sonic-3.6 TTS + TurnDetector)...
+[agent]: Expressive mode configured: ✅ ENABLED (Cartesia Sonic-3.6)
+[agent]: Connected to room: room-1f9tbduh5
+[avatar][00:03:09.508] LemonSlice credentials check: API Key PRESENT (len=41, ends with Gfbs), Agent ID: agent_81e2fba6344a11bc
+[avatar][00:03:09.510] ┌─────────────────────────────────────────────────────────────┐
+[avatar][00:03:09.510] │  🔄  ATTEMPT 1/3 — Calling LemonSlice avatarSession.start()   │
+[avatar][00:03:09.510] │      agentId = agent_81e2fba6344a11bc
+[avatar][00:03:09.510] │      BLOCKING until LemonSlice responds...                   │
+[avatar][00:03:09.510] └─────────────────────────────────────────────────────────────┘
+[avatar][00:03:09.568] LemonSlice API ping FAILED: fetch failed
+[agent]: Guest participant connected: guest_4301. Clearing any active Reaper.
+[avatar][00:03:09.669] Participant Connected: identity=guest_4301
+[agent]: Participant metadata marked as isRestore=true. Suppressing Q1 greeting.
+[avatar][00:03:09.703] TrackSubscribed event fired: identity=guest_4301, kind=1, subscribed=true
+[agent]: SYSTEM_RESTORE_STATE received. Rehydrating SessionContextManager from localStorage snapshot.
+[agent]: Rehydrating LLM context window with 50 historical messages.
+[agent]: Waiting for avatar initialization before firing resume greeting...
+[avatar][00:03:10.448] ┌─────────────────────────────────────────────────────────────┐
+[avatar][00:03:10.448] │  ✅  LEMONSLICE API RESPONDED — SUCCESS (attempt 1/3)         │
+[avatar][00:03:10.448] │      avatarSession.start() resolved in 937ms                  │
+[avatar][00:03:10.448] │      Starting AgentSession and restoring DataStreamAudioOutput...  │
+[avatar][00:03:10.448] └─────────────────────────────────────────────────────────────┘
+[avatar][00:03:10.652] ▶  Avatar API call succeeded. Sending SYSTEM_AVATAR_CONNECTED to frontend. Waiting for participant...
+[avatar][00:03:10.652] Checking existing remote participants. Count=1
+[avatar][00:03:10.652] Found remote participant: identity=guest_4301
+[agent]: Ready — model=LiveKit Inference (google/gemma-4-31b-it + cartesia/ink-2 + cartesia/sonic-3.6 + LemonSlice Avatar), prompt=mvp-1, compact@6 turns / 6000 tokens
+[avatar][00:03:10.680] Sent SYSTEM_AVATAR_CONNECTED to frontend
+[agent]: SYSTEM_RESTORE_STATE already applied. Ignoring duplicate.
+[avatar][00:03:11.852] Participant Connected: identity=lemonslice-avatar-agent
+[avatar][00:03:12.018] 📹  LemonSlice track published — kind=1 source=2
+[avatar][00:03:12.049] 🎯  TrackSubscribed from avatar — triggering markAvatarFirstFrame() as safety net
+[avatar][00:03:12.049] TrackSubscribed event fired: identity=lemonslice-avatar-agent, kind=1, subscribed=true
+[avatar][00:03:12.050] LemonSlice participant track subscribed — kind=1
+[avatar][00:03:12.052] 📹  LemonSlice track published — kind=2 source=1
+[avatar][00:03:12.227] 🎯  TrackSubscribed from avatar — triggering markAvatarFirstFrame() as safety net
+[avatar][00:03:12.227] TrackSubscribed event fired: identity=lemonslice-avatar-agent, kind=2, subscribed=true
+[avatar][00:03:12.227] LemonSlice participant track subscribed — kind=2
+[avatar][00:03:12.227] ╔══════════════════════════════════════════════════════════════╗
+[avatar][00:03:12.227] ║  ✅  AVATAR READY — LemonSlice participant joined the room    ║
+[avatar][00:03:12.227] ║      Conversation is now unblocked. Greeting will fire.       ║
+[avatar][00:03:12.227] ╚══════════════════════════════════════════════════════════════╝
+[agent]: Resume greeting fired for stage=5, pendingField=escalation_preference
+[pipeline][00:03:13.544] LLM metrics — TTFT=976ms  prompt_tokens=4178  cached_tokens=0 [CACHE MISS/COLD]  completion_tokens=101
+[pipeline][00:03:16.014] ── TURN 1 METRICS SUMMARY ──
+[pipeline][00:03:36.545] STT final transcript: "Well, I left uh a message with the loan officer already, but it occurred to me that I'd like to know what documentation is needed for this loan."
+[pipeline][00:03:36.546] STT complete (?): "Well, I left uh a message with the loan officer already, but it occurred to me that I'd like to know what documentation is needed for this loan."
+[pipeline][00:03:38.954] LLM metrics — TTFT=1131ms  prompt_tokens=5506  cached_tokens=2048 [CACHE HIT: 2048 tokens]  completion_tokens=213
+[pipeline][00:03:40.814] ── TURN 2 METRICS SUMMARY ──
+[pipeline][00:04:18.535] STT final transcript: "No, let's go ahead and schedule the exact time, um, as an example, tomorrow at 8 o'clock."
+[pipeline][00:04:18.535] STT complete (?): "No, let's go ahead and schedule the exact time, um, as an example, tomorrow at 8 o'clock."
+[pipeline][00:04:19.582] LLM metrics — TTFT=331ms  prompt_tokens=5755  cached_tokens=3136 [CACHE HIT: 3136 tokens]  completion_tokens=139
+[pipeline][00:04:20.624] ⚠️  Avatar first-frame timeout — ActiveSpeakersChanged never fired. Firing [TIMEOUT_FALLBACK] estimate. This is a LiveKit SDK event-drop, NOT real avatar lag.
+[pipeline][00:04:21.624] ── TURN 3 METRICS SUMMARY [TIMEOUT_FALLBACK] ──
+[pipeline][00:04:37.159] STT final transcript: "Are you sure you have my email?"
+[pipeline][00:04:37.159] STT complete (?): "Are you sure you have my email?"
+[pipeline][00:04:38.320] LLM metrics — TTFT=268ms  prompt_tokens=5833  cached_tokens=3392 [CACHE HIT: 3392 tokens]  completion_tokens=100
+[pipeline][00:04:40.814] ── TURN 4 METRICS SUMMARY ──
+[pipeline][00:04:56.394] STT final transcript: "Yeah, absolutely."
+[pipeline][00:04:56.394] STT complete (?): "Yeah, absolutely."
+[pipeline][00:04:57.371] LLM metrics — TTFT=374ms  prompt_tokens=5946  cached_tokens=0 [CACHE MISS/COLD]  completion_tokens=99
+[pipeline][00:04:59.613] ── TURN 5 METRICS SUMMARY ──
+[pipeline][00:05:10.826] STT final transcript: "Well, you said call, so do you have my phone number?"
+[pipeline][00:05:10.826] STT complete (?): "Well, you said call, so do you have my phone number?"
+[pipeline][00:05:11.951] LLM metrics — TTFT=359ms  prompt_tokens=6068  cached_tokens=3584 [CACHE HIT: 3584 tokens]  completion_tokens=105
+[pipeline][00:05:14.013] ── TURN 6 METRICS SUMMARY ──
+[pipeline][00:05:25.545] STT final transcript: "It is correct."
+[pipeline][00:05:25.545] STT complete (?): "It is correct."
+[pipeline][00:05:26.532] LLM metrics — TTFT=371ms  prompt_tokens=6186  cached_tokens=3776 [CACHE HIT: 3776 tokens]  completion_tokens=109
+[pipeline][00:05:28.813] ── TURN 7 METRICS SUMMARY ──
+[pipeline][00:05:39.967] STT final transcript: "I'm all set for today."
+[pipeline][00:05:39.968] STT complete (?): "I'm all set for today."
+[pipeline][00:05:40.556] STT final transcript: "Thank you."
+[pipeline][00:05:40.556] STT complete (?): "Thank you."
+[pipeline][00:05:41.786] LLM metrics — TTFT=336ms  prompt_tokens=6315  cached_tokens=3904 [CACHE HIT: 3904 tokens]  completion_tokens=142
+[pipeline][00:05:44.014] ── TURN 9 METRICS SUMMARY ──
+[agent]: Participant disconnected: guest_4301
+[agent]: 🛑 Human guest left (guest_4301) and room "room-1f9tbduh5" is now empty. Initiating zero-buffer immediate teardown.

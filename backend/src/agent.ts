@@ -229,14 +229,14 @@ class AilanaVoiceAgent extends voice.Agent {
     }
 
     // ── 0ms Verbal Submit Fast-Path (Stage 2.5) ──
-    // Fires before LLM so the base Cerebras model never produces a UI-redirect deflection.
+    // Fires before LLM so the base LiveKit Inference model never produces a UI-redirect deflection.
     // We check this BEFORE the question/correction block so that phrases like "Can you submit this?"
     // trigger the submission rather than being delegated to the LLM for explanation.
     const ausAlreadyDone = !!(this.contextManager.getProfile() as any).aus_status;
     const inAffordabilityStage = this.contextManager.getActiveStage() === '2.5' || this.contextManager.getPendingField() === 'affordability_panel_active' || !!this.contextManager.getProfile().affordability_panel_rendered;
     const isConditionalOrQuestion = /\b(what if|after (?:i|we) submit|if (?:i|we) submit|before (?:i|we) submit|will that affect|what will be the process|how does it work|can you explain|why does|tell me about)\b/i.test(lastUserText);
     const isUpgradeIntent = /\b(upgrade|verified\s*(?:mode|numbers|score|credit)|soft\s*(?:credit\s*)?(?:pull|review)|check\s*my\s*credit|run\s*(?:my\s*)?credit)\b/i.test(lastUserText);
-    const verbalSubmitPattern = /\b(submit\s*(for\s*me|it|review|my\s*review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(?:and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|do\s+it\s+for\s+me|send\s+it|yes\s+submit|let'?s\s+submit|go\s+ahead|let'?s\s+go|proceed|ready\s+to\s+submit|i'?m\s+ready|yes\s+please|sounds\s+good)\b/i;
+    const verbalSubmitPattern = /\b(?:submit\s*(?:for\s*me|it|review|my\s*review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(?:and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|do\s+it\s+for\s+me|send\s+it|yes\s+submit|let'?s\s+submit|go\s+ahead|let'?s\s+go|proceed|ready\s+to\s+submit|i'?m\s+ready|yes\s+please|sounds\s+good|looks\s+good(?:.*?)\bsubmit\b)\b/i;
 
     if (inAffordabilityStage && isUpgradeIntent && (!this.contextManager.getProfile().otp_verified || this.contextManager.getProfile().affordability_mode === 'stated')) {
       console.log(`[agent-hook]: Voice upgrade request detected in Stage 2.5 ("${lastUserText}") — initiating Stage 3A contact_full_name!`);
@@ -366,7 +366,7 @@ class AilanaVoiceAgent extends voice.Agent {
 
     if (userAskedQuestion) {
       (profile as any).last_extracted_offer_val = null; // reset flag
-      console.log(`[agent-hook]: User turn contains question/explanation request ("${lastUserText}") — delegating to Cerebras LLM to answer dynamically.`);
+      console.log(`[agent-hook]: User turn contains question/explanation request ("${lastUserText}") — delegating to LiveKit Inference LLM to answer dynamically.`);
       return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
     }
 
@@ -759,7 +759,7 @@ class AilanaVoiceAgent extends voice.Agent {
       }
 
       // Otherwise user asked a question or needs explanation — delegate to LLM to answer naturally and re-ask
-      console.log('[agent-hook]: User asked a question about soft pull — delegating to Cerebras LLM.');
+      console.log('[agent-hook]: User asked a question about soft pull — delegating to LiveKit Inference LLM.');
       return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
     }
 
@@ -959,19 +959,20 @@ class AilanaVoiceAgent extends voice.Agent {
 
     // (0ms Verbal Submit Fast-Path moved to top of method)
 
-    if ((profile as any).submit_review_requested) {
+    const currentPending = this.contextManager.getPendingField();
+    if ((profile as any).submit_review_requested || currentPending === 'fd1_delivery' || currentPending === 'fd2_delivery') {
       (profile as any).submit_review_requested = false;
       console.log(`[agent-hook]: LLM-classified submission request detected — executing submission and delivering findings!`);
-      profile.affordability_panel_rendered = false;
-      (profile as any).affordability_panel_closed = true;
+      profile.affordability_submitted = true;
+      profile.affordability_panel_rendered = true;
+      (profile as any).affordability_panel_closed = false;
       if (!profile.aus_status) {
-        profile.aus_status = 'refer';
+        profile.aus_status = (profile.affordability_mode === 'verified' || profile.otp_verified) ? 'approve_eligible' : 'refer';
       }
       (profile as any).affordability_aus_status = profile.aus_status;
-      this.contextManager.setActiveStage('5');
-      this.contextManager.setCurrentPendingField('escalation_preference');
+      (profile as any).pendingStage5Transition = true;
       if (this.sendStageUpdate) {
-        this.sendStageUpdate('5').catch(err => console.warn(err));
+        this.sendStageUpdate('2.5').catch(err => console.warn(err));
       }
 
       const borrowerName = profile.borrower_name || profile.contact_name || profile.legal_name || 'there';
@@ -1056,9 +1057,17 @@ class AilanaVoiceAgent extends voice.Agent {
         /\?$/.test(text) ||
         /\b(what|why|how|can i|could i|does|is it|explain|tell me|wait|hold on|what if|who|meaning|clarify|question|ask)\b/i.test(text);
 
+      const inAffordability = this.contextManager.getActiveStage() === '2.5' || activeField === 'affordability_panel_active' || !!this.contextManager.getProfile().affordability_panel_rendered;
+      const isFastPathSubmitOrUpgrade = inAffordability && !isQuestionOrHesitation && (
+        /\b(?:submit\s*(?:for\s*me|it|review|my\s*review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(?:and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|do\s+it\s+for\s+me|send\s+it|yes\s+submit|let'?s\s+submit|go\s+ahead|let'?s\s+go|proceed|ready\s+to\s+submit|i'?m\s+ready|yes\s+please|sounds\s+good|looks\s+good(?:.*?)\bsubmit\b)\b/i.test(text) ||
+        /\b(upgrade|verified\s*(?:mode|numbers|score|credit)|soft\s*(?:credit\s*)?(?:pull|review)|check\s*my\s*credit|run\s*(?:my\s*)?credit)\b/i.test(text)
+      );
+
       if (isQuestionOrHesitation) {
         console.log(`[agent-hook]: Question/hesitation detected on field "${activeField}". Staying on current field to answer user question.`);
         // User asked a question — do NOT advance stage or inject fallback. Let LLM answer and re-prompt the pending field.
+      } else if (isFastPathSubmitOrUpgrade) {
+        console.log(`[agent-hook]: Fast-path submit/upgrade detected on field "${activeField}" — bypassing stage boundary wait for true 0ms response!`);
       } else if (isBoundary) {
         // Deterministic fields (like OTP modal / CRS pull) get their required await
         const waitMs = isDeterministic ? 2500 : 4000;
@@ -1615,6 +1624,8 @@ PAUSE CONSTRAINTS:
           const activeProf = contextManager.getProfile();
           if ((activeProf as any)?.pendingStage5Transition) {
             delete (activeProf as any).pendingStage5Transition;
+            activeProf.affordability_panel_rendered = false;
+            (activeProf as any).affordability_panel_closed = true;
             if (!activeProf.aus_status) {
               activeProf.aus_status = 'approve_eligible';
               (activeProf as any).affordability_aus_status = 'approve_eligible';
@@ -2099,8 +2110,8 @@ PAUSE CONSTRAINTS:
           reply = "I'd be happy to get that upgraded for you! Before we run your review, I'll need a few details to set up your secure account. First — what's your full name?";
         }
 
-        const verbalSubmitPattern = /\b(submit\s*(for\s*me|it|review|my\s*review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(?:and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|ready\s+to\s+submit)\b/i;
-        if ((pending === 'affordability_panel_active' || contextManager.getActiveStage() === '2.5') && verbalSubmitPattern.test(lower)) {
+        const verbalSubmitPattern = /\b(?:submit\s*(?:for\s*me|it|review|my\s*review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(?:and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|do\s+it\s+for\s+me|send\s+it|yes\s+submit|let'?s\s+submit|go\s+ahead|let'?s\s+go|proceed|ready\s+to\s+submit|i'?m\s+ready|yes\s+please|sounds\s+good|looks\s+good(?:.*?)\bsubmit\b)\b/i;
+        if ((pending === 'affordability_panel_active' || contextManager.getActiveStage() === '2.5') && !isHypotheticalOrQuestion && verbalSubmitPattern.test(lower)) {
           const isStatedMode = prof.affordability_mode === 'stated' || !prof.otp_verified;
           if (isStatedMode) {
             contextManager.triggerUpgradeToVerifiedMode();

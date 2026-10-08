@@ -918,7 +918,7 @@ export class SessionContextManager {
 
     // 4. Run extraction for the current stage — exactly ONE call per turn.
     // extractMultipleFields already captures all fields in a single request;
-    // looping only causes multiple sequential Cerebras calls when several fields
+    // looping only causes multiple sequential extraction calls when several fields
     // are answered at once.
     const _tExtract = performance.now();
     console.log(`[audit-debug] 🚀 Starting extraction | stage: ${this.activeStage}, field: ${this.currentPendingField}`);
@@ -1008,9 +1008,12 @@ export class SessionContextManager {
           this.profile.affordability_aus_status = null;
           console.log('[context-manager]: Voice submit in stated mode -> triggering upgrade (Stage 3A contact_full_name).');
         } else {
-          // Voice submit in verified mode -> require verbal confirmation first
-          this.currentPendingField = 'affordability_submit_confirmation';
-          console.log('[context-manager]: Voice submit requested in verified mode -> prompting for confirmation.');
+          // Voice submit in verified mode -> instantly apply result and bypass redundant confirmation
+          this.ausSubmissionTimestamp = Date.now();
+          await this.applyAusResult('approve_eligible');
+          (this.profile as any).submit_review_requested = true;
+          console.log('[context-manager]: Voice submit requested in verified mode -> instantly applied AUS result and advancing workflow.');
+          this.advanceWorkflow();
         }
       } else if (res.value === 'upgrade') {
         // Trigger upgrade to verified mode — set pending to OTP gate
@@ -1032,22 +1035,7 @@ export class SessionContextManager {
     }
 
 
-    if (field === 'affordability_submit_confirmation') {
-      const decision = await classifyConfirmation(text, lastQuestion, 'affordability_submit_confirmation', 'Are you ready to submit your scenario for formal review?');
-      if (decision === 'yes') {
-        this.profile.affordability_submitted = true;
-        this.ausSubmissionTimestamp = Date.now();
-        await this.applyAusResult('approve_eligible');
-        console.log('[context-manager]: Affordability panel EXPLICITLY submitted and confirmed via voice! AUS result applied.');
-        this.advanceWorkflow();
-      } else if (decision === 'no') {
-        this.currentPendingField = 'affordability_panel_active';
-        console.log('[context-manager]: Submit confirmation declined. Returning to affordability panel.');
-        this.advanceWorkflow();
-      }
-      return;
-    }
-
+    // affordability_submit_confirmation logic has been removed to allow instant submission.
     if (field === 'affordability_profile_correction' || field === 'affordability_income_correction') {
       const res = await extractProfileField(
         text,
@@ -1112,8 +1100,10 @@ export class SessionContextManager {
     this.profile.affordability_aus_status = result;
     this.profile.aus_status = result === 'approve_eligible' ? 'approve' : result;
     this.profile.affordability_submitted = true;
-    this.profile.affordability_panel_rendered = false;
-    (this.profile as any).affordability_panel_closed = true;
+    if (!(this.profile as any).pendingStage5Transition) {
+      this.profile.affordability_panel_rendered = false;
+      (this.profile as any).affordability_panel_closed = true;
+    }
     this.activeStage = '2.5';
     this.currentPendingField = result === 'approve_eligible' ? 'fd1_delivery' : 'fd2_delivery';
     console.log(`[context-manager]: Applied AUS result: ${result} -> pending field set to ${this.currentPendingField}`);
@@ -2583,7 +2573,9 @@ export class SessionContextManager {
       (this.profile as any).submit_review_requested = true;
       this.profile.affordability_panel_rendered = false;
       (this.profile as any).affordability_panel_closed = true;
-      this.profile.aus_status = 'refer';
+      const status = (this.profile.affordability_mode === 'verified' || this.profile.otp_verified) ? 'approve_eligible' : (this.profile.aus_status || 'refer');
+      this.profile.aus_status = status;
+      (this.profile as any).affordability_aus_status = status;
       this.activeStage = '5';
       this.currentPendingField = 'escalation_preference';
       return;
