@@ -6,144 +6,69 @@ import {
   ParticipantTile,
   useParticipants,
   useChat,
+  useRoomContext,
+  RoomAudioRenderer,
 } from "@livekit/components-react";
 import { Track } from "livekit-client";
 import { Users, Send, Loader2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import LemonsliceAvatar from "./lemonslice-avatar";
-
-import { useMotionValue, useSpring, useTransform } from "framer-motion";
-
-/**
- * Dynamic connection status messages
- */
-function ConnectionProgress() {
-  const [status, setStatus] = useState("Securing Bank-Grade Tunnel...");
-  
-  useEffect(() => {
-    const timers = [
-      setTimeout(() => setStatus("Establishing WebRTC Bridge..."), 3000),
-      setTimeout(() => setStatus("Synchronizing Audio & Video Streams..."), 6000),
-      setTimeout(() => setStatus("Finalizing Secure Connection..."), 9000),
-    ];
-    return () => timers.forEach(t => clearTimeout(t));
-  }, []);
-
-  return <p className="text-[9px] text-zinc-500 font-medium animate-pulse">{status}</p>;
-}
-
-function FrequencyBar({ smoothLevel, index }: { smoothLevel: any, index: number }) {
-  // Stable pseudo-random variation based on index
-  const randomFactor = (index * 0.17) % 0.5;
-  const scaleY = useTransform(smoothLevel, [0, 1], [1, 1.5 + randomFactor]);
-  const opacity = useTransform(smoothLevel, [0, 1], [0.3, 1]);
-  
-  return (
-    <motion.div
-      style={{ height: 8, scaleY, opacity }}
-      className="w-1.5 rounded-full bg-gradient-to-t from-[#00b4d8] to-white origin-bottom"
-    />
-  );
-}
+import { AgentAudioVisualizerAura } from "./agent-audio-visualizer-aura";
 
 /**
- * High-End Reactive Audio Visualizer
+ * Voice Visualizer - Uses Aura visualizer for voice mode
+ * - Responds to Ailana's voice in real-time
+ * - Shows animated shader-based visualization
  */
-function VoiceVisualizer() {
+function VoiceVisualizer({ isSpeaking: externalIsSpeaking }: { isSpeaking: boolean }) {
   const participants = useParticipants();
-  // The agent usually has an identity starting with 'agent-'
-  const agent = participants.find(p => p.identity.startsWith('agent-'));
+  const room = useRoomContext();
+  
+  // Use useTracks to get subscribed microphone tracks (more reliable than manual participant search)
+  const micTracks = useTracks([Track.Source.Microphone], { onlySubscribed: true })
+    .filter((t) => !t.participant.isLocal);
+  
+  // Find the correct audio track: prefer avatar worker (lk.publish_on_behalf), fallback to agent
+  const agentAudioTrackRef = 
+    micTracks.find((t) => t.participant.attributes?.['lk.publish_on_behalf']) ??
+    micTracks.find((t) => /avatar|lemonslice|keyframe/i.test(t.participant.identity)) ??
+    micTracks[0];
+  
+  // Use the speaking state from LemonsliceAvatar (which always works)
+  const isSpeaking = externalIsSpeaking;
 
-  // Use a spring-dampened motion value for organic, smooth transitions
-  const audioMotion = useMotionValue(0);
-  const smoothLevel = useSpring(audioMotion, {
-    damping: 30, // High damping for smoothness
-    stiffness: 150, // Decent stiffness for responsiveness
-    mass: 0.5
-  });
+  const agentParticipant = agentAudioTrackRef?.participant;
 
-  // Map the 0-1 audio level to visually impactful ranges
-  const glowScale = useTransform(smoothLevel, [0, 1], [1, 1.6]);
-  const glowOpacity = useTransform(smoothLevel, [0, 1], [0.05, 0.4]);
-  const ringScale = useTransform(smoothLevel, [0, 1], [1, 1.2]);
-  const ringOpacity = useTransform(smoothLevel, [0, 1], [0.1, 0.6]);
-
-  useEffect(() => {
-    if (!agent) return;
-    // High-frequency poll for the smoothest visual data
-    const interval = setInterval(() => {
-      audioMotion.set(agent.audioLevel);
-    }, 16); // ~60fps poll
-    return () => clearInterval(interval);
-  }, [agent, audioMotion]);
+  // Determine the agent state for the visualizer
+  const agentState = !agentParticipant ? 'connecting' : isSpeaking ? 'speaking' : 'listening';
 
   return (
-    <div className="relative flex items-center justify-center">
-      {/* Deep Background Pulse - Smoothed */}
-      <motion.div
-        style={{
-          scale: glowScale,
-          opacity: glowOpacity
-        }}
-        className="absolute inset-[-120px] rounded-full bg-[#00b4d8] blur-[100px] pointer-events-none"
-      />
-
-      {/* Background Reactive Glows - Smoothed */}
-      <motion.div
-        style={{
-          scale: ringScale,
-          opacity: ringOpacity
-        }}
-        className="absolute inset-[-60px] rounded-full bg-[#00b4d8] blur-[80px] pointer-events-none"
-      />
-
-      {/* Spinning Outer Ring */}
-      <motion.div
-        animate={{ rotate: 360 }}
-        transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-        className="absolute inset-[-40px] rounded-full border border-white/10 border-t-[#00b4d8]/40 border-r-[#560bad]/40"
-      />
-
-      {/* Reactive Frequency Rings - Smoothed with useTransform */}
-      <motion.div
-        style={{
-          scale: 1, // Base scale
-          scaleX: useSpring(audioMotion, { stiffness: 100, damping: 40 }), // Pulse X
-          scaleY: useSpring(audioMotion, { stiffness: 100, damping: 40 }), // Pulse Y
-          borderColor: "rgba(0, 180, 216, 0.4)"
-        }}
-        className="absolute inset-[-20px] rounded-full border-2 border-white/5 transition-colors"
-      />
-
-      <motion.div
-        style={{
-          scale: smoothLevel,
-          opacity: smoothLevel
-        }}
-        className="absolute inset-[-10px] rounded-full bg-gradient-to-tr from-[#00b4d8]/20 to-[#560bad]/20 blur-md"
-      />
-
-      {/* Central Spinning Logo */}
-      <div className="relative h-40 w-40 md:h-56 md:w-56 rounded-full bg-[#0a0a0a] border border-white/10 flex items-center justify-center overflow-hidden shadow-[0_0_40px_rgba(0,0,0,0.8)]">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
-          className="relative h-32 w-32 md:h-44 md:w-44 opacity-90"
-        >
-          <Image src="/newassets/ConvergentAI_logo_package/ConvergentAI_icon_mark_reverse.svg" alt="Logo" fill sizes="176px" className="object-contain" />
-        </motion.div>
-
-        {/* Glassmorphism Highlight */}
-        <div className="absolute inset-0 bg-gradient-to-tr from-white/5 via-transparent to-transparent pointer-events-none" />
+    <div className="relative flex flex-col items-center justify-center min-h-screen">
+      {/* Background ambient glow */}
+      <div className="absolute inset-[-120px] rounded-full bg-[#00b4d8] blur-[100px] opacity-20 pointer-events-none" />
+      
+      {/* LiveKit Audio Visualizer - Centered */}
+      <div className="relative flex items-center justify-center">
+        <AgentAudioVisualizerAura
+          state={agentState}
+          color="#00b4d8"
+          audioTrack={agentAudioTrackRef}
+          colorShift={0.1}
+          themeMode="dark"
+          className="h-[250px] w-[250px]"
+        />
       </div>
-
-      {/* Frequency Bar Visualizer - Subtle and Smoothed */}
-      <div className="absolute -bottom-16 flex items-center gap-1.5 h-10">
-        {[...Array(9)].map((_, i) => (
-          <FrequencyBar key={i} smoothLevel={smoothLevel} index={i} />
-        ))}
+      
+      {/* Status indicator */}
+      <div className="mt-20 text-center">
+        <div className="flex items-center justify-center gap-2 opacity-60">
+          <div className={`h-2 w-2 rounded-full transition-all duration-300 ${isSpeaking ? 'bg-emerald-400 animate-pulse scale-110' : 'bg-[#00b4d8]'}`} />
+          <p className={`text-xs font-bold tracking-[0.2em] uppercase transition-colors duration-300 ${isSpeaking ? 'text-emerald-400' : 'text-[#00b4d8]'}`}>
+            {isSpeaking ? 'Ailana Speaking' : 'Ailana Listening'}
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -156,6 +81,9 @@ function VoiceVisualizer() {
 export default function VideoStage({ mode = 'video', hideControls = false }: { mode?: string, hideControls?: boolean }) {
   const [inputText, setInputText] = useState("");
   const { send } = useChat();
+  
+  // Shared speaking state between LemonsliceAvatar and VoiceVisualizer
+  const [agentIsSpeaking, setAgentIsSpeaking] = useState(false);
 
   // Camera + ScreenShare for the video grid; Microphone not needed here
   const tracks = useTracks(
@@ -209,7 +137,7 @@ export default function VideoStage({ mode = 'video', hideControls = false }: { m
           {/* Voice Visualizer Overlay */}
           {isVoiceOnly && (
             <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#050505]">
-              <VoiceVisualizer />
+              <VoiceVisualizer isSpeaking={agentIsSpeaking} />
               <div className="mt-20 text-center">
                 <div className="flex items-center justify-center gap-2 opacity-40">
                   <div className="h-1.5 w-1.5 rounded-full bg-[#00b4d8] animate-pulse" />
@@ -219,8 +147,8 @@ export default function VideoStage({ mode = 'video', hideControls = false }: { m
             </div>
           )}
 
-          {/* Unified Video Container - ALWAYS rendered to prevent Keyframe WebRTC disconnects */}
-          <div className={`w-full h-full ${isVoiceOnly ? 'opacity-0 pointer-events-none absolute' : 'relative'} ${isAvatarOnly || gridTracks.length === 0 ? '' : `max-w-7xl mx-auto grid gap-4 transition-all duration-500 ${gridClass}`}`}>
+          {/* Unified Video Container - ALWAYS rendered to prevent Keyframe WebRTC disconnects and initialize audio */}
+          <div className={`w-full h-full ${isVoiceOnly ? 'invisible pointer-events-none absolute' : 'relative'} ${isAvatarOnly || gridTracks.length === 0 ? '' : `max-w-7xl mx-auto grid gap-4 transition-all duration-500 ${gridClass}`}`}>
             
             {/* AI Avatar Participant */}
             <div className={`overflow-hidden transition-all duration-500 ${isAvatarOnly || gridTracks.length === 0 ? 'absolute inset-0' : 'relative w-full h-full'} ${isAvatarOnly ? 'rounded-none border-none shadow-none bg-transparent' : 'rounded-2xl bg-[#050505] border border-white/5 shadow-2xl group hover:border-[#00b4d8]/40'}`}>
@@ -228,7 +156,9 @@ export default function VideoStage({ mode = 'video', hideControls = false }: { m
 
 
               <LemonsliceAvatar 
-                className={`w-full h-full ${!isAvatarOnly ? 'rounded-2xl' : ''}`} 
+                className={`w-full h-full ${!isAvatarOnly ? 'rounded-2xl' : ''}`}
+                onSpeakingChange={setAgentIsSpeaking}
+                mode={isVoiceOnly ? "voice" : "video"}
               />
               
               {!isAvatarOnly && (

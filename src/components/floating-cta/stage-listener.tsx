@@ -15,7 +15,7 @@ export function StageListener({ onStageUpdate, onTriggerMloTransfer }: StageList
   useEffect(() => {
     // Expose publishData function to parent component via window global safely
     if (room?.localParticipant) {
-      (window as any).lkPublishData = (payload: Uint8Array, options: any) => {
+      (window as any).lkPublishData = (payload: any, options: any) => {
         return room.localParticipant.publishData(payload, options);
       };
     }

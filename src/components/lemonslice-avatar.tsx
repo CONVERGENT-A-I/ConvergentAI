@@ -1,12 +1,14 @@
 "use client";
 
-import { useParticipants, useRoomContext } from "@livekit/components-react";
+import { useParticipants, useRoomContext, useTracks } from "@livekit/components-react";
 import { Track, RoomEvent } from "livekit-client";
 import { Loader2 } from "lucide-react";
 import { useEffect, useRef, useState, useCallback } from "react";
 
 interface LemonsliceAvatarProps {
   className?: string;
+  onSpeakingChange?: (isSpeaking: boolean) => void;
+  mode?: "video" | "voice";
 }
 
 /**
@@ -34,7 +36,7 @@ function ConnectingOverlay() {
   );
 }
 
-export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
+export default function LemonsliceAvatar({ className, onSpeakingChange, mode = "video" }: LemonsliceAvatarProps) {
   const participants = useParticipants();
   const room = useRoomContext();
   const [status, setStatus] = useState<"connecting" | "connected" | "error" | "voice_only">("connecting");
@@ -75,7 +77,17 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
     };
   }, [room]);
 
-  // Find the remote agent or avatar participant (prioritizing participant with video track or avatar identity)
+  // Find the correct audio track using useTracks (more reliable than manual search)
+  // Prefer avatar worker (has lk.publish_on_behalf), fall back to agent
+  const micTracks = useTracks([Track.Source.Microphone], { onlySubscribed: true })
+    .filter((t) => !t.participant.isLocal);
+  
+  const audioTrackRef =
+    micTracks.find((t) => t.participant.attributes?.['lk.publish_on_behalf']) ??
+    micTracks.find((t) => /avatar|lemonslice|keyframe/i.test(t.participant.identity)) ??
+    micTracks[0];
+
+  // Find video track and participant
   const agentParticipant =
     participants.find((p) => !p.isLocal && p.videoTrackPublications.size > 0) ||
     participants.find(
@@ -94,15 +106,8 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
       ? Array.from(agentParticipant.videoTrackPublications.values() as Iterable<any>)[0]
       : undefined);
 
-  const audioParticipant =
-    participants.find((p) => !p.isLocal && p.audioTrackPublications.size > 0) ||
-    agentParticipant;
-
-  const audioPublication =
-    audioParticipant?.getTrackPublication(Track.Source.Microphone) ||
-    (audioParticipant?.audioTrackPublications
-      ? Array.from(audioParticipant.audioTrackPublications.values() as Iterable<any>)[0]
-      : undefined);
+  const audioPublication = audioTrackRef?.publication;
+  const audioParticipant = audioTrackRef?.participant;
 
   const videoTrack = videoPublication?.track as any;
   const audioTrack = audioPublication?.track as any;
@@ -124,97 +129,143 @@ export default function LemonsliceAvatar({ className }: LemonsliceAvatarProps) {
 
   // Monitor playout volume to measure turn-by-turn speech playout start/end
   useEffect(() => {
-    if (!audioTrack || !audioTrack.mediaStreamTrack) return;
+    const track = audioTrack?.mediaStreamTrack;
+    
+    if (!track) {
+      return;
+    }
 
-    try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const mediaStreamTrack = audioTrack.mediaStreamTrack;
-      const mediaStream = new MediaStream([mediaStreamTrack]);
-      const source = audioContext.createMediaStreamSource(mediaStream);
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 256;
-      source.connect(analyser);
+    let raf = 0;
+    let cancelled = false;
+    let ctx: AudioContext | undefined;
 
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-
-      let animationId: number;
-
-      const checkVolume = () => {
-        analyser.getByteFrequencyData(dataArray);
-        let sum = 0;
-        for (let i = 0; i < bufferLength; i++) {
-          sum += dataArray[i];
+    // Add a delay to ensure audio is actually playing
+    const setupTimer = setTimeout(() => {
+      if (cancelled) return;
+      
+      try {
+        // Try to find the actual <audio> element that LiveKit creates
+        const audioElements = document.querySelectorAll('audio');
+        let targetAudioElement: HTMLAudioElement | null = null;
+        
+        // Try to find the audio element that matches our track
+        for (const audioEl of Array.from(audioElements)) {
+          const srcObject = audioEl.srcObject as MediaStream | null;
+          if (srcObject) {
+            const tracks = srcObject.getAudioTracks();
+            if (tracks.some(t => t.id === track.id)) {
+              targetAudioElement = audioEl;
+              break;
+            }
+          }
         }
-        const average = sum / bufferLength;
-        const isActive = average > 4; // Speech detection threshold
 
-        if (isActive) {
-          agentSilenceBlocksRef.current = 0;
-          if (!isAgentSpeakingRef.current) {
-            isAgentSpeakingRef.current = true;
-            setIsSpeaking(true);
-            turnNumberRef.current += 1;
-            const now = performance.now();
-            console.log(`[LemonsliceAvatar] [metrics] 🗣️ Avatar playout started for turn ${turnNumberRef.current}`);
-            
-            // --- Granular Telemetry ---
-            if (clientTtfbReceiveTimeRef.current) {
-              const renderDelta = now - clientTtfbReceiveTimeRef.current;
-              // Reset the ref so we don't accidentally send stale deltas on subsequent stutters
-              clientTtfbReceiveTimeRef.current = null;
+        ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        ctx.resume().catch(() => {}); // Resume context to avoid suspension
+        
+        let source: MediaStreamAudioSourceNode;
+        
+        if (targetAudioElement && targetAudioElement.srcObject) {
+          // Use the existing audio element's stream
+          source = ctx.createMediaStreamSource(targetAudioElement.srcObject as MediaStream);
+        } else {
+          // Fallback: create new stream from track
+          const mediaStream = new MediaStream([track]);
+          source = ctx.createMediaStreamSource(mediaStream);
+        }
+        
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+
+        const checkVolume = () => {
+          if (cancelled) return;
+          
+          analyser.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < bufferLength; i++) {
+            sum += dataArray[i];
+          }
+          const average = sum / bufferLength;
+          const isActive = average > 4; // Speech detection threshold
+
+          if (isActive) {
+            agentSilenceBlocksRef.current = 0;
+            if (!isAgentSpeakingRef.current) {
+              isAgentSpeakingRef.current = true;
+              setIsSpeaking(true);
+              onSpeakingChange?.(true);
+              turnNumberRef.current += 1;
+              const now = performance.now();
+              console.log(`[LemonsliceAvatar] [metrics] 🗣️ Avatar playout started for turn ${turnNumberRef.current}`);
               
-              if ((window as any).lkPublishData) {
-                try {
-                  const payload = new TextEncoder().encode(JSON.stringify({
-                    message: "SYSTEM_METRIC_RENDER_DELTA",
-                    client_render_ms: Math.round(renderDelta)
-                  }));
-                  (window as any).lkPublishData(payload, { topic: 'lk-chat', reliable: true });
-                } catch (e) {
-                  // silent catch
+              // --- Granular Telemetry ---
+              if (clientTtfbReceiveTimeRef.current) {
+                const renderDelta = now - clientTtfbReceiveTimeRef.current;
+                // Reset the ref so we don't accidentally send stale deltas on subsequent stutters
+                clientTtfbReceiveTimeRef.current = null;
+                
+                if ((window as any).lkPublishData) {
+                  try {
+                    const payload = new TextEncoder().encode(JSON.stringify({
+                      message: "SYSTEM_METRIC_RENDER_DELTA",
+                      client_render_ms: Math.round(renderDelta)
+                    }));
+                    (window as any).lkPublishData(payload, { topic: 'lk-chat', reliable: true });
+                  } catch (e) {
+                    // silent catch
+                  }
                 }
               }
+
+              sendTelemetry("client_avatar_playout_started", now, { turn: turnNumberRef.current });
             }
-
-            sendTelemetry("client_avatar_playout_started", now, { turn: turnNumberRef.current });
-          }
-        } else {
-          if (isAgentSpeakingRef.current) {
-            agentSilenceBlocksRef.current += 1;
-            if (agentSilenceBlocksRef.current > 35) { // ~500ms at ~60fps
-              isAgentSpeakingRef.current = false;
-              setIsSpeaking(false);
-              const now = performance.now();
-              console.log(`[LemonsliceAvatar] [metrics] 🤫 Avatar playout silenced.`);
-              sendTelemetry("client_avatar_playout_silenced", now, { turn: turnNumberRef.current });
+          } else {
+            if (isAgentSpeakingRef.current) {
+              agentSilenceBlocksRef.current += 1;
+              if (agentSilenceBlocksRef.current > 35) { // ~500ms at ~60fps
+                isAgentSpeakingRef.current = false;
+                setIsSpeaking(false);
+                onSpeakingChange?.(false);
+                const now = performance.now();
+                console.log(`[LemonsliceAvatar] [metrics] 🤫 Avatar playout silenced.`);
+                sendTelemetry("client_avatar_playout_silenced", now, { turn: turnNumberRef.current });
+              }
             }
           }
-        }
 
-        animationId = requestAnimationFrame(checkVolume);
-      };
+          raf = requestAnimationFrame(checkVolume);
+        };
 
-      checkVolume();
+        checkVolume();
+      } catch (e) {
+        console.warn("[LemonsliceAvatar] Failed to start playout volume monitor:", e);
+      }
+    }, 500); // Wait 500ms for audio to start playing
 
-      return () => {
-        cancelAnimationFrame(animationId);
-        audioContext.close().catch(() => { });
-      };
-    } catch (e) {
-      console.warn("[LemonsliceAvatar] Failed to start playout volume monitor:", e);
-    }
-  }, [audioTrack, sendTelemetry]);
+    return () => {
+      cancelled = true;
+      clearTimeout(setupTimer);
+      cancelAnimationFrame(raf);
+      ctx?.close().catch(() => {});
+    };
+  }, [audioTrack?.mediaStreamTrack, sendTelemetry, onSpeakingChange, audioParticipant?.identity]);
 
   useEffect(() => {
-    if (agentParticipant && videoTrack) {
+    // Force voice_only status when in voice mode, regardless of video track existence
+    if (mode === "voice" && agentParticipant && audioTrack) {
+      setStatus("voice_only");
+    } else if (agentParticipant && videoTrack) {
       setStatus("connected");
     } else if (agentParticipant && audioTrack && !videoTrack) {
       setStatus("voice_only");
     } else if (!agentParticipant && status !== "error" && status !== "voice_only") {
       setStatus("connecting");
     }
-  }, [agentParticipant, videoTrack, audioTrack, status]);
+  }, [agentParticipant, videoTrack, audioTrack, status, mode]);
 
   // Attach video track
   useEffect(() => {
