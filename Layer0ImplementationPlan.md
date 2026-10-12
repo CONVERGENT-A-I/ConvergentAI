@@ -68,6 +68,17 @@ Layer 0 Completion:  ██████░░░░░░░░░░░░░�
 10. **Section 0 routing state block in Layer 3 context** — LLM cannot see routing state during Section 0.
 11. **Test suite** — No `section0-routing.test.ts` exists.
 
+## 📅 Weekly Phased Implementation Schedule (Monday – Friday)
+
+| Day | Stage / Phase | Tasks | Focus Area | Verification Method | Status |
+| :--- | :--- | :---: | :--- | :--- | :---: |
+| **Day 1: Monday (Today)** | **Phase 1: Foundation** | **T1, T2** | Schema fields & zero-state initialization (`Q9_confirmed = false`). | Typecheck (`tsc`) + default state test | 🟢 COMPLETE |
+| **Day 1: Monday (Today)** | **Phase 2: Extraction & Compliance** | **T3, T4** | Upgrade `extractOpeningSignals()` (<10ms) & TRID compliance gate. | Pattern matching test + TRID intercept test | 🟡 IN PROGRESS (Colleague) |
+| **Day 2: Tuesday** | **Phase 3: Core Routing & Templates** | **T5 – T7** | Q9-MULTI Templates A–F & General, Q9 standard open routing, equity disambiguation (HELOC vs Loan). | Multi-signal selection test + disambiguation branch checks | ⚪ UPCOMING |
+| **Day 3: Wednesday** | **Phase 3: Edge Routing & Holdouts** | **T8 – T10** | Fallback routing question, mixed intent handling (2 goals), construction (`TT-CON`) & reverse mortgage (`TT-HECM`) holdouts. | Branch isolation tests + MLO handoff check | ⚪ UPCOMING |
+| **Day 4: Thursday** | **Phase 4: Stage Gate & Prompts** | **T11 – T14** | `buildLayer2()` Stage 1 gate, create `stage0-routing.ts`, wire prompts, Layer 3 routing context block. | Prompt output tests & Stage 1 block check | ⚪ UPCOMING |
+| **Day 5: Friday** | **Phase 5: Test Suite & Final Acceptance** | **T15 – T17** | Automated test suite (`S0-1` to `S0-15`), regression suite (`npm test`), 9 live E2E scenarios, David Patten staging sign-off. | 15/15 unit tests pass + 18 test suites pass + Live chat/voice tests | ⚪ UPCOMING |
+
 ---
 
 ## 📋 Implementation Plan — Task by Task
