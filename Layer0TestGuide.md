@@ -10,8 +10,8 @@
 
 | Task | Description | Status |
 | :---: | :--- | :---: |
-| **T1** | Add 15 new fields to `BorrowerProfile` | 🔴 Pending |
-| **T2** | Set default state (`Q9_confirmed = false`) | 🔴 Pending |
+| **T1** | Add 15 new fields to `BorrowerProfile` | 🟢 Pass |
+| **T2** | Set default state (`Q9_confirmed = false`) | 🟢 Pass |
 | **T3** | Fast extraction of opening signals (<10ms) | 🔴 Pending |
 | **T4** | TRID compliance gate (SSN / Address intercept) | 🔴 Pending |
 | **T5** | Select Q9-MULTI Templates (A–F & General) | 🔴 Pending |
@@ -65,7 +65,7 @@ Run these inside the `backend/` folder:
   Command finishes with **0 errors**.
 * **Failure sign:**  
   TypeScript complains about unknown fields or syntax errors.
-* **Status:** `[ ] Pending  [ ] Pass  [ ] Fail`
+* **Status:** 🟢 Pass (Verified by compilation & schema test)
 
 ---
 
@@ -80,7 +80,7 @@ Run these inside the `backend/` folder:
   When a session starts, `profile.Q9_confirmed === false` and `profile.signals_found` is an empty list `[]`.
 * **Failure sign:**  
   `Q9_confirmed` is `true` or `undefined`.
-* **Status:** `[ ] Pending  [ ] Pass  [ ] Fail`
+* **Status:** 🟢 Pass (Verified: Q9_confirmed = false default)
 
 ---
 

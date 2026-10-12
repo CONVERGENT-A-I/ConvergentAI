@@ -41,6 +41,42 @@ function isLikelyQuestion(text: string): boolean {
   return keywords.some(k => t.includes(k));
 }
 
+/**
+ * Initialize a new BorrowerProfile with all zero-state defaults.
+ * CRITICAL (David Patten): Q9_confirmed MUST default to false.
+ */
+export function initBorrowerProfile(): BorrowerProfile {
+  return {
+    // ── Existing fields ──────────────────────────────────────────────────────
+    transaction_type: null,
+    mortgage_goal: null,
+
+    // ── Section 0 routing state ──────────────────────────────────────────────
+    Q9_confirmed: false,              // CRITICAL: must be false — if true, Section 0 never runs
+    Q9_MULTI_delivered: false,
+    secondary_intent: null,
+    trid_gate_fired: false,
+    trid_gate_required: false,
+    equity_disambig_delivered: false,
+    fallback_routing_delivered: false,
+    holdout_routed: false,
+
+    // ── Section 0 front-loading extraction ───────────────────────────────────
+    signals_found: [],
+    pre_stated_income: null,
+    pre_stated_savings: null,
+    pre_stated_location: null,
+    pre_stated_property_type: null,
+    Q42_partial: false,
+    context_current_rate: null,
+    veteran_flagged: false,
+    Q13_answered: false,
+    Q35_answered: false,
+    Q38_answered: false,
+    Q43_answered: false,
+  };
+}
+
 export class SessionContextManager {
   private turnLog: TurnLogEntry[] = [];
   private turnCount = 0;
@@ -52,7 +88,7 @@ export class SessionContextManager {
   private lastInputTokens = 0;
 
   // State / Session variables
-  private profile: BorrowerProfile = {};
+  private profile: BorrowerProfile = initBorrowerProfile();
   private activeStage: string = '1';
   private currentPendingField: string | null = 'mortgage_goal';
   private lastProcessedInput: string | null = null;
@@ -613,6 +649,10 @@ export class SessionContextManager {
     return this.profile;
   }
 
+  getBorrowerProfile(): BorrowerProfile {
+    return this.getProfile();
+  }
+
   getActiveStage(): string {
     return this.activeStage;
   }
@@ -624,7 +664,7 @@ export class SessionContextManager {
   hydrateFromSnapshot(stage: string, profile: any): void {
     this.activeStage = stage as any;
     if (profile) {
-      this.profile = { ...this.profile, ...profile };
+      this.profile = { ...initBorrowerProfile(), ...this.profile, ...profile };
 
       // Re-establish confirmation flags for any populated fields
       if (this.profile.mortgage_goal) this.profile.mortgage_goal_confirmed = true;

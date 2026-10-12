@@ -9,6 +9,30 @@ export interface BorrowerProfile {
   mortgage_goal?: string | null;
   mortgage_goal_confirmed?: boolean;
 
+  // ── Section 0 — Routing State (Layer 0) ──────────────────────────────────
+  Q9_confirmed?: boolean;               // true = routing complete, Stage 1 can fire
+  Q9_MULTI_delivered?: boolean;         // prevents Q9-MULTI from re-firing
+  secondary_intent?: string | null;     // unchosen goal in mixed-intent case → passed to MLO
+  trid_gate_fired?: boolean;            // true = Q9-TRID-GATE already delivered
+  trid_gate_required?: boolean;         // true = SSN or property address detected in opening msg
+  equity_disambig_delivered?: boolean;  // true = HELOC vs HEQ disambiguation question delivered
+  fallback_routing_delivered?: boolean; // true = fallback routing question already delivered
+  holdout_routed?: boolean;             // true = TT-CON/TT-HECM MLO handoff completed
+
+  // ── Section 0 — Front-Loading Extraction Fields ───────────────────────────
+  signals_found?: string[];             // e.g. ['TT-PUR', 'veteran', 'co_borrower']
+  pre_stated_income?: number | null;    // annual income, from opening message
+  pre_stated_savings?: number | null;   // savings/down payment, from opening message
+  pre_stated_location?: string | null;  // city/state (NOT property address)
+  pre_stated_property_type?: string | null; // condo/townhome/single-family etc.
+  Q42_partial?: boolean;                // true if property type or location pre-stated
+  context_current_rate?: number | null; // refi context only — MLO reference, NEVER echoed to borrower
+  veteran_flagged?: boolean;            // true if military / veteran signal extracted
+  Q13_answered?: boolean;               // true if co-borrower pre-stated (skip Q13)
+  Q35_answered?: boolean;               // true if income pre-stated (skip Q35)
+  Q38_answered?: boolean;               // true if savings pre-stated (skip Q38)
+  Q43_answered?: boolean;               // true if veteran pre-stated (skip Q43)
+
   occupancy?: 'primary' | 'secondary' | 'investment' | null;
   occupancy_confirmed?: boolean;
 
