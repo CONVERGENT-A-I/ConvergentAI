@@ -12,8 +12,8 @@
 | :---: | :--- | :---: |
 | **T1** | Add 15 new fields to `BorrowerProfile` | 🟢 Pass |
 | **T2** | Set default state (`Q9_confirmed = false`) | 🟢 Pass |
-| **T3** | Fast extraction of opening signals (<10ms) | 🔴 Pending |
-| **T4** | TRID compliance gate (SSN / Address intercept) | 🔴 Pending |
+| **T3** | Fast extraction of opening signals (<10ms) | 🟢 Pass |
+| **T4** | TRID compliance gate (SSN / Address intercept) | 🟢 Pass |
 | **T5** | Select Q9-MULTI Templates (A–F & General) | 🔴 Pending |
 | **T6** | Standard Q9 open routing | 🔴 Pending |
 | **T7** | Equity disambiguation (HELOC vs Loan) | 🔴 Pending |
@@ -35,7 +35,7 @@
 | Day | Stage / Phase | Tasks | Focus Area | Verification Method | Status |
 | :--- | :--- | :---: | :--- | :--- | :---: |
 | **Day 1: Monday (Today)** | **Phase 1: Foundation** | **T1, T2** | Schema fields & zero-state initialization (`Q9_confirmed = false`). | Typecheck (`tsc`) + default state test | 🟢 COMPLETE |
-| **Day 1: Monday (Today)** | **Phase 2: Extraction & Compliance** | **T3, T4** | Upgrade `extractOpeningSignals()` (<10ms) & TRID compliance gate. | Pattern matching test + TRID intercept test | 🟡 IN PROGRESS (Colleague) |
+| **Day 1: Monday (Today)** | **Phase 2: Extraction & Compliance** | **T3, T4** | Upgrade `extractOpeningSignals()` (<10ms) & TRID compliance gate. | Pattern matching test + TRID intercept test | 🟢 COMPLETE |
 | **Day 2: Tuesday** | **Phase 3: Core Routing & Templates** | **T5 – T7** | Q9-MULTI Templates A–F & General, Q9 standard open routing, equity disambiguation (HELOC vs Loan). | Multi-signal selection test + disambiguation branch checks | ⚪ UPCOMING |
 | **Day 3: Wednesday** | **Phase 3: Edge Routing & Holdouts** | **T8 – T10** | Fallback routing question, mixed intent handling (2 goals), construction (`TT-CON`) & reverse mortgage (`TT-HECM`) holdouts. | Branch isolation tests + MLO handoff check | ⚪ UPCOMING |
 | **Day 4: Thursday** | **Phase 4: Stage Gate & Prompts** | **T11 – T14** | `buildLayer2()` Stage 1 gate, create `stage0-routing.ts`, wire prompts, Layer 3 routing context block. | Prompt output tests & Stage 1 block check | ⚪ UPCOMING |
@@ -114,7 +114,7 @@ Run these inside the `backend/` folder:
   Execution takes less than 10 milliseconds.
 * **Failure sign:**  
   Missing signals or execution taking longer than 15ms.
-* **Status:** `[ ] Pending  [ ] Pass  [ ] Fail`
+* **Status:** `[x] Pass  [ ] Pending  [ ] Fail`
 
 ---
 
@@ -131,7 +131,7 @@ Run these inside the `backend/` folder:
   2. Inspect `profile`: SSN is **NOT** stored anywhere.
 * **Failure sign:**  
   SSN appears in logs, profile, or response text.
-* **Status:** `[ ] Pending  [ ] Pass  [ ] Fail`
+* **Status:** `[x] Pass  [ ] Pending  [ ] Fail`
 
 ---
 

@@ -77,6 +77,143 @@ export function initBorrowerProfile(): BorrowerProfile {
   };
 }
 
+/**
+ * T4 — Mandatory TRID compliance formulation (verbatim from Section 0 specification).
+ */
+export const Q9_TRID_GATE_FORMULATION =
+  "I want to make sure we handle your information correctly — for security and compliance purposes, I'm not able to collect that specific information through this channel at this point in our conversation. We'll have a secure way to gather it when we get to that step. For now, let's focus on getting your overall picture together.";
+
+/**
+ * T3 — Extract opening signals from the borrower's first message.
+ * Pure string pattern matching — no LLM calls, no API calls (<10ms).
+ * Populates signals_found[] and front-loading fields on the profile.
+ * 
+ * CRITICAL: This function NEVER sets transaction_type.
+ * transaction_type is set only after Q9 confirmation (Phase 3).
+ * 
+ * @param input - The borrower's message (typically redactedInput)
+ * @param profile - The BorrowerProfile to populate
+ * @param rawInput - Optional unredacted input for TRID SSN/address check
+ */
+export function extractOpeningSignals(input: string, profile: BorrowerProfile, rawInput?: string): void {
+  const _perfStart = performance.now();
+  const originalInput = rawInput || input;
+  const text = input.toLowerCase();
+  const signals: string[] = [];
+
+  // ── TRID GATE CHECK (runs first, before anything else) ───────────────
+  // Check for SSN — use original input since SSN is already redacted
+  const ssnPattern = /\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b/;
+  const addrPattern = /\b\d+\s+[a-z]+\s+(st|street|ave|avenue|rd|road|blvd|boulevard|dr|drive|ln|lane|way|ct|court|pl|place|cir|circle)\b/i;
+  if (ssnPattern.test(originalInput) || addrPattern.test(originalInput)) {
+    profile.trid_gate_required = true;
+    console.log('[section0]: 🛡️ TRID gate triggered — SSN or property address detected in opening message. Value NOT stored.');
+    // Do NOT extract or store the SSN/address value — continue with other signals
+  }
+
+  // ── TRANSACTION TYPE ────────────────────────────────────────────────
+  if (/buy|purchase|first home|new home|find a home|buying/i.test(text)) {
+    signals.push('TT-PUR');
+  }
+  if (/refinanc|refi|lower my rate|lower my payment|cash.?out/i.test(text)) {
+    signals.push('TT-REF');
+  }
+  if (/heloc|equity line|home equity line|line of credit/i.test(text)) {
+    signals.push('TT-HEL');
+  }
+  if (/home equity loan|lump sum|equity loan/i.test(text)) {
+    signals.push('TT-HEQ');
+  }
+  if (/build|construction|construct/i.test(text)) {
+    signals.push('TT-CON');   // holdout — routes to MLO
+  }
+  if (/reverse mortgage|hecm/i.test(text)) {
+    signals.push('TT-HECM');  // holdout — routes to MLO
+  }
+
+  // ── VETERAN / MILITARY ──────────────────────────────────────────────
+  if (/veteran|military|army|navy|marines|air force|coast guard|active duty|served|service member/i.test(text)) {
+    profile.veteran_flagged = true;
+    profile.Q43_answered = true;   // skip Q43 in Stage 2 purchase track
+    signals.push('veteran');
+  }
+
+  // ── CO-BORROWER ─────────────────────────────────────────────────────
+  if (/my wife|my husband|my spouse|my partner|we are|we're|together|both of us|the two of us/i.test(text)) {
+    profile.co_borrower = 'yes';
+    profile.co_borrower_confirmed = true;
+    profile.Q13_answered = true;   // skip Q13 in Stage 1
+    signals.push('co_borrower');
+  }
+
+  // ── INCOME ──────────────────────────────────────────────────────────
+  const incomeMatch = input.match(/\$?([\d,]+)\s*k?\s*(a year|annually|per year|income|salary)/i);
+  if (incomeMatch && incomeMatch[1]) {
+    const raw = incomeMatch[1].replace(/,/g, '');
+    const idx = incomeMatch.index ?? 0;
+    const matchSlice = input.slice(idx, idx + incomeMatch[0].length + 2).toLowerCase();
+    const hasK = matchSlice.includes('k');
+    const parsed = parseInt(raw, 10);
+    if (!isNaN(parsed)) {
+      profile.pre_stated_income = parsed * (hasK ? 1000 : 1);
+      profile.Q35_answered = true;
+      signals.push('income');
+    }
+  }
+
+  // ── SAVINGS / DOWN PAYMENT ──────────────────────────────────────────
+  const savingsMatch = input.match(/\$?([\d,]+)\s*k?\s*(saved|in savings|for.*down|available|down payment)/i);
+  if (savingsMatch && savingsMatch[1]) {
+    const raw = savingsMatch[1].replace(/,/g, '');
+    const idx = savingsMatch.index ?? 0;
+    const matchSlice = input.slice(idx, idx + savingsMatch[0].length + 2).toLowerCase();
+    const hasK = matchSlice.includes('k');
+    const parsed = parseInt(raw, 10);
+    if (!isNaN(parsed)) {
+      profile.pre_stated_savings = parsed * (hasK ? 1000 : 1);
+      profile.Q38_answered = true;
+      signals.push('savings');
+    }
+  }
+
+  // ── PROPERTY TYPE ───────────────────────────────────────────────────
+  const ptypes = ['condo', 'townhome', 'townhouse', 'single-family', 'multi-family', 'duplex', 'triplex'];
+  for (const pt of ptypes) {
+    if (text.includes(pt)) {
+      profile.pre_stated_property_type = pt;
+      profile.Q42_partial = true;
+      signals.push('property_type');
+      break;
+    }
+  }
+
+  // ── LOCATION (city/state — NOT property address) ────────────────────
+  const locMatch = input.match(/\bin\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
+  if (locMatch && locMatch[1] && !addrPattern.test(originalInput)) {
+    profile.pre_stated_location = locMatch[1];
+    profile.Q42_partial = true;
+    signals.push('location');
+  }
+
+  // ── VOLUNTEERED RATE (refi context only — NEVER echoed back) ────────
+  const rateMatch = text.match(/(\d+\.?\d*)\s*%/);
+  if (rateMatch && rateMatch[1] && signals.includes('TT-REF')) {
+    const parsedRate = parseFloat(rateMatch[1]);
+    if (!isNaN(parsedRate)) {
+      profile.context_current_rate = parsedRate;
+    }
+    // NOT added to signals_found — LLM must never reference this
+  }
+
+  profile.signals_found = signals;
+
+  const elapsed = (performance.now() - _perfStart).toFixed(1);
+  console.log(`[section0]: 📡 extractOpeningSignals completed in ${elapsed}ms | signals_found: [${signals.join(', ')}]`);
+  if (profile.trid_gate_required) {
+    console.log(`[section0]: 🛡️ TRID gate required — will fire before Q9 routing`);
+  }
+}
+
 export class SessionContextManager {
   private turnLog: TurnLogEntry[] = [];
   private turnCount = 0;
@@ -876,6 +1013,8 @@ export class SessionContextManager {
     const _perfOnUserTurnStart = performance.now();
     let trimmed = text.trim();
 
+    // Save pre-redaction text for Section 0 TRID gate detection (T4)
+    const preRedactionText = trimmed;
 
     // Redact SSNs from user input to comply with TRID logging requirements
     trimmed = trimmed.replace(/\b\d{3}[- ]?\d{2}[- ]?\d{4}\b/g, '[REDACTED_SSN]');
@@ -904,6 +1043,16 @@ export class SessionContextManager {
     this.lastProcessedInput = trimmed;
     this.turnLog.push({ role: 'user', text: trimmed, timestamp: Date.now() });
     this.turnCount += 1;
+
+    // ── Section 0: First-turn signal extraction (T3) & TRID gate (T4) ───
+    // Runs ONCE on the very first user turn in Stage 1, BEFORE the LLM.
+    // Pure regex — <10ms. Sets signals_found[] for Phase 3 Q9-MULTI routing.
+    if (this.activeStage === '1' && this.turnCount === 1 && !this.profile.Q9_confirmed) {
+      const _tSection0 = performance.now();
+      this.extractOpeningSignals(preRedactionText, trimmed);
+      this.applyTridGate();
+      console.log(`[perf] context-manager Section 0 extraction + TRID gate: ${(performance.now() - _tSection0).toFixed(1)}ms`);
+    }
 
     // Handle Stage 2 pending confirmations local loop directly on this turn
     if (this.activeStage === '2' && this.profile.pending_confirm_field && this.profile.pending_confirm_value != null) {
@@ -2235,6 +2384,40 @@ export class SessionContextManager {
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   // Stage 1 extraction
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Section 0 — Opening Signal Extraction (T3) & TRID Gate (T4)
+  // Runs BEFORE the LLM is invoked on the first turn — pure regex, <10ms.
+  // Sets signals_found[] but NEVER sets transaction_type directly.
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /** Q9-TRID-GATE — Mandatory TRID compliance formulation (verbatim from spec) */
+  public static readonly Q9_TRID_GATE_FORMULATION = Q9_TRID_GATE_FORMULATION;
+
+  /**
+   * T3 — Extract opening signals from the borrower's first message.
+   * Pure string pattern matching — no LLM calls, no API calls.
+   * Populates signals_found[] and front-loading fields on the profile.
+   * 
+   * CRITICAL: This function NEVER sets transaction_type.
+   * transaction_type is set only after Q9 confirmation (Phase 3).
+   */
+  public extractOpeningSignals(originalInput: string, redactedInput: string): void {
+    extractOpeningSignals(redactedInput, this.profile, originalInput);
+  }
+
+  /**
+   * T4 — TRID Gate: fires BEFORE Q9 or Q9-MULTI routing.
+   * Sets trid_gate_fired = true and logs the compliance event.
+   * The actual TRID formulation is injected into the LLM prompt
+   * via buildSection0Block() (wired in Phase 4 / T13).
+   */
+  public applyTridGate(): void {
+    if (this.profile.trid_gate_required && !this.profile.trid_gate_fired) {
+      this.profile.trid_gate_fired = true;
+      console.log(`[section0]: 🛡️ TRID gate FIRED — compliance formulation will be delivered. SSN/address NOT stored.`);
+    }
+  }
 
   private async runStage1Extraction(text: string): Promise<void> {
     const lastQuestion = this.getLastAssistantUtterance();
