@@ -12,10 +12,13 @@ import {
   renderQ9MultiTemplate,
   Q9_MULTI_TEMPLATES,
   Q9_TRID_GATE_FORMULATION,
+  Q9_STANDARD_FORMULATION,
+  parseQ9RoutingDecision,
+  applyQ9RoutingDecision,
   SessionContextManager,
 } from '../context/session-context-manager.js';
 
-console.log('🧪 Running Section 0 Test Suite (Phases 1–3: T1–T5)...\n');
+console.log('🧪 Running Section 0 Test Suite (Phases 1–3: T1–T6)...\n');
 
 // ── S0-1: Zero-State Profile Initialization Defaults (T1 & T2) ───────────────
 {
@@ -280,6 +283,96 @@ async function testQ9MultiDeliveryIntegration() {
 
 await testQ9MultiDeliveryIntegration();
 
+// ── S0-T6: Q9 Standard Open Routing Decisions (T6) ──────────────────────────
+{
+  // 1. LLM routing tag parsing
+  assert.strictEqual(parseQ9RoutingDecision('ROUTE: TT-PUR'), 'TT-PUR');
+  assert.strictEqual(parseQ9RoutingDecision('ROUTE: TT-REF'), 'TT-REF');
+  assert.strictEqual(parseQ9RoutingDecision('ROUTE: TT-HEL-AMBIG'), 'TT-HEL-AMBIG');
+  assert.strictEqual(parseQ9RoutingDecision('ROUTE: TT-HEL'), 'TT-HEL');
+  assert.strictEqual(parseQ9RoutingDecision('ROUTE: TT-HEQ'), 'TT-HEQ');
+  assert.strictEqual(parseQ9RoutingDecision('ROUTE: UNCLEAR'), 'UNCLEAR');
+
+  // 2. Direct utterance parsing
+  assert.strictEqual(parseQ9RoutingDecision('I want to buy a house'), 'TT-PUR');
+  assert.strictEqual(parseQ9RoutingDecision('Looking to refinance my mortgage'), 'TT-REF');
+  assert.strictEqual(parseQ9RoutingDecision('I want to access my home equity'), 'TT-HEL-AMBIG');
+  assert.strictEqual(parseQ9RoutingDecision('I need a HELOC line of credit'), 'TT-HEL');
+  assert.strictEqual(parseQ9RoutingDecision('I want a home equity loan'), 'TT-HEQ');
+
+  // 3. Application to profile
+  const profilePur = initBorrowerProfile();
+  applyQ9RoutingDecision('TT-PUR', profilePur);
+  assert.strictEqual(profilePur.transaction_type, 'TT-PUR');
+  assert.strictEqual(profilePur.Q9_confirmed, true);
+  assert.strictEqual(profilePur.mortgage_goal, 'purchase');
+
+  const profileRef = initBorrowerProfile();
+  applyQ9RoutingDecision('TT-REF', profileRef);
+  assert.strictEqual(profileRef.transaction_type, 'TT-REF');
+  assert.strictEqual(profileRef.Q9_confirmed, true);
+  assert.strictEqual(profileRef.mortgage_goal, 'refinance');
+
+  const profileAmbig = initBorrowerProfile();
+  applyQ9RoutingDecision('TT-HEL-AMBIG', profileAmbig);
+  assert.strictEqual(profileAmbig.transaction_type, null, 'Ambiguous equity must NOT set transaction_type');
+  assert.strictEqual(profileAmbig.Q9_confirmed, false, 'Ambiguous equity must NOT confirm Q9 yet');
+
+  console.log('  ✅ S0-T6-Decisions Passed: Q9 route tags and utterances parsed and applied correctly.');
+}
+
+// ── S0-T6: Standard Q9 Open Routing 2-Turn Flow (T6) ─────────────────────────
+async function testQ9StandardOpenRouting() {
+  const session = new SessionContextManager(null as any, null as any);
+
+  // Turn 1: Open-ended input with 0 extraction signals
+  await session.onUserTurn('I have some mortgage questions');
+  const profileTurn1 = session.getProfile();
+
+  assert.deepStrictEqual(profileTurn1.signals_found, []);
+  assert.strictEqual(profileTurn1.transaction_type, null);
+  assert.strictEqual(profileTurn1.Q9_confirmed, false);
+  assert.strictEqual(session.getSection0RoutingStep(), 'Q9_STANDARD');
+  assert.ok(
+    session.getQ9StandardFormulation().includes("are you looking to purchase a home, refinance an existing mortgage"),
+    'Q9 standard formulation matches specification'
+  );
+
+  // Turn 2: Borrower responds with purchase intent
+  await session.onUserTurn('I want to buy a house');
+  const profileTurn2 = session.getProfile();
+
+  assert.strictEqual(profileTurn2.transaction_type, 'TT-PUR');
+  assert.strictEqual(profileTurn2.Q9_confirmed, true);
+  assert.strictEqual(profileTurn2.mortgage_goal, 'purchase');
+  assert.strictEqual(profileTurn2.mortgage_goal_confirmed, true);
+
+  console.log('  ✅ S0-T6-OpenRouting Passed: Turn 1 prompts Q9, Turn 2 confirms TT-PUR (Q9_confirmed=true).');
+}
+
+await testQ9StandardOpenRouting();
+
+// ── S0-11: Borrower Confirms Purchase on Turn 2 Affirmation (T6 / S0-11) ─────
+async function testS0_11_Confirmation() {
+  const session = new SessionContextManager(null as any, null as any);
+
+  // Turn 1: Borrower states purchase intent
+  await session.onUserTurn('I want to buy a house');
+  const profileTurn1 = session.getProfile();
+  assert.strictEqual(profileTurn1.transaction_type, null, 'transaction_type must not be confirmed before confirmation');
+  assert.strictEqual(profileTurn1.Q9_confirmed, false);
+
+  // Turn 2: Borrower affirms confirmation
+  await session.onUserTurn("Yes, that's right");
+  const profileTurn2 = session.getProfile();
+  assert.strictEqual(profileTurn2.transaction_type, 'TT-PUR');
+  assert.strictEqual(profileTurn2.Q9_confirmed, true);
+
+  console.log('  ✅ S0-11 Passed: Borrower affirmative confirmation sets TT-PUR and Q9_confirmed=true.');
+}
+
+await testS0_11_Confirmation();
+
 console.log('\n======================================================');
-console.log('✨ ALL SECTION 0 (PHASES 1, 2, & T5) TESTS PASSED!');
+console.log('✨ ALL SECTION 0 (PHASES 1, 2, & T5–T6) TESTS PASSED!');
 console.log('======================================================\n');

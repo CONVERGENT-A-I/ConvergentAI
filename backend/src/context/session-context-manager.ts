@@ -302,6 +302,89 @@ export function renderQ9MultiTemplate(templateKey: string, profile: BorrowerProf
     .replace(/\[spouse\/partner\]/g, coBorrowerRel);
 }
 
+/**
+ * T6 — Q9 Standard Open Routing Formulation (Layer0Doc.md Section 7.2)
+ * Delivered when extraction captured 0 signals on the first turn.
+ */
+export const Q9_STANDARD_FORMULATION =
+  "To make sure I take you in the right direction — are you looking to purchase a home, refinance an existing mortgage, or access the equity you've already built in your home?";
+
+export type Q9RouteDecision = 'TT-PUR' | 'TT-REF' | 'TT-HEL' | 'TT-HEQ' | 'TT-HEL-AMBIG' | 'UNCLEAR';
+
+/**
+ * T6 — Parses LLM routing tags or borrower direct response for Q9 routing.
+ */
+export function parseQ9RoutingDecision(output: string): Q9RouteDecision {
+  // 1. LLM routing tags (from stage0-routing.ts)
+  if (/ROUTE:\s*TT-PUR\b/i.test(output)) {
+    return 'TT-PUR';
+  }
+  if (/ROUTE:\s*TT-REF\b/i.test(output)) {
+    return 'TT-REF';
+  }
+  if (/ROUTE:\s*TT-HEL-AMBIG\b/i.test(output)) {
+    return 'TT-HEL-AMBIG';
+  }
+  if (/ROUTE:\s*TT-HEL\b/i.test(output)) {
+    return 'TT-HEL';
+  }
+  if (/ROUTE:\s*TT-HEQ\b/i.test(output)) {
+    return 'TT-HEQ';
+  }
+  if (/ROUTE:\s*UNCLEAR\b/i.test(output)) {
+    return 'UNCLEAR';
+  }
+
+  // 2. Direct user utterance matching
+  const text = output.toLowerCase();
+  if (/heloc|line of credit|home equity line/i.test(text)) {
+    return 'TT-HEL';
+  }
+  if (/home equity loan|fixed equity|lump sum/i.test(text)) {
+    return 'TT-HEQ';
+  }
+  if (/equity/i.test(text)) {
+    return 'TT-HEL-AMBIG';
+  }
+  if (/buy|purchase|first home|new home|buying/i.test(text)) {
+    return 'TT-PUR';
+  }
+  if (/refinanc|refi|lower my rate|lower my payment|cash.?out/i.test(text)) {
+    return 'TT-REF';
+  }
+
+  return 'UNCLEAR';
+}
+
+/**
+ * T6 — Applies confirmed Q9 routing decision to the BorrowerProfile.
+ * Only explicit confirmations set transaction_type and Q9_confirmed = true.
+ */
+export function applyQ9RoutingDecision(decision: Q9RouteDecision, profile: BorrowerProfile): void {
+  if (decision === 'TT-PUR') {
+    profile.transaction_type = 'TT-PUR';
+    profile.mortgage_goal = 'purchase';
+    profile.mortgage_goal_confirmed = true;
+    profile.Q9_confirmed = true;
+  } else if (decision === 'TT-REF') {
+    profile.transaction_type = 'TT-REF';
+    profile.mortgage_goal = 'refinance';
+    profile.mortgage_goal_confirmed = true;
+    profile.Q9_confirmed = true;
+  } else if (decision === 'TT-HEL') {
+    profile.transaction_type = 'TT-HEL';
+    profile.mortgage_goal = 'heloc';
+    profile.mortgage_goal_confirmed = true;
+    profile.Q9_confirmed = true;
+  } else if (decision === 'TT-HEQ') {
+    profile.transaction_type = 'TT-HEQ';
+    profile.mortgage_goal = 'heloc';
+    profile.mortgage_goal_confirmed = true;
+    profile.Q9_confirmed = true;
+  }
+  // TT-HEL-AMBIG and UNCLEAR leave Q9_confirmed = false and transaction_type untouched
+}
+
 export class SessionContextManager {
   private turnLog: TurnLogEntry[] = [];
   private turnCount = 0;
@@ -1143,6 +1226,9 @@ export class SessionContextManager {
         this.evaluateQ9Multi();
       }
       console.log(`[perf] context-manager Section 0 extraction + TRID gate + Q9-MULTI: ${(performance.now() - _tSection0).toFixed(1)}ms`);
+    } else if (this.activeStage === '1' && !this.profile.Q9_confirmed) {
+      // ── Section 0: Q9 routing resolution on turn 2+ (T6) ───────────────────
+      this.evaluateQ9Routing(trimmed);
     }
 
     // Handle Stage 2 pending confirmations local loop directly on this turn
@@ -2528,6 +2614,76 @@ export class SessionContextManager {
       return { templateKey, text };
     }
     return null;
+  }
+
+  /**
+   * T6 — Resolves Q9 open routing based on borrower input or LLM route output.
+   */
+  public evaluateQ9Routing(input: string, llmOutput?: string): Q9RouteDecision {
+    const decision = parseQ9RoutingDecision(llmOutput || input);
+    if (decision === 'UNCLEAR') {
+      // Check if user confirms an earlier extracted signal (e.g. "Yes", "That's right")
+      const lower = input.toLowerCase();
+      if (/yes|yeah|yep|correct|that's right|right|sounds good|sure/i.test(lower)) {
+        if (this.profile.signals_found?.includes('TT-PUR')) {
+          this.applyQ9RoutingDecision('TT-PUR');
+          return 'TT-PUR';
+        }
+        if (this.profile.signals_found?.includes('TT-REF')) {
+          this.applyQ9RoutingDecision('TT-REF');
+          return 'TT-REF';
+        }
+        if (this.profile.signals_found?.includes('TT-HEL')) {
+          this.applyQ9RoutingDecision('TT-HEL');
+          return 'TT-HEL';
+        }
+        if (this.profile.signals_found?.includes('TT-HEQ')) {
+          this.applyQ9RoutingDecision('TT-HEQ');
+          return 'TT-HEQ';
+        }
+      }
+    }
+
+    this.applyQ9RoutingDecision(decision);
+    return decision;
+  }
+
+  /**
+   * T6 — Applies Q9 decision and advances pending field if routing confirmed.
+   */
+  public applyQ9RoutingDecision(decision: Q9RouteDecision): void {
+    applyQ9RoutingDecision(decision, this.profile);
+    if (this.profile.Q9_confirmed) {
+      console.log(`[section0]: 🎯 Q9 routing confirmed -> ${this.profile.transaction_type} (Q9_confirmed=true)`);
+      if (this.currentPendingField === 'mortgage_goal') {
+        this.advanceWorkflow();
+      }
+    } else {
+      console.log(`[section0]: ⏳ Q9 routing unconfirmed -> decision=${decision} (Q9_confirmed=false)`);
+    }
+  }
+
+  /**
+   * T6 — Returns which Section 0 routing step is currently active.
+   */
+  public getSection0RoutingStep(): 'TRID_GATE' | 'Q9_MULTI' | 'Q9_STANDARD' | 'NONE' {
+    if (this.profile.trid_gate_required && !this.profile.trid_gate_fired) {
+      return 'TRID_GATE';
+    }
+    if ((this.profile.signals_found?.length ?? 0) >= 2 && !this.profile.Q9_MULTI_delivered) {
+      return 'Q9_MULTI';
+    }
+    if (!this.profile.Q9_confirmed && (this.profile.signals_found?.length ?? 0) === 0) {
+      return 'Q9_STANDARD';
+    }
+    return 'NONE';
+  }
+
+  /**
+   * T6 — Returns the standard Q9 routing question text.
+   */
+  public getQ9StandardFormulation(): string {
+    return Q9_STANDARD_FORMULATION;
   }
 
   private async runStage1Extraction(text: string): Promise<void> {
