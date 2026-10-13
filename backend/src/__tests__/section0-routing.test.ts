@@ -15,13 +15,26 @@ import {
   Q9_STANDARD_FORMULATION,
   EQUITY_DISAMBIG_FORMULATION,
   HQ18_COMPARISON_FORMULATION,
+  FALLBACK_ROUTING_FORMULATION,
+  MIXED_INTENT_FORMULATION,
+  formatMixedIntentGoal,
+  renderMixedIntentFormulation,
+  extractRouteTag,
+  normalizeTransactionType,
+  parseMixedIntentChoice,
+  applyMixedIntentChoice,
+  HOLDOUT_SIGNALS,
+  TT_CON_HOLDOUT_FORMULATION,
+  TT_HECM_HOLDOUT_FORMULATION,
+  getHoldoutFormulation,
+  applyHoldoutRouting,
   parseQ9RoutingDecision,
   applyQ9RoutingDecision,
   parseEquityDisambiguationChoice,
   SessionContextManager,
 } from '../context/session-context-manager.js';
 
-console.log('🧪 Running Section 0 Test Suite (Phases 1–3: T1–T7)...\n');
+console.log('🧪 Running Section 0 Test Suite (Phases 1–3: T1–T10)...\n');
 
 // ── S0-1: Zero-State Profile Initialization Defaults (T1 & T2) ───────────────
 {
@@ -478,6 +491,299 @@ async function testEquityDisambiguationUnsureHQ18() {
 
 await testEquityDisambiguationUnsureHQ18();
 
+// ── S0-6: Fallback Routing Question (T8) ────────────────────────────────────
+async function testFallbackRoutingFlow() {
+  // 1. Verbatim Formulation Check
+  assert.ok(
+    FALLBACK_ROUTING_FORMULATION.includes('purchase a new home, refinance an existing mortgage, or access the equity'),
+    'Fallback formulation matches verbatim spec'
+  );
+
+  // 2. Unclear Turn 2 triggers Fallback Routing
+  const session = new SessionContextManager(null as any, null as any);
+
+  // Turn 1: 0 signals
+  await session.onUserTurn('I have some general mortgage questions');
+  assert.strictEqual(session.getProfile().fallback_routing_delivered, false);
+  assert.strictEqual(session.getProfile().Q9_confirmed, false);
+
+  // Turn 2: Ambiguous / unclear answer
+  await session.onUserTurn("I'm not really sure what I want to do yet");
+  const profileTurn2 = session.getProfile();
+  assert.strictEqual(
+    profileTurn2.fallback_routing_delivered,
+    true,
+    'fallback_routing_delivered must be set to true'
+  );
+  assert.strictEqual(
+    profileTurn2.Q9_confirmed,
+    false,
+    'Stage 1 must NOT fire when fallback routing is triggered'
+  );
+  assert.strictEqual(
+    profileTurn2.transaction_type,
+    null,
+    'transaction_type must remain null before confirmation'
+  );
+  assert.ok(
+    session.getFallbackRoutingFormulation().includes("access the equity you've already built"),
+    'Fallback question is available for delivery'
+  );
+
+  // Turn 3: Borrower clarifies intent from Fallback Question -> Purchase
+  await session.onUserTurn('I think I want to purchase a new home');
+  const profileTurn3 = session.getProfile();
+  assert.strictEqual(profileTurn3.transaction_type, 'TT-PUR');
+  assert.strictEqual(profileTurn3.Q9_confirmed, true, 'Q9 confirmed upon clarifying response');
+
+  // 3. Second sub-case: Still unclear after Fallback routing -> remains unconfirmed (routes to SR-1)
+  const sessionUnclear = new SessionContextManager(null as any, null as any);
+  await sessionUnclear.onUserTurn('Just curious about mortgages');
+  await sessionUnclear.onUserTurn("I don't know");
+  assert.strictEqual(sessionUnclear.getProfile().fallback_routing_delivered, true);
+  assert.strictEqual(sessionUnclear.getProfile().Q9_confirmed, false);
+
+  // Turn 3: Still unclear after fallback was already delivered
+  await sessionUnclear.onUserTurn('Still have no idea at all');
+  const profileTurn3Unclear = sessionUnclear.getProfile();
+  assert.strictEqual(profileTurn3Unclear.Q9_confirmed, false, 'Stage 1 must strictly NOT activate');
+  assert.strictEqual(profileTurn3Unclear.transaction_type, null);
+
+  console.log('  ✅ S0-6 Passed: Fallback routing delivers on ambiguous response; clarifies to TT-PUR or holds for SR-1.');
+}
+
+await testFallbackRoutingFlow();
+
+// ── S0-5: Mixed Intent Handling (T9 / S0-5) ─────────────────────────────────
+async function testMixedIntentFlow() {
+  // 1. Verbatim Formulation & Tag Parsing Checks
+  assert.ok(
+    MIXED_INTENT_FORMULATION.includes('It sounds like you have two things on your mind — [goal 1] and [goal 2]'),
+    'Mixed intent formulation starts with verbatim spec text'
+  );
+  assert.ok(
+    MIXED_INTENT_FORMULATION.includes("Let's tackle them one at a time so we give each the attention it deserves. Which would you like to start with?"),
+    'Mixed intent formulation contains verbatim selection question'
+  );
+  assert.strictEqual(formatMixedIntentGoal('TT-PUR'), 'purchasing a new home');
+  assert.strictEqual(formatMixedIntentGoal('TT-REF'), 'refinancing your current mortgage');
+  assert.strictEqual(formatMixedIntentGoal('TT-HEL'), 'a Home Equity Line of Credit (HELOC)');
+  assert.strictEqual(formatMixedIntentGoal('TT-HEQ'), 'a home equity loan');
+
+  const rendered = renderMixedIntentFormulation('TT-PUR', 'TT-REF');
+  assert.ok(rendered.includes('purchasing a new home and refinancing your current mortgage'));
+
+  assert.strictEqual(
+    extractRouteTag('ROUTE: MIXED | PRIMARY: TT-PUR | SECONDARY: TT-REF', 'PRIMARY'),
+    'TT-PUR'
+  );
+  assert.strictEqual(
+    extractRouteTag('ROUTE: MIXED | PRIMARY: TT-PUR | SECONDARY: TT-REF', 'SECONDARY'),
+    'TT-REF'
+  );
+
+  // 2. Choice Parsing Checks
+  assert.deepStrictEqual(
+    parseMixedIntentChoice('start with purchase', ['TT-PUR', 'TT-REF']),
+    { primary: 'TT-PUR', secondary: 'TT-REF' }
+  );
+  assert.deepStrictEqual(
+    parseMixedIntentChoice('I prefer to refinance first', ['TT-PUR', 'TT-REF']),
+    { primary: 'TT-REF', secondary: 'TT-PUR' }
+  );
+  assert.deepStrictEqual(
+    parseMixedIntentChoice('let us do the first one', ['TT-PUR', 'TT-REF']),
+    { primary: 'TT-PUR', secondary: 'TT-REF' }
+  );
+  assert.deepStrictEqual(
+    parseMixedIntentChoice('the second one please', ['TT-PUR', 'TT-REF']),
+    { primary: 'TT-REF', secondary: 'TT-PUR' }
+  );
+
+  // 3. Branch A: Purchase chosen as Primary (Turn 1 Mixed -> Turn 2 Purchase)
+  const sessionA = new SessionContextManager(null as any, null as any);
+
+  // Turn 1: Borrower mentions both purchase and refinance
+  await sessionA.onUserTurn('I want to buy a house and also refinance my current one');
+  const profileA1 = sessionA.getProfile();
+
+  assert.ok(profileA1.signals_found?.includes('TT-PUR'), 'signals_found must include TT-PUR');
+  assert.ok(profileA1.signals_found?.includes('TT-REF'), 'signals_found must include TT-REF');
+  assert.strictEqual(profileA1.transaction_type, null, 'transaction_type must NOT be set prematurely');
+  assert.strictEqual(profileA1.Q9_confirmed, false, 'Q9_confirmed must be false before borrower choice');
+  assert.strictEqual(sessionA.getSection0RoutingStep(), 'MIXED_INTENT', 'Routing step must be MIXED_INTENT');
+  assert.ok(
+    sessionA.getMixedIntentFormulation().includes('purchasing a new home and refinancing your current mortgage'),
+    'Mixed intent formulation rendered with both goals'
+  );
+
+  // Turn 2: Borrower selects Purchase
+  await sessionA.onUserTurn("Let's start with purchasing");
+  const profileA2 = sessionA.getProfile();
+
+  assert.strictEqual(profileA2.transaction_type, 'TT-PUR', 'Primary chosen goal must activate TT-PUR');
+  assert.strictEqual(profileA2.mortgage_goal, 'purchase');
+  assert.strictEqual(profileA2.mortgage_goal_confirmed, true);
+  assert.strictEqual(profileA2.secondary_intent, 'TT-REF', 'Unchosen goal stored in secondary_intent for MLO');
+  assert.strictEqual(profileA2.Q9_confirmed, true, 'Q9 confirmed upon borrower choice');
+  assert.notStrictEqual(profileA2.transaction_type, 'TT-REF', 'Secondary track must NOT activate simultaneously');
+  assert.strictEqual(sessionA.getSection0RoutingStep(), 'NONE', 'Routing complete');
+
+  // 4. Branch B: Refinance chosen as Primary
+  const sessionB = new SessionContextManager(null as any, null as any);
+  await sessionB.onUserTurn('I am looking to buy a new home and refinance my existing property');
+  assert.strictEqual(sessionB.getSection0RoutingStep(), 'MIXED_INTENT');
+
+  await sessionB.onUserTurn('I want to refinance first');
+  const profileB2 = sessionB.getProfile();
+  assert.strictEqual(profileB2.transaction_type, 'TT-REF');
+  assert.strictEqual(profileB2.mortgage_goal, 'refinance');
+  assert.strictEqual(profileB2.mortgage_goal_confirmed, true);
+  assert.strictEqual(profileB2.secondary_intent, 'TT-PUR', 'Purchase stored as secondary intent');
+  assert.strictEqual(profileB2.Q9_confirmed, true);
+
+  // 5. Branch C: Resolved via LLM Tag Output on Turn 2
+  const sessionC = new SessionContextManager(null as any, null as any);
+  await sessionC.onUserTurn('I want to buy and refinance');
+  assert.strictEqual(sessionC.getProfile().Q9_confirmed, false);
+
+  await sessionC.onUserTurn('ROUTE: MIXED | PRIMARY: TT-PUR | SECONDARY: TT-REF');
+  const profileC2 = sessionC.getProfile();
+  assert.strictEqual(profileC2.transaction_type, 'TT-PUR');
+  assert.strictEqual(profileC2.secondary_intent, 'TT-REF');
+  assert.strictEqual(profileC2.Q9_confirmed, true);
+
+  // 6. Branch D: Mixed intent emerging on Turn 2 after Turn 1 open question
+  const sessionD = new SessionContextManager(null as any, null as any);
+  await sessionD.onUserTurn('I have some general mortgage questions');
+  assert.strictEqual(sessionD.getSection0RoutingStep(), 'Q9_STANDARD');
+
+  // Turn 2: Borrower specifies two intents (Purchase and HELOC)
+  await sessionD.onUserTurn('I want to buy a new home and also get a line of credit');
+  assert.strictEqual(sessionD.getSection0RoutingStep(), 'MIXED_INTENT');
+  assert.strictEqual(sessionD.getProfile().Q9_confirmed, false);
+
+  // Turn 3: Borrower chooses HELOC
+  await sessionD.onUserTurn('The line of credit is what I need first');
+  const profileD3 = sessionD.getProfile();
+  assert.strictEqual(profileD3.transaction_type, 'TT-HEL');
+  assert.strictEqual(profileD3.secondary_intent, 'TT-PUR');
+  assert.strictEqual(profileD3.Q9_confirmed, true);
+
+  console.log('  ✅ S0-5 Passed: Mixed intent acknowledges both goals; routes chosen track, stores unchosen in secondary_intent.');
+}
+
+await testMixedIntentFlow();
+
+// ── S0-7 & S0-13: TT-CON & TT-HECM Holdout Routing (T10 / S0-7 / S0-13) ─────
+async function testHoldoutRoutingFlow() {
+  // 1. Verbatim Formulations & Signal Checks
+  assert.ok(HOLDOUT_SIGNALS.includes('TT-CON'));
+  assert.ok(HOLDOUT_SIGNALS.includes('TT-HECM'));
+
+  assert.ok(
+    TT_CON_HOLDOUT_FORMULATION.includes('Construction loans involve some specific requirements that I want to make sure we handle correctly with a licensed loan officer.'),
+    'TT-CON formulation starts with verbatim spec text'
+  );
+  assert.ok(
+    TT_CON_HOLDOUT_FORMULATION.includes('Can I get your best contact information?'),
+    'TT-CON formulation asks for contact information'
+  );
+
+  assert.ok(
+    TT_HECM_HOLDOUT_FORMULATION.includes('Reverse mortgages have some unique features that are best explained by a licensed loan officer.'),
+    'TT-HECM formulation starts with verbatim spec text'
+  );
+  assert.ok(
+    TT_HECM_HOLDOUT_FORMULATION.includes('Can I get your best contact information?'),
+    'TT-HECM formulation asks for contact information'
+  );
+
+  // 2. Holdout Helper Function Checks
+  assert.strictEqual(getHoldoutFormulation(['TT-CON'])?.signal, 'TT-CON');
+  assert.strictEqual(getHoldoutFormulation(['TT-HECM'])?.signal, 'TT-HECM');
+  assert.strictEqual(getHoldoutFormulation(['TT-PUR']), null);
+
+  // 3. Routing Tag & Utterance Decisions
+  assert.strictEqual(parseQ9RoutingDecision('ROUTE: TT-CON'), 'TT-CON');
+  assert.strictEqual(parseQ9RoutingDecision('ROUTE: TT-HECM'), 'TT-HECM');
+  assert.strictEqual(parseQ9RoutingDecision('I want to build a house on my lot'), 'TT-CON');
+  assert.strictEqual(parseQ9RoutingDecision('I want a reverse mortgage'), 'TT-HECM');
+
+  // 4. S0-7: Construction Holdout Turn 1 Flow
+  const sessionCon = new SessionContextManager(null as any, null as any);
+
+  // Turn 1: Borrower states construction intent
+  await sessionCon.onUserTurn('I want to build a house on my lot');
+  const profileCon1 = sessionCon.getProfile();
+
+  assert.ok(profileCon1.signals_found?.includes('TT-CON'), 'signals_found must include TT-CON');
+  assert.strictEqual(profileCon1.holdout_routed, true, 'holdout_routed must be set to true');
+  assert.strictEqual(profileCon1.transaction_type, null, 'transaction_type must strictly remain null');
+  assert.strictEqual(profileCon1.Q9_confirmed, false, 'Q9_confirmed must strictly remain false');
+  assert.strictEqual(sessionCon.getSection0RoutingStep(), 'HOLDOUT', 'Routing step must be HOLDOUT');
+  assert.ok(
+    sessionCon.getHoldoutFormulation().includes('Construction loans involve some specific requirements'),
+    'Delivers TT-CON verbatim holdout script'
+  );
+
+  // Turn 2: Borrower provides contact info
+  await sessionCon.onUserTurn('My email is john@example.com and phone is 555-123-4567');
+  const profileCon2 = sessionCon.getProfile();
+
+  assert.strictEqual(profileCon2.holdout_routed, true);
+  assert.strictEqual(profileCon2.transaction_type, null, 'transaction_type must NOT be set to any track');
+  assert.strictEqual(profileCon2.Q9_confirmed, false, 'Stage 1 must remain strictly blocked');
+  assert.strictEqual(profileCon2.mortgage_goal, null, 'Stage 1 mortgage_goal must never be set');
+
+  console.log('  ✅ S0-7 Passed: Construction loan (TT-CON) delivers holdout, blocks Stage 1, keeps transaction_type null.');
+
+  // 5. S0-13: Reverse Mortgage (HECM) Holdout Turn 1 Flow
+  const sessionHecm = new SessionContextManager(null as any, null as any);
+
+  // Turn 1: Borrower states reverse mortgage intent
+  await sessionHecm.onUserTurn('I want a reverse mortgage');
+  const profileHecm1 = sessionHecm.getProfile();
+
+  assert.ok(profileHecm1.signals_found?.includes('TT-HECM'), 'signals_found must include TT-HECM');
+  assert.strictEqual(profileHecm1.holdout_routed, true, 'holdout_routed must be set to true');
+  assert.strictEqual(profileHecm1.transaction_type, null, 'transaction_type must strictly remain null');
+  assert.strictEqual(profileHecm1.Q9_confirmed, false, 'Q9_confirmed must strictly remain false');
+  assert.strictEqual(sessionHecm.getSection0RoutingStep(), 'HOLDOUT');
+  assert.ok(
+    sessionHecm.getHoldoutFormulation().includes('Reverse mortgages have some unique features'),
+    'Delivers TT-HECM verbatim holdout script'
+  );
+
+  // Turn 2: Borrower provides contact info
+  await sessionHecm.onUserTurn('Sure, call me at 555-987-6543');
+  const profileHecm2 = sessionHecm.getProfile();
+
+  assert.strictEqual(profileHecm2.holdout_routed, true);
+  assert.strictEqual(profileHecm2.transaction_type, null);
+  assert.strictEqual(profileHecm2.Q9_confirmed, false);
+
+  console.log('  ✅ S0-13 Passed: Reverse mortgage (TT-HECM) delivers holdout, blocks Stage 1, keeps transaction_type null.');
+
+  // 6. Holdout emerging on Turn 2 after Turn 1 open question
+  const sessionTurn2Holdout = new SessionContextManager(null as any, null as any);
+  await sessionTurn2Holdout.onUserTurn('I have some general questions about loan options');
+  assert.strictEqual(sessionTurn2Holdout.getSection0RoutingStep(), 'Q9_STANDARD');
+  assert.strictEqual(sessionTurn2Holdout.getProfile().holdout_routed, false);
+
+  // Turn 2: Borrower mentions construction
+  await sessionTurn2Holdout.onUserTurn('I am interested in building a home on our land');
+  const profileTurn2 = sessionTurn2Holdout.getProfile();
+  assert.strictEqual(profileTurn2.holdout_routed, true);
+  assert.strictEqual(profileTurn2.transaction_type, null);
+  assert.strictEqual(profileTurn2.Q9_confirmed, false);
+  assert.strictEqual(sessionTurn2Holdout.getSection0RoutingStep(), 'HOLDOUT');
+
+  console.log('  ✅ S0-T10-Turn2 Passed: Holdout routing triggers cleanly when holdout intent emerges on Turn 2.');
+}
+
+await testHoldoutRoutingFlow();
+
 console.log('\n======================================================');
-console.log('✨ ALL SECTION 0 (PHASES 1, 2, & T5–T7) TESTS PASSED!');
+console.log('✨ ALL SECTION 0 (PHASES 1, 2, & T5–T10) TESTS PASSED!');
 console.log('======================================================\n');

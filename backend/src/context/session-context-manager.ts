@@ -112,7 +112,7 @@ export function extractOpeningSignals(input: string, profile: BorrowerProfile, r
   }
 
   // ── TRANSACTION TYPE ────────────────────────────────────────────────
-  if (/buy|purchase|first home|new home|find a home|buying/i.test(text)) {
+  if (/buy|purchas|first home|new home|find a home/i.test(text)) {
     signals.push('TT-PUR');
   }
   if (/refinanc|refi|lower my rate|lower my payment|cash.?out/i.test(text)) {
@@ -310,13 +310,22 @@ export function renderQ9MultiTemplate(templateKey: string, profile: BorrowerProf
 export const Q9_STANDARD_FORMULATION =
   "To make sure I take you in the right direction — are you looking to purchase a home, refinance an existing mortgage, or access the equity you've already built in your home?";
 
-export type Q9RouteDecision = 'TT-PUR' | 'TT-REF' | 'TT-HEL' | 'TT-HEQ' | 'TT-HEL-AMBIG' | 'UNCLEAR';
+export type Q9RouteDecision = 'TT-PUR' | 'TT-REF' | 'TT-HEL' | 'TT-HEQ' | 'TT-HEL-AMBIG' | 'TT-CON' | 'TT-HECM' | 'MIXED' | 'UNCLEAR';
 
 /**
- * T6 — Parses LLM routing tags or borrower direct response for Q9 routing.
+ * T6, T9 & T10 — Parses LLM routing tags or borrower direct response for Q9 routing.
  */
 export function parseQ9RoutingDecision(output: string): Q9RouteDecision {
   // 1. LLM routing tags (from stage0-routing.ts)
+  if (/ROUTE:\s*MIXED\b/i.test(output)) {
+    return 'MIXED';
+  }
+  if (/ROUTE:\s*TT-CON\b/i.test(output)) {
+    return 'TT-CON';
+  }
+  if (/ROUTE:\s*TT-HECM\b/i.test(output)) {
+    return 'TT-HECM';
+  }
   if (/ROUTE:\s*TT-PUR\b/i.test(output)) {
     return 'TT-PUR';
   }
@@ -338,19 +347,40 @@ export function parseQ9RoutingDecision(output: string): Q9RouteDecision {
 
   // 2. Direct user utterance matching
   const text = output.toLowerCase();
-  if (/heloc|line of credit|home equity line/i.test(text)) {
+
+  // Holdout indicators (Construction & Reverse Mortgage)
+  if (/build|construction|construct/i.test(text)) {
+    return 'TT-CON';
+  }
+  if (/reverse mortgage|hecm/i.test(text)) {
+    return 'TT-HECM';
+  }
+
+  // Mixed intent check: borrower mentions two distinct transaction types simultaneously
+  const hasPur = /buy|purchas|first home|new home/i.test(text);
+  const hasRef = /refinanc|refi|lower my rate|lower my payment|cash.?out/i.test(text);
+  const hasHel = /heloc|line of credit|home equity line/i.test(text);
+  const hasHeq = /home equity loan|fixed equity|lump sum/i.test(text);
+  const hasEquityAmbig = /equity/i.test(text) && !hasHel && !hasHeq;
+
+  const ttCount = [hasPur, hasRef, (hasHel || hasHeq || hasEquityAmbig)].filter(Boolean).length;
+  if (ttCount >= 2) {
+    return 'MIXED';
+  }
+
+  if (hasHel) {
     return 'TT-HEL';
   }
-  if (/home equity loan|fixed equity|lump sum/i.test(text)) {
+  if (hasHeq) {
     return 'TT-HEQ';
   }
-  if (/equity/i.test(text)) {
+  if (hasEquityAmbig) {
     return 'TT-HEL-AMBIG';
   }
-  if (/buy|purchase|first home|new home|buying/i.test(text)) {
+  if (hasPur) {
     return 'TT-PUR';
   }
-  if (/refinanc|refi|lower my rate|lower my payment|cash.?out/i.test(text)) {
+  if (hasRef) {
     return 'TT-REF';
   }
 
@@ -383,7 +413,222 @@ export function applyQ9RoutingDecision(decision: Q9RouteDecision, profile: Borro
     profile.mortgage_goal_confirmed = true;
     profile.Q9_confirmed = true;
   }
-  // TT-HEL-AMBIG and UNCLEAR leave Q9_confirmed = false and transaction_type untouched
+  // TT-HEL-AMBIG, MIXED, and UNCLEAR leave Q9_confirmed = false and transaction_type untouched
+}
+
+/**
+ * T9 — Mixed Intent Formulation (Layer0Doc.md Section 7.6 / Task 9 verbatim)
+ * Delivered when borrower expresses two distinct transaction type intents simultaneously.
+ */
+export const MIXED_INTENT_FORMULATION =
+  "It sounds like you have two things on your mind — [goal 1] and [goal 2]. Those are both worth exploring, and they're actually connected. Let's tackle them one at a time so we give each the attention it deserves. Which would you like to start with?";
+
+/**
+ * T9 — Maps transaction type signal to natural language goal description for mixed intent formulation.
+ */
+export function formatMixedIntentGoal(signal: string): string {
+  switch (signal) {
+    case 'TT-PUR':
+      return 'purchasing a new home';
+    case 'TT-REF':
+      return 'refinancing your current mortgage';
+    case 'TT-HEL':
+      return 'a Home Equity Line of Credit (HELOC)';
+    case 'TT-HEQ':
+      return 'a home equity loan';
+    case 'TT-HEL-AMBIG':
+      return 'accessing your home equity';
+    case 'TT-CON':
+      return 'building a home';
+    case 'TT-HECM':
+      return 'a reverse mortgage';
+    default:
+      return signal;
+  }
+}
+
+/**
+ * T9 — Renders mixed intent formulation with populated goal names.
+ */
+export function renderMixedIntentFormulation(goal1: string, goal2: string): string {
+  const g1 = formatMixedIntentGoal(goal1);
+  const g2 = formatMixedIntentGoal(goal2);
+  return MIXED_INTENT_FORMULATION
+    .replace('[goal 1]', g1)
+    .replace('[goal 2]', g2);
+}
+
+/**
+ * T9 — Extracts PRIMARY or SECONDARY tag from LLM routing output.
+ */
+export function extractRouteTag(output: string, tag: 'PRIMARY' | 'SECONDARY'): string | null {
+  const regex = new RegExp(`${tag}:\\s*([A-Za-z0-9_-]+)`, 'i');
+  const match = output.match(regex);
+  return match && match[1] ? match[1].trim() : null;
+}
+
+/**
+ * T9 — Normalizes transaction type string to valid BorrowerProfile transaction_type value.
+ */
+export function normalizeTransactionType(
+  tt: string
+): 'TT-PUR' | 'TT-REF' | 'TT-HEL' | 'TT-HEQ' | 'TT-CON' | 'TT-HECM' | null {
+  const upper = tt.toUpperCase().trim();
+  if (upper === 'TT-PUR' || upper === 'PURCHASE' || upper === 'BUY') return 'TT-PUR';
+  if (upper === 'TT-REF' || upper === 'REFINANCE' || upper === 'REFI') return 'TT-REF';
+  if (upper === 'TT-HEL' || upper === 'HELOC') return 'TT-HEL';
+  if (upper === 'TT-HEQ' || upper === 'HEQ' || upper === 'HOME EQUITY LOAN') return 'TT-HEQ';
+  if (upper === 'TT-CON' || upper === 'CONSTRUCTION' || upper === 'BUILD') return 'TT-CON';
+  if (upper === 'TT-HECM' || upper === 'REVERSE MORTGAGE' || upper === 'HECM') return 'TT-HECM';
+  return null;
+}
+
+/**
+ * T9 — Parses borrower choice resolving mixed intent into primary and secondary goals.
+ */
+export function parseMixedIntentChoice(
+  text: string,
+  candidateSignals: string[]
+): { primary: 'TT-PUR' | 'TT-REF' | 'TT-HEL' | 'TT-HEQ' | 'TT-CON' | 'TT-HECM'; secondary: string } | null {
+  // 1. Explicit PRIMARY and SECONDARY tags from LLM
+  const primaryTag = extractRouteTag(text, 'PRIMARY');
+  const secondaryTag = extractRouteTag(text, 'SECONDARY');
+  if (primaryTag) {
+    const normPrimary = normalizeTransactionType(primaryTag);
+    if (normPrimary) {
+      const normSecondary = secondaryTag
+        ? (normalizeTransactionType(secondaryTag) || secondaryTag)
+        : candidateSignals.find(s => s !== normPrimary) || '';
+      return { primary: normPrimary, secondary: normSecondary };
+    }
+  }
+
+  // 2. Explicit ROUTE tag
+  if (/ROUTE:\s*TT-PUR\b/i.test(text)) {
+    const secondary = candidateSignals.find(s => s !== 'TT-PUR') || 'TT-REF';
+    return { primary: 'TT-PUR', secondary };
+  }
+  if (/ROUTE:\s*TT-REF\b/i.test(text)) {
+    const secondary = candidateSignals.find(s => s !== 'TT-REF') || 'TT-PUR';
+    return { primary: 'TT-REF', secondary };
+  }
+  if (/ROUTE:\s*TT-HEL\b/i.test(text)) {
+    const secondary = candidateSignals.find(s => s !== 'TT-HEL') || 'TT-PUR';
+    return { primary: 'TT-HEL', secondary };
+  }
+  if (/ROUTE:\s*TT-HEQ\b/i.test(text)) {
+    const secondary = candidateSignals.find(s => s !== 'TT-HEQ') || 'TT-PUR';
+    return { primary: 'TT-HEQ', secondary };
+  }
+
+  const lower = text.toLowerCase();
+
+  // 3. Intent by keyword / utterance (explicit goal mention takes precedence)
+  const hasPur = /buy|purchas|first home|new home/i.test(lower);
+  const hasRef = /refinanc|refi|lower my rate|lower my payment/i.test(lower);
+  const hasHel = /heloc|line of credit/i.test(lower);
+  const hasHeq = /home equity loan|fixed lump sum|lump sum/i.test(lower);
+
+  if (hasPur && !hasRef && !hasHel && !hasHeq) {
+    const secondary = candidateSignals.find(s => s !== 'TT-PUR') || 'TT-REF';
+    return { primary: 'TT-PUR', secondary };
+  }
+  if (hasRef && !hasPur && !hasHel && !hasHeq) {
+    const secondary = candidateSignals.find(s => s !== 'TT-REF') || 'TT-PUR';
+    return { primary: 'TT-REF', secondary };
+  }
+  if (hasHel && !hasPur && !hasRef && !hasHeq) {
+    const secondary = candidateSignals.find(s => s !== 'TT-HEL') || 'TT-PUR';
+    return { primary: 'TT-HEL', secondary };
+  }
+  if (hasHeq && !hasPur && !hasRef && !hasHel) {
+    const secondary = candidateSignals.find(s => s !== 'TT-HEQ') || 'TT-PUR';
+    return { primary: 'TT-HEQ', secondary };
+  }
+
+  // 4. Positional choice ("the first one", "the second one", "first option")
+  if (/\b(?:the\s+)?first(?:\s+one|\s+option)?\b/i.test(lower) && candidateSignals.length >= 2) {
+    const firstSig = candidateSignals[0] || 'TT-PUR';
+    const secondSig = candidateSignals[1] || 'TT-REF';
+    const primary = normalizeTransactionType(firstSig) || ('TT-PUR' as const);
+    return { primary, secondary: secondSig };
+  }
+  if (/\b(?:the\s+)?second(?:\s+one|\s+option)?\b/i.test(lower) && candidateSignals.length >= 2) {
+    const firstSig = candidateSignals[0] || 'TT-PUR';
+    const secondSig = candidateSignals[1] || 'TT-REF';
+    const primary = normalizeTransactionType(secondSig) || ('TT-REF' as const);
+    return { primary, secondary: firstSig };
+  }
+
+  return null;
+}
+
+/**
+ * T9 — Applies mixed intent choice to BorrowerProfile.
+ * Sets profile.transaction_type to primary chosen goal,
+ * stores unchosen goal in profile.secondary_intent,
+ * and confirms Q9 (Q9_confirmed = true).
+ * The unchosen track is NEVER activated simultaneously.
+ */
+export function applyMixedIntentChoice(
+  primary: 'TT-PUR' | 'TT-REF' | 'TT-HEL' | 'TT-HEQ' | 'TT-CON' | 'TT-HECM',
+  secondary: string,
+  profile: BorrowerProfile
+): void {
+  profile.transaction_type = primary;
+  if (primary === 'TT-PUR') {
+    profile.mortgage_goal = 'purchase';
+  } else if (primary === 'TT-REF') {
+    profile.mortgage_goal = 'refinance';
+  } else if (primary === 'TT-HEL' || primary === 'TT-HEQ') {
+    profile.mortgage_goal = 'heloc';
+  }
+  profile.mortgage_goal_confirmed = true;
+  profile.secondary_intent = secondary;
+  profile.Q9_confirmed = true;
+}
+
+/**
+ * T10 — Holdout Transaction Type Signals (Layer0Doc.md Section 7.8)
+ */
+export const HOLDOUT_SIGNALS = ['TT-CON', 'TT-HECM'] as const;
+
+/**
+ * T10 — Construction Loan Holdout Formulation (Layer0Doc.md Section 7.8 / Task 10 verbatim)
+ */
+export const TT_CON_HOLDOUT_FORMULATION =
+  "Construction loans involve some specific requirements that I want to make sure we handle correctly with a licensed loan officer. Let me connect you with one of our specialists who can walk you through the construction financing process in detail. Can I get your best contact information?";
+
+/**
+ * T10 — Reverse Mortgage (HECM) Holdout Formulation (Layer0Doc.md Section 7.8 / Task 10 verbatim)
+ */
+export const TT_HECM_HOLDOUT_FORMULATION =
+  "Reverse mortgages have some unique features that are best explained by a licensed loan officer. Let me connect you with a specialist who works with these programs every day. Can I get your best contact information?";
+
+/**
+ * T10 — Returns the holdout formulation for a given signal or list of signals.
+ */
+export function getHoldoutFormulation(signals: string[]): { signal: 'TT-CON' | 'TT-HECM'; text: string } | null {
+  if (signals.includes('TT-CON')) {
+    return { signal: 'TT-CON', text: TT_CON_HOLDOUT_FORMULATION };
+  }
+  if (signals.includes('TT-HECM')) {
+    return { signal: 'TT-HECM', text: TT_HECM_HOLDOUT_FORMULATION };
+  }
+  return null;
+}
+
+/**
+ * T10 — Applies holdout routing to BorrowerProfile.
+ * Sets holdout_routed = true.
+ * CRITICAL: NEVER sets transaction_type.
+ * CRITICAL: NEVER sets Q9_confirmed (must remain false to block Stage 1).
+ */
+export function applyHoldoutRouting(profile: BorrowerProfile): void {
+  profile.holdout_routed = true;
+  // profile.transaction_type remains null
+  // profile.Q9_confirmed strictly remains false
+  console.log('[section0]: 🚧 Holdout routing applied (holdout_routed=true). Stage 1 blocked.');
 }
 
 /**
@@ -399,6 +644,13 @@ export const EQUITY_DISAMBIG_FORMULATION =
  */
 export const HQ18_COMPARISON_FORMULATION =
   "The key difference is structure and rate. A HELOC is a revolving line — you draw what you need during the draw period, pay interest only on what you use, and can borrow again as you pay it down. The rate is typically variable. A home equity loan gives you a fixed lump sum all at once, with a fixed interest rate and fixed monthly payments from day one — no draw period, no flexibility, but complete payment predictability. If you need flexibility over time or are not sure of the exact amount you need, a HELOC is often the better fit. If you know exactly what you need and want a predictable payment, a home equity loan may suit you better. Your licensed loan officer can compare both side by side for your situation.";
+
+/**
+ * T8 — Fallback Routing Question Formulation (Layer0Doc.md Section 7.5)
+ * Delivered when borrower's response to Q9 or equity disambiguation remains ambiguous.
+ */
+export const FALLBACK_ROUTING_FORMULATION =
+  "Are you looking to purchase a new home, refinance an existing mortgage, or access the equity you've already built?";
 
 export type EquityDisambigChoice = 'TT-HEL' | 'TT-HEQ' | 'UNSURE' | 'UNCLEAR';
 
@@ -1261,24 +1513,49 @@ export class SessionContextManager {
     this.turnLog.push({ role: 'user', text: trimmed, timestamp: Date.now() });
     this.turnCount += 1;
 
-    // ── Section 0: First-turn signal extraction (T3), TRID gate (T4) & Q9-MULTI (T5) ───
+    // ── Section 0: First-turn signal extraction (T3), TRID gate (T4), Q9-MULTI (T5), Mixed Intent (T9) & Holdouts (T10) ───
     // Runs ONCE on the very first user turn in Stage 1, BEFORE the LLM.
-    // Pure regex — <10ms. Sets signals_found[] and selects Q9-MULTI template if 2+ signals found.
+    // Pure regex — <10ms. Sets signals_found[] and routes according to Section 0 precedence.
     if (this.activeStage === '1' && this.turnCount === 1 && !this.profile.Q9_confirmed) {
       const _tSection0 = performance.now();
       this.extractOpeningSignals(preRedactionText, trimmed);
       this.applyTridGate();
-      if ((this.profile.signals_found?.length ?? 0) >= 2 && !this.profile.Q9_MULTI_delivered) {
-        this.evaluateQ9Multi();
+
+      // T10: Holdout check (TT-CON / TT-HECM)
+      const holdout = getHoldoutFormulation(this.profile.signals_found || []);
+      if (holdout && !this.profile.holdout_routed) {
+        this.applyHoldoutRouting();
+        console.log(`[section0]: 🚧 Holdout signal ${holdout.signal} detected on opening turn — routed to MLO. Stage 1 blocked.`);
+      } else {
+        const ttSignals = (this.profile.signals_found || []).filter(s => s.startsWith('TT-'));
+        if (ttSignals.length >= 2) {
+          console.log(`[section0]: 🔀 Mixed intent detected on opening turn: [${ttSignals.join(', ')}]. Awaiting borrower choice.`);
+        } else {
+          if ((this.profile.signals_found?.length ?? 0) >= 2 && !this.profile.Q9_MULTI_delivered) {
+            this.evaluateQ9Multi();
+          }
+          if (this.profile.signals_found?.includes('TT-HEL-AMBIG') && !this.profile.equity_disambig_delivered) {
+            this.profile.equity_disambig_delivered = true;
+            console.log(`[section0]: ⚖️ Equity disambiguation delivered on opening turn (signals_found includes TT-HEL-AMBIG).`);
+          }
+        }
       }
-      if (this.profile.signals_found?.includes('TT-HEL-AMBIG') && !this.profile.equity_disambig_delivered) {
-        this.profile.equity_disambig_delivered = true;
-        console.log(`[section0]: ⚖️ Equity disambiguation delivered on opening turn (signals_found includes TT-HEL-AMBIG).`);
+      console.log(`[perf] context-manager Section 0 extraction + TRID gate + Q9-MULTI/mixed/holdout: ${(performance.now() - _tSection0).toFixed(1)}ms`);
+      if (this.profile.holdout_routed) {
+        console.log(`[perf] context-manager onUserTurn TOTAL (holdout routed): ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
+        return;
       }
-      console.log(`[perf] context-manager Section 0 extraction + TRID gate + Q9-MULTI: ${(performance.now() - _tSection0).toFixed(1)}ms`);
     } else if (this.activeStage === '1' && !this.profile.Q9_confirmed) {
-      // ── Section 0: Q9 & Equity Disambiguation routing resolution on turn 2+ (T6 & T7) ────
+      if (this.profile.holdout_routed) {
+        console.log('[section0]: 🚧 Holdout active — maintaining Stage 1 block. Not advancing to Stage 1 discovery.');
+        return;
+      }
+      // ── Section 0: Q9, Equity Disambiguation, Mixed Intent & Holdout routing resolution on turn 2+ (T6–T10) ────
       this.evaluateQ9Routing(trimmed);
+      if (this.profile.holdout_routed) {
+        console.log(`[perf] context-manager onUserTurn TOTAL (holdout routed on turn 2+): ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
+        return;
+      }
     }
 
     // Handle Stage 2 pending confirmations local loop directly on this turn
@@ -2667,10 +2944,21 @@ export class SessionContextManager {
   }
 
   /**
-   * T6 & T7 — Resolves Q9 open routing and Equity Disambiguation choices.
+   * T6, T7, T8 & T9 — Resolves Q9 open routing, Equity Disambiguation, and Mixed Intent choices.
    */
   public evaluateQ9Routing(input: string, llmOutput?: string): Q9RouteDecision {
     const text = llmOutput || input;
+
+    // T9: If mixed intent is active (signals_found has 2+ TT signals), resolve borrower's choice
+    const ttSignals = (this.profile.signals_found || []).filter(s => s.startsWith('TT-'));
+    if (ttSignals.length >= 2 && !this.profile.Q9_confirmed) {
+      const choice = parseMixedIntentChoice(text, ttSignals);
+      if (choice) {
+        this.applyMixedIntentChoice(choice.primary, choice.secondary);
+        console.log(`[section0]: 🔀 Mixed intent resolved -> Primary: ${choice.primary}, Secondary: ${choice.secondary} (Q9_confirmed=true)`);
+        return choice.primary as Q9RouteDecision;
+      }
+    }
 
     // T7: If equity disambiguation was already delivered, resolve the disambiguation choice
     if (this.profile.equity_disambig_delivered && !this.profile.Q9_confirmed) {
@@ -2690,6 +2978,34 @@ export class SessionContextManager {
     }
 
     const decision = parseQ9RoutingDecision(text);
+    if (decision === 'TT-CON' || decision === 'TT-HECM') {
+      if (!this.profile.signals_found?.includes(decision)) {
+        this.profile.signals_found = this.profile.signals_found || [];
+        this.profile.signals_found.push(decision);
+      }
+      this.applyHoldoutRouting();
+      console.log(`[section0]: 🚧 Holdout triggered from Q9 response: ${decision}. Stage 1 blocked.`);
+      return decision;
+    }
+
+    if (decision === 'MIXED') {
+      const mixedSignals: string[] = [];
+      if (/buy|purchas|first home|new home/i.test(text)) mixedSignals.push('TT-PUR');
+      if (/refinanc|refi|lower my rate|lower my payment|cash.?out/i.test(text)) mixedSignals.push('TT-REF');
+      if (/heloc|line of credit|home equity line/i.test(text)) mixedSignals.push('TT-HEL');
+      else if (/home equity loan|fixed equity|lump sum/i.test(text)) mixedSignals.push('TT-HEQ');
+      else if (/equity/i.test(text)) mixedSignals.push('TT-HEL-AMBIG');
+
+      for (const sig of mixedSignals) {
+        if (!this.profile.signals_found?.includes(sig)) {
+          this.profile.signals_found = this.profile.signals_found || [];
+          this.profile.signals_found.push(sig);
+        }
+      }
+      console.log(`[section0]: 🔀 Mixed intent triggered from response: [${mixedSignals.join(', ')}]`);
+      return 'MIXED';
+    }
+
     if (decision === 'TT-HEL-AMBIG') {
       this.profile.equity_disambig_delivered = true;
       console.log('[section0]: ⚖️ Equity disambiguation triggered from Q9 response.');
@@ -2717,6 +3033,16 @@ export class SessionContextManager {
           return 'TT-HEQ';
         }
       }
+
+      // T8: Fallback routing question delivery tracking
+      if (!this.profile.fallback_routing_delivered) {
+        this.profile.fallback_routing_delivered = true;
+        console.log('[section0]: 🔄 Fallback routing delivered after unclear response (fallback_routing_delivered=true).');
+        return 'UNCLEAR';
+      } else {
+        console.log('[section0]: ⚠️ Unclear after fallback routing — route to stall recovery SR-1.');
+        return 'UNCLEAR';
+      }
     }
 
     this.applyQ9RoutingDecision(decision);
@@ -2727,6 +3053,10 @@ export class SessionContextManager {
    * T6 — Applies Q9 decision and advances pending field if routing confirmed.
    */
   public applyQ9RoutingDecision(decision: Q9RouteDecision): void {
+    if (decision === 'TT-CON' || decision === 'TT-HECM') {
+      this.applyHoldoutRouting();
+      return;
+    }
     applyQ9RoutingDecision(decision, this.profile);
     if (this.profile.Q9_confirmed) {
       console.log(`[section0]: 🎯 Q9 routing confirmed -> ${this.profile.transaction_type} (Q9_confirmed=true)`);
@@ -2739,19 +3069,53 @@ export class SessionContextManager {
   }
 
   /**
-   * T6 & T7 — Returns which Section 0 routing step is currently active.
+   * T9 — Applies mixed intent choice to profile and advances workflow.
    */
-  public getSection0RoutingStep(): 'TRID_GATE' | 'Q9_MULTI' | 'EQUITY_DISAMBIG' | 'Q9_STANDARD' | 'NONE' {
+  public applyMixedIntentChoice(
+    primary: 'TT-PUR' | 'TT-REF' | 'TT-HEL' | 'TT-HEQ' | 'TT-CON' | 'TT-HECM',
+    secondary: string
+  ): void {
+    applyMixedIntentChoice(primary, secondary, this.profile);
+    if (this.profile.Q9_confirmed) {
+      console.log(`[section0]: 🎯 Mixed intent confirmed -> ${this.profile.transaction_type} (secondary: ${this.profile.secondary_intent})`);
+      if (this.currentPendingField === 'mortgage_goal') {
+        this.advanceWorkflow();
+      }
+    }
+  }
+
+  /**
+   * T10 — Applies holdout routing to BorrowerProfile.
+   * Sets holdout_routed = true, leaves transaction_type as null, and leaves Q9_confirmed = false.
+   */
+  public applyHoldoutRouting(): void {
+    applyHoldoutRouting(this.profile);
+  }
+
+  /**
+   * T6, T7, T9 & T10 — Returns which Section 0 routing step is currently active.
+   */
+  public getSection0RoutingStep(): 'TRID_GATE' | 'HOLDOUT' | 'MIXED_INTENT' | 'Q9_MULTI' | 'EQUITY_DISAMBIG' | 'Q9_STANDARD' | 'NONE' {
+    if (this.profile.Q9_confirmed) {
+      return 'NONE';
+    }
     if (this.profile.trid_gate_required && !this.profile.trid_gate_fired) {
       return 'TRID_GATE';
+    }
+    if (this.profile.holdout_routed || this.profile.signals_found?.some(s => HOLDOUT_SIGNALS.includes(s as any))) {
+      return 'HOLDOUT';
+    }
+    const ttSignals = (this.profile.signals_found || []).filter(s => s.startsWith('TT-'));
+    if (ttSignals.length >= 2) {
+      return 'MIXED_INTENT';
     }
     if ((this.profile.signals_found?.length ?? 0) >= 2 && !this.profile.Q9_MULTI_delivered) {
       return 'Q9_MULTI';
     }
-    if (!this.profile.Q9_confirmed && (this.profile.equity_disambig_delivered || this.profile.signals_found?.includes('TT-HEL-AMBIG'))) {
+    if (this.profile.equity_disambig_delivered || this.profile.signals_found?.includes('TT-HEL-AMBIG')) {
       return 'EQUITY_DISAMBIG';
     }
-    if (!this.profile.Q9_confirmed && (this.profile.signals_found?.length ?? 0) === 0) {
+    if ((this.profile.signals_found?.length ?? 0) === 0) {
       return 'Q9_STANDARD';
     }
     return 'NONE';
@@ -2776,6 +3140,31 @@ export class SessionContextManager {
    */
   public getHQ18ComparisonFormulation(): string {
     return HQ18_COMPARISON_FORMULATION;
+  }
+
+  /**
+   * T8 — Returns the fallback routing question text.
+   */
+  public getFallbackRoutingFormulation(): string {
+    return FALLBACK_ROUTING_FORMULATION;
+  }
+
+  /**
+   * T9 — Returns the mixed intent acknowledgment formulation with populated goal names.
+   */
+  public getMixedIntentFormulation(): string {
+    const ttSignals = (this.profile.signals_found || []).filter(s => s.startsWith('TT-'));
+    const goal1 = ttSignals[0] || 'purchasing a new home';
+    const goal2 = ttSignals[1] || 'refinancing your current mortgage';
+    return renderMixedIntentFormulation(goal1, goal2);
+  }
+
+  /**
+   * T10 — Returns the holdout formulation for the detected holdout signal.
+   */
+  public getHoldoutFormulation(): string {
+    const holdout = getHoldoutFormulation(this.profile.signals_found || []);
+    return holdout ? holdout.text : '';
   }
 
   private async runStage1Extraction(text: string): Promise<void> {
@@ -4352,6 +4741,11 @@ If no correction/change is found, return null.`
     this.fieldAttempts[field] = 0;
 
     if (field === 'mortgage_goal') {
+      if (!this.profile.Q9_confirmed) {
+        // Section 0 routing guard: never force transaction_type or Q9_confirmed. Keep unconfirmed for SR-1 stall recovery.
+        console.log('[section0]: 🛡️ mortgage_goal unclear in Section 0 — holding unconfirmed for SR-1 stall recovery.');
+        return;
+      }
       this.profile.mortgage_goal = 'purchase';
       this.profile.transaction_type = 'TT-PUR';
       this.profile.mortgage_goal_confirmed = true;
