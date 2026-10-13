@@ -19,7 +19,7 @@
 ## 📊 Overall Layer 0 Progress
 
 ```
-Layer 0 Completion:  ███████████░░░░░░░░░  ~55% (T1–T6 Complete: Q9 Standard Routing)
+Layer 0 Completion:  ████████████░░░░░░░░  ~60% (T1–T7 Complete: Phase 3 Core Complete)
 ```
 
 | Area | Status | Notes |
@@ -28,7 +28,7 @@ Layer 0 Completion:  ███████████░░░░░░░░�
 | Front-Loading Extraction (`extractOpeningSignals`) | 🟢 Complete | Upgraded with fast regex pattern matching (<10ms) & multi-signal `signals_found` aggregation. |
 | Q9 Standard Routing Logic | 🟢 Complete | Q9 standard open routing handled when 0 opening signals; routes and confirms on Turn 2 response. |
 | TRID Gate (`Q9-TRID-GATE`) | 🟢 Complete | SSN & property address intercept gate enforced before Q9 routing fires. |
-| Equity Disambiguation Flow | 🟡 Partial | HELOC vs HEQ distinguished via `mortgage_goal` but no `equity_disambig_delivered` field or scripted flow. |
+| Equity Disambiguation Flow | 🟢 Complete | Disambiguates HELOC vs Home Equity Loan with scripted flow and HQ18 educational comparison for unsure borrowers. |
 | Mixed Intent Handling | 🔴 Missing | No `secondary_intent` field or mixed-intent acknowledgment flow. |
 | Fallback Routing Question | 🔴 Missing | No distinct fallback step — uses generic re-ask loop instead. |
 | Stage 1 Gate (`Q9_confirmed`) | 🔴 Missing | Stage 1 fires immediately without `Q9_confirmed` guard. |
@@ -393,7 +393,7 @@ if (llmOutput.includes('ROUTE: TT-PUR')) {
 
 #### TASK 7 — Implement Equity Disambiguation Flow `[HIGH]`
 **File:** [`backend/src/context/session-context-manager.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/context/session-context-manager.ts)  
-**Status:** 🔴 PENDING
+**Status:** 🟢 COMPLETE (Verified by S0-4, S0-12, S0-T7-HEQ, S0-T7-Unsure tests)
 
 **What to add:**  
 When Q9 response returns `ROUTE: TT-HEL-AMBIG` (borrower said "equity" without specifying HELOC vs home equity loan):

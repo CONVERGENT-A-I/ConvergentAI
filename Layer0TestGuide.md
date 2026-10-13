@@ -16,7 +16,7 @@
 | **T4** | TRID compliance gate (SSN / Address intercept) | 🟢 Pass |
 | **T5** | Select Q9-MULTI Templates (A–F & General) | 🟢 Pass |
 | **T6** | Standard Q9 open routing | 🟢 Pass |
-| **T7** | Equity disambiguation (HELOC vs Loan) | 🔴 Pending |
+| **T7** | Equity disambiguation (HELOC vs Loan) | 🟢 Pass |
 | **T8** | Fallback question for unclear answers | 🔴 Pending |
 | **T9** | Mixed intent handling (2 goals) | 🔴 Pending |
 | **T10** | Holdout routing (Construction & Reverse Mortgages) | 🔴 Pending |
@@ -185,7 +185,7 @@ Run these inside the `backend/` folder:
   - Turn 2: Borrower says `"HELOC"` ➔ `transaction_type = 'TT-HEL'` and `Q9_confirmed = true`.
 * **Failure sign:**  
   System assumes HELOC automatically without asking.
-* **Status:** `[ ] Pending  [ ] Pass  [ ] Fail`
+* **Status:** `[x] Pass  [ ] Pending  [ ] Fail`
 
 ---
 

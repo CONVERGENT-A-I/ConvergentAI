@@ -120,9 +120,10 @@ export function extractOpeningSignals(input: string, profile: BorrowerProfile, r
   }
   if (/heloc|equity line|home equity line|line of credit/i.test(text)) {
     signals.push('TT-HEL');
-  }
-  if (/home equity loan|lump sum|equity loan/i.test(text)) {
+  } else if (/home equity loan|lump sum|equity loan/i.test(text)) {
     signals.push('TT-HEQ');
+  } else if (/equity/i.test(text)) {
+    signals.push('TT-HEL-AMBIG');
   }
   if (/build|construction|construct/i.test(text)) {
     signals.push('TT-CON');   // holdout — routes to MLO
@@ -383,6 +384,51 @@ export function applyQ9RoutingDecision(decision: Q9RouteDecision, profile: Borro
     profile.Q9_confirmed = true;
   }
   // TT-HEL-AMBIG and UNCLEAR leave Q9_confirmed = false and transaction_type untouched
+}
+
+/**
+ * T7 — Equity Disambiguation Formulation (Layer0Doc.md Section 7.4)
+ * Delivered when borrower expresses equity access intent without specifying HELOC or Home Equity Loan.
+ */
+export const EQUITY_DISAMBIG_FORMULATION =
+  "Great — accessing your home equity is a smart move. Before we dive in, one quick question: are you thinking of a Home Equity Line of Credit — sometimes called a HELOC — where you draw funds as needed over time? Or a home equity loan, which gives you a fixed lump sum at a fixed rate all at once? If you're not sure which fits your situation better, I can explain the difference and help you decide.";
+
+/**
+ * T7 — HQ18 Educational Comparison Formulation (Layer0Doc.md Section 7.4 / Task 7)
+ * Delivered when borrower is unsure between HELOC and Home Equity Loan.
+ */
+export const HQ18_COMPARISON_FORMULATION =
+  "The key difference is structure and rate. A HELOC is a revolving line — you draw what you need during the draw period, pay interest only on what you use, and can borrow again as you pay it down. The rate is typically variable. A home equity loan gives you a fixed lump sum all at once, with a fixed interest rate and fixed monthly payments from day one — no draw period, no flexibility, but complete payment predictability. If you need flexibility over time or are not sure of the exact amount you need, a HELOC is often the better fit. If you know exactly what you need and want a predictable payment, a home equity loan may suit you better. Your licensed loan officer can compare both side by side for your situation.";
+
+export type EquityDisambigChoice = 'TT-HEL' | 'TT-HEQ' | 'UNSURE' | 'UNCLEAR';
+
+/**
+ * T7 — Parses borrower's response to the equity disambiguation question.
+ */
+export function parseEquityDisambiguationChoice(text: string): EquityDisambigChoice {
+  const lower = text.toLowerCase();
+
+  // Explicit LLM tags
+  if (/ROUTE:\s*TT-HEL\b/i.test(text)) return 'TT-HEL';
+  if (/ROUTE:\s*TT-HEQ\b/i.test(text)) return 'TT-HEQ';
+  if (/ROUTE:\s*UNSURE\b/i.test(text)) return 'UNSURE';
+
+  // Unsure / educational comparison requested
+  if (/not sure|unsure|don't know|difference|explain|help me decide|which is better/i.test(lower)) {
+    return 'UNSURE';
+  }
+
+  // HELOC indicators
+  if (/heloc|line of credit|revolving|draw funds|draw as needed|credit line|flexible/i.test(lower)) {
+    return 'TT-HEL';
+  }
+
+  // Home Equity Loan indicators
+  if (/home equity loan|fixed lump sum|lump sum|fixed rate|fixed loan|fixed payment|\bloan\b/i.test(lower)) {
+    return 'TT-HEQ';
+  }
+
+  return 'UNCLEAR';
 }
 
 export class SessionContextManager {
@@ -1225,9 +1271,13 @@ export class SessionContextManager {
       if ((this.profile.signals_found?.length ?? 0) >= 2 && !this.profile.Q9_MULTI_delivered) {
         this.evaluateQ9Multi();
       }
+      if (this.profile.signals_found?.includes('TT-HEL-AMBIG') && !this.profile.equity_disambig_delivered) {
+        this.profile.equity_disambig_delivered = true;
+        console.log(`[section0]: ⚖️ Equity disambiguation delivered on opening turn (signals_found includes TT-HEL-AMBIG).`);
+      }
       console.log(`[perf] context-manager Section 0 extraction + TRID gate + Q9-MULTI: ${(performance.now() - _tSection0).toFixed(1)}ms`);
     } else if (this.activeStage === '1' && !this.profile.Q9_confirmed) {
-      // ── Section 0: Q9 routing resolution on turn 2+ (T6) ───────────────────
+      // ── Section 0: Q9 & Equity Disambiguation routing resolution on turn 2+ (T6 & T7) ────
       this.evaluateQ9Routing(trimmed);
     }
 
@@ -2617,10 +2667,35 @@ export class SessionContextManager {
   }
 
   /**
-   * T6 — Resolves Q9 open routing based on borrower input or LLM route output.
+   * T6 & T7 — Resolves Q9 open routing and Equity Disambiguation choices.
    */
   public evaluateQ9Routing(input: string, llmOutput?: string): Q9RouteDecision {
-    const decision = parseQ9RoutingDecision(llmOutput || input);
+    const text = llmOutput || input;
+
+    // T7: If equity disambiguation was already delivered, resolve the disambiguation choice
+    if (this.profile.equity_disambig_delivered && !this.profile.Q9_confirmed) {
+      const choice = parseEquityDisambiguationChoice(text);
+      if (choice === 'TT-HEL') {
+        this.applyQ9RoutingDecision('TT-HEL');
+        return 'TT-HEL';
+      }
+      if (choice === 'TT-HEQ') {
+        this.applyQ9RoutingDecision('TT-HEQ');
+        return 'TT-HEQ';
+      }
+      if (choice === 'UNSURE') {
+        console.log('[section0]: 📚 Borrower unsure on equity disambiguation — deliver HQ18 comparison.');
+        return 'TT-HEL-AMBIG';
+      }
+    }
+
+    const decision = parseQ9RoutingDecision(text);
+    if (decision === 'TT-HEL-AMBIG') {
+      this.profile.equity_disambig_delivered = true;
+      console.log('[section0]: ⚖️ Equity disambiguation triggered from Q9 response.');
+      return 'TT-HEL-AMBIG';
+    }
+
     if (decision === 'UNCLEAR') {
       // Check if user confirms an earlier extracted signal (e.g. "Yes", "That's right")
       const lower = input.toLowerCase();
@@ -2664,14 +2739,17 @@ export class SessionContextManager {
   }
 
   /**
-   * T6 — Returns which Section 0 routing step is currently active.
+   * T6 & T7 — Returns which Section 0 routing step is currently active.
    */
-  public getSection0RoutingStep(): 'TRID_GATE' | 'Q9_MULTI' | 'Q9_STANDARD' | 'NONE' {
+  public getSection0RoutingStep(): 'TRID_GATE' | 'Q9_MULTI' | 'EQUITY_DISAMBIG' | 'Q9_STANDARD' | 'NONE' {
     if (this.profile.trid_gate_required && !this.profile.trid_gate_fired) {
       return 'TRID_GATE';
     }
     if ((this.profile.signals_found?.length ?? 0) >= 2 && !this.profile.Q9_MULTI_delivered) {
       return 'Q9_MULTI';
+    }
+    if (!this.profile.Q9_confirmed && (this.profile.equity_disambig_delivered || this.profile.signals_found?.includes('TT-HEL-AMBIG'))) {
+      return 'EQUITY_DISAMBIG';
     }
     if (!this.profile.Q9_confirmed && (this.profile.signals_found?.length ?? 0) === 0) {
       return 'Q9_STANDARD';
@@ -2684,6 +2762,20 @@ export class SessionContextManager {
    */
   public getQ9StandardFormulation(): string {
     return Q9_STANDARD_FORMULATION;
+  }
+
+  /**
+   * T7 — Returns the equity disambiguation question text.
+   */
+  public getEquityDisambigFormulation(): string {
+    return EQUITY_DISAMBIG_FORMULATION;
+  }
+
+  /**
+   * T7 — Returns the HQ18 educational comparison text.
+   */
+  public getHQ18ComparisonFormulation(): string {
+    return HQ18_COMPARISON_FORMULATION;
   }
 
   private async runStage1Extraction(text: string): Promise<void> {

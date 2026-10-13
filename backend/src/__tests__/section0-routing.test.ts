@@ -13,12 +13,15 @@ import {
   Q9_MULTI_TEMPLATES,
   Q9_TRID_GATE_FORMULATION,
   Q9_STANDARD_FORMULATION,
+  EQUITY_DISAMBIG_FORMULATION,
+  HQ18_COMPARISON_FORMULATION,
   parseQ9RoutingDecision,
   applyQ9RoutingDecision,
+  parseEquityDisambiguationChoice,
   SessionContextManager,
 } from '../context/session-context-manager.js';
 
-console.log('🧪 Running Section 0 Test Suite (Phases 1–3: T1–T6)...\n');
+console.log('🧪 Running Section 0 Test Suite (Phases 1–3: T1–T7)...\n');
 
 // ── S0-1: Zero-State Profile Initialization Defaults (T1 & T2) ───────────────
 {
@@ -373,6 +376,108 @@ async function testS0_11_Confirmation() {
 
 await testS0_11_Confirmation();
 
+// ── S0-T7: Equity Disambiguation Choice Parsing & Formulations (T7) ─────────
+{
+  // 1. Tag and utterance parsing
+  assert.strictEqual(parseEquityDisambiguationChoice('ROUTE: TT-HEL'), 'TT-HEL');
+  assert.strictEqual(parseEquityDisambiguationChoice('ROUTE: TT-HEQ'), 'TT-HEQ');
+  assert.strictEqual(parseEquityDisambiguationChoice('ROUTE: UNSURE'), 'UNSURE');
+
+  assert.strictEqual(parseEquityDisambiguationChoice('I prefer a HELOC line of credit'), 'TT-HEL');
+  assert.strictEqual(parseEquityDisambiguationChoice('I want a fixed lump sum loan'), 'TT-HEQ');
+  assert.strictEqual(parseEquityDisambiguationChoice('I am not sure, what is the difference?'), 'UNSURE');
+  assert.strictEqual(parseEquityDisambiguationChoice('help me decide'), 'UNSURE');
+
+  // 2. Verbatim compliance formulation checks
+  assert.ok(
+    EQUITY_DISAMBIG_FORMULATION.includes('Home Equity Line of Credit — sometimes called a HELOC'),
+    'Equity disambiguation formulation matches verbatim spec'
+  );
+  assert.ok(
+    HQ18_COMPARISON_FORMULATION.includes('The key difference is structure and rate'),
+    'HQ18 educational comparison matches verbatim spec'
+  );
+
+  console.log('  ✅ S0-T7-Choices Passed: Equity disambiguation choices & verbatim formulations verified.');
+}
+
+// ── S0-4 & S0-12: Equity Disambiguation Flow -> HELOC (T7 / S0-4 / S0-12) ────
+async function testEquityDisambiguationHELOC() {
+  const session = new SessionContextManager(null as any, null as any);
+
+  // Turn 1: Borrower says ambiguous equity access intent
+  await session.onUserTurn('I want to access my equity');
+  const profileTurn1 = session.getProfile();
+
+  assert.ok(profileTurn1.signals_found?.includes('TT-HEL-AMBIG'), 'Must extract ambiguous equity signal');
+  assert.strictEqual(profileTurn1.equity_disambig_delivered, true, 'equity_disambig_delivered must be set to true');
+  assert.strictEqual(profileTurn1.transaction_type, null, 'transaction_type must NOT be set yet');
+  assert.strictEqual(profileTurn1.Q9_confirmed, false, 'Q9_confirmed must be false');
+  assert.strictEqual(session.getSection0RoutingStep(), 'EQUITY_DISAMBIG');
+
+  // Turn 2: Borrower chooses HELOC
+  await session.onUserTurn('I want a HELOC');
+  const profileTurn2 = session.getProfile();
+
+  assert.strictEqual(profileTurn2.transaction_type, 'TT-HEL', 'Must set TT-HEL');
+  assert.strictEqual(profileTurn2.Q9_confirmed, true, 'Q9_confirmed must become true');
+  assert.strictEqual(profileTurn2.mortgage_goal, 'heloc');
+  assert.strictEqual(profileTurn2.mortgage_goal_confirmed, true);
+
+  console.log('  ✅ S0-4 & S0-12 Passed: Ambiguous equity prompts disambiguation and resolves to TT-HEL.');
+}
+
+await testEquityDisambiguationHELOC();
+
+// ── S0-T7: Equity Disambiguation Flow -> Home Equity Loan (TT-HEQ) (T7) ─────
+async function testEquityDisambiguationHEQ() {
+  const session = new SessionContextManager(null as any, null as any);
+
+  // Turn 1: Borrower says ambiguous equity access intent
+  await session.onUserTurn('I want to tap into my home equity');
+  assert.strictEqual(session.getProfile().equity_disambig_delivered, true);
+
+  // Turn 2: Borrower chooses fixed lump sum loan
+  await session.onUserTurn('I want a fixed lump sum loan');
+  const profileTurn2 = session.getProfile();
+
+  assert.strictEqual(profileTurn2.transaction_type, 'TT-HEQ', 'Must set TT-HEQ');
+  assert.strictEqual(profileTurn2.Q9_confirmed, true, 'Q9_confirmed must become true');
+
+  console.log('  ✅ S0-T7-HEQ Passed: Ambiguous equity resolves to fixed Home Equity Loan (TT-HEQ).');
+}
+
+await testEquityDisambiguationHEQ();
+
+// ── S0-T7: Equity Disambiguation -> Unsure (HQ18 Education Flow) (T7) ────────
+async function testEquityDisambiguationUnsureHQ18() {
+  const session = new SessionContextManager(null as any, null as any);
+
+  // Turn 1: Ambiguous equity
+  await session.onUserTurn('I want to access my equity');
+  assert.strictEqual(session.getProfile().equity_disambig_delivered, true);
+
+  // Turn 2: Borrower is unsure
+  await session.onUserTurn("I'm not sure which fits better, can you explain the difference?");
+  const profileTurn2 = session.getProfile();
+  assert.strictEqual(profileTurn2.Q9_confirmed, false, 'Q9 must remain unconfirmed during education');
+  assert.strictEqual(profileTurn2.transaction_type, null);
+  assert.ok(
+    session.getHQ18ComparisonFormulation().includes('complete payment predictability'),
+    'HQ18 education available for delivery'
+  );
+
+  // Turn 3: Borrower chooses HELOC after explanation
+  await session.onUserTurn('The line of credit sounds better for my needs');
+  const profileTurn3 = session.getProfile();
+  assert.strictEqual(profileTurn3.transaction_type, 'TT-HEL');
+  assert.strictEqual(profileTurn3.Q9_confirmed, true);
+
+  console.log('  ✅ S0-T7-Unsure Passed: Unsure borrower receives HQ18 education, then routes to TT-HEL.');
+}
+
+await testEquityDisambiguationUnsureHQ18();
+
 console.log('\n======================================================');
-console.log('✨ ALL SECTION 0 (PHASES 1, 2, & T5–T6) TESTS PASSED!');
+console.log('✨ ALL SECTION 0 (PHASES 1, 2, & T5–T7) TESTS PASSED!');
 console.log('======================================================\n');
