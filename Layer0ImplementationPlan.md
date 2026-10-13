@@ -19,7 +19,7 @@
 ## 📊 Overall Layer 0 Progress
 
 ```
-Layer 0 Completion:  █████████░░░░░░░░░░░  ~45% (Phases 1 & 2 Complete: T1–T4)
+Layer 0 Completion:  ██████████░░░░░░░░░░  ~50% (T1–T5 Complete: Phase 3 underway)
 ```
 
 | Area | Status | Notes |
@@ -33,7 +33,7 @@ Layer 0 Completion:  █████████░░░░░░░░░░�
 | Fallback Routing Question | 🔴 Missing | No distinct fallback step — uses generic re-ask loop instead. |
 | Stage 1 Gate (`Q9_confirmed`) | 🔴 Missing | Stage 1 fires immediately without `Q9_confirmed` guard. |
 | Track Guard Rules | 🟡 Partial | Enforced in `buildLayer2()` by `transaction_type` but no guard at LLM prompt injection. |
-| Q9-MULTI Templates (A–F + General) | 🔴 Missing | No multi-signal aggregation, no template selection, no prompt injection. |
+| Q9-MULTI Templates (A–F + General) | 🟢 Complete | Multi-signal selection (Templates A–F & General) implemented with one-time delivery guard. |
 | `TT-CON` / `TT-HECM` Holdout Routing | 🔴 Missing | Reserved flags defined in schema but no holdout response or MLO routing. |
 | `stage0-routing.ts` Prompt File | 🔴 Missing | No `stage0-routing.ts` prompt file exists. |
 | Layer 3 Context Block | 🔴 Missing | Section 0 routing state not exposed to LLM in Layer 3 context. |
@@ -319,7 +319,7 @@ if (profile.trid_gate_required && !profile.trid_gate_fired) {
 
 #### TASK 5 — Implement Q9-MULTI Template Selection and Injection `[CRITICAL]`
 **File:** [`backend/src/context/session-context-manager.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/context/session-context-manager.ts)  
-**Status:** 🔴 PENDING  
+**Status:** 🟢 COMPLETE (Verified by S0-T5 unit & integration tests)  
 **Blocker for:** T11, T12
 
 **What to add:**  

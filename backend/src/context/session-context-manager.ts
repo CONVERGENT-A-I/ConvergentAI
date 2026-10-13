@@ -214,6 +214,94 @@ export function extractOpeningSignals(input: string, profile: BorrowerProfile, r
   }
 }
 
+/**
+ * T5 — Q9-MULTI Template Texts (v8.7 verbatim from Layer0Doc.md Section 7.7)
+ */
+export const Q9_MULTI_TEMPLATES: Record<string, string> = {
+  TEMPLATE_A:
+    "Thank you for that — sounds like you're looking to purchase a home, and I've noted your military service. That opens up some excellent loan options we'll want to explore together, including VA financing. To make sure I have the full picture before we dive in: will you be applying on your own, or will you have someone applying with you?",
+
+  TEMPLATE_B:
+    "Great — so you and your [spouse/partner] are looking to purchase a home together, and I've noted your military service. That's a strong combination and opens up VA financing options we'll definitely want to look at. To get started on the right track: do you have a target purchase price range in mind, or would you rather use our affordability tool to work that out together?",
+
+  TEMPLATE_C:
+    "It sounds like you and your [spouse/partner] are looking to purchase a home together — that's exciting. To make sure I'm building the right picture for both of you: what's your general timeline? Are you hoping to close within the next few months, or are you earlier in the planning stage?",
+
+  TEMPLATE_D:
+    "Perfect — so you're looking to purchase a home, and I've noted that you have [pre_stated_savings] available and an income of around [pre_stated_income] annually. That gives us a great starting point. To build your full picture: will anyone else be applying with you on this loan?",
+
+  TEMPLATE_E:
+    "Got it — you're looking to explore refinancing your home in [pre_stated_location]. Let's take a look at your options. To point us in the right direction: are you primarily looking to lower your rate or payment, or were you thinking about taking some cash out?",
+
+  TEMPLATE_F:
+    "Thank you for sharing all of that — that gives me a great head start. So [name], you and your [spouse/partner] are looking to purchase a home. I've noted your military service, your income of around [income], and the [savings] you have available. That's a solid foundation. Just a couple of things I still need to build your complete picture: what type of home are you looking for — single-family, condo, townhome? And do you have a target price range in mind?",
+
+  TEMPLATE_GENERAL:
+    "Thank you — I've picked up a few things from what you shared: [natural language summary of extracted signals]. Let me make sure I have everything I need to give you the most accurate picture. [Transition to first uncaptured question].",
+};
+
+/**
+ * T5 — Selects matching Q9-MULTI template from signals_found (Section 7.7)
+ * F: Purchase + Veteran + Co-borrower + Financials (income or savings)
+ * B: Purchase + Veteran + Co-borrower
+ * A: Purchase + Veteran
+ * C: Purchase + Co-borrower (no veteran)
+ * D: Purchase + Financials (income or savings)
+ * E: Refinance + Location
+ * GENERAL: Any other multi-signal combination
+ */
+export function selectQ9MultiTemplate(signals: string[]): string {
+  const s = new Set(signals);
+
+  // Template F — full front-load (veteran + co-borrower + financials)
+  if (s.has('TT-PUR') && s.has('veteran') && s.has('co_borrower') && (s.has('income') || s.has('savings'))) {
+    return 'TEMPLATE_F';
+  }
+  // Template B — purchase + veteran + co-borrower
+  if (s.has('TT-PUR') && s.has('veteran') && s.has('co_borrower')) {
+    return 'TEMPLATE_B';
+  }
+  // Template A — purchase + veteran (no co-borrower)
+  if (s.has('TT-PUR') && s.has('veteran')) {
+    return 'TEMPLATE_A';
+  }
+  // Template C — purchase + co-borrower (no veteran)
+  if (s.has('TT-PUR') && s.has('co_borrower')) {
+    return 'TEMPLATE_C';
+  }
+  // Template D — purchase + income or savings
+  if (s.has('TT-PUR') && (s.has('income') || s.has('savings'))) {
+    return 'TEMPLATE_D';
+  }
+  // Template E — refinance + location
+  if (s.has('TT-REF') && s.has('location')) {
+    return 'TEMPLATE_E';
+  }
+  // GENERAL — any other multi-signal combination
+  return 'TEMPLATE_GENERAL';
+}
+
+/**
+ * T5 — Renders template text with populated profile fields.
+ */
+export function renderQ9MultiTemplate(templateKey: string, profile: BorrowerProfile): string {
+  const base: string = Q9_MULTI_TEMPLATES[templateKey] || Q9_MULTI_TEMPLATES.TEMPLATE_GENERAL || '';
+  const incomeStr = profile.pre_stated_income ? `$${profile.pre_stated_income.toLocaleString()}` : '';
+  const savingsStr = profile.pre_stated_savings ? `$${profile.pre_stated_savings.toLocaleString()}` : '';
+  const locationStr = profile.pre_stated_location || '';
+  const nameStr = profile.borrower_name || '';
+  const coBorrowerRel = 'spouse/partner';
+
+  return base
+    .replace(/\[pre_stated_income\]/g, incomeStr)
+    .replace(/\[income\]/g, incomeStr)
+    .replace(/\[pre_stated_savings\]/g, savingsStr)
+    .replace(/\[savings\]/g, savingsStr)
+    .replace(/\[pre_stated_location\]/g, locationStr)
+    .replace(/\[name\]/g, nameStr)
+    .replace(/\[spouse\/partner\]/g, coBorrowerRel);
+}
+
 export class SessionContextManager {
   private turnLog: TurnLogEntry[] = [];
   private turnCount = 0;
@@ -1044,14 +1132,17 @@ export class SessionContextManager {
     this.turnLog.push({ role: 'user', text: trimmed, timestamp: Date.now() });
     this.turnCount += 1;
 
-    // ── Section 0: First-turn signal extraction (T3) & TRID gate (T4) ───
+    // ── Section 0: First-turn signal extraction (T3), TRID gate (T4) & Q9-MULTI (T5) ───
     // Runs ONCE on the very first user turn in Stage 1, BEFORE the LLM.
-    // Pure regex — <10ms. Sets signals_found[] for Phase 3 Q9-MULTI routing.
+    // Pure regex — <10ms. Sets signals_found[] and selects Q9-MULTI template if 2+ signals found.
     if (this.activeStage === '1' && this.turnCount === 1 && !this.profile.Q9_confirmed) {
       const _tSection0 = performance.now();
       this.extractOpeningSignals(preRedactionText, trimmed);
       this.applyTridGate();
-      console.log(`[perf] context-manager Section 0 extraction + TRID gate: ${(performance.now() - _tSection0).toFixed(1)}ms`);
+      if ((this.profile.signals_found?.length ?? 0) >= 2 && !this.profile.Q9_MULTI_delivered) {
+        this.evaluateQ9Multi();
+      }
+      console.log(`[perf] context-manager Section 0 extraction + TRID gate + Q9-MULTI: ${(performance.now() - _tSection0).toFixed(1)}ms`);
     }
 
     // Handle Stage 2 pending confirmations local loop directly on this turn
@@ -2417,6 +2508,26 @@ export class SessionContextManager {
       this.profile.trid_gate_fired = true;
       console.log(`[section0]: 🛡️ TRID gate FIRED — compliance formulation will be delivered. SSN/address NOT stored.`);
     }
+  }
+
+  /**
+   * T5 — Q9-MULTI Template Selection & Delivery:
+   * Evaluates extracted signals. If signals_found has 2+ signals and Q9-MULTI hasn't
+   * already been delivered, selects and returns the appropriate template.
+   * Sets profile.Q9_MULTI_delivered = true to prevent re-firing on subsequent turns.
+   */
+  public evaluateQ9Multi(): { templateKey: string; text: string } | null {
+    if (this.profile.Q9_MULTI_delivered) {
+      return null;
+    }
+    if (this.profile.signals_found && this.profile.signals_found.length >= 2) {
+      const templateKey = selectQ9MultiTemplate(this.profile.signals_found);
+      const text = renderQ9MultiTemplate(templateKey, this.profile);
+      this.profile.Q9_MULTI_delivered = true;
+      console.log(`[section0]: 📋 Q9-MULTI delivered: ${templateKey} for signals [${this.profile.signals_found.join(', ')}]`);
+      return { templateKey, text };
+    }
+    return null;
   }
 
   private async runStage1Extraction(text: string): Promise<void> {

@@ -8,11 +8,14 @@ import assert from 'assert';
 import {
   initBorrowerProfile,
   extractOpeningSignals,
+  selectQ9MultiTemplate,
+  renderQ9MultiTemplate,
+  Q9_MULTI_TEMPLATES,
   Q9_TRID_GATE_FORMULATION,
   SessionContextManager,
 } from '../context/session-context-manager.js';
 
-console.log('🧪 Running Section 0 Foundation & Extraction Test Suite (Phase 1 & Phase 2: T1–T4)...\n');
+console.log('🧪 Running Section 0 Test Suite (Phases 1–3: T1–T5)...\n');
 
 // ── S0-1: Zero-State Profile Initialization Defaults (T1 & T2) ───────────────
 {
@@ -195,6 +198,88 @@ async function testTurn1Integration() {
 
 await testTurn1Integration();
 
+// ── S0-T5: Q9-MULTI Template Selection Rules (T5) ───────────────────────────
+{
+  // Template A: Purchase + Veteran (no co-borrower)
+  assert.strictEqual(selectQ9MultiTemplate(['TT-PUR', 'veteran']), 'TEMPLATE_A');
+
+  // Template B: Purchase + Veteran + Co-borrower
+  assert.strictEqual(selectQ9MultiTemplate(['TT-PUR', 'veteran', 'co_borrower']), 'TEMPLATE_B');
+
+  // Template C: Purchase + Co-borrower (no veteran)
+  assert.strictEqual(selectQ9MultiTemplate(['TT-PUR', 'co_borrower']), 'TEMPLATE_C');
+
+  // Template D: Purchase + Financials (income or savings)
+  assert.strictEqual(selectQ9MultiTemplate(['TT-PUR', 'income']), 'TEMPLATE_D');
+  assert.strictEqual(selectQ9MultiTemplate(['TT-PUR', 'savings']), 'TEMPLATE_D');
+  assert.strictEqual(selectQ9MultiTemplate(['TT-PUR', 'income', 'savings']), 'TEMPLATE_D');
+
+  // Template E: Refinance + Location
+  assert.strictEqual(selectQ9MultiTemplate(['TT-REF', 'location']), 'TEMPLATE_E');
+
+  // Template F: Full Front-Load (Purchase + Veteran + Co-borrower + Financials)
+  assert.strictEqual(
+    selectQ9MultiTemplate(['TT-PUR', 'veteran', 'co_borrower', 'income']),
+    'TEMPLATE_F'
+  );
+  assert.strictEqual(
+    selectQ9MultiTemplate(['TT-PUR', 'veteran', 'co_borrower', 'savings']),
+    'TEMPLATE_F'
+  );
+
+  // Template GENERAL: Any other multi-signal combination
+  assert.strictEqual(selectQ9MultiTemplate(['TT-REF', 'property_type']), 'TEMPLATE_GENERAL');
+  assert.strictEqual(selectQ9MultiTemplate(['TT-HEL', 'co_borrower']), 'TEMPLATE_GENERAL');
+
+  console.log('  ✅ S0-T5-Selectors Passed: All 7 Q9-MULTI template selection routes verified.');
+}
+
+// ── S0-T5: Q9-MULTI Template Text & Bracket Interpolation (T5) ──────────────
+{
+  const profile = initBorrowerProfile();
+  profile.borrower_name = 'Alex';
+  profile.pre_stated_income = 125000;
+  profile.pre_stated_savings = 50000;
+  profile.pre_stated_location = 'Austin, TX';
+
+  const renderedD = renderQ9MultiTemplate('TEMPLATE_D', profile);
+  assert.ok(renderedD.includes('$50,000'), 'Template D must interpolate pre_stated_savings');
+  assert.ok(renderedD.includes('$125,000'), 'Template D must interpolate pre_stated_income');
+
+  const renderedE = renderQ9MultiTemplate('TEMPLATE_E', profile);
+  assert.ok(renderedE.includes('Austin, TX'), 'Template E must interpolate location');
+
+  const renderedA = renderQ9MultiTemplate('TEMPLATE_A', profile);
+  assert.ok(renderedA.includes('VA financing'), 'Template A must mention VA financing');
+
+  console.log('  ✅ S0-T5-Render Passed: Template placeholders properly interpolated from profile.');
+}
+
+// ── S0-T5: Q9-MULTI One-Time Delivery on Multi-Signal Turn (T5) ─────────────
+async function testQ9MultiDeliveryIntegration() {
+  const session = new SessionContextManager(null as any, null as any);
+
+  // Turn 1: Borrower provides 2 signals (Purchase + Veteran)
+  await session.onUserTurn("I want to buy a home and I'm a veteran");
+  const profileTurn1 = session.getProfile();
+
+  assert.ok(profileTurn1.signals_found?.includes('TT-PUR'));
+  assert.ok(profileTurn1.signals_found?.includes('veteran'));
+  assert.strictEqual(
+    profileTurn1.Q9_MULTI_delivered,
+    true,
+    'Q9_MULTI_delivered must be set to true on multi-signal first turn'
+  );
+
+  // Turn 2: Verify Q9-MULTI never re-fires
+  const secondEval = session.evaluateQ9Multi();
+  assert.strictEqual(secondEval, null, 'Q9-MULTI must NEVER re-fire after initial delivery');
+
+  console.log('  ✅ S0-T5-Delivery Passed: Q9-MULTI delivers on multi-signal turn 1 and does not re-fire on turn 2.');
+}
+
+await testQ9MultiDeliveryIntegration();
+
 console.log('\n======================================================');
-console.log('✨ ALL SECTION 0 (PHASE 1 & PHASE 2) TESTS PASSED!');
+console.log('✨ ALL SECTION 0 (PHASES 1, 2, & T5) TESTS PASSED!');
 console.log('======================================================\n');

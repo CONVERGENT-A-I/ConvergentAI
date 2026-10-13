@@ -14,7 +14,7 @@
 | **T2** | Set default state (`Q9_confirmed = false`) | 🟢 Pass |
 | **T3** | Fast extraction of opening signals (<10ms) | 🟢 Pass |
 | **T4** | TRID compliance gate (SSN / Address intercept) | 🟢 Pass |
-| **T5** | Select Q9-MULTI Templates (A–F & General) | 🔴 Pending |
+| **T5** | Select Q9-MULTI Templates (A–F & General) | 🟢 Pass |
 | **T6** | Standard Q9 open routing | 🔴 Pending |
 | **T7** | Equity disambiguation (HELOC vs Loan) | 🔴 Pending |
 | **T8** | Fallback question for unclear answers | 🔴 Pending |
@@ -154,7 +154,7 @@ Run these inside the `backend/` folder:
   Template A is selected, and `profile.Q9_MULTI_delivered` becomes `true`.
 * **Failure sign:**  
   Wrong template chosen, or template re-fires on turn 2.
-* **Status:** `[ ] Pending  [ ] Pass  [ ] Fail`
+* **Status:** `[x] Pass  [ ] Pending  [ ] Fail`
 
 ---
 
