@@ -784,6 +784,85 @@ async function testHoldoutRoutingFlow() {
 
 await testHoldoutRoutingFlow();
 
+// ── T11 & T12: Stage 1 Gate and stage0-routing.ts Block Verification ─────────
+async function testStage1GateAndPrompts() {
+  console.log('\n--- Testing Phase 4: Stage 1 Gate (T11) & Section 0 Prompt (T12) ---');
+
+  const { buildLayer2, buildSection0Block } = await import('../prompts/ailana-system.js');
+  const { SECTION_0_PROMPT, Q9_FORMULATION, Q9_TRID_GATE_FORMULATION } = await import('../prompts/stage0-routing.js');
+
+  // 1. When Q9_confirmed is false, buildLayer2('1', profile) MUST return Section 0 Block
+  const unconfirmedProfile: any = {
+    Q9_confirmed: false,
+    signals_found: ['TT-PUR', 'veteran'],
+    trid_gate_fired: false,
+    equity_disambig_delivered: false,
+    fallback_routing_delivered: false,
+    transaction_type: null,
+  };
+
+  const l2Unconfirmed = buildLayer2('1', unconfirmedProfile);
+  assert.ok(
+    l2Unconfirmed.includes('SECTION 0 — TRANSACTION TYPE ROUTING'),
+    'buildLayer2 must return Section 0 prompt when Q9_confirmed is false'
+  );
+  assert.ok(
+    l2Unconfirmed.includes('CURRENT ROUTING STATE:'),
+    'buildLayer2 must inject CURRENT ROUTING STATE block'
+  );
+  assert.ok(
+    l2Unconfirmed.includes('signals_found: ["TT-PUR","veteran"]'),
+    'buildLayer2 must reflect signals_found in routing block'
+  );
+  assert.ok(
+    !l2Unconfirmed.includes('STAGE 1: INTENT & DISCOVERY'),
+    'Stage 1 discovery content must NOT be present when Q9_confirmed is false'
+  );
+
+  // 2. buildLayer2(profile) single argument overload check
+  const l2Overload = buildLayer2(unconfirmedProfile);
+  assert.ok(
+    l2Overload.includes('SECTION 0 — TRANSACTION TYPE ROUTING'),
+    'buildLayer2(profile) single-arg overload must gate on Q9_confirmed'
+  );
+
+  // 3. When Q9_confirmed is true, buildLayer2('1', profile) releases Stage 1
+  const confirmedProfile: any = {
+    ...unconfirmedProfile,
+    Q9_confirmed: true,
+    transaction_type: 'TT-PUR',
+  };
+
+  const l2ConfirmedStage1 = buildLayer2('1', confirmedProfile);
+  assert.ok(
+    l2ConfirmedStage1.includes('STAGE: Greeting and intent discovery'),
+    'buildLayer2 must release Stage 1 discovery instructions when Q9_confirmed is true'
+  );
+  assert.ok(
+    !l2ConfirmedStage1.includes('SECTION 0 — TRANSACTION TYPE ROUTING'),
+    'Stage 1 prompt must not contain Section 0 prompt when released'
+  );
+
+  // 4. Verbatim Formulations in stage0-routing.ts
+  assert.ok(
+    SECTION_0_PROMPT.includes('You are in the routing phase. Your only job is to determine what'),
+    'SECTION_0_PROMPT contains master v8.7 instructions'
+  );
+  assert.ok(
+    Q9_FORMULATION.includes("To make sure I take you in the right direction — are you looking to purchase a home"),
+    'Q9 formulation matches verbatim spec'
+  );
+  assert.ok(
+    Q9_TRID_GATE_FORMULATION.includes("I want to make sure we handle your information correctly"),
+    'Q9-TRID-GATE matches verbatim spec'
+  );
+
+  console.log('  ✅ T11 & T12 Passed: Stage 1 Gate strictly blocks Stage 1 when Q9_confirmed=false and releases cleanly when confirmed.');
+}
+
+await testStage1GateAndPrompts();
+
 console.log('\n======================================================');
-console.log('✨ ALL SECTION 0 (PHASES 1, 2, & T5–T10) TESTS PASSED!');
+console.log('✨ ALL SECTION 0 (PHASES 1, 2, 3, & T11–T12) TESTS PASSED!');
 console.log('======================================================\n');
+

@@ -73,11 +73,50 @@ import { buildStage3Instructions, buildStage3AInstructions } from './stage3-guid
 import { buildStage3BInstructions } from './stage3b-completion.js';
 import { buildStage4Instructions } from './stage4-underwriting.js';
 import { buildStage5Instructions } from './stage5-escalation.js';
+import { SECTION_0_PROMPT } from './stage0-routing.js';
+
+/**
+ * Builds the Section 0 Transaction Type Routing block for Layer 2.
+ * Injected when Q9_confirmed is false.
+ */
+export function buildSection0Block(profile: BorrowerProfile = {}): string {
+  let block = SECTION_0_PROMPT.trim();
+
+  // Append current routing state so LLM knows exactly where it is
+  block += `\n\nCURRENT ROUTING STATE:`;
+  block += `\nsignals_found: ${JSON.stringify(profile.signals_found || [])}`;
+  block += `\ntrid_gate_fired: ${profile.trid_gate_fired ?? false}`;
+  block += `\nequity_disambig_delivered: ${profile.equity_disambig_delivered ?? false}`;
+  block += `\nfallback_routing_delivered: ${profile.fallback_routing_delivered ?? false}`;
+  block += `\nQ9_confirmed: ${profile.Q9_confirmed ?? false}`;
+
+  return block;
+}
 
 /**
  * Layer 2 Stage selector
+ * Section 0 Gate: Stage 1 discovery questions (Q1–Q13) CANNOT load until
+ * Q9_confirmed is true in session state.
  */
-export function buildLayer2(stage: string = '1', profile: BorrowerProfile = {}): string {
+export function buildLayer2(stageOrProfile: string | BorrowerProfile = '1', profileArg: BorrowerProfile = {}): string {
+  let stage = '1';
+  let profile: BorrowerProfile = profileArg;
+  if (typeof stageOrProfile === 'object' && stageOrProfile !== null) {
+    profile = stageOrProfile;
+    stage = '1';
+  } else if (typeof stageOrProfile === 'string') {
+    stage = stageOrProfile;
+  }
+
+  // Section 0 Gate — runs before any existing track or stage logic.
+  // Stage 1 discovery is strictly blocked until Q9 is confirmed.
+  // Also acts as safety fallback when transaction_type is not established.
+  if (!profile.Q9_confirmed) {
+    if (stage === '1' || stage === '0' || !profile.transaction_type) {
+      return buildSection0Block(profile);
+    }
+  }
+
   if (stage === '1') {
     return buildStage1Instructions();
   }
@@ -108,8 +147,8 @@ export function buildLayer2(stage: string = '1', profile: BorrowerProfile = {}):
   if (stage === '5') {
     return buildStage5Instructions();
   }
-  // Future stages — fallback to Stage 1 until implemented
-  return buildStage1Instructions();
+  // Future stages — fallback to Stage 1 until implemented (guarded by Q9_confirmed)
+  return profile.Q9_confirmed ? buildStage1Instructions() : buildSection0Block(profile);
 }
 
 

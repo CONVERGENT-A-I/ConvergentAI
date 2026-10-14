@@ -19,7 +19,7 @@
 ## 📊 Overall Layer 0 Progress
 
 ```
-Layer 0 Completion:  ███████████████░░░░░  ~75% (T1–T10 Complete — Phase 3 Finished)
+Layer 0 Completion:  ████████████████░░░░  ~80% (T1–T13 Complete — Phase 4 Underway)
 ```
 
 | Area | Status | Notes |
@@ -31,13 +31,13 @@ Layer 0 Completion:  ███████████████░░░░�
 | Equity Disambiguation Flow | 🟢 Complete | Disambiguates HELOC vs Home Equity Loan with scripted flow and HQ18 educational comparison for unsure borrowers. |
 | Mixed Intent Handling | 🟢 Complete | Multi-goal acknowledgment flow, secondary_intent tracking for MLO, and single-track activation. |
 | Fallback Routing Question | 🟢 Complete | Scripted 3-option question delivered on ambiguous Q9 response with SR-1 handoff on repeated ambiguity. |
-| Stage 1 Gate (`Q9_confirmed`) | 🔴 Missing | Stage 1 fires immediately without `Q9_confirmed` guard. |
-| Track Guard Rules | 🟡 Partial | Enforced in `buildLayer2()` by `transaction_type` but no guard at LLM prompt injection. |
+| Stage 1 Gate (`Q9_confirmed`) | 🟢 Complete | `buildLayer2()` Stage 1 Gate strictly enforced. Blocks Stage 1 discovery until `Q9_confirmed = true`. |
+| Track Guard Rules | 🟢 Complete | Enforced at LLM prompt injection via `buildLayer2()` Section 0 gate. |
 | Q9-MULTI Templates (A–F + General) | 🟢 Complete | Multi-signal selection (Templates A–F & General) implemented with one-time delivery guard. |
 | `TT-CON` / `TT-HECM` Holdout Routing | 🟢 Complete | Scripted holdout responses, MLO routing, and strict Stage 1 blocking. |
-| `stage0-routing.ts` Prompt File | 🔴 Missing | No `stage0-routing.ts` prompt file exists. |
+| `stage0-routing.ts` Prompt File | 🟢 Complete | Created with `SECTION_0_PROMPT` and all verbatim formulations from `Layer0Doc.md`. |
 | Layer 3 Context Block | 🔴 Missing | Section 0 routing state not exposed to LLM in Layer 3 context. |
-| Test Suite (S0-1 to S0-15) | 🔴 Missing | No section0-routing.test.ts exists. |
+| Test Suite (S0-1 to S0-15) | 🟡 Partial | `section0-routing.test.ts` active with comprehensive test cases (S0-1 through S0-13 + T11/T12). |
 
 ---
 
@@ -497,7 +497,7 @@ These tracks must **never** activate Stage 1 or any discovery flow.
 
 #### TASK 11 — Implement Stage 1 Gate (`Q9_confirmed` check) `[CRITICAL]`
 **File:** [`backend/src/prompts/ailana-system.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/prompts/ailana-system.ts) — in `buildLayer2()`  
-**Status:** 🔴 PENDING  
+**Status:** 🟢 COMPLETE (Verified by unit tests & prompt inspection)  
 **Blocker for:** T12, T15
 
 **What to add:**  
@@ -526,7 +526,7 @@ The gate is the pipeline's responsibility — do not rely on the LLM to self-enf
 
 #### TASK 12 — Create `stage0-routing.ts` Prompt File `[HIGH]`
 **File:** `backend/src/prompts/stage0-routing.ts` *(NEW FILE — does not replace any existing file)*  
-**Status:** 🔴 PENDING  
+**Status:** 🟢 COMPLETE (Created with verbatim formulations & rules)  
 **Blocker for:** T13, T15, T17
 
 **What to create:**  
@@ -567,7 +567,7 @@ The file also contains all verbatim formulations (Q9, Q9-TRID-GATE, equity disam
 
 #### TASK 13 — Wire `stage0-routing.ts` into `buildLayer2()` `[HIGH]`
 **File:** [`backend/src/prompts/ailana-system.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/prompts/ailana-system.ts)  
-**Status:** 🔴 PENDING
+**Status:** 🟢 COMPLETE (Verified via buildSection0Block injection in buildLayer2)
 
 **What to add:**  
 Import `SECTION_0_PROMPT` and implement `buildSection0Block()` — the function called by the Task 11 gate:
