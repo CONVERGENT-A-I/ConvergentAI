@@ -253,6 +253,28 @@ export function buildLayer3TurnContext(
   stage: string = '1',
   isLowConfidence: boolean = false
 ): string {
+  // ── Section 0 — Routing State Block (Active only while Q9_confirmed is false) ──
+  // SR-1 (clarifying question) is available during Section 0 routing
+  // when transaction type cannot be determined after the fallback
+  // routing question. Output ROUTE: UNCLEAR to trigger SR-1.
+  let section0Block = '';
+  if (!profile.Q9_confirmed && (stage === '1' || stage === '0' || !profile.transaction_type)) {
+    const signalsStr = profile.signals_found && profile.signals_found.length > 0
+      ? `[${profile.signals_found.join(', ')}]`
+      : '(empty)';
+    section0Block = [
+      '=== SECTION 0 — ROUTING STATE ===',
+      `Q9 Confirmed:               ${!!profile.Q9_confirmed}`,
+      `Signals Found:              ${signalsStr}`,
+      `Q9-MULTI Delivered:         ${!!profile.Q9_MULTI_delivered}`,
+      `Equity Disambig Delivered:  ${!!profile.equity_disambig_delivered}`,
+      `Fallback Delivered:         ${!!profile.fallback_routing_delivered}`,
+      `Secondary Intent:           ${profile.secondary_intent || '(none)'}`,
+      'SR-1 Availability:          SR-1 (clarifying question) is available during Section 0 routing when transaction type cannot be determined after the fallback routing question. Output ROUTE: UNCLEAR to trigger SR-1.',
+      '=== END SECTION 0 ===',
+    ].join('\n');
+  }
+
   // ── Stage 1 profile block ─────────────────────────────────────────────────
   const stage1Block = [
     '=== BORROWER PROFILE (Stage 1 — Discovery) ===',
@@ -407,7 +429,9 @@ export function buildLayer3TurnContext(
     profile.soft_pull_consent === 'pending';
 
   if (!hasSpecificOverride) {
-    if (profile.pending_confirm_field && profile.pending_confirm_value) {
+    if (!profile.Q9_confirmed && (stage === '1' || stage === '0' || !profile.transaction_type)) {
+      taskLine = `CURRENT TASK:\nSection 0 Transaction Type Routing: Determine the borrower's intent (purchase, refinance, HELOC, or home equity loan). Deliver the appropriate Section 0 routing formulation and output the ROUTE signal. Do NOT ask Stage 1 discovery questions.`;
+    } else if (profile.pending_confirm_field && profile.pending_confirm_value) {
       let label = FIELD_LABELS[profile.pending_confirm_field] ?? profile.pending_confirm_field;
       if (isRef && profile.pending_confirm_field === 'target_price') {
         label = 'estimated property value';
@@ -569,6 +593,9 @@ Do NOT ask them to read the code out loud. Do NOT ask for anything else. Wait fo
   ].filter(Boolean).join('\n');
 
   const blocks: string[] = [];
+  if (section0Block) {
+    blocks.push(section0Block);
+  }
   blocks.push(stage1Block);
   if (stage === '2' || stage === '2.5' || stage === '3' || stage === '3A' || stage === '3B' || stage === '4' || stage === '5') {
     blocks.push(stage2Block);

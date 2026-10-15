@@ -20,10 +20,10 @@
 | **T8** | Fallback question for unclear answers | 🟢 Pass |
 | **T9** | Mixed intent handling (2 goals) | 🟢 Pass |
 | **T10** | Holdout routing (Construction & Reverse Mortgages) | 🟢 Pass |
-| **T11** | Stage 1 Gate in `buildLayer2()` | 🔴 Pending |
-| **T12** | Create `stage0-routing.ts` prompt file | 🔴 Pending |
-| **T13** | Connect Section 0 prompt into `buildLayer2()` | 🔴 Pending |
-| **T14** | Add Section 0 block to Layer 3 context | 🔴 Pending |
+| **T11** | Stage 1 Gate in `buildLayer2()` | 🟢 Pass |
+| **T12** | Create `stage0-routing.ts` prompt file | 🟢 Pass |
+| **T13** | Connect Section 0 prompt into `buildLayer2()` | 🟢 Pass |
+| **T14** | Add Section 0 block to Layer 3 context | 🟢 Pass |
 | **T15** | Run 15 unit tests (`S0-1` to `S0-15`) | 🔴 Pending |
 | **T16** | Run full test suite regression (`npm test`) | 🔴 Pending |
 | **T17** | Test 9 live E2E conversations | 🔴 Pending |
@@ -38,7 +38,7 @@
 | **Day 1: Monday** | **Phase 2: Extraction & Compliance** | **T3, T4** | Upgrade `extractOpeningSignals()` (<10ms) & TRID compliance gate. | Pattern matching test + TRID intercept test | 🟢 COMPLETE |
 | **Day 2: Tuesday** | **Phase 3: Core Routing & Templates** | **T5 – T7** | Q9-MULTI Templates A–F & General, Q9 standard open routing, equity disambiguation (HELOC vs Loan). | Multi-signal selection test + disambiguation branch checks | 🟢 COMPLETE |
 | **Day 2: Tuesday (Today)** | **Phase 3: Edge Routing & Holdouts** | **T8 – T10** | Fallback routing question, mixed intent handling (2 goals), construction (`TT-CON`) & reverse mortgage (`TT-HECM`) holdouts. | Branch isolation tests + MLO handoff check | 🟢 COMPLETE |
-| **Day 3: Wednesday** | **Phase 4: Stage Gate & Prompts** | **T11 – T14** | `buildLayer2()` Stage 1 gate, create `stage0-routing.ts`, wire prompts, Layer 3 routing context block. | Prompt output tests & Stage 1 block check | ⚪ UPCOMING |
+| **Day 3: Wednesday** | **Phase 4: Stage Gate & Prompts** | **T11 – T14** | `buildLayer2()` Stage 1 gate, create `stage0-routing.ts`, wire prompts, Layer 3 routing context block. | Prompt output tests & Stage 1 block check | 🟢 COMPLETE |
 | **Day 4: Thursday** | **Phase 5: Automated Test Suite & Regression** | **T15, T16** | Full automated test suite (`S0-1` to `S0-15`), runner registration, regression suite (`npm test`). | 15/15 unit tests pass + 18 test suites pass | ⚪ UPCOMING |
 | **Day 5: Friday** | **Phase 5: Live E2E Testing & Acceptance** | **T17** | 9 live E2E conversation scenarios (chat & voice UI) + David Patten final staging sign-off gate. | Live interactive verification across all tracks | ⚪ UPCOMING |
 
@@ -255,7 +255,7 @@ Run these inside the `backend/` folder:
   Returned prompt contains **Section 0** and does **NOT** contain Stage 1 questions.
 * **Failure sign:**  
   Stage 1 questions appear in the prompt when `Q9_confirmed` is false.
-* **Status:** `[ ] Pending  [ ] Pass  [ ] Fail`
+* **Status:** `[x] Pass  [ ] Pending  [ ] Fail` (Verified by prompt inspection & testStage1GateAndPrompts)
 
 ---
 
@@ -269,7 +269,7 @@ Run these inside the `backend/` folder:
   File compiles cleanly with no syntax errors.
 * **Failure sign:**  
   TypeScript errors or missing exports.
-* **Status:** `[ ] Pending  [ ] Pass  [ ] Fail`
+* **Status:** `[x] Pass  [ ] Pending  [ ] Fail` (Verified: compiles cleanly & exports verified)
 
 ---
 
@@ -283,7 +283,7 @@ Run these inside the `backend/` folder:
   Function outputs Section 0 prompt with current profile flags included.
 * **Failure sign:**  
   Returns empty string or undefined.
-* **Status:** `[ ] Pending  [ ] Pass  [ ] Fail`
+* **Status:** `[x] Pass  [ ] Pending  [ ] Fail` (Verified by buildSection0Block injection test)
 
 ---
 
@@ -298,7 +298,7 @@ Run these inside the `backend/` folder:
   - After confirmation: Routing state block is hidden so it doesn't clutter Stage 1–3.
 * **Failure sign:**  
   Routing block remains visible throughout the entire conversation.
-* **Status:** `[ ] Pending  [ ] Pass  [ ] Fail`
+* **Status:** `[x] Pass  [ ] Pending  [ ] Fail` (Verified by testLayer3Section0Context in section0-routing.test.ts)
 
 ---
 

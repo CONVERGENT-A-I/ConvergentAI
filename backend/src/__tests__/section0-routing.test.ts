@@ -862,7 +862,92 @@ async function testStage1GateAndPrompts() {
 
 await testStage1GateAndPrompts();
 
+// ── T14: Layer 3 Turn Context Section 0 Block Verification ───────────────────
+async function testLayer3Section0Context() {
+  console.log('\n--- Testing Phase 4: Layer 3 Context Section 0 Block (T14) ---');
+
+  const { buildLayer3TurnContext } = await import('../prompts/layer3-context.js');
+
+  // 1. Before Q9 confirmation: Routing state block is visible
+  const unconfirmedProfile: any = {
+    Q9_confirmed: false,
+    signals_found: ['TT-PUR', 'veteran'],
+    Q9_MULTI_delivered: false,
+    equity_disambig_delivered: false,
+    fallback_routing_delivered: false,
+    secondary_intent: null,
+    transaction_type: null,
+  };
+
+  const l3Unconfirmed = buildLayer3TurnContext(unconfirmedProfile, 'mortgage_goal', '1');
+  assert.ok(
+    l3Unconfirmed.includes('=== SECTION 0 — ROUTING STATE ==='),
+    'Layer 3 context must include Section 0 routing state block when Q9_confirmed is false'
+  );
+  assert.ok(
+    l3Unconfirmed.includes('Q9 Confirmed:               false'),
+    'Layer 3 context must display Q9 Confirmed: false'
+  );
+  assert.ok(
+    l3Unconfirmed.includes('Signals Found:              [TT-PUR, veteran]'),
+    'Layer 3 context must display formatted signals_found'
+  );
+  assert.ok(
+    l3Unconfirmed.includes('SR-1 Availability:'),
+    'Layer 3 context must include SR-1 availability instruction'
+  );
+  assert.ok(
+    l3Unconfirmed.includes('Section 0 Transaction Type Routing'),
+    'Layer 3 context must provide Section 0 routing taskLine'
+  );
+  assert.ok(
+    !l3Unconfirmed.includes('Collect mortgage_goal'),
+    'Layer 3 context must not instruct collecting mortgage_goal while in Section 0'
+  );
+
+  // 2. Empty signals formatting check
+  const emptySignalsProfile: any = {
+    ...unconfirmedProfile,
+    signals_found: [],
+  };
+  const l3Empty = buildLayer3TurnContext(emptySignalsProfile, null, '1');
+  assert.ok(
+    l3Empty.includes('Signals Found:              (empty)'),
+    'Layer 3 context must format empty signals as (empty)'
+  );
+
+  // 3. After Q9 confirmation: Routing state block is hidden so it does not clutter Stage 1–3
+  const confirmedProfile: any = {
+    ...unconfirmedProfile,
+    Q9_confirmed: true,
+    transaction_type: 'TT-PUR',
+    mortgage_goal: 'purchase',
+  };
+
+  const l3Confirmed = buildLayer3TurnContext(confirmedProfile, 'occupancy', '1');
+  assert.ok(
+    !l3Confirmed.includes('=== SECTION 0 — ROUTING STATE ==='),
+    'Layer 3 context must NOT include Section 0 routing state block when Q9_confirmed is true'
+  );
+  assert.ok(
+    !l3Confirmed.includes('SR-1 Availability:'),
+    'Layer 3 context must NOT include Section 0 SR-1 instruction once confirmed'
+  );
+  assert.ok(
+    l3Confirmed.includes('=== BORROWER PROFILE (Stage 1 — Discovery) ==='),
+    'Layer 3 context must contain standard Stage 1 profile block'
+  );
+  assert.ok(
+    l3Confirmed.includes('Collect occupancy'),
+    'Layer 3 context must instruct collecting active stage 1 field (occupancy) once confirmed'
+  );
+
+  console.log('  ✅ T14 Passed: Section 0 routing block is visible in Layer 3 before Q9 confirmation and strictly hidden after confirmation.');
+}
+
+await testLayer3Section0Context();
+
 console.log('\n======================================================');
-console.log('✨ ALL SECTION 0 (PHASES 1, 2, 3, & T11–T12) TESTS PASSED!');
+console.log('✨ ALL SECTION 0 (PHASES 1, 2, 3, & 4 / T1–T14) TESTS PASSED!');
 console.log('======================================================\n');
 
