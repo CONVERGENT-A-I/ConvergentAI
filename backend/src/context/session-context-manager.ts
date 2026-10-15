@@ -136,6 +136,8 @@ export function extractOpeningSignals(input: string, profile: BorrowerProfile, r
   if (/veteran|military|army|navy|marines|air force|coast guard|active duty|served|service member/i.test(text)) {
     profile.veteran_flagged = true;
     profile.Q43_answered = true;   // skip Q43 in Stage 2 purchase track
+    profile.military_rural = profile.military_rural === 'rural' ? 'both' : 'military';
+    profile.military_rural_confirmed = true;
     signals.push('veteran');
   }
 
@@ -3411,7 +3413,7 @@ export class SessionContextManager {
         });
       }
     }
-    if (!isRef && !isHel && !this.profile.military_rural_confirmed) {
+    if (!isRef && !isHel && !this.profile.military_rural_confirmed && !this.profile.Q43_answered) {
       allFields.push({
         name: 'military_rural',
         description: 'Whether borrower or co-borrower has military service history (active duty, veteran, Reserve/Guard, surviving spouse)',
@@ -4175,7 +4177,7 @@ export class SessionContextManager {
           this.currentPendingField = 'target_price';
         } else if (!this.profile.property_type_confirmed) {
           this.currentPendingField = 'property_type';
-        } else if (!this.profile.military_rural_confirmed) {
+        } else if (!this.profile.military_rural_confirmed && !this.profile.Q43_answered) {
           this.currentPendingField = 'military_rural';
         } else if (!this.profile.job_tenure_type_confirmed) {
           this.currentPendingField = 'job_tenure_type';

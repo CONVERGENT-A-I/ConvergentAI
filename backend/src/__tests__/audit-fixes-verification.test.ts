@@ -6,7 +6,7 @@ import { buildStage2Instructions } from '../prompts/stage2-prequalification.js';
 import { buildStage2HelocInstructions } from '../prompts/stage2-heloc.js';
 import { buildStage2RefinanceInstructions } from '../prompts/stage2-refinance.js';
 import { buildLayer3TurnContext } from '../prompts/layer3-context.js';
-import { isQuestionOrCorrection, formatPhoneForSpeech } from '../agent.js';
+import { isQuestionOrCorrection, formatPhoneForSpeech } from '../utils/agent-helpers.js';
 
 console.log('🧪 Running Comprehensive Multi-Suite Audit Verification Tests (50+ Test Cases)...\n');
 

@@ -947,7 +947,63 @@ async function testLayer3Section0Context() {
 
 await testLayer3Section0Context();
 
+// ── S0-15: After Q9-MULTI, Stage 2 runs — veteran not re-asked (T15 / S0-15) ─
+async function testS0_15_Stage2SkipsQ43() {
+  console.log('\n--- Testing Phase 5: S0-15 Stage 2 Suppresses Pre-Answered Q43 ---');
+
+  const session = new SessionContextManager(null as any, null as any);
+
+  // Turn 1: Borrower provides purchase + veteran signal -> triggers Q9-MULTI Template A
+  await session.onUserTurn("I want to buy a home and I'm a military veteran");
+  const profileTurn1 = session.getProfile();
+
+  assert.ok(profileTurn1.signals_found?.includes('TT-PUR'));
+  assert.ok(profileTurn1.signals_found?.includes('veteran'));
+  assert.strictEqual(profileTurn1.veteran_flagged, true);
+  assert.strictEqual(profileTurn1.Q43_answered, true);
+  assert.strictEqual(profileTurn1.military_rural, 'military');
+  assert.strictEqual(profileTurn1.military_rural_confirmed, true);
+
+  // Turn 2: Borrower confirms purchase intent
+  await session.onUserTurn("Yes, I want to purchase on my own");
+  const profileTurn2 = session.getProfile();
+  assert.strictEqual(profileTurn2.transaction_type, 'TT-PUR');
+  assert.strictEqual(profileTurn2.Q9_confirmed, true);
+
+  // Simulate advancing through Stage 2 purchase discovery fields up to property_type:
+  session.setActiveStage('2');
+  profileTurn2.gross_annual_income_confirmed = true;
+  profileTurn2.monthly_debt_confirmed = true;
+  profileTurn2.credit_range_confirmed = true;
+  profileTurn2.down_payment_confirmed = true;
+  profileTurn2.rent_own_confirmed = true;
+  profileTurn2.realtor_status_confirmed = true;
+  profileTurn2.target_price_confirmed = true;
+  profileTurn2.property_type_confirmed = true;
+
+  // Advance workflow to evaluate next Stage 2 question:
+  session.advanceWorkflow();
+
+  // Key Assertion: Q43 (military_rural) MUST be skipped; next pending field advances directly to job_tenure_type!
+  assert.notStrictEqual(
+    session.getPendingField(),
+    'military_rural',
+    'Q43 (military_rural) must NOT appear in Stage 2 sequence when veteran is pre-stated'
+  );
+  assert.strictEqual(
+    session.getPendingField(),
+    'job_tenure_type',
+    'Stage 2 sequence must advance directly to job_tenure_type'
+  );
+
+  console.log('  ✅ S0-15 Passed: Veteran signal extracted via Q9-MULTI suppresses Q43; Stage 2 advances cleanly to job_tenure_type.');
+}
+
+await testS0_15_Stage2SkipsQ43();
+
 console.log('\n======================================================');
-console.log('✨ ALL SECTION 0 (PHASES 1, 2, 3, & 4 / T1–T14) TESTS PASSED!');
+console.log('✨ ALL 15 SECTION 0 UNIT TESTS (S0-1 to S0-15) PASSED! (15/15)');
+console.log('✨ ALL SECTION 0 PHASES 1 TO 4 (T1–T14) & T15 TESTS PASSED!');
 console.log('======================================================\n');
+
 

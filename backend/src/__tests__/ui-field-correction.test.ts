@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { applyUIFieldCorrection } from '../agent.js';
+import { applyUIFieldCorrection } from '../utils/agent-helpers.js';
 
 console.log('🧪 Running UI Inline Field Correction Unit Tests (Suite 14)...\n');
 
