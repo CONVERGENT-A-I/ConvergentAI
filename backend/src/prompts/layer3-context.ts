@@ -12,6 +12,7 @@ export interface BorrowerProfile {
   // ── Section 0 — Routing State (Layer 0) ──────────────────────────────────
   Q9_confirmed?: boolean;               // true = routing complete, Stage 1 can fire
   Q9_MULTI_delivered?: boolean;         // prevents Q9-MULTI from re-firing
+  q9_multi_delivered_text?: string | null;     // verbatim text rendered for delivered Q9-MULTI template
   secondary_intent?: string | null;     // unchosen goal in mixed-intent case → passed to MLO
   trid_gate_fired?: boolean;            // true = Q9-TRID-GATE already delivered
   trid_gate_required?: boolean;         // true = SSN or property address detected in opening msg
@@ -270,7 +271,7 @@ export function buildLayer3TurnContext(
       `Equity Disambig Delivered:  ${!!profile.equity_disambig_delivered}`,
       `Fallback Delivered:         ${!!profile.fallback_routing_delivered}`,
       `Secondary Intent:           ${profile.secondary_intent || '(none)'}`,
-      'SR-1 Availability:          SR-1 (clarifying question) is available during Section 0 routing when transaction type cannot be determined after the fallback routing question. Output ROUTE: UNCLEAR to trigger SR-1.',
+      'SR-1 Availability:          SR-1 (clarifying question) is available during Section 0 routing when transaction type cannot be determined after the fallback routing question.',
       '=== END SECTION 0 ===',
     ].join('\n');
   }
@@ -483,6 +484,19 @@ export function buildLayer3TurnContext(
     } else if (pendingField === 'scheduled_call_time') {
       taskLine = `CURRENT TASK:\nCollect the borrower's preferred date and time for the scheduled callback. Once they provide it, confirm it warmly.`;
 
+    } else if (pendingField === 'occupancy') {
+      const trans = profile.transaction_type === 'TT-REF'
+        ? "Got it — let's look at your refinance options."
+        : profile.transaction_type === 'TT-HEL' || profile.transaction_type === 'TT-HEQ'
+          ? "Great — accessing your equity is a smart move."
+          : "Wonderful — let's explore your home purchase together.";
+      taskLine = `CURRENT TASK:\nCollect occupancy\n\nTransition warmly and ask: "${trans} Are you looking for a primary residence, a second home, or an investment property?"\nDO NOT ASK FOR ANY OTHER FIELD.`;
+    } else if (pendingField === 'existing_relationship') {
+      taskLine = `CURRENT TASK:\nCollect existing_relationship\n\nAsk: "Have you worked with your lending institution before for a mortgage, or is this your first time exploring this with us?"\nDO NOT ASK FOR ANY OTHER FIELD.`;
+    } else if (pendingField === 'timeline') {
+      taskLine = `CURRENT TASK:\nCollect timeline\n\nAsk: "What is your target timeline — are you hoping to buy in the next few months, or are you earlier in the planning stage?"\nDO NOT ASK FOR ANY OTHER FIELD.`;
+    } else if (pendingField === 'co_borrower') {
+      taskLine = `CURRENT TASK:\nCollect co_borrower\n\nAsk: "Will anyone else be applying with you on this loan, such as a spouse or co-borrower?"\nDO NOT ASK FOR ANY OTHER FIELD.`;
     } else if (pendingField) {
       taskLine = `CURRENT TASK:\nCollect ${pendingField}\n\nDO NOT ASK FOR ANY OTHER FIELD.`;
     } else if (stage === '5') {

@@ -136,6 +136,15 @@ app.listen(PORT, async () => {
 
     const agentProcess = fork(agentFilePath, ['dev'], forkOptions);
 
+    const cleanup = () => {
+      try {
+        agentProcess.kill();
+      } catch {}
+    };
+    process.on('SIGINT', cleanup);
+    process.on('SIGTERM', cleanup);
+    process.on('exit', cleanup);
+
     agentProcess.on('error', (err) => {
       console.error(`[server]: Failed to start Agent Worker:`, err);
     });

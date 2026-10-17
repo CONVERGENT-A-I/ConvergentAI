@@ -72,12 +72,12 @@ const STAGE2_CLOSING_OFFER_SCRIPT = (profile?: BorrowerProfile) => {
   return `Great work exploring your numbers${namePrefix}. You have two good ways to see your affordability picture. First, with your authorization, I can perform a soft credit review to pre-populate your application with your actual credit data, saving you time and ensuring accurate information, all with no impact to your credit score. Alternatively, I can build your affordability summary right now using just the details you've already shared, and you can add the credit review whenever you're ready. Which path would you prefer?`;
 };
 
-import { formatPhoneForSpeech, isQuestionOrCorrection, applyUIFieldCorrection } from './utils/agent-helpers.js';
-export { formatPhoneForSpeech, isQuestionOrCorrection, applyUIFieldCorrection };
+import { formatPhoneForSpeech, isQuestionOrCorrection, applyUIFieldCorrection, sanitizeRoutingTags } from './utils/agent-helpers.js';
+export { formatPhoneForSpeech, isQuestionOrCorrection, applyUIFieldCorrection, sanitizeRoutingTags };
 
 
 function normalizePronunciationForTts(text: string): string {
-  return text
+  return sanitizeRoutingTags(text)
     // Replace all instances of "VA" as a whole word with "Veterans Affairs"
     // so Cartesia / TTS text normalizers never pronounce "VA" as "Virginia" (postal code expansion)
     .replace(/\bVA\b/g, 'Veterans Affairs')
@@ -313,6 +313,89 @@ class AilanaVoiceAgent extends voice.Agent {
       (profile as any).last_extracted_offer_val = null; // reset flag
       console.log(`[agent-hook]: User turn contains question/explanation request ("${lastUserText}") — delegating to LiveKit Inference LLM to answer dynamically.`);
       return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+    }
+
+    // ── 0ms Verbatim Fast-Path for Section 0 & Stage 1 Transitions ──
+    const lowerUserText = lastUserText.toLowerCase().trim();
+
+    // 1. Section 0: Opening Turn Routing / Fast-Path Delivery
+    if (!profile.Q9_confirmed && pending === 'mortgage_goal' && !userAskedQuestion) {
+      const signals = profile.signals_found || [];
+      const ttSignals = signals.filter(s => s.startsWith('TT-'));
+
+      // 1a. Holdout Signals (TT-CON / TT-HECM)
+      if (signals.includes('TT-CON') || signals.includes('TT-HECM')) {
+        const holdoutText = this.contextManager.getHoldoutFormulation();
+        if (holdoutText) {
+          console.log(`[agent-hook]: Delivering deterministic Section 0 holdout formulation via ReadableStream!`);
+          return createVerbatimStream(holdoutText) as any;
+        }
+      }
+
+      // 1b. Multi-Signal Front-Loading (Q9-MULTI: 2+ signals, at most 1 TT signal)
+      if (signals.length >= 2 && ttSignals.length <= 1) {
+        const multiText = this.contextManager.getQ9MultiText();
+        if (multiText) {
+          console.log(`[agent-hook]: Delivering deterministic Section 0 Q9-MULTI template via ReadableStream!`);
+          return createVerbatimStream(multiText) as any;
+        }
+      }
+
+      // 1c. Mixed Intent (2+ Transaction Types)
+      if (ttSignals.length >= 2) {
+        const mixedText = this.contextManager.getMixedIntentFormulation();
+        if (mixedText) {
+          console.log(`[agent-hook]: Delivering deterministic Section 0 mixed intent formulation via ReadableStream!`);
+          return createVerbatimStream(mixedText) as any;
+        }
+      }
+
+      // 1d. Equity Disambiguation (TT-HEL-AMBIG)
+      if (signals.includes('TT-HEL-AMBIG') && !signals.includes('TT-HEL') && !signals.includes('TT-HEQ')) {
+        const equityText = this.contextManager.getEquityDisambigFormulation();
+        if (equityText) {
+          console.log(`[agent-hook]: Delivering deterministic Section 0 equity disambiguation via ReadableStream!`);
+          return createVerbatimStream(equityText) as any;
+        }
+      }
+
+      // 1e. Single-Signal Confirmation (Strictly 1 signal, exactly 1 TT signal)
+      if (signals.length === 1 && ttSignals.length === 1 && !signals.includes('TT-CON') && !signals.includes('TT-HECM')) {
+        const sig = ttSignals[0];
+        const goalStr = sig === 'TT-REF'
+          ? 'refinance your mortgage'
+          : (sig === 'TT-HEL' || sig === 'TT-HEQ' || sig === 'TT-HEL-AMBIG')
+            ? 'access your home equity'
+            : 'purchase a home';
+        const script = `That is such an exciting milestone. It sounds like you're looking to ${goalStr} — is that right?`;
+        console.log(`[agent-hook]: Delivering deterministic Section 0 single-signal confirmation via ReadableStream!`);
+        return createVerbatimStream(script) as any;
+      }
+
+      // 1f. 0 Signals (Standard Q9 open routing)
+      if (signals.length === 0) {
+        const q9Text = this.contextManager.getQ9StandardFormulation();
+        if (q9Text) {
+          console.log(`[agent-hook]: Delivering deterministic Section 0 standard Q9 formulation via ReadableStream!`);
+          return createVerbatimStream(q9Text) as any;
+        }
+      }
+    }
+
+    // 2. Stage 1: Q9 Confirmed -> Occupancy Transition
+    if (profile.Q9_confirmed && pending === 'occupancy' && !profile.occupancy_confirmed && !userAskedQuestion) {
+      const isAffirmative = /\b(yes|yeah|yep|yup|correct|that's right|thats right|right|sounds good|sure|it is|it's right|its right|exactly|definitely)\b/i.test(lowerUserText);
+      const isCoBorrowerResponse = /\b(on my own|just me|alone|myself|by myself|just myself|no co.?borrower|single|no one else|with my (wife|husband|spouse|partner)|with someone)\b/i.test(lowerUserText);
+      const mentionsOccupancyInline = /\b(primary|second|investment|vacation|rental)\b/i.test(lowerUserText);
+      if ((isAffirmative || isCoBorrowerResponse || profile.Q9_MULTI_delivered) && !mentionsOccupancyInline) {
+        const trans = (profile.transaction_type === 'TT-REF' || profile.mortgage_goal === 'refinance')
+          ? "Got it — let's take a look at your refinance options. Is this refinance for your primary residence, a second home, or an investment property?"
+          : (profile.transaction_type === 'TT-HEL' || profile.transaction_type === 'TT-HEQ' || profile.mortgage_goal === 'heloc')
+            ? "A home equity line of credit is a great way to put your equity to work. Is this for your primary residence, a second home, or an investment property?"
+            : "Wonderful — let's explore your home purchase together. Are you looking for a primary residence, a second home, or an investment property?";
+        console.log(`[agent-hook]: Delivering deterministic Stage 1 Q9 confirmation -> Occupancy transition via ReadableStream!`);
+        return createVerbatimStream(trans) as any;
+      }
     }
 
     // ── 0ms Parallel Fast-Path for Stage 2 Completion ──
@@ -993,42 +1076,49 @@ class AilanaVoiceAgent extends voice.Agent {
       const isBoundary = this.contextManager.isStageBoundaryField(activeField);
       const isDeterministic = this.contextManager.isDeterministicField(activeField);
 
-      await this.contextManager.saveVoiceConversationTurn('user', userMessage.textContent);
-
-      const currentTurnNumber = this.contextManager.triggerBackgroundExtraction(userMessage.textContent);
-
-      const text = userMessage.textContent.trim();
-      const isQuestionOrHesitation =
-        /\?$/.test(text) ||
-        /\b(what|why|how|can i|could i|does|is it|explain|tell me|wait|hold on|what if|who|meaning|clarify|question|ask)\b/i.test(text);
-
-      const inAffordability = this.contextManager.getActiveStage() === '2.5' || activeField === 'affordability_panel_active' || !!this.contextManager.getProfile().affordability_panel_rendered;
-      const isFastPathSubmitOrUpgrade = inAffordability && !isQuestionOrHesitation && (
-        /\b(?:submit\s*(?:for\s*me|it|review|my\s*review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(?:and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|do\s+it\s+for\s+me|send\s+it|yes\s+submit|let'?s\s+submit|go\s+ahead|let'?s\s+go|proceed|ready\s+to\s+submit|i'?m\s+ready|yes\s+please|sounds\s+good|looks\s+good(?:.*?)\bsubmit\b)\b/i.test(text) ||
-        /\b(upgrade|verified\s*(?:mode|numbers|score|credit)|soft\s*(?:credit\s*)?(?:pull|review)|check\s*my\s*credit|run\s*(?:my\s*)?credit)\b/i.test(text)
-      );
-
-      if (isQuestionOrHesitation) {
-        console.log(`[agent-hook]: Question/hesitation detected on field "${activeField}". Staying on current field to answer user question.`);
-        // User asked a question — do NOT advance stage or inject fallback. Let LLM answer and re-prompt the pending field.
-      } else if (isFastPathSubmitOrUpgrade) {
-        console.log(`[agent-hook]: Fast-path submit/upgrade detected on field "${activeField}" — bypassing stage boundary wait for true 0ms response!`);
-      } else if (isBoundary) {
-        // Deterministic fields (like OTP modal / CRS pull) get their required await
-        const waitMs = isDeterministic ? 2500 : 4000;
-        console.log(`[agent-hook]: Field "${activeField}" is a STAGE BOUNDARY (deterministic=${isDeterministic}). Waiting up to ${waitMs}ms for extraction to transition stage...`);
-
-        const completedInTime = await this.contextManager.waitForExtraction(currentTurnNumber, waitMs);
-
-        if (!completedInTime) {
-          console.warn(`[agent-hook]: Stage boundary extraction timed out (>${waitMs}ms). Proceeding without stalling.`);
-        } else {
-          console.log(`[agent-hook]: Stage boundary extraction completed in time! Stage is now: ${this.contextManager.getActiveStage()}`);
-        }
+      if (!this.contextManager.getProfile().Q9_confirmed) {
+        // Section 0 routing runs synchronous regex/eval in <1ms — execute directly to ensure
+        // Q9_confirmed and pending field transition synchronously before LLM speech generation starts!
+        await this.contextManager.onUserTurn(userMessage.textContent);
+        console.log(`[agent-hook]: Section 0 routing processed synchronously -> Q9_confirmed=${this.contextManager.getProfile().Q9_confirmed}, pendingField=${this.contextManager.getPendingField()}`);
       } else {
-        console.log(`[agent-hook]: Background extraction triggered async (turn=${currentTurnNumber}, field="${activeField}"). Pipeline proceeds immediately — 0ms wait.`);
-        // Inject placeholder / optimistic advance so the LLM proceeds immediately @ 0ms
-        this.contextManager.injectFallbackForPendingField();
+        await this.contextManager.saveVoiceConversationTurn('user', userMessage.textContent);
+
+        const currentTurnNumber = this.contextManager.triggerBackgroundExtraction(userMessage.textContent);
+
+        const text = userMessage.textContent.trim();
+        const isQuestionOrHesitation =
+          /\?$/.test(text) ||
+          /\b(what|why|how|can i|could i|does|is it|explain|tell me|wait|hold on|what if|who|meaning|clarify|question|ask)\b/i.test(text);
+
+        const inAffordability = this.contextManager.getActiveStage() === '2.5' || activeField === 'affordability_panel_active' || !!this.contextManager.getProfile().affordability_panel_rendered;
+        const isFastPathSubmitOrUpgrade = inAffordability && !isQuestionOrHesitation && (
+          /\b(?:submit\s*(?:for\s*me|it|review|my\s*review|this|now)?|can\s+you\s+submit|please\s+submit|go\s+ahead\s+(?:and\s+)?submit|run\s+the\s+review|proceed\s+with\s+review|send\s+my\s+scenario|do\s+it\s+for\s+me|send\s+it|yes\s+submit|let'?s\s+submit|go\s+ahead|let'?s\s+go|proceed|ready\s+to\s+submit|i'?m\s+ready|yes\s+please|sounds\s+good|looks\s+good(?:.*?)\bsubmit\b)\b/i.test(text) ||
+          /\b(upgrade|verified\s*(?:mode|numbers|score|credit)|soft\s*(?:credit\s*)?(?:pull|review)|check\s*my\s*credit|run\s*(?:my\s*)?credit)\b/i.test(text)
+        );
+
+        if (isQuestionOrHesitation) {
+          console.log(`[agent-hook]: Question/hesitation detected on field "${activeField}". Staying on current field to answer user question.`);
+          // User asked a question — do NOT advance stage or inject fallback. Let LLM answer and re-prompt the pending field.
+        } else if (isFastPathSubmitOrUpgrade) {
+          console.log(`[agent-hook]: Fast-path submit/upgrade detected on field "${activeField}" — bypassing stage boundary wait for true 0ms response!`);
+        } else if (isBoundary) {
+          // Deterministic fields (like OTP modal / CRS pull) get their required await
+          const waitMs = isDeterministic ? 2500 : 4000;
+          console.log(`[agent-hook]: Field "${activeField}" is a STAGE BOUNDARY (deterministic=${isDeterministic}). Waiting up to ${waitMs}ms for extraction to transition stage...`);
+
+          const completedInTime = await this.contextManager.waitForExtraction(currentTurnNumber, waitMs);
+
+          if (!completedInTime) {
+            console.warn(`[agent-hook]: Stage boundary extraction timed out (>${waitMs}ms). Proceeding without stalling.`);
+          } else {
+            console.log(`[agent-hook]: Stage boundary extraction completed in time! Stage is now: ${this.contextManager.getActiveStage()}`);
+          }
+        } else {
+          console.log(`[agent-hook]: Background extraction triggered async (turn=${currentTurnNumber}, field="${activeField}"). Pipeline proceeds immediately — 0ms wait.`);
+          // Inject placeholder / optimistic advance so the LLM proceeds immediately @ 0ms
+          this.contextManager.injectFallbackForPendingField();
+        }
       }
     }
 
@@ -1766,8 +1856,14 @@ PAUSE CONSTRAINTS:
         // Cartesia Sonic-3.6 uses internally before displaying in the chat UI.
         // These tags are consumed by the TTS engine in its own pipeline —
         // this strip is ONLY for the chat display text and has zero effect on audio.
-        // We also strip any trailing partial tags (/<[^>]*$/) in case the generation was interrupted mid-tag.
-        const msgText = item.textContent.replace(/<[^>]*>/g, '').replace(/<[^>]*$/, '').replace(/\s+/g, ' ').trim();
+        const rawText = item.textContent || '';
+        const msgText = sanitizeRoutingTags(
+          rawText.replace(/<[^>]*>/g, '').replace(/<[^>]*$/, '').replace(/\s+/g, ' ').trim()
+        );
+
+        if (Array.isArray(item.content)) {
+          item.content = [msgText];
+        }
 
         contextManager.onAgentTurn(msgText).catch(err =>
           console.error('[agent-error]: Failed to save agent turn:', err)
@@ -1990,19 +2086,20 @@ PAUSE CONSTRAINTS:
     };
 
     const deliverAgentScript = async (scriptText: string, triggerReason?: string) => {
-      await contextManager.onAgentTurn(scriptText).catch(err => console.error(err));
+      const cleanScript = sanitizeRoutingTags(scriptText);
+      await contextManager.onAgentTurn(cleanScript).catch(err => console.error(err));
       if (voiceMuted) {
         try {
-          await ctx.room.localParticipant?.sendText(scriptText, { topic: 'lk.chat' });
+          await ctx.room.localParticipant?.sendText(cleanScript, { topic: 'lk.chat' });
         } catch {
-          await ctx.room.localParticipant?.sendChatMessage(scriptText);
+          await ctx.room.localParticipant?.sendChatMessage(cleanScript);
         }
       } else {
         metrics.startTurn();
         if (triggerReason) {
           metrics.markUiEventStart(triggerReason);
         }
-        session.say(scriptText, { addToChatCtx: true });
+        session.say(cleanScript, { addToChatCtx: true });
       }
     };
 
@@ -2318,7 +2415,8 @@ PAUSE CONSTRAINTS:
           }
           const textStream = summarizationLlm.chat({ chatCtx: textChatCtx });
           const textCollected = await textStream.collect();
-          reply = textCollected.text?.replace(/<[^>]*>/g, '').replace(/<[^>]*$/, '').replace(/\s+/g, ' ').trim() || null;
+          const rawReply = textCollected.text?.replace(/<[^>]*>/g, '').replace(/<[^>]*$/, '').replace(/\s+/g, ' ').trim() || '';
+          reply = sanitizeRoutingTags(rawReply) || null;
         }
 
         if (reply) {

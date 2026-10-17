@@ -662,13 +662,13 @@ Register `section0-routing.test.ts` in the test runner alongside existing suites
 ---
 
 #### TASK 17 — Local E2E Testing — 9 Live Scenarios `[HIGH]`
-**Status:** 🟡 SCHEDULED FOR FRIDAY (Oct 16, 2026) — Final Acceptance Gate  
+**Status:** 🟡 IN PROGRESS (Tests 1 & 2 / E2E-1 & E2E-2 Verified Live & Passed; Scenarios 3–9 Ready) — Final Acceptance Gate  
 **How to test:** Start backend dev server and frontend. Run each live conversation scenario — actual LLM calls with the full prompt stack, not unit tests.
 
-| Scenario | Opening Message | What to Verify |
-| :--- | :--- | :--- |
-| **E2E-1** | `'I want to buy a home'` | Q9-MULTI confirmation fires. Track activates only on borrower yes. |
-| **E2E-2** | `'I want to buy a home and I am a veteran'` | Template A fires. Q43 NOT re-asked in Stage 2. |
+| Scenario | Opening Message | What to Verify | Status |
+| :--- | :--- | :--- | :---: |
+| **E2E-1** | `'I want to buy a home'` | Q9 confirmation fires. Track activates only on borrower yes. Stage 1 flows cleanly. | 🟢 PASSED (Live) |
+| **E2E-2** | `'I want to buy a home and I am a veteran'` | Template A fires. Q43 NOT re-asked in Stage 2. | 🟢 PASSED (Live) |
 | **E2E-3** | `'My wife and I make $110K, we're veterans, $40K saved, want to buy in Florida'` | Template F fires. Q13, Q35, Q38, Q43 all skipped in Stage 2. |
 | **E2E-4** | `'I have some mortgage questions'` | Q9 open routing. No track until borrower responds. |
 | **E2E-5** | `'I want to access my home equity'` | Equity disambiguation fires. Routes correctly to HEL or HEQ. |
@@ -736,7 +736,7 @@ Register `section0-routing.test.ts` in the test runner alongside existing suites
 | T14 | Phase 4 | Add Section 0 block to Layer 3 context | 🟢 MEDIUM | 🟢 COMPLETE | Sohail-Ak | Oct 15, 2026 |
 | T15 | Phase 5 | Create `section0-routing.test.ts` (15 tests) | 🟡 HIGH | 🟢 COMPLETE | Sohail-Ak | Oct 15, 2026 |
 | T16 | Phase 5 | Register test suite in `run-all-tests.ts` | 🟢 MEDIUM | 🟢 COMPLETE | Sohail-Ak | Oct 15, 2026 |
-| T17 | Phase 5 | Local E2E testing (9 live scenarios) | 🟡 HIGH | 🟡 SCHEDULED (Friday) | — | Oct 16, 2026 |
+| T17 | Phase 5 | Local E2E testing (9 live scenarios) | 🟡 HIGH | 🟡 IN PROGRESS (E2E-1 Live Passed) | Sohail-Ak / sameerr11 | Oct 17, 2026 |
 
 ---
 

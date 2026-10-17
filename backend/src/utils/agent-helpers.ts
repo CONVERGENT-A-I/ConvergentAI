@@ -58,3 +58,25 @@ export async function applyUIFieldCorrection(
     applyContactUpdates(profile, { contact_mobile: String(value || '') });
   }
 }
+
+/**
+ * Strips internal Section 0 routing signals (<internal_route> tags, bare ROUTE:, PRIMARY:, SECONDARY:)
+ * so they are strictly hidden from conversational user-facing chat and TTS audio output.
+ */
+export function sanitizeRoutingTags(text: string | null | undefined): string {
+  if (!text) return '';
+  return text
+    // 1. Strip internal_route tags and any content inside
+    .replace(/<internal_route>[\s\S]*?<\/internal_route>/gi, '')
+    .replace(/<internal_route>[\s\S]*$/gi, '')
+    .replace(/<\/?internal_route>/gi, '')
+    // 2. Strip bare ROUTE tags and any trailing PRIMARY/SECONDARY metadata
+    .replace(/\bROUTE:\s*\[?[A-Z0-9_\-]+\]?(\s*\|\s*(PRIMARY|SECONDARY):\s*\[?[A-Z0-9_\-]+\]?)*/gi, '')
+    // 3. Strip any isolated PRIMARY/SECONDARY tags
+    .replace(/\b(PRIMARY|SECONDARY):\s*\[?[A-Z0-9_\-]+\]?/gi, '')
+    // 4. Clean up any leftover duplicate whitespace or blank lines
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{2,}/g, '\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}

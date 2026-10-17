@@ -98,6 +98,18 @@ export function InRoomChatPanel({ isActive, onTriggerLoanOfficer, initialTranscr
   // State for spoken transcriptions
   const [transcripts, setTranscripts] = useState<Record<string, any>>({});
 
+  const sanitizeTranscriptText = (text: string | null | undefined): string => {
+    if (!text) return "";
+    return text
+      .replace(/<internal_route>[\s\S]*?<\/internal_route>/gi, "")
+      .replace(/<internal_route>[\s\S]*$/gi, "")
+      .replace(/<\/internal_route>/gi, "")
+      .replace(/\bROUTE:\s*\[?[A-Z0-9_\-]+\]?(\s*\|\s*(PRIMARY|SECONDARY):\s*\[?[A-Z0-9_\-]+\]?)*/gi, "")
+      .replace(/\b(PRIMARY|SECONDARY):\s*\[?[A-Z0-9_\-]+\]?/gi, "")
+      .replace(/[ \t]{2,}/g, " ")
+      .trim();
+  };
+
   useEffect(() => {
     if (!room) return;
 
@@ -105,9 +117,11 @@ export function InRoomChatPanel({ isActive, onTriggerLoanOfficer, initialTranscr
       setTranscripts((prev) => {
         const next = { ...prev };
         for (const seg of segments) {
+          const cleanText = sanitizeTranscriptText(seg.text);
+          if (!cleanText) continue;
           next[seg.id] = {
             id: seg.id,
-            text: seg.text,
+            text: cleanText,
             timestamp: seg.startTime || Date.now(),
             isAgent:
               participant?.identity === "agent" ||

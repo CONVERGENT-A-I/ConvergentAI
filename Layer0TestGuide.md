@@ -26,7 +26,7 @@
 | **T14** | Add Section 0 block to Layer 3 context | 🟢 Pass |
 | **T15** | Run 15 unit tests (`S0-1` to `S0-15`) | 🟢 Pass |
 | **T16** | Run full test suite regression (`npm test`) | 🟢 Pass |
-| **T17** | Test 9 live E2E conversations | 🟡 Scheduled (Friday) |
+| **T17** | Test 9 live E2E conversations | 🟡 In Progress (Tests 1 & 2 Live Passed) |
 
 ---
 
@@ -423,7 +423,7 @@ npm run dev
   - Ailana confirms and unlocks Stage 1:
     > *"Great! Are you looking for a primary residence, a vacation home, or an investment property?"*
   - Look for in log: `[section0]: 🎯 Q9 routing confirmed -> TT-PUR (Q9_confirmed=true)`
-* **Pass Sign:** `[ ] Pass` — Stage 1 unlocks only AFTER the borrower replies "Yes".
+* **Pass Sign:** `[x] PASSED (Verified Live)` — Stage 1 unlocks only AFTER the borrower replies "Yes". Verified live in voice session: Q9 confirmation succeeded, followed by seamless transitions into Occupancy, Existing Relationship, and Timeline with zero protocol tag leakage.
 
 ---
 
@@ -433,19 +433,21 @@ npm run dev
 * **Step 1 (Borrower Opening):**
   - **Type/Speak:** `"I want to buy a home and I am an Army veteran"`
 * **Step 2 (Verify Ailana Response 1):**
-  - Ailana delivers **Template A** with mandatory verbatim honorific:
-    > *"First, thank you for your service to our country. I'd love to help you find the right financing for your home purchase — and as a veteran, you may have access to some great options like VA loans with zero down payment. Let's start with the basics — are you looking at a primary residence, a second home, or an investment property?"*
+  - Ailana delivers verbatim **Template A**:
+    > *"Thank you for that — sounds like you're looking to purchase a home, and I've noted your military service. That opens up some excellent loan options we'll want to explore together, including VA financing. To make sure I have the full picture before we dive in: will you be applying on your own, or will you have someone applying with you?"*
 * **Step 3 (Verify Terminal / Server Log):**
   - Look for: `[section0]: 📡 extractOpeningSignals completed | signals_found: [TT-PUR, veteran]`
   - Look for: `[section0]: 📋 Q9-MULTI delivered: TEMPLATE_A`
   - Look for: `profile.veteran_flagged = true` and `profile.Q43_answered = true`
 * **Step 4 (Borrower Progresses Through Discovery):**
+  - Reply with: `"Applying on my own"` (or `"Just me"`).
+  - Ailana acknowledges and asks occupancy (*"Wonderful — let's explore your home purchase together. Are you looking for a primary residence, a second home, or an investment property?"*).
   - Reply with: `"Primary residence"`, then progress through Stage 1 into Stage 2.
 * **Step 5 (Critical Stage 2 Check):**
   - In Stage 2, watch the question sequence.
   - Ailana moves directly to job tenure (`job_tenure_type`) or income, and **NEVER** asks:
     * *"Have you or your spouse served in the US military?"* (Q43)
-* **Pass Sign:** `[ ] Pass` — Template A delivered verbatim; Q43 never asked in Stage 2.
+* **Pass Sign:** `[x] PASSED (Verified Live)` — Template A delivered verbatim on opening turn acknowledging military service and VA financing; smoothly captured co-borrower and transitioned through occupancy, relationship, and timeline with zero protocol tag leakage.
 
 ---
 

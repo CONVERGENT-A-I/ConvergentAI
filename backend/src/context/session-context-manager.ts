@@ -54,6 +54,7 @@ export function initBorrowerProfile(): BorrowerProfile {
     // ── Section 0 routing state ──────────────────────────────────────────────
     Q9_confirmed: false,              // CRITICAL: must be false — if true, Section 0 never runs
     Q9_MULTI_delivered: false,
+    q9_multi_delivered_text: null,
     secondary_intent: null,
     trid_gate_fired: false,
     trid_gate_required: false,
@@ -1331,6 +1332,7 @@ export class SessionContextManager {
     if (this.isDeterministicField(target)) return true;
 
     const BOUNDARY_FIELDS = new Set([
+      'mortgage_goal',
       'home_horizon',
       'job_tenure_type',
       'soft_pull_authorization',
@@ -1547,6 +1549,11 @@ export class SessionContextManager {
         console.log(`[perf] context-manager onUserTurn TOTAL (holdout routed): ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
         return;
       }
+      if (!this.profile.Q9_confirmed) {
+        await this.saveConversationTurn('user', trimmed);
+        await this.syncToDatabase();
+        return;
+      }
     } else if (this.activeStage === '1' && !this.profile.Q9_confirmed) {
       if (this.profile.holdout_routed) {
         console.log('[section0]: 🚧 Holdout active — maintaining Stage 1 block. Not advancing to Stage 1 discovery.');
@@ -1558,6 +1565,10 @@ export class SessionContextManager {
         console.log(`[perf] context-manager onUserTurn TOTAL (holdout routed on turn 2+): ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
         return;
       }
+      // Section 0 routing handling for this turn complete; save turn and return to let LLM ask active pending question
+      await this.saveConversationTurn('user', trimmed);
+      await this.syncToDatabase();
+      return;
     }
 
     // Handle Stage 2 pending confirmations local loop directly on this turn
@@ -1619,6 +1630,10 @@ export class SessionContextManager {
     console.log(`[audit-debug] 🚀 Starting extraction | stage: ${this.activeStage}, field: ${this.currentPendingField}`);
     
     if (this.activeStage === '1') {
+      if (!this.profile.Q9_confirmed) {
+        console.log('[section0]: 🚧 Stage 1 extraction blocked because Q9_confirmed is false.');
+        return;
+      }
       await this.runStage1Extraction(trimmed);
     } else if (this.activeStage === '2') {
       await this.runStage2Extraction(trimmed);
@@ -2939,10 +2954,27 @@ export class SessionContextManager {
       const templateKey = selectQ9MultiTemplate(this.profile.signals_found);
       const text = renderQ9MultiTemplate(templateKey, this.profile);
       this.profile.Q9_MULTI_delivered = true;
+      this.profile.q9_multi_delivered_text = text;
       console.log(`[section0]: 📋 Q9-MULTI delivered: ${templateKey} for signals [${this.profile.signals_found.join(', ')}]`);
       return { templateKey, text };
     }
     return null;
+  }
+
+  /**
+   * T5 — Returns the rendered Q9-MULTI template text.
+   */
+  public getQ9MultiText(): string {
+    if (this.profile.q9_multi_delivered_text) {
+      return this.profile.q9_multi_delivered_text;
+    }
+    if (this.profile.signals_found && this.profile.signals_found.length >= 2) {
+      const templateKey = selectQ9MultiTemplate(this.profile.signals_found);
+      const text = renderQ9MultiTemplate(templateKey, this.profile);
+      this.profile.q9_multi_delivered_text = text;
+      return text;
+    }
+    return '';
   }
 
   /**
@@ -2976,6 +3008,54 @@ export class SessionContextManager {
       if (choice === 'UNSURE') {
         console.log('[section0]: 📚 Borrower unsure on equity disambiguation — deliver HQ18 comparison.');
         return 'TT-HEL-AMBIG';
+      }
+    }
+
+    // T5: If Q9-MULTI was delivered and Q9 is not yet confirmed, borrower's response to the template question confirms routing!
+    if (this.profile.Q9_MULTI_delivered && !this.profile.Q9_confirmed) {
+      if (/build|construction|construct/i.test(text)) {
+        this.applyHoldoutRouting();
+        return 'TT-CON';
+      }
+      if (/reverse mortgage|hecm/i.test(text)) {
+        this.applyHoldoutRouting();
+        return 'TT-HECM';
+      }
+
+      // Extract co-borrower if stated in response
+      if (/\b(on my own|just me|alone|by myself|just myself|no co.?borrower|single|no one else|myself|applying on my own|i'll be applying on my own|i will be applying on my own)\b/i.test(text)) {
+        this.profile.co_borrower = 'no';
+        this.profile.co_borrower_confirmed = true;
+        this.profile.Q13_answered = true;
+      } else if (/\b(with my wife|with my husband|with my spouse|with my partner|with someone|co.?borrower|together|two of us|both of us)\b/i.test(text)) {
+        this.profile.co_borrower = 'yes';
+        this.profile.co_borrower_confirmed = true;
+        this.profile.Q13_answered = true;
+      }
+
+      // Extract occupancy if stated in response
+      if (/\b(primary|primary residence|main home|live in it)\b/i.test(text)) {
+        this.profile.occupancy = 'primary';
+        this.profile.occupancy_confirmed = true;
+      } else if (/\b(second|secondary|vacation)\b/i.test(text)) {
+        this.profile.occupancy = 'secondary';
+        this.profile.occupancy_confirmed = true;
+      } else if (/\b(investment|rental|income property)\b/i.test(text)) {
+        this.profile.occupancy = 'investment';
+        this.profile.occupancy_confirmed = true;
+      }
+
+      // Confirm transaction type from signals_found
+      const signals = this.profile.signals_found || [];
+      const purSig = signals.includes('TT-PUR');
+      const refSig = signals.includes('TT-REF');
+      const helSig = signals.includes('TT-HEL') || signals.includes('TT-HEQ');
+
+      const targetDecision = purSig ? 'TT-PUR' : refSig ? 'TT-REF' : helSig ? 'TT-HEL' : null;
+      if (targetDecision) {
+        this.applyQ9RoutingDecision(targetDecision);
+        console.log(`[section0]: 📋 Q9-MULTI response confirmed routing -> ${targetDecision} (Q9_confirmed=true)`);
+        return targetDecision;
       }
     }
 
