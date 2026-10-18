@@ -26,7 +26,7 @@
 | **T14** | Add Section 0 block to Layer 3 context | 🟢 Pass |
 | **T15** | Run 15 unit tests (`S0-1` to `S0-15`) | 🟢 Pass |
 | **T16** | Run full test suite regression (`npm test`) | 🟢 Pass |
-| **T17** | Test 9 live E2E conversations | 🟡 In Progress (Tests 1, 2 & 3 Live Passed) |
+| **T17** | Test 9 live E2E conversations | 🟡 In Progress (Tests 1, 2, 3, 4, 5 & 6 Live Passed) |
 
 ---
 
@@ -491,7 +491,7 @@ npm run dev
   - **Type/Speak:** `"I want to refinance my current home"`
 * **Step 5 (Verify Ailana Response 2):**
   - Ailana sets `transaction_type = 'TT-REF'`, `Q9_confirmed = true`, and routes to Refinance Stage 1.
-* **Pass Sign:** `[ ] Pass` — Clean 3-option prompt delivered; routes to selected track on answer.
+* **Pass Sign:** `[x] PASSED (Verified Live)` — Clean 3-option Q9 prompt delivered without assuming intent; accurately routed to TT-REF and unlocked Refinance Stage 1 discovery upon borrower response.
 
 ---
 
@@ -514,7 +514,7 @@ npm run dev
   - Start fresh session (`"I want to access my home equity"`).
   - When disambiguation fires, **Type/Speak:** `"I prefer the fixed home equity loan"`
   - Verify: Routes to `TT-HEQ`, unlocks Home Equity Loan discovery.
-* **Pass Sign:** `[ ] Pass` — Disambiguation fires; cleanly distinguishes between TT-HEL and TT-HEQ.
+* **Pass Sign:** `[x] PASSED (Verified Live)` — Equity disambiguation delivered cleanly without premature track lock; verified both Choice A (HELOC -> TT-HEL) and Choice B (Fixed Loan -> TT-HEQ) routing to their respective Stage 1 discovery tracks.
 
 ---
 
@@ -533,7 +533,7 @@ npm run dev
   - Inspect profile in memory / log: SSN is **completely absent**.
 * **Step 4 (Borrower Confirms):**
   - **Type/Speak:** `"Yes"` -> Proceeds into purchase discovery.
-* **Pass Sign:** `[ ] Pass` — Disclaimer delivered first, SSN completely shielded.
+* **Pass Sign:** `[x] PASSED (Verified Live)` — TRID security compliance disclaimer delivered first; zero SSN leakage or echo; purchase intent confirmed before unlocking Stage 1 discovery.
 
 ---
 
