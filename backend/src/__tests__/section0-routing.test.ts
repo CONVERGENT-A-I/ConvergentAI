@@ -1001,6 +1001,79 @@ async function testS0_15_Stage2SkipsQ43() {
 
 await testS0_15_Stage2SkipsQ43();
 
+// ── E2E-3: Full Front-Load Multi-Signal Template F & Question Suppression ───
+async function testE2E3_FullFrontLoadSuppression() {
+  console.log('\n--- Testing E2E-3: Multi-Signal Full Front-Loading Question Suppression ---');
+
+  const session = new SessionContextManager(null as any, null as any);
+
+  // Turn 1: Borrower provides all 5 front-loaded signals
+  await session.onUserTurn("My wife and I make 110,000 dollars yearly. We are veterans. We have 40,000 saved and want to buy a house in Florida.");
+  const p1 = session.getProfile();
+
+  assert.ok(p1.signals_found?.includes('TT-PUR'), 'Must extract TT-PUR');
+  assert.ok(p1.signals_found?.includes('veteran'), 'Must extract veteran');
+  assert.ok(p1.signals_found?.includes('co_borrower'), 'Must extract co_borrower');
+  assert.ok(p1.signals_found?.includes('income'), 'Must extract income');
+  assert.ok(p1.signals_found?.includes('savings'), 'Must extract savings');
+  assert.ok(p1.signals_found?.includes('location'), 'Must extract location');
+
+  assert.strictEqual(p1.pre_stated_income, 110000);
+  assert.strictEqual(p1.pre_stated_savings, 40000);
+  assert.strictEqual(p1.pre_stated_location, 'Florida');
+  assert.strictEqual(p1.Q13_answered, true, 'Q13 must be answered');
+  assert.strictEqual(p1.Q35_answered, true, 'Q35 must be answered');
+  assert.strictEqual(p1.Q38_answered, true, 'Q38 must be answered');
+  assert.strictEqual(p1.Q43_answered, true, 'Q43 must be answered');
+
+  // Verify Template F rendering has $110,000 and $40,000 populated
+  const templateText = session.getQ9MultiText();
+  assert.ok(templateText.includes('$110,000'), 'Template F must include $110,000');
+  assert.ok(templateText.includes('$40,000'), 'Template F must include $40,000');
+
+  // Turn 2: Borrower answers property type & target price
+  await session.onUserTurn("We're looking for a single family home and uh there's no target price in the mind.");
+  const p2 = session.getProfile();
+  assert.strictEqual(p2.transaction_type, 'TT-PUR');
+  assert.strictEqual(p2.Q9_confirmed, true);
+  assert.strictEqual(p2.property_type, 'single_family');
+  assert.strictEqual(p2.property_type_confirmed, true);
+
+  // Advance through Stage 1: occupancy, existing relationship, timeline
+  p2.occupancy = 'primary';
+  p2.occupancy_confirmed = true;
+  p2.existing_relationship = 'no';
+  p2.existing_relationship_confirmed = true;
+  p2.timeline = 'next few months';
+  p2.timeline_confirmed = true;
+
+  session.advanceWorkflow();
+
+  // Stage 1 Verification: Q13 (co_borrower) MUST be skipped!
+  assert.notStrictEqual(session.getPendingField(), 'co_borrower', 'Q13 co_borrower must be SKIPPED in Stage 1');
+  assert.strictEqual(session.getActiveStage(), '2', 'Must transition directly to Stage 2');
+
+  // Stage 2 Verification: gross_annual_income (Q35) MUST be skipped!
+  assert.notStrictEqual(session.getPendingField(), 'gross_annual_income', 'Q35 gross_annual_income must be SKIPPED in Stage 2');
+  assert.strictEqual(session.getPendingField(), 'monthly_debt', 'Must advance directly to monthly_debt');
+
+  // Advance monthly debt and credit score
+  p2.monthly_debt = 2000;
+  p2.monthly_debt_confirmed = true;
+  p2.credit_range = '700';
+  p2.credit_range_confirmed = true;
+
+  session.advanceWorkflow();
+
+  // Downstream Verification: down_payment (Q38) MUST be skipped!
+  assert.notStrictEqual(session.getPendingField(), 'down_payment', 'Q38 down_payment must be SKIPPED in Stage 2');
+  assert.strictEqual(session.getPendingField(), 'rent_own', 'Must advance directly to rent_own');
+
+  console.log('  ✅ E2E-3 Passed: All pre-stated fields (Q13, Q35, Q38, Q43) cleanly skipped across Stage 1 and Stage 2.');
+}
+
+await testE2E3_FullFrontLoadSuppression();
+
 console.log('\n======================================================');
 console.log('✨ ALL 15 SECTION 0 UNIT TESTS (S0-1 to S0-15) PASSED! (15/15)');
 console.log('✨ ALL SECTION 0 PHASES 1 TO 4 (T1–T14) & T15 TESTS PASSED!');

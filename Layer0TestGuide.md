@@ -26,7 +26,7 @@
 | **T14** | Add Section 0 block to Layer 3 context | 🟢 Pass |
 | **T15** | Run 15 unit tests (`S0-1` to `S0-15`) | 🟢 Pass |
 | **T16** | Run full test suite regression (`npm test`) | 🟢 Pass |
-| **T17** | Test 9 live E2E conversations | 🟡 In Progress (Tests 1 & 2 Live Passed) |
+| **T17** | Test 9 live E2E conversations | 🟡 In Progress (Tests 1, 2 & 3 Live Passed) |
 
 ---
 
@@ -471,7 +471,7 @@ npm run dev
     2. *"What is your gross annual household income?"* (Q35) — Skipped!
     3. *"How much do you have saved for a down payment?"* (Q38) — Skipped!
     4. *"Have you served in the military?"* (Q43) — Skipped!
-* **Pass Sign:** `[ ] Pass` — All 4 questions skipped without borrower being forced to repeat them.
+* **Pass Sign:** `[x] PASSED (Verified Live)` — Template F delivered with all multi-signals extracted ($110K income & $40K savings populated); pre-stated fields (co-borrower Q13, income Q35, down payment Q38, military service Q43) seamlessly skipped downstream.
 
 ---
 

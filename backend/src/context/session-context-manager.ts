@@ -151,7 +151,9 @@ export function extractOpeningSignals(input: string, profile: BorrowerProfile, r
   }
 
   // ── INCOME ──────────────────────────────────────────────────────────
-  const incomeMatch = input.match(/\$?([\d,]+)\s*k?\s*(a year|annually|per year|income|salary)/i);
+  const incomeMatch =
+    input.match(/\$?([\d,]+)\s*k?\s*(?:dollars?)?\s*(a year|annually|per year|yearly|income|salary)/i) ||
+    input.match(/\b(?:make|making|earn|earning|income of|salary of)\s+\$?([\d,]+)\s*k?(?:\s*dollars?)?(?:\s*(?:a year|annually|per year|yearly))?/i);
   if (incomeMatch && incomeMatch[1]) {
     const raw = incomeMatch[1].replace(/,/g, '');
     const idx = incomeMatch.index ?? 0;
@@ -160,13 +162,15 @@ export function extractOpeningSignals(input: string, profile: BorrowerProfile, r
     const parsed = parseInt(raw, 10);
     if (!isNaN(parsed)) {
       profile.pre_stated_income = parsed * (hasK ? 1000 : 1);
+      profile.gross_annual_income = profile.pre_stated_income;
+      profile.gross_annual_income_confirmed = true;
       profile.Q35_answered = true;
       signals.push('income');
     }
   }
 
   // ── SAVINGS / DOWN PAYMENT ──────────────────────────────────────────
-  const savingsMatch = input.match(/\$?([\d,]+)\s*k?\s*(saved|in savings|for.*down|available|down payment)/i);
+  const savingsMatch = input.match(/\$?([\d,]+)\s*k?\s*(?:dollars?)?\s*(saved|in savings|for.*down|available|down payment)/i);
   if (savingsMatch && savingsMatch[1]) {
     const raw = savingsMatch[1].replace(/,/g, '');
     const idx = savingsMatch.index ?? 0;
@@ -175,16 +179,21 @@ export function extractOpeningSignals(input: string, profile: BorrowerProfile, r
     const parsed = parseInt(raw, 10);
     if (!isNaN(parsed)) {
       profile.pre_stated_savings = parsed * (hasK ? 1000 : 1);
+      profile.down_payment = profile.pre_stated_savings;
+      profile.down_payment_confirmed = true;
       profile.Q38_answered = true;
       signals.push('savings');
     }
   }
 
   // ── PROPERTY TYPE ───────────────────────────────────────────────────
-  const ptypes = ['condo', 'townhome', 'townhouse', 'single-family', 'multi-family', 'duplex', 'triplex'];
+  const ptypes = ['condo', 'townhome', 'townhouse', 'single-family', 'single family', 'multi-family', 'multi family', 'duplex', 'triplex'];
   for (const pt of ptypes) {
     if (text.includes(pt)) {
-      profile.pre_stated_property_type = pt;
+      const normPt = pt.includes('single') ? 'single_family' : pt.includes('condo') ? 'condo' : pt.includes('town') ? 'townhome' : pt.includes('multi') ? 'multi_family' : pt;
+      profile.pre_stated_property_type = normPt;
+      profile.property_type = normPt as any;
+      profile.property_type_confirmed = true;
       profile.Q42_partial = true;
       signals.push('property_type');
       break;
@@ -195,6 +204,7 @@ export function extractOpeningSignals(input: string, profile: BorrowerProfile, r
   const locMatch = input.match(/\bin\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
   if (locMatch && locMatch[1] && !addrPattern.test(originalInput)) {
     profile.pre_stated_location = locMatch[1];
+    profile.zip_code = locMatch[1];
     profile.Q42_partial = true;
     signals.push('location');
   }
@@ -3045,6 +3055,24 @@ export class SessionContextManager {
         this.profile.occupancy_confirmed = true;
       }
 
+      // Extract property type if stated in response (e.g. from Template F prompt)
+      const ptypes = ['single-family', 'single family', 'condo', 'townhome', 'townhouse', 'multi-family', 'multi family', 'duplex', 'triplex'];
+      for (const pt of ptypes) {
+        if (text.toLowerCase().includes(pt)) {
+          const normPt = pt.includes('single') ? 'single_family' : pt.includes('condo') ? 'condo' : pt.includes('town') ? 'townhome' : pt.includes('multi') ? 'multi_family' : pt;
+          this.profile.property_type = normPt as any;
+          this.profile.property_type_confirmed = true;
+          this.profile.pre_stated_property_type = normPt;
+          break;
+        }
+      }
+
+      // Extract target price if stated in response (e.g. from Template B or F prompt)
+      if (/\b(no target price|not sure|no price|haven't decided|no specific price|don't know|open)\b/i.test(text)) {
+        this.profile.target_price = 0;
+        this.profile.target_price_confirmed = true;
+      }
+
       // Confirm transaction type from signals_found
       const signals = this.profile.signals_found || [];
       const purSig = signals.includes('TT-PUR');
@@ -4110,16 +4138,36 @@ export class SessionContextManager {
         this.currentPendingField = 'existing_relationship';
       } else if (!this.profile.timeline_confirmed) {
         this.currentPendingField = 'timeline';
-      } else if (!this.profile.co_borrower_confirmed) {
+      } else if (!this.profile.co_borrower_confirmed && !this.profile.Q13_answered) {
         this.currentPendingField = 'co_borrower';
       } else {
         this.activeStage = '2';
-        this.currentPendingField = 'gross_annual_income';
         this.profile.bridge_to_say = 'stage1_to_stage2';
         if (this.profile.timeline && !this.profile.heloc_timeline) {
           this.profile.heloc_timeline = this.profile.timeline;
           this.profile.heloc_timeline_confirmed = true;
           console.log(`[context-manager]: Auto-seeded heloc_timeline from Stage 1 timeline: "${this.profile.timeline}"`);
+        }
+        if (this.profile.pre_stated_income && (!this.profile.gross_annual_income || this.profile.Q35_answered)) {
+          this.profile.gross_annual_income = this.profile.pre_stated_income;
+          this.profile.gross_annual_income_confirmed = true;
+          this.profile.Q35_answered = true;
+        }
+        if (this.profile.pre_stated_savings && (!this.profile.down_payment || this.profile.Q38_answered)) {
+          this.profile.down_payment = this.profile.pre_stated_savings;
+          this.profile.down_payment_confirmed = true;
+          this.profile.Q38_answered = true;
+        }
+        if (this.profile.pre_stated_property_type && !this.profile.property_type) {
+          this.profile.property_type = this.profile.pre_stated_property_type as any;
+          this.profile.property_type_confirmed = true;
+        }
+        if (!this.profile.gross_annual_income_confirmed && !this.profile.Q35_answered) {
+          this.currentPendingField = 'gross_annual_income';
+        } else if (!this.profile.monthly_debt_confirmed) {
+          this.currentPendingField = 'monthly_debt';
+        } else if (!this.profile.credit_range_confirmed) {
+          this.currentPendingField = 'credit_range';
         }
         console.log('[context-manager]: Transitioning to STAGE 2 Pre-Qualification Discovery!');
       }
@@ -4156,7 +4204,7 @@ export class SessionContextManager {
         this.profile.heloc_timeline_confirmed = true;
       }
 
-      if (!this.profile.gross_annual_income_confirmed) {
+      if (!this.profile.gross_annual_income_confirmed && !this.profile.Q35_answered) {
         this.currentPendingField = 'gross_annual_income';
       } else if (!this.profile.monthly_debt_confirmed) {
         this.currentPendingField = 'monthly_debt';
@@ -4247,7 +4295,7 @@ export class SessionContextManager {
         }
       } else {
         // Home Purchase Sequence
-        if (!this.profile.down_payment_confirmed) {
+        if (!this.profile.down_payment_confirmed && !this.profile.Q38_answered) {
           this.currentPendingField = 'down_payment';
         } else if (!this.profile.rent_own_confirmed) {
           this.currentPendingField = 'rent_own';
