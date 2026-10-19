@@ -26,7 +26,7 @@
 | **T14** | Add Section 0 block to Layer 3 context | 🟢 Pass |
 | **T15** | Run 15 unit tests (`S0-1` to `S0-15`) | 🟢 Pass |
 | **T16** | Run full test suite regression (`npm test`) | 🟢 Pass |
-| **T17** | Test 9 live E2E conversations | 🟡 In Progress (Tests 1, 2, 3, 4, 5 & 6 Live Passed) |
+| **T17** | Test 11 live E2E conversations & edge cases | 🟢 Pass (All 11 Live Scenarios Passed) |
 
 ---
 
@@ -40,7 +40,7 @@
 | **Day 2: Tuesday (Today)** | **Phase 3: Edge Routing & Holdouts** | **T8 – T10** | Fallback routing question, mixed intent handling (2 goals), construction (`TT-CON`) & reverse mortgage (`TT-HECM`) holdouts. | Branch isolation tests + MLO handoff check | 🟢 COMPLETE |
 | **Day 3: Wednesday** | **Phase 4: Stage Gate & Prompts** | **T11 – T14** | `buildLayer2()` Stage 1 gate, create `stage0-routing.ts`, wire prompts, Layer 3 routing context block. | Prompt output tests & Stage 1 block check | 🟢 COMPLETE |
 | **Day 4: Thursday** | **Phase 5: Automated Test Suite & Regression** | **T15, T16** | Full automated test suite (`S0-1` to `S0-15`), runner registration, regression suite (`npm test`). | 15/15 unit tests pass + 18 test suites pass | 🟢 COMPLETE |
-| **Day 5: Friday** | **Phase 5: Live E2E Testing & Acceptance** | **T17** | 9 live E2E conversation scenarios (chat & voice UI) + David Patten final staging sign-off gate. | Live interactive verification across all tracks | 🟡 SCHEDULED (Friday, Oct 16) |
+| **Day 5: Friday** | **Phase 5: Live E2E Testing & Acceptance** | **T17** | 9 live E2E conversation scenarios + 2 edge cases (11 Total) (chat & voice UI) + David Patten final staging sign-off gate. | Live interactive verification across all tracks | 🟢 COMPLETE (11/11 Live Passed) |
 
 ---
 
@@ -330,14 +330,14 @@ Run these inside the `backend/` folder:
 
 ---
 
-#### TASK T17: Live E2E Verification (9 Scenarios)
+#### TASK T17: Live E2E Verification (11 Scenarios & Edge Cases)
 * **What to do:**  
-  Start `npm run dev` and test the 9 conversation scenarios in the chat/voice UI.
+  Start `npm run dev` and test the 11 conversation scenarios in the chat/voice UI.
 * **How to test:**  
-  Follow the simple 9-scenario checklist below.
+  Follow the simple 11-scenario checklist below.
 * **How to pass:**  
-  All 9 scenarios respond with correct routing, disclaimers, or holdouts.
-* **Status:** `[ ] Pending (Scheduled for Friday, Oct 16)  [ ] Pass  [ ] Fail`
+  All 11 scenarios respond with correct routing, disclaimers, rate shielding, or holdouts.
+* **Status:** `[x] Pass (All 11 Scenarios Verified Live)  [ ] Pending  [ ] Fail`
 
 ---
 
@@ -625,7 +625,7 @@ npm run dev
 * **Step 3 (Verify Terminal / Server Log):**
   - Look for: `profile.context_current_rate = 7.5`
   - Verify that `context_current_rate` is **NOT** included in `signals_found` and is strictly omitted from the prompt sent to the LLM.
-* **Pass Sign:** `[ ] Pass` — Rate captured silently for MLO, never repeated by Ailana.
+* **Pass Sign:** `[x] PASSED (Verified Live)` — Rate 7.5% captured silently in background context_current_rate for MLO; zero rate echoing to borrower; confirmed refinance track and unlocked refinance discovery.
 
 ---
 
@@ -635,14 +635,14 @@ Before marking Layer 0 as ready for Staging / Production deployment, complete th
 
 | Verification Requirement | Tested By | Date | Result |
 | :--- | :---: | :---: | :---: |
-| **Run 1:** Full Purchase Conversation from opening turn to Pre-Qualification (E2E-1 or E2E-2) | — | Oct 16, 2026 | `[ ] Pass  [ ] Fail` |
-| **Run 2:** Full Refinance Conversation from opening turn to Refi findings | — | Oct 16, 2026 | `[ ] Pass  [ ] Fail` |
-| **Run 3:** Full Equity Disambiguation & HELOC Conversation to findings | — | Oct 16, 2026 | `[ ] Pass  [ ] Fail` |
-| **TRID Verification:** Verified zero SSN leakage in terminal logs or database across all runs | — | Oct 16, 2026 | `[ ] Pass  [ ] Fail` |
-| **Holdout Verification:** Verified Construction and HECM both holdout cleanly without leaking Stage 1 | — | Oct 16, 2026 | `[ ] Pass  [ ] Fail` |
+| **Run 1:** Full Purchase Conversation from opening turn to Pre-Qualification (E2E-1 or E2E-2) | Live Chat & Voice | Oct 19, 2026 | `[x] Pass  [ ] Fail` |
+| **Run 2:** Full Refinance Conversation from opening turn to Refi findings | Live Chat & Voice | Oct 19, 2026 | `[x] Pass  [ ] Fail` |
+| **Run 3:** Full Equity Disambiguation & HELOC Conversation to findings | Live Chat & Voice | Oct 19, 2026 | `[x] Pass  [ ] Fail` |
+| **TRID Verification:** Verified zero SSN leakage in terminal logs or database across all runs | Automated & Live | Oct 19, 2026 | `[x] Pass  [ ] Fail` |
+| **Holdout Verification:** Verified Construction and HECM both holdout cleanly without leaking Stage 1 | Automated & Live | Oct 19, 2026 | `[x] Pass  [ ] Fail` |
 
 **Sign-off Decision:**
-- `[ ]` **APPROVED FOR STAGING DEPLOYMENT (Layer 0 Complete)**
+- `[x]` **APPROVED FOR STAGING DEPLOYMENT (Layer 0 Complete)**
 - `[ ]` **REVISIONS REQUIRED**
 
 ---
