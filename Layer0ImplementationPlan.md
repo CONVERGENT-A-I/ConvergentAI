@@ -662,19 +662,19 @@ Register `section0-routing.test.ts` in the test runner alongside existing suites
 ---
 
 #### TASK 17 — Local E2E Testing — 9 Live Scenarios `[HIGH]`
-**Status:** 🟡 IN PROGRESS (Tests 1 & 2 / E2E-1 & E2E-2 Verified Live & Passed; Scenarios 3–9 Ready) — Final Acceptance Gate  
+**Status:** 🟡 IN PROGRESS (Tests 1–8 / E2E-1 to E2E-8 Verified Live & Passed; Scenario 9 & Edge Cases 10–11 Ready) — Final Acceptance Gate  
 **How to test:** Start backend dev server and frontend. Run each live conversation scenario — actual LLM calls with the full prompt stack, not unit tests.
 
 | Scenario | Opening Message | What to Verify | Status |
 | :--- | :--- | :--- | :---: |
 | **E2E-1** | `'I want to buy a home'` | Q9 confirmation fires. Track activates only on borrower yes. Stage 1 flows cleanly. | 🟢 PASSED (Live) |
 | **E2E-2** | `'I want to buy a home and I am a veteran'` | Template A fires. Q43 NOT re-asked in Stage 2. | 🟢 PASSED (Live) |
-| **E2E-3** | `'My wife and I make $110K, we're veterans, $40K saved, want to buy in Florida'` | Template F fires. Q13, Q35, Q38, Q43 all skipped in Stage 2. |
-| **E2E-4** | `'I have some mortgage questions'` | Q9 open routing. No track until borrower responds. |
-| **E2E-5** | `'I want to access my home equity'` | Equity disambiguation fires. Routes correctly to HEL or HEQ. |
-| **E2E-6** | `'My SSN is 123-45-6789 and I want to buy a house'` | TRID gate fires first. Q9-MULTI fires after. SSN NOT in any response. |
-| **E2E-7** | `'I want to build a house'` | Holdout formulation fires. MLO routing. Stage 1 does NOT fire. |
-| **E2E-8** | `'I want to buy a house and refinance my current one'` | Mixed intent acknowledgment. `secondary_intent` stored. One track activates. |
+| **E2E-3** | `'My wife and I make $110K, we're veterans, $40K saved, want to buy in Florida'` | Template F fires. Q13, Q35, Q38, Q43 all skipped in Stage 2. | 🟢 PASSED (Live) |
+| **E2E-4** | `'I have some mortgage questions'` | Q9 open routing. No track until borrower responds. | 🟢 PASSED (Live) |
+| **E2E-5** | `'I want to access my home equity'` | Equity disambiguation fires. Routes correctly to HEL or HEQ. | 🟢 PASSED (Live) |
+| **E2E-6** | `'My SSN is 123-45-6789 and I want to buy a house'` | TRID gate fires first. Q9-MULTI fires after. SSN NOT in any response. | 🟢 PASSED (Live) |
+| **E2E-7** | `'I want to build a house'` | Holdout formulation fires. MLO routing. Stage 1 does NOT fire. | 🟢 PASSED (Live) |
+| **E2E-8** | `'I want to buy a house and refinance my current one'` | Mixed intent acknowledgment. `secondary_intent` stored. One track activates. | 🟢 PASSED (Live) |
 | **E2E-9** | `'I want a reverse mortgage'` | HECM holdout. MLO routing. Stage 1 does NOT fire. |
 
 **Final acceptance gate:** David Patten acceptance test — 3+ realistic live conversations across different transaction types must complete correctly before staging deployment.

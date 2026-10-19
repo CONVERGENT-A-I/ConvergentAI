@@ -315,6 +315,30 @@ class AilanaVoiceAgent extends voice.Agent {
       return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
     }
 
+    // ── Section 0 Holdout Complete: Polite farewell if user replies after escalation ──
+    if (pending === 'holdout_complete' || (profile.holdout_routed && this.contextManager.getActiveStage() === '5')) {
+      const farewellScript = "You're very welcome! Our specialist will be in touch with you shortly. Have a wonderful rest of your day!";
+      console.log(`[agent-hook]: Delivering holdout completion farewell via ReadableStream!`);
+      return createVerbatimStream(farewellScript) as any;
+    }
+
+    // ── Section 0 Holdout Handoff: Turn 2+ once borrower provides contact info or responds ──
+    if (profile.holdout_routed && !profile.Q9_confirmed && (profile.holdout_contact_captured || profile.holdout_formulation_delivered)) {
+      const signals = profile.signals_found || [];
+      const specialistType = signals.includes('TT-HECM') ? 'reverse mortgage' : 'construction loan';
+      const nameGreeting = profile.borrower_name ? ` ${profile.borrower_name}` : '';
+      const handoffScript = `Thank you${nameGreeting}. I've noted your contact information and shared your details with our ${specialistType} specialist. A licensed loan officer will reach out to you directly to guide you through every step. Have a wonderful day!`;
+
+      this.contextManager.setActiveStage('5');
+      this.contextManager.setCurrentPendingField('holdout_complete');
+      if (this.sendStageUpdate) {
+        this.sendStageUpdate('5').catch(err => console.warn(err));
+      }
+
+      console.log(`[agent-hook]: Delivering deterministic Section 0 holdout handoff via ReadableStream!`);
+      return createVerbatimStream(handoffScript) as any;
+    }
+
     // ── 0ms Verbatim Fast-Path for Section 0 & Stage 1 Transitions ──
     const lowerUserText = lastUserText.toLowerCase().trim();
 
@@ -324,9 +348,10 @@ class AilanaVoiceAgent extends voice.Agent {
       const ttSignals = signals.filter(s => s.startsWith('TT-'));
 
       // 1a. Holdout Signals (TT-CON / TT-HECM)
-      if (signals.includes('TT-CON') || signals.includes('TT-HECM')) {
+      if (signals.includes('TT-CON') || signals.includes('TT-HECM') || profile.holdout_routed) {
         const holdoutText = this.contextManager.getHoldoutFormulation();
         if (holdoutText) {
+          profile.holdout_formulation_delivered = true;
           console.log(`[agent-hook]: Delivering deterministic Section 0 holdout formulation via ReadableStream!`);
           return createVerbatimStream(holdoutText) as any;
         }

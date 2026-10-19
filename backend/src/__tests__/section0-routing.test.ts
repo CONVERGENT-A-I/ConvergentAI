@@ -732,6 +732,9 @@ async function testHoldoutRoutingFlow() {
   const profileCon2 = sessionCon.getProfile();
 
   assert.strictEqual(profileCon2.holdout_routed, true);
+  assert.strictEqual(profileCon2.holdout_contact_captured, true, 'holdout_contact_captured must be true');
+  assert.strictEqual(profileCon2.contact_email, 'john@example.com', 'contact_email must be captured');
+  assert.strictEqual(profileCon2.contact_mobile, '5551234567', 'contact_mobile must be captured');
   assert.strictEqual(profileCon2.transaction_type, null, 'transaction_type must NOT be set to any track');
   assert.strictEqual(profileCon2.Q9_confirmed, false, 'Stage 1 must remain strictly blocked');
   assert.strictEqual(profileCon2.mortgage_goal, null, 'Stage 1 mortgage_goal must never be set');

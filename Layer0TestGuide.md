@@ -553,7 +553,7 @@ npm run dev
   - **Type/Speak:** `"Sure, my phone is 555-0199 and email is john@example.com"`
 * **Step 5 (Verify Consequence):**
   - Ailana handles MLO escalation; Stage 1 discovery (occupancy, property type, price) is **permanently blocked**.
-* **Pass Sign:** `[ ] Pass` — Holdout script fires, discovery never initiates.
+* **Pass Sign:** `[x] PASSED (Verified Live)` — Holdout script fires verbatim, contact info extracted, MLO escalation completed, polite farewell handled, and Stage 1 discovery strictly blocked.
 
 ---
 
@@ -574,7 +574,7 @@ npm run dev
 * **Step 5 (Verify Ailana Response 2):**
   - Ailana locks in `transaction_type = 'TT-PUR'`, `Q9_confirmed = true`, and starts Purchase discovery.
   - Ailana does **NOT** ask refinance questions simultaneously.
-* **Pass Sign:** `[ ] Pass` — Both intents split, borrower picks one, only one track runs.
+* **Pass Sign:** `[x] PASSED (Verified Live)` — Both intents split cleanly on opening turn, borrower chose purchase, and Ailana transitioned directly to purchase occupancy with zero track leakage.
 
 ---
 

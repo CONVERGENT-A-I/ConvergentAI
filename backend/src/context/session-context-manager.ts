@@ -61,6 +61,8 @@ export function initBorrowerProfile(): BorrowerProfile {
     equity_disambig_delivered: false,
     fallback_routing_delivered: false,
     holdout_routed: false,
+    holdout_formulation_delivered: false,
+    holdout_contact_captured: false,
 
     // ── Section 0 front-loading extraction ───────────────────────────────────
     signals_found: [],
@@ -642,6 +644,44 @@ export function applyHoldoutRouting(profile: BorrowerProfile): void {
   // profile.transaction_type remains null
   // profile.Q9_confirmed strictly remains false
   console.log('[section0]: 🚧 Holdout routing applied (holdout_routed=true). Stage 1 blocked.');
+}
+
+/**
+ * T10 — Extracts contact information (email, phone, name) when borrower responds to holdout formulation.
+ */
+export function extractHoldoutContactInfo(text: string, profile: BorrowerProfile): boolean {
+  let captured = false;
+
+  // Email regex
+  const emailMatch = text.match(/\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b/);
+  if (emailMatch && emailMatch[1]) {
+    profile.contact_email = emailMatch[1];
+    captured = true;
+    console.log(`[section0]: 📞 Holdout contact email captured: ${profile.contact_email}`);
+  }
+
+  // Phone regex (support both formatted like 555-123-4567 and unformatted like 5550159)
+  const phoneMatch = text.match(/(?:phone|cell|mobile|number|call me at)?\s*(?:is\s*)?(\+?1?[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}|\b\d{7,10}\b)/i);
+  if (phoneMatch && phoneMatch[1]) {
+    profile.contact_mobile = phoneMatch[1].replace(/[^\d+]/g, '');
+    captured = true;
+    console.log(`[section0]: 📞 Holdout contact mobile captured: ${profile.contact_mobile}`);
+  }
+
+  // Name extraction if preceded by "my name is", "I'm", "David", etc.
+  const nameMatch = text.match(/\b(?:my name is|i'm|i am|this is)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/i);
+  if (nameMatch && nameMatch[1]) {
+    profile.borrower_name = nameMatch[1];
+    profile.borrower_name_confirmed = true;
+    captured = true;
+    console.log(`[section0]: 👤 Holdout borrower name captured: ${profile.borrower_name}`);
+  }
+
+  if (captured || text.length > 5) {
+    profile.holdout_contact_captured = true;
+  }
+
+  return captured;
 }
 
 /**
@@ -1527,6 +1567,13 @@ export class SessionContextManager {
     this.turnLog.push({ role: 'user', text: trimmed, timestamp: Date.now() });
     this.turnCount += 1;
 
+    if (this.profile.holdout_routed && this.activeStage === '5') {
+      console.log('[section0]: 🚧 Holdout handoff complete in Stage 5 — saving turn.');
+      await this.saveConversationTurn('user', trimmed);
+      await this.syncToDatabase();
+      return;
+    }
+
     // ── Section 0: First-turn signal extraction (T3), TRID gate (T4), Q9-MULTI (T5), Mixed Intent (T9) & Holdouts (T10) ───
     // Runs ONCE on the very first user turn in Stage 1, BEFORE the LLM.
     // Pure regex — <10ms. Sets signals_found[] and routes according to Section 0 precedence.
@@ -1557,6 +1604,8 @@ export class SessionContextManager {
       console.log(`[perf] context-manager Section 0 extraction + TRID gate + Q9-MULTI/mixed/holdout: ${(performance.now() - _tSection0).toFixed(1)}ms`);
       if (this.profile.holdout_routed) {
         console.log(`[perf] context-manager onUserTurn TOTAL (holdout routed): ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
+        await this.saveConversationTurn('user', trimmed);
+        await this.syncToDatabase();
         return;
       }
       if (!this.profile.Q9_confirmed) {
@@ -1566,13 +1615,18 @@ export class SessionContextManager {
       }
     } else if (this.activeStage === '1' && !this.profile.Q9_confirmed) {
       if (this.profile.holdout_routed) {
-        console.log('[section0]: 🚧 Holdout active — maintaining Stage 1 block. Not advancing to Stage 1 discovery.');
+        console.log('[section0]: 🚧 Holdout active — maintaining Stage 1 block. Extracting holdout contact info.');
+        extractHoldoutContactInfo(trimmed, this.profile);
+        await this.saveConversationTurn('user', trimmed);
+        await this.syncToDatabase();
         return;
       }
       // ── Section 0: Q9, Equity Disambiguation, Mixed Intent & Holdout routing resolution on turn 2+ (T6–T10) ────
       this.evaluateQ9Routing(trimmed);
       if (this.profile.holdout_routed) {
         console.log(`[perf] context-manager onUserTurn TOTAL (holdout routed on turn 2+): ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
+        await this.saveConversationTurn('user', trimmed);
+        await this.syncToDatabase();
         return;
       }
       // Section 0 routing handling for this turn complete; save turn and return to let LLM ask active pending question
