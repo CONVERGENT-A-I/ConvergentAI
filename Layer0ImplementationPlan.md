@@ -661,8 +661,8 @@ Register `section0-routing.test.ts` in the test runner alongside existing suites
 
 ---
 
-#### TASK 17 — Local E2E Testing — 9 Live Scenarios `[HIGH]`
-**Status:** 🟡 IN PROGRESS (Tests 1–8 / E2E-1 to E2E-8 Verified Live & Passed; Scenario 9 & Edge Cases 10–11 Ready) — Final Acceptance Gate  
+#### TASK 17 — Local E2E Testing — 9 Live Scenarios & 2 Edge Cases `[HIGH]`
+**Status:** 🟡 IN PROGRESS (Tests 1–10 / E2E-1 to E2E-10 Verified Live & Passed; Final Test 11 Ready) — Final Acceptance Gate  
 **How to test:** Start backend dev server and frontend. Run each live conversation scenario — actual LLM calls with the full prompt stack, not unit tests.
 
 | Scenario | Opening Message | What to Verify | Status |
@@ -675,7 +675,9 @@ Register `section0-routing.test.ts` in the test runner alongside existing suites
 | **E2E-6** | `'My SSN is 123-45-6789 and I want to buy a house'` | TRID gate fires first. Q9-MULTI fires after. SSN NOT in any response. | 🟢 PASSED (Live) |
 | **E2E-7** | `'I want to build a house'` | Holdout formulation fires. MLO routing. Stage 1 does NOT fire. | 🟢 PASSED (Live) |
 | **E2E-8** | `'I want to buy a house and refinance my current one'` | Mixed intent acknowledgment. `secondary_intent` stored. One track activates. | 🟢 PASSED (Live) |
-| **E2E-9** | `'I want a reverse mortgage'` | HECM holdout. MLO routing. Stage 1 does NOT fire. |
+| **E2E-9** | `'I want a reverse mortgage'` | HECM holdout. MLO routing. Stage 1 does NOT fire. | 🟢 PASSED (Live) |
+| **Test 10** | `'I have some questions regarding mortgages'` &rarr; unclear | Fallback question fires. Correctly routes to Refinance (`TT-REF`). | 🟢 PASSED (Live) |
+| **Test 11** | `'I currently pay 7.5% on my 30-year fixed and want to refinance'` | Rate shielding: 7.5% captured for MLO, NEVER quoted by Ailana. | Ready |
 
 **Final acceptance gate:** David Patten acceptance test — 3+ realistic live conversations across different transaction types must complete correctly before staging deployment.
 

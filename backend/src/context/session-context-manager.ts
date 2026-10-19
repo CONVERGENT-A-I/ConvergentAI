@@ -372,11 +372,11 @@ export function parseQ9RoutingDecision(output: string): Q9RouteDecision {
   }
 
   // Mixed intent check: borrower mentions two distinct transaction types simultaneously
-  const hasPur = /buy|purchas|first home|new home/i.test(text);
-  const hasRef = /refinanc|refi|lower my rate|lower my payment|cash.?out/i.test(text);
+  const hasPur = /buy|purchas|first home|new home|new place|move into (?:a\s+)?new/i.test(text);
+  const hasRef = /refinanc|refi|lower (?:my|the|a)?\s*(?:rate|payment)|change (?:the\s+)?terms|cash.?out/i.test(text);
   const hasHel = /heloc|line of credit|home equity line/i.test(text);
   const hasHeq = /home equity loan|fixed equity|lump sum/i.test(text);
-  const hasEquityAmbig = /equity/i.test(text) && !hasHel && !hasHeq;
+  const hasEquityAmbig = (/equity/i.test(text) || /borrow against/i.test(text)) && !hasHel && !hasHeq;
 
   const ttCount = [hasPur, hasRef, (hasHel || hasHeq || hasEquityAmbig)].filter(Boolean).length;
   if (ttCount >= 2) {
@@ -703,7 +703,7 @@ export const HQ18_COMPARISON_FORMULATION =
  * Delivered when borrower's response to Q9 or equity disambiguation remains ambiguous.
  */
 export const FALLBACK_ROUTING_FORMULATION =
-  "Are you looking to purchase a new home, refinance an existing mortgage, or access the equity you've already built?";
+  "No problem at all — let's figure it out together. Are you looking to purchase a new home, refinance an existing mortgage, or access the equity you've already built?";
 
 export type EquityDisambigChoice = 'TT-HEL' | 'TT-HEQ' | 'UNSURE' | 'UNCLEAR';
 

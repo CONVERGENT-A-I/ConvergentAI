@@ -42,7 +42,7 @@ export const EQUITY_DISAMBIG_FORMULATION =
   "Great — accessing your home equity is a smart move. Before we dive in, one quick question: are you thinking of a Home Equity Line of Credit — sometimes called a HELOC — where you draw funds as needed over time? Or a home equity loan, which gives you a fixed lump sum at a fixed rate all at once? If you're not sure which fits your situation better, I can explain the difference and help you decide.";
 
 export const FALLBACK_ROUTING_FORMULATION =
-  "Are you looking to purchase a new home, refinance an existing mortgage, or access the equity you've already built?";
+  "No problem at all — let's figure it out together. Are you looking to purchase a new home, refinance an existing mortgage, or access the equity you've already built?";
 
 export const MIXED_INTENT_FORMULATION =
   "It sounds like you have two things on your mind — [goal 1] and [goal 2]. Those are both worth exploring, and they're actually connected. Let's tackle them one at a time so we give each the attention it deserves. Which would you like to start with?";

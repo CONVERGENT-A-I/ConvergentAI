@@ -397,8 +397,16 @@ class AilanaVoiceAgent extends voice.Agent {
         return createVerbatimStream(script) as any;
       }
 
-      // 1f. 0 Signals (Standard Q9 open routing)
+      // 1f. 0 Signals (Standard Q9 open routing or Fallback routing)
       if (signals.length === 0) {
+        if (profile.fallback_routing_delivered) {
+          const fallbackText = this.contextManager.getFallbackRoutingFormulation();
+          if (fallbackText) {
+            console.log(`[agent-hook]: Delivering deterministic Section 0 fallback routing formulation via ReadableStream!`);
+            return createVerbatimStream(fallbackText) as any;
+          }
+        }
+
         const q9Text = this.contextManager.getQ9StandardFormulation();
         if (q9Text) {
           console.log(`[agent-hook]: Delivering deterministic Section 0 standard Q9 formulation via ReadableStream!`);

@@ -589,7 +589,7 @@ npm run dev
 * **Step 3 (Verify Terminal / Server Log):**
   - Look for: `signals_found: [TT-HECM]`
   - Look for: `holdout_routed = true`, `transaction_type = null`, `Q9_confirmed = false`
-* **Pass Sign:** `[ ] Pass` — Reverse mortgage holdout delivered; Stage 1 strictly blocked.
+* **Pass Sign:** `[x] PASSED (Verified Live)` — Reverse mortgage holdout delivered verbatim; contact info captured, specialist referral confirmed, Stage 1 discovery strictly blocked.
 
 ---
 
@@ -609,7 +609,7 @@ npm run dev
 * **Step 5 (Borrower Picks Option):**
   - **Type/Speak:** `"Lower the payment on my existing home"`
   - Verify: Routes cleanly to `TT-REF`.
-* **Pass Sign:** `[ ] Pass` — Fallback question delivered; correctly maps to refinance.
+* **Pass Sign:** `[x] PASSED (Verified Live)` — Fallback routing question delivered cleanly on unclear response; correctly resolved to Refinance track (TT-REF) and smoothly transitioned through Stage 1 & Stage 2.
 
 ---
 
