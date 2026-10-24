@@ -139,6 +139,7 @@ graph TD
   - `requestKey(req: Request, prefix: string): string`
 - **Verification**: Run unit test: `node --import tsx backend/src/__tests__/security-hardening.test.ts`.
 
+
 ### Step 3.5: Copy FreeSWITCH SIP MESSAGE Dispatcher
 - **Source**: `convergentai-lab/backend/src/utils/fsMessage.ts`
 - **Destination**: [`backend/src/utils/fsMessage.ts`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/utils/fsMessage.ts)
