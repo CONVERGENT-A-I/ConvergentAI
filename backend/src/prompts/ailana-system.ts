@@ -74,6 +74,7 @@ import { buildStage3BInstructions } from './stage3b-completion.js';
 import { buildStage4Instructions } from './stage4-underwriting.js';
 import { buildStage5Instructions } from './stage5-escalation.js';
 import { SECTION_0_PROMPT } from './stage0-routing.js';
+import { selectQ9MultiTemplate, renderQ9MultiTemplate } from '../context/session-context-manager.js';
 
 /**
  * Builds the Section 0 Transaction Type Routing block for Layer 2.
@@ -89,6 +90,27 @@ export function buildSection0Block(profile: BorrowerProfile = {}): string {
   block += `\nequity_disambig_delivered: ${profile.equity_disambig_delivered ?? false}`;
   block += `\nfallback_routing_delivered: ${profile.fallback_routing_delivered ?? false}`;
   block += `\nQ9_confirmed: ${profile.Q9_confirmed ?? false}`;
+
+  if (profile.signals_found && profile.signals_found.length >= 2) {
+    const templateKey = selectQ9MultiTemplate(profile.signals_found);
+    const templateText = renderQ9MultiTemplate(templateKey, profile);
+    block += `\n\nSELECTED Q9-MULTI TEMPLATE (${templateKey}):\n"${templateText}"\n`;
+    block += `\nCRITICAL MANDATE: Deliver the selected template text above. Do NOT ask standard Q9. Do NOT re-ask for any information already in signals_found (${profile.signals_found.join(', ')}).`;
+  } else if (
+    profile.signals_found &&
+    profile.signals_found.filter(s => s.startsWith('TT-')).length === 1 &&
+    profile.signals_found.length === 1
+  ) {
+    const sig = profile.signals_found[0];
+    const goalStr =
+      sig === 'TT-REF'
+        ? 'refinance your mortgage'
+        : (sig === 'TT-HEL' || sig === 'TT-HEQ' || sig === 'TT-HEL-AMBIG')
+          ? 'access your home equity'
+          : 'purchase a home';
+    block += `\n\nSINGLE-SIGNAL CONFIRMATION FORMULATION:\n"It sounds like you're looking to ${goalStr} — is that right?"\n`;
+    block += `\nCRITICAL MANDATE: Confirm the borrower's goal using the formulation above. Do NOT ask standard Q9.`;
+  }
 
   return block;
 }
@@ -118,7 +140,7 @@ export function buildLayer2(stageOrProfile: string | BorrowerProfile = '1', prof
   }
 
   if (stage === '1') {
-    return buildStage1Instructions();
+    return buildStage1Instructions(profile);
   }
   if (stage === '2') {
     if (profile.transaction_type === 'TT-REF' || profile.mortgage_goal === 'refinance') {
@@ -148,7 +170,7 @@ export function buildLayer2(stageOrProfile: string | BorrowerProfile = '1', prof
     return buildStage5Instructions();
   }
   // Future stages — fallback to Stage 1 until implemented (guarded by Q9_confirmed)
-  return profile.Q9_confirmed ? buildStage1Instructions() : buildSection0Block(profile);
+  return profile.Q9_confirmed ? buildStage1Instructions(profile) : buildSection0Block(profile);
 }
 
 

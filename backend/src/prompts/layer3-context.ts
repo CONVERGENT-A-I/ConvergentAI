@@ -247,8 +247,9 @@ const FIELD_LABELS: Record<string, string> = {
   otp_verification: 'one-time verification code',
   contact_confirm_display: 'contact information confirmation display',
   escalation_preference: 'preference for live transfer or scheduled callback',
-  scheduled_call_time: 'preferred date and time for the callback',
 };
+
+import { selectQ9MultiTemplate, renderQ9MultiTemplate } from '../context/session-context-manager.js';
 
 export function buildLayer3TurnContext(
   profile: BorrowerProfile,
@@ -433,7 +434,26 @@ export function buildLayer3TurnContext(
 
   if (!hasSpecificOverride) {
     if (!profile.Q9_confirmed && (stage === '1' || stage === '0' || !profile.transaction_type)) {
-      taskLine = `CURRENT TASK:\nSection 0 Transaction Type Routing: Determine the borrower's intent (purchase, refinance, HELOC, or home equity loan). Deliver the appropriate Section 0 routing formulation and output the ROUTE signal. Do NOT ask Stage 1 discovery questions.`;
+      if (profile.signals_found && profile.signals_found.length >= 2) {
+        const templateKey = selectQ9MultiTemplate(profile.signals_found);
+        const templateText = renderQ9MultiTemplate(templateKey, profile);
+        taskLine = `CURRENT TASK:\nSection 0 Transaction Type Routing (Q9-MULTI ${templateKey}): Deliver the selected template:\n"${templateText}"\nDo NOT ask standard Q9. Do NOT ask Stage 1 discovery questions.`;
+      } else if (
+        profile.signals_found &&
+        profile.signals_found.filter(s => s.startsWith('TT-')).length === 1 &&
+        profile.signals_found.length === 1
+      ) {
+        const sig = profile.signals_found[0];
+        const goalStr =
+          sig === 'TT-REF'
+            ? 'refinance your mortgage'
+            : (sig === 'TT-HEL' || sig === 'TT-HEQ' || sig === 'TT-HEL-AMBIG')
+              ? 'access your home equity'
+              : 'purchase a home';
+        taskLine = `CURRENT TASK:\nSection 0 Transaction Type Routing (Single-Signal Confirmation): Confirm the borrower's goal:\n"It sounds like you're looking to ${goalStr} — is that right?"\nDo NOT ask standard Q9. Do NOT ask Stage 1 discovery questions.`;
+      } else {
+        taskLine = `CURRENT TASK:\nSection 0 Transaction Type Routing: Determine the borrower's intent (purchase, refinance, HELOC, or home equity loan). Deliver the appropriate Section 0 routing formulation and output the ROUTE signal. Do NOT ask Stage 1 discovery questions.`;
+      }
     } else if (profile.pending_confirm_field && profile.pending_confirm_value) {
       let label = FIELD_LABELS[profile.pending_confirm_field] ?? profile.pending_confirm_field;
       if (isRef && profile.pending_confirm_field === 'target_price') {

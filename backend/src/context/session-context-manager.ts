@@ -136,7 +136,7 @@ export function extractOpeningSignals(input: string, profile: BorrowerProfile, r
   }
 
   // ── VETERAN / MILITARY ──────────────────────────────────────────────
-  if (/veteran|military|army|navy|marines|air force|coast guard|active duty|served|service member/i.test(text)) {
+  if (/veteran|military|army|navy|marines|air force|coast guard|active duty|served|service member|soldier|national guard|reserve|reservist|armed forces/i.test(text)) {
     profile.veteran_flagged = true;
     profile.Q43_answered = true;   // skip Q43 in Stage 2 purchase track
     profile.military_rural = profile.military_rural === 'rural' ? 'both' : 'military';
@@ -145,7 +145,7 @@ export function extractOpeningSignals(input: string, profile: BorrowerProfile, r
   }
 
   // ── CO-BORROWER ─────────────────────────────────────────────────────
-  if (/my wife|my husband|my spouse|my partner|we are|we're|together|both of us|the two of us/i.test(text)) {
+  if (/my wife|my husband|my spouse|my partner|we are|we're|together|both of us|the two of us|both will contribute|wife and i|husband and i|applying together|applying with/i.test(text)) {
     profile.co_borrower = 'yes';
     profile.co_borrower_confirmed = true;
     profile.Q13_answered = true;   // skip Q13 in Stage 1
@@ -154,8 +154,9 @@ export function extractOpeningSignals(input: string, profile: BorrowerProfile, r
 
   // ── INCOME ──────────────────────────────────────────────────────────
   const incomeMatch =
-    input.match(/\$?([\d,]+)\s*k?\s*(?:dollars?)?\s*(a year|annually|per year|yearly|income|salary)/i) ||
-    input.match(/\b(?:make|making|earn|earning|income of|salary of)\s+\$?([\d,]+)\s*k?(?:\s*dollars?)?(?:\s*(?:a year|annually|per year|yearly))?/i);
+    input.match(/\$?([\d,]+)\s*k?\s*(?:dollars?)?[\s,.]*(?:a year|annually|per year|yearly|income|salary)/i) ||
+    input.match(/\b(?:make|making|earn|earning|income of|salary of)(?:[^.\d$]{0,35})\$?([\d,]+)\s*k?(?:\s*dollars?)?[\s,.]*(?:a year|annually|per year|yearly)?/i) ||
+    input.match(/\$?([\d,]+)\s*k?\s*(?:dollars?)?[\s,.]*(?:combined|household)/i);
   if (incomeMatch && incomeMatch[1]) {
     const raw = incomeMatch[1].replace(/,/g, '');
     const idx = incomeMatch.index ?? 0;
@@ -308,7 +309,7 @@ export function renderQ9MultiTemplate(templateKey: string, profile: BorrowerProf
   const nameStr = profile.borrower_name || '';
   const coBorrowerRel = 'spouse/partner';
 
-  return base
+  let result = base
     .replace(/\[pre_stated_income\]/g, incomeStr)
     .replace(/\[income\]/g, incomeStr)
     .replace(/\[pre_stated_savings\]/g, savingsStr)
@@ -316,6 +317,14 @@ export function renderQ9MultiTemplate(templateKey: string, profile: BorrowerProf
     .replace(/\[pre_stated_location\]/g, locationStr)
     .replace(/\[name\]/g, nameStr)
     .replace(/\[spouse\/partner\]/g, coBorrowerRel);
+
+  // Clean up empty placeholder remnants for natural spoken speech
+  result = result.replace(/So\s*,\s*/g, 'So ');
+  result = result.replace(/,\s*and the\s+you have available/g, '');
+  result = result.replace(/and the\s+you have available/g, '');
+  result = result.replace(/\s{2,}/g, ' ');
+
+  return result.trim();
 }
 
 /**

@@ -309,7 +309,10 @@ class AilanaVoiceAgent extends voice.Agent {
       return createVerbatimStream(scriptText) as any;
     }
 
-    if (userAskedQuestion) {
+    const isProceduralOpening = !profile.Q9_confirmed && pending === 'mortgage_goal' &&
+      /\b(how (?:do|can) (?:i|we) (?:proceed|get started|start|move forward)|where (?:do|can) (?:i|we) start|what(?:'s| is) the (?:next step|process)|can you help (?:me|us))\b/i.test(lastUserText);
+
+    if (userAskedQuestion && !isProceduralOpening) {
       (profile as any).last_extracted_offer_val = null; // reset flag
       console.log(`[agent-hook]: User turn contains question/explanation request ("${lastUserText}") — delegating to LiveKit Inference LLM to answer dynamically.`);
       return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
@@ -343,7 +346,7 @@ class AilanaVoiceAgent extends voice.Agent {
     const lowerUserText = lastUserText.toLowerCase().trim();
 
     // 1. Section 0: Opening Turn Routing / Fast-Path Delivery
-    if (!profile.Q9_confirmed && pending === 'mortgage_goal' && !userAskedQuestion) {
+    if (!profile.Q9_confirmed && pending === 'mortgage_goal' && (!userAskedQuestion || isProceduralOpening)) {
       const signals = profile.signals_found || [];
       const ttSignals = signals.filter(s => s.startsWith('TT-'));
 
