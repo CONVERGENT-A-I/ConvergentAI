@@ -1,783 +1,178 @@
-# Layer 0 — Section 0 Transaction Type Routing: Implementation Plan
+# Layer 0 (Section 0) Remediation & End-to-End Alignment Plan
 
 **Project:** ConvergentAI | Ailana v8.7  
-**Author:** Sohail-Ak  
-**Last Updated:** October 19, 2026  
-**Status:** 🟢 COMPLETE — Layer 0 Fully Implemented & 100% Verified (T1–T17 Complete — All 18 Test Suites & All 11 Live Scenarios Passing)  
-**Reference Doc:** [`Layer0Doc.md`](file:///c:/Users/SAL/Downloads/ConvergentAI/Layer0Doc.md)
+**Author:** Dev Team  
+**Date:** October 28, 2026  
+**Status:** 🟡 READY FOR IMPLEMENTATION  
+**Goal:** Eliminate Section 0 repetitions, infinite loops, and amnesia across the full conversational lifecycle (Section 0 → Stage 1 → Stage 2).
 
 ---
 
-> [!IMPORTANT]
-> **Read Before Starting:** Section 0 is **purely additive** — it does not change, overwrite, or delete anything currently in the project. Every existing Stage 1–3 prompt, every Q-number, every compliance formulation, every stall recovery (SR-1 to SR-5) stays exactly as-is. Section 0 adds new fields, a new file, and a guard at the top of `buildLayer2()`. Nothing else changes.
+## 1. Context & Diagnosis Summary
 
-> [!WARNING]
-> **The One Critical Default:** `Q9_confirmed` MUST initialize to `false`. If it defaults to `true`, Section 0 never runs and the system appears to work correctly while being completely unwired. Verify this in **T2** and test it in **T15 (S0-1)** before anything else.
+A forensic audit of live testing logs (`Logs2_parsed.txt`, October 28, 2026) revealed that while Section 0 front-loaded extraction executes in 1.1ms, the downstream architecture suffered from **7 critical regressions**:
 
----
-
-## 📊 Overall Layer 0 Progress
-
-```
-Layer 0 Completion:  ████████████████████  100% (T1–T17 Complete — All 18 Test Suites Passing, All 11 Live Scenarios Passed)
-```
-
-| Area | Status | Notes |
-| :--- | :---: | :--- |
-| Session State Schema (`BorrowerProfile`) | 🟢 Complete | All 15 Section 0 routing & front-loading fields added to `BorrowerProfile`. |
-| Front-Loading Extraction (`extractOpeningSignals`) | 🟢 Complete | Upgraded with fast regex pattern matching (<10ms) & multi-signal `signals_found` aggregation. |
-| Q9 Standard Routing Logic | 🟢 Complete | Q9 standard open routing handled when 0 opening signals; routes and confirms on Turn 2 response. |
-| TRID Gate (`Q9-TRID-GATE`) | 🟢 Complete | SSN & property address intercept gate enforced before Q9 routing fires. |
-| Equity Disambiguation Flow | 🟢 Complete | Disambiguates HELOC vs Home Equity Loan with scripted flow and HQ18 educational comparison for unsure borrowers. |
-| Mixed Intent Handling | 🟢 Complete | Multi-goal acknowledgment flow, secondary_intent tracking for MLO, and single-track activation. |
-| Fallback Routing Question | 🟢 Complete | Scripted 3-option question delivered on ambiguous Q9 response with SR-1 handoff on repeated ambiguity. |
-| Stage 1 Gate (`Q9_confirmed`) | 🟢 Complete | `buildLayer2()` Stage 1 Gate strictly enforced. Blocks Stage 1 discovery until `Q9_confirmed = true`. |
-| Track Guard Rules | 🟢 Complete | Enforced at LLM prompt injection via `buildLayer2()` Section 0 gate. |
-| Q9-MULTI Templates (A–F + General) | 🟢 Complete | Multi-signal selection (Templates A–F & General) implemented with one-time delivery guard. |
-| `TT-CON` / `TT-HECM` Holdout Routing | 🟢 Complete | Scripted holdout responses, MLO routing, and strict Stage 1 blocking. |
-| `stage0-routing.ts` Prompt File | 🟢 Complete | Created with `SECTION_0_PROMPT` and all verbatim formulations from `Layer0Doc.md`. |
-| Layer 3 Context Block | 🟢 Complete | Section 0 routing state exposed to LLM in Layer 3 context only while `Q9_confirmed = false`. |
-| Test Suite (S0-1 to S0-15) | 🟢 Complete | Full 15/15 Section 0 unit tests implemented and passing in `section0-routing.test.ts`. |
-
----
-
-## 🔍 What Currently Exists (Baseline — Do NOT Re-Implement)
-
-### ✅ Already Done
-
-1. **`BorrowerProfile.transaction_type`** — enum field in [`layer3-context.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/prompts/layer3-context.ts) line 8. All 4 active TT flags (`TT-PUR`, `TT-REF`, `TT-HEL`, `TT-HEQ`) already defined.
-2. **`BorrowerProfile.mortgage_goal`** + **`mortgage_goal_confirmed`** — set during Stage 1 extraction in [`session-context-manager.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/context/session-context-manager.ts) lines 2252–2270. **Keep as-is.**
-3. **`buildLayer2()` track routing** — correctly switches Stage 2 prompt by `transaction_type` in [`ailana-system.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/prompts/ailana-system.ts) lines 84–93. **Only a guard is being added at the top — the switch logic is untouched.**
-4. **HELOC vs HEQ distinction** — `TT-HEL` / `TT-HEQ` switching via `heloc_rate_comfort` in `session-context-manager.ts` line 2693. **Keep as-is.**
-5. **TRID compliance phrasing** — SSN and property address intercept text in [`ailana-system.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/prompts/ailana-system.ts) lines 49–51. **Keep as-is; we are adding a pipeline gate before it, not replacing it.**
-6. **Session opening greeting** — `GREETING_TEXT` defined in `ailana-system.ts` line 165. **Untouched.**
-7. **Stage 1 extraction** — `runStage1Extraction()` extracts `mortgage_goal`, `occupancy`, `co_borrower`, `timeline`, `existing_relationship`. **The extraction function is being upgraded (T3), not replaced. Existing callers don't change.**
-8. **Stall recovery SR-1 through SR-5** — Already exist in the stall recovery layer. **Untouched.** SR-6 through SR-10 are new additions (T14).
-
-### 🔴 What Does NOT Exist Yet
-
-1. **Section 0 session state fields** — 13 new fields for `signals_found`, `Q9_confirmed`, `Q9_MULTI_delivered`, `secondary_intent`, `trid_gate_fired`, `trid_gate_required`, `equity_disambig_delivered`, `fallback_routing_delivered`, `holdout_routed`, `pre_stated_income`, `pre_stated_savings`, `pre_stated_location`, `pre_stated_property_type`, `Q42_partial`, `context_current_rate` — none exist in `BorrowerProfile`.
-2. **Multi-signal `signals_found` aggregation** — Current extraction sets `mortgage_goal` directly. No array aggregation.
-3. **Q9-MULTI template selection logic** — No Template A–F or GENERAL selector.
-4. **`stage0-routing.ts` prompt file** — Does not exist.
-5. **Stage 1 gate** — `Q9_confirmed` guard missing from `buildLayer2()`. Stage 1 fires immediately.
-6. **Equity disambiguation pending field + scripted flow** — No `equity_disambig_delivered` tracking.
-7. **Fallback routing question as a distinct step** — No dedicated fallback step.
-8. **Mixed intent handling** — No `secondary_intent` field or acknowledgment script.
-9. **`TT-CON` / `TT-HECM` holdout** — Falls through to Stage 1 with no holdout response.
-10. **Section 0 routing state block in Layer 3 context** — LLM cannot see routing state during Section 0.
-11. **Test suite** — No `section0-routing.test.ts` exists.
-
-## 📅 Weekly Phased Implementation Schedule (Monday – Friday)
-
-| Day | Stage / Phase | Tasks | Focus Area | Verification Method | Status |
-| :--- | :--- | :---: | :--- | :--- | :---: |
-| **Day 1: Monday** | **Phase 1: Foundation** | **T1, T2** | Schema fields & zero-state initialization (`Q9_confirmed = false`). | Typecheck (`tsc`) + default state test | 🟢 COMPLETE |
-| **Day 1: Monday** | **Phase 2: Extraction & Compliance** | **T3, T4** | Upgrade `extractOpeningSignals()` (<10ms) & TRID compliance gate. | Pattern matching test + TRID intercept test | 🟢 COMPLETE |
-| **Day 2: Tuesday** | **Phase 3: Core Routing & Templates** | **T5 – T7** | Q9-MULTI Templates A–F & General, Q9 standard open routing, equity disambiguation (HELOC vs Loan). | Multi-signal selection test + disambiguation branch checks | 🟢 COMPLETE |
-| **Day 2: Tuesday (Today)** | **Phase 3: Edge Routing & Holdouts** | **T8 – T10** | Fallback routing question, mixed intent handling (2 goals), construction (`TT-CON`) & reverse mortgage (`TT-HECM`) holdouts. | Branch isolation tests + MLO handoff check | 🟢 COMPLETE |
-| **Day 4: Thursday** | **Phase 5: Automated Test Suite & Regression** | **T15, T16** | Full automated test suite (`S0-1` to `S0-15`), runner registration, regression suite (`npm test`). | 15/15 unit tests pass + 18 test suites pass | 🟢 COMPLETE |
-| **Day 5: Friday** | **Phase 5: Live E2E Testing & Acceptance** | **T17** | 9 live E2E conversation scenarios + 2 edge cases (11 Total) (chat & voice UI) + David Patten final staging sign-off gate. | Live interactive verification across all tracks | 🟢 COMPLETE (11/11 Live Passed) |
-
----
-
-## 📋 Implementation Plan — Task by Task
-
-> **Rule:** Never skip a task group. Each group depends on the previous being complete. Mark status as work progresses.
-
----
-
-### 🔵 PHASE 1 — Foundation: Schema & State
-*Establish the data model so all downstream tasks build on correct types. Nothing can be built without this.*
-
----
-
-#### TASK 1 — Add Section 0 Fields to BorrowerProfile `[CRITICAL]`
-**File:** [`backend/src/prompts/layer3-context.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/prompts/layer3-context.ts)  
-**Status:** 🟢 COMPLETE (Verified by tsc & schema test)  
-**Blocker for:** Every other task
-
-**What to add:**  
-Append these fields to the existing `BorrowerProfile` interface. The existing `transaction_type` and `mortgage_goal` fields stay exactly as-is — new fields sit alongside them.
-
-```typescript
-interface BorrowerProfile {
-  // ── EXISTING FIELDS (keep exactly as-is) ──────────────────────────────
-  transaction_type: 'TT-PUR' | 'TT-REF' | 'TT-HEL' | 'TT-HEQ' | 'TT-CON' | 'TT-HECM' | null;
-  mortgage_goal: string | null;
-  // ... all other existing fields ...
-
-  // ── NEW: Section 0 Routing State Fields ───────────────────────────────
-  Q9_confirmed: boolean;               // true = routing complete, Stage 1 can fire
-  Q9_MULTI_delivered: boolean;         // prevents Q9-MULTI from re-firing
-  secondary_intent: string | null;     // unchosen goal in mixed-intent case → passed to MLO
-  trid_gate_fired: boolean;            // true = Q9-TRID-GATE already delivered
-  trid_gate_required: boolean;         // true = SSN or property address detected in opening msg
-  equity_disambig_delivered: boolean;  // true = HELOC vs HEQ disambiguation question delivered
-  fallback_routing_delivered: boolean; // true = fallback routing question already delivered
-  holdout_routed: boolean;             // true = TT-CON/TT-HECM MLO handoff completed
-
-  // ── NEW: Front-Loading Extraction Fields ──────────────────────────────
-  signals_found: string[];             // e.g. ['TT-PUR', 'veteran', 'co_borrower']
-  pre_stated_income: number | null;    // annual income, from opening message
-  pre_stated_savings: number | null;   // savings/down payment, from opening message
-  pre_stated_location: string | null;  // city/state (NOT property address)
-  pre_stated_property_type: string | null; // condo/townhome/single-family etc.
-  Q42_partial: boolean;                // true if property type or location pre-stated
-  context_current_rate: number | null; // refi context only — MLO reference, NEVER echoed to borrower
-}
-```
-
-> [!CAUTION]
-> `context_current_rate` is NOT added to `signals_found`. The LLM must never reference this value in a response. It is for MLO context only.
-
----
-
-#### TASK 2 — Initialize Section 0 State in Context Manager `[CRITICAL]`
-**File:** [`backend/src/context/session-context-manager.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/context/session-context-manager.ts)  
-**Status:** 🟢 COMPLETE (Verified: Q9_confirmed = false default)  
-**Blocker for:** T3 through T17
-
-**What to add:**  
-In the session initialization function (wherever `BorrowerProfile` is first constructed), initialize all new fields to their zero-state defaults:
-
-```typescript
-function initBorrowerProfile(): BorrowerProfile {
-  return {
-    // ── Existing fields (keep exactly as-is) ──
-    transaction_type: null,
-    mortgage_goal: null,
-    // ... all other existing fields with their current defaults ...
-
-    // ── NEW: Section 0 routing state ──────────
-    Q9_confirmed: false,              // CRITICAL: must be false — if true, Section 0 never runs
-    Q9_MULTI_delivered: false,
-    secondary_intent: null,
-    trid_gate_fired: false,
-    trid_gate_required: false,
-    equity_disambig_delivered: false,
-    fallback_routing_delivered: false,
-    holdout_routed: false,
-
-    // ── NEW: front-loading extraction ──────────
-    signals_found: [],
-    pre_stated_income: null,
-    pre_stated_savings: null,
-    pre_stated_location: null,
-    pre_stated_property_type: null,
-    Q42_partial: false,
-    context_current_rate: null,
-  };
-}
-```
-
-> [!WARNING]
-> `Q9_confirmed: false` is the most critical default in the entire implementation. Verify this is `false` — not `true` — before marking this task complete. The S0-1 test in Task 15 specifically tests this.
-
----
-
-### 🔵 PHASE 2 — Extraction & TRID Gate
-*Upgrade the first-turn extraction to produce `signals_found` and enforce TRID compliance before Q9.*
-
----
-
-#### TASK 3 — Upgrade `extractOpeningSignals()` to Full Multi-Signal System `[CRITICAL]`
-**File:** [`backend/src/context/session-context-manager.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/context/session-context-manager.ts) — in the first-turn extraction function  
-**Status:** 🟢 COMPLETE (Verified by S0-2, S0-8, S0-9, S0-10, S0-14 unit tests)  
-**Blocker for:** T5, T6, T7, T8, T9, T12
-
-**What to change:**  
-The existing function captures `mortgage_goal`. Upgrade it to ALSO capture all signal types and populate `signals_found[]`. The existing `mortgage_goal` extraction logic is **preserved** — new signal types are added around it. The function signature does not change.
-
-> [!IMPORTANT]
-> This function runs **BEFORE** the LLM is invoked — pure string pattern matching only. Must complete in under 10ms. No API calls. No LLM calls.
-
-```typescript
-function extractOpeningSignals(input: string, profile: BorrowerProfile): void {
-  const text = input.toLowerCase();
-  const signals: string[] = [];
-
-  // TRID GATE CHECK (runs first, before anything else)
-  const ssnPattern = /\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b/;
-  const addrPattern = /\b\d+\s+[a-z]+\s+(st|ave|rd|blvd|dr|ln|way|ct)\b/i;
-  if (ssnPattern.test(input) || addrPattern.test(input)) {
-    profile.trid_gate_required = true;
-    // Do NOT extract or store the SSN/address value — continue with other signals
-  }
-
-  // TRANSACTION TYPE
-  if (/buy|purchase|first home|new home|find a home/.test(text)) {
-    signals.push('TT-PUR');
-  } else if (/refinanc|refi|lower my rate|lower my payment|cash.?out/.test(text)) {
-    signals.push('TT-REF');
-  } else if (/heloc|equity line|home equity line|line of credit/.test(text)) {
-    signals.push('TT-HEL');
-  } else if (/home equity loan|lump sum|equity loan/.test(text)) {
-    signals.push('TT-HEQ');
-  } else if (/build|construction|construct/.test(text)) {
-    signals.push('TT-CON');   // holdout — routes to MLO
-  } else if (/reverse mortgage|hecm/.test(text)) {
-    signals.push('TT-HECM');  // holdout — routes to MLO
-  }
-
-  // VETERAN / MILITARY
-  if (/veteran|military|army|navy|marines|air force|coast guard|active duty|served|service member/.test(text)) {
-    profile.veteran_flagged = true;
-    profile.Q43_answered = true;   // skip Q43 in Stage 2 purchase track
-    signals.push('veteran');
-  }
-
-  // CO-BORROWER
-  if (/my wife|my husband|my spouse|my partner|we are|we're|together|both of us|the two of us/.test(text)) {
-    profile.co_borrower = true;
-    profile.Q13_answered = true;   // skip Q13 in Stage 1
-    signals.push('co_borrower');
-  }
-
-  // INCOME
-  const incomeMatch = input.match(/\$?([\d,]+)\s*k?\s*(a year|annually|per year|income|salary)/i);
-  if (incomeMatch) {
-    const raw = incomeMatch[1].replace(/,/g, '');
-    const hasK = text.slice(incomeMatch.index!, incomeMatch.index! + incomeMatch[0].length + 2).includes('k');
-    profile.pre_stated_income = parseInt(raw) * (hasK ? 1000 : 1);
-    profile.Q35_answered = true;
-    signals.push('income');
-  }
-
-  // SAVINGS / DOWN PAYMENT
-  const savingsMatch = input.match(/\$?([\d,]+)\s*k?\s*(saved|in savings|for.*down|available)/i);
-  if (savingsMatch) {
-    const raw = savingsMatch[1].replace(/,/g, '');
-    const hasK = text.slice(savingsMatch.index!, savingsMatch.index! + savingsMatch[0].length + 2).includes('k');
-    profile.pre_stated_savings = parseInt(raw) * (hasK ? 1000 : 1);
-    profile.Q38_answered = true;
-    signals.push('savings');
-  }
-
-  // PROPERTY TYPE
-  const ptypes = ['condo','townhome','townhouse','single-family','multi-family','duplex','triplex'];
-  for (const pt of ptypes) {
-    if (text.includes(pt)) {
-      profile.pre_stated_property_type = pt;
-      profile.Q42_partial = true;
-      signals.push('property_type');
-      break;
-    }
-  }
-
-  // LOCATION (city/state — NOT property address)
-  const locMatch = input.match(/\bin\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
-  if (locMatch && !addrPattern.test(input)) {
-    profile.pre_stated_location = locMatch[1];
-    profile.Q42_partial = true;
-    if (!signals.includes('property_type')) signals.push('location');
-  }
-
-  // VOLUNTEERED RATE (refi context only — NEVER echoed back)
-  const rateMatch = text.match(/(\d+\.?\d*)\s*%/);
-  if (rateMatch && signals.includes('TT-REF')) {
-    profile.context_current_rate = parseFloat(rateMatch[1]);
-    // NOT added to signals_found — LLM must never reference this
-  }
-
-  profile.signals_found = signals;
-}
-```
-
-**Key constraint:** The extraction layer sets `signals_found` — it does **NOT** set `transaction_type` directly. `transaction_type` is set only after Q9 is confirmed.
-
----
-
-#### TASK 4 — Add TRID Gate Before Q9 Fires `[CRITICAL]`
-**File:** [`backend/src/context/session-context-manager.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/context/session-context-manager.ts) — first-turn handler  
-**Status:** 🟢 COMPLETE (Verified by S0-3 and S0-Integration unit tests)  
-**Blocker for:** T5, T6–T9, T12
-
-**What to add:**  
-After `extractOpeningSignals()` runs, before any Q9 routing logic fires:
-
-```typescript
-// In the first-turn handler, BEFORE building the LLM prompt:
-if (profile.trid_gate_required && !profile.trid_gate_fired) {
-  profile.trid_gate_fired = true;
-  injectForcedResponse(Q9_TRID_GATE_FORMULATION);
-  // Then continue to Q9-MULTI or Q9 routing below
-}
-```
-
-**Q9-TRID-GATE formulation (verbatim):**
-> *"I want to make sure we handle your information correctly — for security and compliance purposes, I'm not able to collect that specific information through this channel at this point in our conversation. We'll have a secure way to gather it when we get to that step. For now, let's focus on getting your overall picture together."*
-
-**TRID gate has the HIGHEST priority** — fires before Q9, Q9-MULTI, or any other routing. The volunteered SSN or address is **never** stored, echoed, or acknowledged.
-
----
-
-### 🔵 PHASE 3 — Routing Logic & All Flows
-*Implement the 6-step Section 0 decision sequence.*
-
----
-
-#### TASK 5 — Implement Q9-MULTI Template Selection and Injection `[CRITICAL]`
-**File:** [`backend/src/context/session-context-manager.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/context/session-context-manager.ts)  
-**Status:** 🟢 COMPLETE (Verified by S0-T5 unit & integration tests)  
-**Blocker for:** T11, T12
-
-**What to add:**  
-`Q9-MULTI` fires when `signals_found.length >= 2`. Create a template selector and inject via the `bridge_to_say` (or equivalent forced-response) mechanism. Templates are **scripted** — the LLM fills `[bracketed]` fields from profile values but does not improvise the structure.
-
-```typescript
-function selectQ9MultiTemplate(signals: string[]): string {
-  const s = new Set(signals);
-
-  // Template F — full front-load (veteran + co-borrower + financials)
-  if (s.has('TT-PUR') && s.has('veteran') && s.has('co_borrower') && (s.has('income') || s.has('savings'))) {
-    return 'TEMPLATE_F';
-  }
-  // Template B — purchase + veteran + co-borrower
-  if (s.has('TT-PUR') && s.has('veteran') && s.has('co_borrower')) {
-    return 'TEMPLATE_B';
-  }
-  // Template A — purchase + veteran (no co-borrower)
-  if (s.has('TT-PUR') && s.has('veteran')) {
-    return 'TEMPLATE_A';
-  }
-  // Template C — purchase + co-borrower (no veteran)
-  if (s.has('TT-PUR') && s.has('co_borrower')) {
-    return 'TEMPLATE_C';
-  }
-  // Template D — purchase + income or savings
-  if (s.has('TT-PUR') && (s.has('income') || s.has('savings'))) {
-    return 'TEMPLATE_D';
-  }
-  // Template E — refinance + location
-  if (s.has('TT-REF') && s.has('location')) {
-    return 'TEMPLATE_E';
-  }
-  // GENERAL — any other multi-signal combination
-  return 'TEMPLATE_GENERAL';
-}
-```
-
-Mark `Q9_MULTI_delivered = true` after injection — prevents re-firing on subsequent turns.
-
-**Template texts are verbatim from [`Layer0Doc.md` Section 7.7](file:///c:/Users/SAL/Downloads/ConvergentAI/Layer0Doc.md).** Do not paraphrase.
-
----
-
-#### TASK 6 — Implement Q9 Standard Open Routing `[HIGH]`
-**File:** [`backend/src/context/session-context-manager.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/context/session-context-manager.ts)  
-**Status:** 🟢 COMPLETE (Verified by S0-T6 & S0-11 unit/integration tests)
-
-**What to add:**  
-When `signals_found` is empty after extraction (e.g., "I have some mortgage questions"):
-- The LLM delivers Q9 using the `stage0-routing.ts` prompt block (Task 12).
-- The pipeline reads the LLM's routing output signal and updates session state.
-- Do **NOT** set `transaction_type` until the borrower explicitly confirms.
-
-```typescript
-// Pipeline reads LLM output after Q9:
-if (llmOutput.includes('ROUTE: TT-PUR')) {
-  profile.transaction_type = 'TT-PUR';
-  profile.Q9_confirmed = true;
-} else if (llmOutput.includes('ROUTE: TT-REF')) {
-  profile.transaction_type = 'TT-REF';
-  profile.Q9_confirmed = true;
-} else if (llmOutput.includes('ROUTE: TT-HEL-AMBIG')) {
-  // Equity disambiguation fires next turn
-} else {
-  // Unclear — fallback routing fires next turn
-}
-```
-
----
-
-#### TASK 7 — Implement Equity Disambiguation Flow `[HIGH]`
-**File:** [`backend/src/context/session-context-manager.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/context/session-context-manager.ts)  
-**Status:** 🟢 COMPLETE (Verified by S0-4, S0-12, S0-T7-HEQ, S0-T7-Unsure tests)
-
-**What to add:**  
-When Q9 response returns `ROUTE: TT-HEL-AMBIG` (borrower said "equity" without specifying HELOC vs home equity loan):
-
-```typescript
-if (!profile.equity_disambig_delivered && llmOutput.includes('ROUTE: TT-HEL-AMBIG')) {
-  profile.equity_disambig_delivered = true;
-  // Inject verbatim equity disambiguation formulation
-  // On next turn:
-  //   ROUTE: TT-HEL → transaction_type = 'TT-HEL', Q9_confirmed = true
-  //   ROUTE: TT-HEQ → transaction_type = 'TT-HEQ', Q9_confirmed = true
-  //   ROUTE: UNSURE → inject HQ18 educational comparison, then re-ask
-}
-```
-
-**Equity disambiguation formulation (verbatim):**
-> *"Great — accessing your home equity is a smart move. Before we dive in, one quick question: are you thinking of a Home Equity Line of Credit — sometimes called a HELOC — where you draw funds as needed over time? Or a home equity loan, which gives you a fixed lump sum at a fixed rate all at once? If you're not sure which fits your situation better, I can explain the difference and help you decide."*
-
----
-
-#### TASK 8 — Implement Fallback Routing Question `[HIGH]`
-**File:** [`backend/src/context/session-context-manager.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/context/session-context-manager.ts)  
-**Status:** 🟢 COMPLETE (Verified by S0-6 unit tests)
-
-**What to add:**  
-When Q9 fires but the borrower's response remains ambiguous:
-
-```typescript
-if (!profile.Q9_confirmed &&
-    !profile.fallback_routing_delivered &&
-    (profile.equity_disambig_delivered || turns_since_Q9 > 1)) {
-  profile.fallback_routing_delivered = true;
-  // Inject verbatim fallback formulation
-}
-// If still unclear after fallback → inject SR-1 (already exists)
-// Do NOT advance to Stage 1 until Q9_confirmed = true
-```
-
-**Fallback formulation (verbatim):**
-> *"Are you looking to purchase a new home, refinance an existing mortgage, or access the equity you've already built?"*
-
----
-
-#### TASK 9 — Implement Mixed Intent Handling `[HIGH]`
-**File:** [`backend/src/context/session-context-manager.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/context/session-context-manager.ts)  
-**Status:** 🟢 COMPLETE (Verified by S0-5 unit tests)
-
-**What to add:**  
-When `signals_found` contains two distinct TT-* flags:
-
-```typescript
-// LLM outputs: ROUTE: MIXED | PRIMARY: TT-PUR | SECONDARY: TT-REF
-if (llmOutput.includes('ROUTE: MIXED')) {
-  const primary = extractRouteTag(llmOutput, 'PRIMARY');
-  const secondary = extractRouteTag(llmOutput, 'SECONDARY');
-  profile.secondary_intent = secondary;
-  // Deliver mixed-intent acknowledgment formulation
-  // On borrower's choice: set transaction_type and Q9_confirmed = true
-}
-```
-
-**Mixed intent formulation (verbatim):**
-> *"It sounds like you have two things on your mind — [goal 1] and [goal 2]. Those are both worth exploring, and they're actually connected. Let's tackle them one at a time so we give each the attention it deserves. Which would you like to start with?"*
-
-`secondary_intent` is passed to MLO context summary only. Ailana does **not** revisit it.
-
----
-
-#### TASK 10 — Implement `TT-CON` / `TT-HECM` Holdout Routing `[HIGH]`
-**File:** [`backend/src/context/session-context-manager.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/context/session-context-manager.ts)  
-**Status:** 🟢 COMPLETE (Verified by S0-7 & S0-13 unit tests)
-
-**What to add:**  
-
-```typescript
-const HOLDOUT_SIGNALS = ['TT-CON', 'TT-HECM'];
-
-if (profile.signals_found.some(s => HOLDOUT_SIGNALS.includes(s)) && !profile.holdout_routed) {
-  profile.holdout_routed = true;
-  // Do NOT set transaction_type
-  // Do NOT set Q9_confirmed
-  // Inject holdout formulation + trigger MLO routing
-}
-```
-
-**TT-CON holdout (verbatim):**
-> *"Construction loans involve some specific requirements that I want to make sure we handle correctly with a licensed loan officer. Let me connect you with one of our specialists who can walk you through the construction financing process in detail. Can I get your best contact information?"*
-
-**TT-HECM holdout (verbatim):**
-> *"Reverse mortgages have some unique features that are best explained by a licensed loan officer. Let me connect you with a specialist who works with these programs every day. Can I get your best contact information?"*
-
-These tracks must **never** activate Stage 1 or any discovery flow.
-
----
-
-### 🔵 PHASE 4 — Stage Gate & Prompt Assembly
-*Enforce that Stage 1 cannot fire without Q9 confirmed, and wire the Section 0 prompt into Layer 2.*
-
----
-
-#### TASK 11 — Implement Stage 1 Gate (`Q9_confirmed` check) `[CRITICAL]`
-**File:** [`backend/src/prompts/ailana-system.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/prompts/ailana-system.ts) — in `buildLayer2()`  
-**Status:** 🟢 COMPLETE (Verified by unit tests & prompt inspection)  
-**Blocker for:** T12, T15
-
-**What to add:**  
-Add a guard at the **top** of `buildLayer2()`. The existing track-switching code is completely untouched — it is just unreachable until `Q9_confirmed = true`:
-
-```typescript
-function buildLayer2(profile: BorrowerProfile): string {
-  // NEW: Section 0 gate — runs before any existing track logic
-  if (!profile.Q9_confirmed) {
-    return buildSection0Block(profile);  // load Section 0 routing block only
-  }
-  // EXISTING CODE (untouched) below this line
-  switch (profile.transaction_type) {
-    case 'TT-PUR': return buildPurchaseTrack(profile);
-    case 'TT-REF': return buildRefinanceTrack(profile);
-    case 'TT-HEL': return buildHELOCTrack(profile);
-    case 'TT-HEQ': return buildHEQTrack(profile);
-    default: return buildSection0Block(profile); // safety fallback
-  }
-}
-```
-
-The gate is the pipeline's responsibility — do not rely on the LLM to self-enforce this.
-
----
-
-#### TASK 12 — Create `stage0-routing.ts` Prompt File `[HIGH]`
-**File:** `backend/src/prompts/stage0-routing.ts` *(NEW FILE — does not replace any existing file)*  
-**Status:** 🟢 COMPLETE (Created with verbatim formulations & rules)  
-**Blocker for:** T13, T15, T17
-
-**What to create:**  
-A new TypeScript string export containing the Section 0 prompt block — the text the LLM reads to understand routing. Pipeline logic stays in handler files.
-
-```typescript
-// stage0-routing.ts
-export const SECTION_0_PROMPT = `
-SECTION 0 — TRANSACTION TYPE ROUTING
-
-You are in the routing phase. Your only job is to determine what
-the borrower wants to do and output a routing signal. Do not ask
-discovery questions. Do not collect financial information.
-
-ROUTING OUTPUT FORMAT:
-After delivering any formulation, output on a new line:
-  ROUTE: [TT-PUR | TT-REF | TT-HEL | TT-HEQ | TT-HEL-AMBIG |
-          MIXED | UNCLEAR | HOLDOUT-CON | HOLDOUT-HECM]
-  (for mixed intent): PRIMARY: [flag] | SECONDARY: [flag]
-
-ROUTING RULES:
-1. If signals_found has 2+ signals, deliver the Q9-MULTI template
-   selected by the pipeline. Do not re-ask for already-captured information.
-2. If signals_found has exactly 1 transaction type signal, confirm it:
-   "It sounds like you're looking to [X] — is that right?"
-3. If signals_found is empty, ask Q9.
-4. If borrower mentions construction or reverse mortgage, output
-   ROUTE: HOLDOUT-CON or ROUTE: HOLDOUT-HECM.
-5. NEVER output a Stage 1 question (Q1-Q13) until Q9_confirmed = true.
-6. NEVER set transaction_type yourself — output the ROUTE signal and
-   let the pipeline set it after borrower confirmation.
-`;
-```
-
-The file also contains all verbatim formulations (Q9, Q9-TRID-GATE, equity disambiguation, fallback, mixed intent, Templates A–F, holdout texts). Full formulation text: [`Layer0Doc.md` Section 7](file:///c:/Users/SAL/Downloads/ConvergentAI/Layer0Doc.md).
-
----
-
-#### TASK 13 — Wire `stage0-routing.ts` into `buildLayer2()` `[HIGH]`
-**File:** [`backend/src/prompts/ailana-system.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/prompts/ailana-system.ts)  
-**Status:** 🟢 COMPLETE (Verified via buildSection0Block injection in buildLayer2)
-
-**What to add:**  
-Import `SECTION_0_PROMPT` and implement `buildSection0Block()` — the function called by the Task 11 gate:
-
-```typescript
-import { SECTION_0_PROMPT } from './stage0-routing';
-
-function buildSection0Block(profile: BorrowerProfile): string {
-  let block = SECTION_0_PROMPT;
-
-  // Append current routing state so LLM knows exactly where it is
-  block += `\nCURRENT ROUTING STATE:`;
-  block += `\nsignals_found: ${JSON.stringify(profile.signals_found)}`;
-  block += `\ntrid_gate_fired: ${profile.trid_gate_fired}`;
-  block += `\nequity_disambig_delivered: ${profile.equity_disambig_delivered}`;
-  block += `\nfallback_routing_delivered: ${profile.fallback_routing_delivered}`;
-  block += `\nQ9_confirmed: false`;
-
-  return block;
-}
-```
-
----
-
-#### TASK 14 — Add Section 0 Block to Layer 3 Context `[MEDIUM]`
-**File:** [`backend/src/prompts/layer3-context.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/prompts/layer3-context.ts) — in `buildLayer3TurnContext()`  
-**Status:** 🟢 COMPLETE (Verified by testLayer3Section0Context unit tests)
-
-**What to add:**  
-Two additions:
-
-**1.** Add a Section 0 routing state block (only visible when `Q9_confirmed === false`):
-
-```text
-=== SECTION 0 — ROUTING STATE ===
-Q9 Confirmed:               false
-Signals Found:              [TT-PUR, veteran] (or empty)
-Q9-MULTI Delivered:         false
-Equity Disambig Delivered:  false
-Fallback Delivered:         false
-Secondary Intent:           (none)
-```
-
-**2.** Add SR-1 availability note to the stall recovery block header:
-
-```typescript
-// 'SR-1 (clarifying question) is available during Section 0 routing
-// when transaction type cannot be determined after the fallback
-// routing question. Output ROUTE: UNCLEAR to trigger SR-1.'
-```
-
-**Note:** SR-1 through SR-5 are untouched. SR-6 through SR-10 are new additions per spec.
-
----
-
-### 🔵 PHASE 5 — Test Suite & Verification
-*Write all 15 unit tests and 9 live E2E scenarios. All must pass before any deployment.*
-
----
-
-#### TASK 15 — Create `section0-routing.test.ts` with 15 Tests `[HIGH]`
-**File:** [`backend/src/__tests__/section0-routing.test.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/__tests__/section0-routing.test.ts)  
-**Status:** 🟢 COMPLETE (All 15/15 Unit Tests Pass in `section0-routing.test.ts`)  
-**Blocker for:** Deployment
-
-| Test ID | Borrower Input | Expected Pipeline Output | Key Assertion |
-| :--- | :--- | :--- | :--- |
-| **S0-1** | `'I have some mortgage questions'` | Q9 fires. `signals_found = []`. `Q9_confirmed = false`. | Stage 1 does NOT fire. *(Critical default check.)* |
-| **S0-2** | `'I want to buy a house'` | `signals_found = ['TT-PUR']`. Q9-MULTI confirmation fires. On confirm: `transaction_type = 'TT-PUR'`, `Q9_confirmed = true`. | Standard Q9 does NOT fire instead of Q9-MULTI. |
-| **S0-3** | `'My SSN is 123-45-6789 and I want to buy a house'` | `trid_gate_required = true`. TRID gate fires FIRST. SSN NOT stored anywhere. | Profile contains no SSN value. |
-| **S0-4** | `'I want to tap into my equity'` | Q9 fires. Equity disambiguation fires after response. Routes to TT-HEL or TT-HEQ on choice. | `equity_disambig_delivered = true` before routing confirmed. |
-| **S0-5** | `'I want to buy a house and also refinance my current one'` | Mixed intent fires. `secondary_intent = 'TT-REF'`. On choice, `Q9_confirmed = true`. | Both tracks do NOT activate simultaneously. |
-| **S0-6** | Ambiguous response to Q9 | Fallback routing fires. `fallback_routing_delivered = true`. | Stage 1 does NOT fire before fallback exhausted. |
-| **S0-7** | `'I want to build a house'` | `signals_found = ['TT-CON']`. Holdout fires. MLO routing triggered. | `transaction_type` remains null. `Q9_confirmed` remains false. |
-| **S0-8** | `'I want to buy a home and I am a veteran'` | `signals_found = ['TT-PUR', 'veteran']`. Template A selected. | `Q43_answered = true`. Q43 NOT re-asked in Stage 2. |
-| **S0-9** | `'My wife and I make $110K and want to buy our first home'` | `signals_found = ['TT-PUR', 'co_borrower', 'income']`. Template D or F. | `Q13_answered = true`. `Q35_answered = true`. |
-| **S0-10** | `'I want to refinance my condo in Orlando'` | `signals_found = ['TT-REF', 'property_type', 'location']`. Template E selected. | `pre_stated_location = 'Orlando'`. `Q42_partial = true`. |
-| **S0-11** | Borrower confirms purchase on Q9-MULTI | `transaction_type = 'TT-PUR'`. `Q9_confirmed = true`. `buildLayer2()` returns purchase track. | Stage 1 fires immediately after confirmation. |
-| **S0-12** | Borrower says `'HELOC'` to equity disambiguation | `transaction_type = 'TT-HEL'`. `Q9_confirmed = true`. | `TT-HEQ` NOT activated. |
-| **S0-13** | `'I want a reverse mortgage'` | `signals_found = ['TT-HECM']`. Holdout fires. | `transaction_type` remains null. |
-| **S0-14** | `'I currently pay 7.5% and want to refinance'` | `signals_found = ['TT-REF']`. `context_current_rate = 7.5`. Rate NOT in `signals_found`. | LLM prompt does NOT contain the rate figure. |
-| **S0-15** | After Q9-MULTI, Stage 2 runs — veteran not re-asked | Profile has `Q43_answered = true` from extraction. | Q43 does NOT appear in Stage 2 question sequence. |
-
----
-
-#### TASK 16 — Register Test Suite in `run-all-tests.ts` `[MEDIUM]`
-**File:** [`backend/src/__tests__/run-all-tests.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/__tests__/run-all-tests.ts)  
-**Status:** 🟢 COMPLETE (Registered in run-all-tests.ts & all 18 suites pass via `npm test`)
-
-**What to add:**  
-Register `section0-routing.test.ts` in the test runner alongside existing suites. Section 0 tests must pass before any build is considered ready for staging or production.
-
----
-
-#### TASK 17 — Local E2E Testing — 9 Live Scenarios & 2 Edge Cases `[HIGH]`
-**Status:** 🟢 COMPLETE (All 11 Scenarios Verified Live & Passed) — Final Acceptance Gate Approved  
-**How to test:** Start backend dev server and frontend. Run each live conversation scenario — actual LLM calls with the full prompt stack, not unit tests.
-
-| Scenario | Opening Message | What to Verify | Status |
-| :--- | :--- | :--- | :---: |
-| **E2E-1** | `'I want to buy a home'` | Q9 confirmation fires. Track activates only on borrower yes. Stage 1 flows cleanly. | 🟢 PASSED (Live) |
-| **E2E-2** | `'I want to buy a home and I am a veteran'` | Template A fires. Q43 NOT re-asked in Stage 2. | 🟢 PASSED (Live) |
-| **E2E-3** | `'My wife and I make $110K, we're veterans, $40K saved, want to buy in Florida'` | Template F fires. Q13, Q35, Q38, Q43 all skipped in Stage 2. | 🟢 PASSED (Live) |
-| **E2E-4** | `'I have some mortgage questions'` | Q9 open routing. No track until borrower responds. | 🟢 PASSED (Live) |
-| **E2E-5** | `'I want to access my home equity'` | Equity disambiguation fires. Routes correctly to HEL or HEQ. | 🟢 PASSED (Live) |
-| **E2E-6** | `'My SSN is 123-45-6789 and I want to buy a house'` | TRID gate fires first. Q9-MULTI fires after. SSN NOT in any response. | 🟢 PASSED (Live) |
-| **E2E-7** | `'I want to build a house'` | Holdout formulation fires. MLO routing. Stage 1 does NOT fire. | 🟢 PASSED (Live) |
-| **E2E-8** | `'I want to buy a house and refinance my current one'` | Mixed intent acknowledgment. `secondary_intent` stored. One track activates. | 🟢 PASSED (Live) |
-| **E2E-9** | `'I want a reverse mortgage'` | HECM holdout. MLO routing. Stage 1 does NOT fire. | 🟢 PASSED (Live) |
-| **Test 10** | `'I have some questions regarding mortgages'` &rarr; unclear | Fallback question fires. Correctly routes to Refinance (`TT-REF`). | 🟢 PASSED (Live) |
-| **Test 11** | `'I currently pay 7.5% on my 30-year fixed and want to refinance'` | Rate shielding: 7.5% captured for MLO, NEVER quoted by Ailana. | 🟢 PASSED (Live) |
-
-**Final acceptance gate:** David Patten acceptance test — 3+ realistic live conversations across different transaction types must complete correctly before staging deployment. (APPROVED)
-
----
-
-## 📁 Files To Create / Modify
-
-| File | Action | Tasks |
+| Problem Area | Observed Failure in Logs | Root Cause in Code |
 | :--- | :--- | :--- |
-| [`backend/src/prompts/layer3-context.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/prompts/layer3-context.ts) | **MODIFY** — Append 15 new `BorrowerProfile` fields + Section 0 context block in Layer 3 | T1, T14 |
-| [`backend/src/context/session-context-manager.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/context/session-context-manager.ts) | **MODIFY** — Init defaults, upgrade extraction, all routing flows and gate | T2, T3, T4, T5, T6, T7, T8, T9, T10 |
-| `backend/src/prompts/stage0-routing.ts` | **CREATE NEW** — Section 0 prompt block with all scripted formulations | T12 |
-| [`backend/src/prompts/ailana-system.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/prompts/ailana-system.ts) | **MODIFY** — Add `Q9_confirmed` guard at top of `buildLayer2()` + `buildSection0Block()` | T11, T13 |
-| `backend/src/__tests__/section0-routing.test.ts` | **CREATE NEW** — All 15 unit test cases (S0-1 to S0-15) | T15 |
-| [`backend/src/__tests__/run-all-tests.ts`](file:///c:/Users/SAL/Downloads/ConvergentAI/backend/src/__tests__/run-all-tests.ts) | **MODIFY** — Register new test suite | T16 |
-
-**Total: 2 new files, 4 modified files. No deletions.**
-
----
-
-## 📐 Key Rules & Constraints (Non-Negotiable)
-
-> These rules come directly from the spec and from David Patten's client guidance. Must be enforced throughout every task.
-
-1. **`transaction_type` is NEVER set before `Q9_confirmed = true`.** Extraction populates `signals_found` only. `transaction_type` is assigned on borrower confirmation.
-2. **Stage 1 CANNOT fire until `Q9_confirmed = true`.** The gate in `buildLayer2()` is the pipeline's responsibility — do not rely on the LLM to self-enforce this.
-3. **TRID gate has HIGHEST priority.** Fires before Q9 or Q9-MULTI. SSN and property address are NEVER stored anywhere.
-4. **Q9-MULTI fires only once per session.** `Q9_MULTI_delivered = true` prevents re-firing.
-5. **`TT-CON` / `TT-HECM` always result in holdout + MLO routing.** These tracks are never activated.
-6. **`secondary_intent` is stored but Ailana never acts on it.** The MLO handles the unchosen goal.
-7. **Equity disambiguation is mandatory** before setting `TT-HEL` or `TT-HEQ`, unless the borrower named HELOC or home equity loan explicitly in their first message.
-8. **Q43 (military service) is purchase-track ONLY.** `veteran_flagged` in other tracks is captured by extraction only — Q43 is never asked again.
-9. **All Q9-MULTI template text is verbatim from the spec.** The LLM fills `[bracketed]` fields from profile values but does not improvise the template structure.
-10. **`context_current_rate` is MLO context only.** It is NOT in `signals_found`. The LLM must never echo or reference this value.
-11. **No existing prompts, Q-numbers, or formulations are modified.** Section 0 gates access to Stage 1 but changes nothing inside it. SR-1 through SR-5 are untouched.
+| **P1. Infinite Fallback Loop** | In Session 1, the agent repeated *"No problem at all, let's figure it out together..."* 3 times in a row verbatim on turns with no signals. | `agent.ts:402-408` checks `if (profile.fallback_routing_delivered)` as a trigger to re-deliver fallback routing on every turn with 0 signals. |
+| **P2. Unexecuted SR-1 Stall Recovery** | Context manager logged `⚠️ Unclear after fallback routing — route to stall recovery SR-1`, but agent re-delivered fallback instead of SR-1. | `agent.ts` has no execution branch for `SR-1`; it falls into the fallback loop. |
+| **P3. Unrecognized Equity / Home Improvement Intent** | *"I have a mortgage and wanted to fix the garage"* produced 0 signals. | `extractOpeningSignals()` only matches financial jargon (`heloc`, `equity`), ignoring real-world intents like *"fix the garage"*, *"remodel"*, *"renovation"*. |
+| **P4. Broken Income Regex** | *"150,000 dollars. yearly."* was ignored in Section 0 extraction. | Period in `dollars. yearly` and filler words broke regexes. *(Fixed in commit `58e1684`)*. |
+| **P5. Procedural Turn Bypass** | *"So, how do I proceed?"* bypassed deterministic Section 0 template and caused LLM to re-ask purchase goal. | Blanket `t.includes('?')` treated turn as Q&A. *(Fixed in commit `58e1684` via `isProceduralOpening`)*. |
+| **P6. Co-Borrower Re-Asked in Stage 1** | Turn 5 asked for co-borrower even though wife was mentioned in Turn 1. | 0ms fallback lookahead blindness in `injectFallbackForPendingField` + static numbered checklist in `stage1-greeting.ts`. *(Partially patched in `58e1684`, but 0ms lookahead and checklist contradiction remain)*. |
+| **P7. Military History Re-Asked in Stage 2** | Turn 14 asked if borrower has military history even though veteran status was extracted in Turn 1. | `stage2-prequalification.ts` hardcodes a static 10-field checklist where field 9 is always `military_rural`, regardless of `profile.veteran_flagged`. |
 
 ---
 
-## 🚦 Progress Tracker
+## 2. Remediation Strategy & Phased Plan
 
-*Update this table after completing each task.*
-
-| Task | Phase | Description | Priority | Status | Completed By | Date |
-| :--- | :--- | :--- | :---: | :---: | :--- | :--- |
-| T1 | Phase 1 | Add Section 0 fields to `BorrowerProfile` | 🔴 CRITICAL | 🟢 COMPLETE | Sohail-Ak | Oct 12, 2026 |
-| T2 | Phase 1 | Initialize Section 0 state in Context Manager | 🔴 CRITICAL | 🟢 COMPLETE | Sohail-Ak | Oct 12, 2026 |
-| T3 | Phase 2 | Upgrade `extractOpeningSignals()` to multi-signal | 🔴 CRITICAL | 🟢 COMPLETE | sameerr11 | Oct 12, 2026 |
-| T4 | Phase 2 | Add TRID Gate before Q9 fires | 🔴 CRITICAL | 🟢 COMPLETE | sameerr11 | Oct 12, 2026 |
-| T5 | Phase 3 | Implement Q9-MULTI template selection | 🔴 CRITICAL | 🟢 COMPLETE | sameerr11 | Oct 13, 2026 |
-| T6 | Phase 3 | Implement Q9 standard open routing | 🟡 HIGH | 🟢 COMPLETE | sameerr11 | Oct 13, 2026 |
-| T7 | Phase 3 | Implement equity disambiguation flow | 🟡 HIGH | 🟢 COMPLETE | sameerr11 | Oct 13, 2026 |
-| T8 | Phase 3 | Implement fallback routing question | 🟡 HIGH | 🟢 COMPLETE | Sohail-Ak | Oct 13, 2026 |
-| T9 | Phase 3 | Implement mixed intent handling | 🟡 HIGH | 🟢 COMPLETE | Sohail-Ak | Oct 13, 2026 |
-| T10 | Phase 3 | Implement TT-CON / TT-HECM holdout routing | 🟡 HIGH | 🟢 COMPLETE | Sohail-Ak | Oct 13, 2026 |
-| T11 | Phase 4 | Implement Stage 1 gate (`Q9_confirmed` check) | 🔴 CRITICAL | 🟢 COMPLETE | sameerr11 | Oct 15, 2026 |
-| T12 | Phase 4 | Create `stage0-routing.ts` prompt file | 🟡 HIGH | 🟢 COMPLETE | sameerr11 | Oct 15, 2026 |
-| T13 | Phase 4 | Wire `stage0-routing.ts` into `buildLayer2()` | 🟡 HIGH | 🟢 COMPLETE | sameerr11 | Oct 15, 2026 |
-| T14 | Phase 4 | Add Section 0 block to Layer 3 context | 🟢 MEDIUM | 🟢 COMPLETE | Sohail-Ak | Oct 15, 2026 |
-| T15 | Phase 5 | Create `section0-routing.test.ts` (15 tests) | 🟡 HIGH | 🟢 COMPLETE | Sohail-Ak | Oct 15, 2026 |
-| T16 | Phase 5 | Register test suite in `run-all-tests.ts` | 🟢 MEDIUM | 🟢 COMPLETE | Sohail-Ak | Oct 15, 2026 |
-| T17 | Phase 5 | Local E2E testing (11 live scenarios & edge cases) | 🟡 HIGH | 🟢 COMPLETE (All 11 Live Scenarios Passed) | Sohail-Ak / sameerr11 | Oct 19, 2026 |
-
----
-
-## 🗂️ Dependency Order (Safe Execution Sequence)
+The remediation is split into **4 focused, non-breaking phases**:
 
 ```
-GROUP 1 — Foundation (T1, T2) ← Start here
-  T1 (BorrowerProfile schema)
-    └─→ T2 (Context Manager initialization defaults)
+PHASE 1: Section 0 Core Routing Fixes (agent.ts & session-context-manager.ts)
+  ├─ Fix infinite fallback loop (break on subsequent unclear turns)
+  ├─ Implement SR-1 stall recovery delivery & MLO handoff
+  └─ Add home improvement / remodel intent to equity signals
 
-GROUP 2 — Extraction (T3, T4) ← Depends on Group 1
-          └─→ T3 (extractOpeningSignals() upgrade)
-                └─→ T4 (TRID Gate)
+PHASE 2: Stage 1 Alignment & 0ms Fast-Path Lookahead
+  ├─ Add optimistic lookahead in injectFallbackForPendingField()
+  └─ Make buildStage1Instructions() checklist dynamic (omit confirmed fields)
 
-GROUP 3 — Routing Logic (T5–T10) ← Depends on Group 2
-                └─→ T5 (Q9-MULTI template selection)
-                    T6 (Q9 standard open routing)
-                    T7 (equity disambiguation)
-                    T8 (fallback routing question)
-                    T9 (mixed intent handling)
-                    T10 (TT-CON / TT-HECM holdout)
+PHASE 3: Stage 2 Amnesia Prevention (stage2-prequalification.ts)
+  ├─ Dynamically omit military_rural from Stage 2 checklist when veteran_flagged === true
+  └─ Dynamically omit gross_annual_income when income confirmed front-loaded
 
-GROUP 4 — Gate & Prompt (T11–T14) ← Depends on Group 3
-                          └─→ T11 (Stage 1 gate — Q9_confirmed guard in buildLayer2)
-                                └─→ T12 (stage0-routing.ts prompt file — NEW)
-                                      └─→ T13 (wire into buildLayer2)
-                                            └─→ T14 (Layer 3 context block)
-
-GROUP 5 — Tests (T15–T17) ← Depends on Group 4
-                              └─→ T15 (section0-routing.test.ts — 15 unit tests)
-                                    └─→ T16 (register in run-all-tests.ts)
-                                          └─→ T17 (9 live E2E scenarios)
-                                                └─→ David Patten acceptance test → STAGING
+PHASE 4: Verification, Automated Regression Suite & Live Walkthrough
+  ├─ Unit tests for fallback break, SR-1 delivery, equity intent, and checklist omission
+  ├─ Full regression test (all 18 test suites passing)
+  └─ Staging validation
 ```
-
-> [!CAUTION]
-> Do NOT skip Group 1. Every other task depends on the `BorrowerProfile` fields being present. Attempting T3 (extraction) before T1 (schema) will cause runtime errors.
 
 ---
 
-*ConvergentAI | Ailana v8.7 | Layer 0 — Section 0 Implementation Plan | October 2026 | Internal Use Only*  
-*Reference: [`Layer0Doc.md`](file:///c:/Users/SAL/Downloads/ConvergentAI/Layer0Doc.md) (Parts 1, 2 & 3) | Client guidance: David Patten, October 10, 2026*
+## 3. Detailed Implementation Tasks
+
+### 🔵 PHASE 1: Section 0 Core Routing Fixes
+
+#### Task 1.1: Break Infinite Fallback Loop in `backend/src/agent.ts`
+* **File:** `backend/src/agent.ts` (lines 400–416)
+* **Action:**
+  - Replace the flawed `if (profile.fallback_routing_delivered)` trigger.
+  - Delivery sequence for 0 signals:
+    1. **Turn 1 with 0 signals**: Deliver Standard Q9 (`getQ9StandardFormulation()`).
+    2. **Turn 2 with 0 signals (response unclear)**: Deliver Fallback Routing (`getFallbackRoutingFormulation()`), set `profile.fallback_routing_delivered = true`.
+    3. **Turn 3 with 0 signals (still unclear after fallback)**: Deliver **SR-1 Stall Recovery** formulation, set `profile.sr1_delivered = true`.
+    4. **Turn 4 with 0 signals**: Trigger MLO Live Transfer / Handoff (`applyHoldoutRouting()`).
+  - **Expected Outcome:** The agent will NEVER repeat the fallback formulation twice.
+
+#### Task 1.2: Implement SR-1 Stall Recovery Delivery in `agent.ts`
+* **File:** `backend/src/agent.ts` & `backend/src/context/session-context-manager.ts`
+* **Action:**
+  - Expose `getSR1RoutingFormulation()`:
+    > *"To make sure I take you in the right direction, let's take a step back. Are you looking to buy a property, change the terms of your current home loan, or take cash out of the equity you already have?"*
+  - When context manager returns `decision === 'UNCLEAR'` and `profile.fallback_routing_delivered === true`, deliver the SR-1 formulation via `createVerbatimStream()`.
+
+#### Task 1.3: Add Home Improvement / Remodel Keywords to `extractOpeningSignals`
+* **File:** `backend/src/context/session-context-manager.ts` (lines 121–131)
+* **Action:**
+  - In `extractOpeningSignals()`:
+    Add patterns for home improvement / repair / garage / renovation in conjunction with home/mortgage:
+    ```typescript
+    if (/heloc|equity line|home equity line|line of credit/i.test(text)) {
+      signals.push('TT-HEL');
+    } else if (/home equity loan|lump sum|equity loan/i.test(text)) {
+      signals.push('TT-HEQ');
+    } else if (/\b(fix|repair|remodel|renovat|home improvement|garage|roof|patio|pool|addition)\b/i.test(text) && /\b(home|house|property|mortgage|equity)\b/i.test(text)) {
+      signals.push('TT-HEL-AMBIG');
+    } else if (/equity/i.test(text)) {
+      signals.push('TT-HEL-AMBIG');
+    }
+    ```
+  - **Expected Outcome:** *"So, I already have a mortgage and I wanted to like fix the garage"* immediately triggers `TT-HEL-AMBIG`, routing cleanly to Equity Disambiguation instead of looping in fallback.
+
+---
+
+### 🔵 PHASE 2: Stage 1 Alignment & 0ms Lookahead
+
+#### Task 2.1: Add Optimistic Lookahead to `injectFallbackForPendingField()`
+* **File:** `backend/src/context/session-context-manager.ts` (lines 1453–1530)
+* **Action:**
+  - When `field === 'timeline'` is answered at 0ms fast-path:
+    Check if `this.profile.co_borrower_confirmed || this.profile.Q13_answered`:
+    - Immediately advance stage: `this.activeStage = '2';`
+    - Set pending field: `this.currentPendingField = 'gross_annual_income';`
+    - Set mandatory transition bridge: `this.profile.bridge_to_say = 'stage1_to_stage2';`
+  - **Expected Outcome:** When timeline is answered, the 0ms fast-path does not linger in Stage 1; it transitions directly into Stage 2 with the bridge, bypassing the co-borrower question entirely.
+
+#### Task 2.2: Make `buildStage1Instructions()` Checklist Dynamically Filtered
+* **File:** `backend/src/prompts/stage1-greeting.ts`
+* **Action:**
+  - Replace the hardcoded `GOAL: Learn (1)-(5)` string with a dynamically constructed list:
+    ```typescript
+    const pendingItems: string[] = [];
+    if (!profile.mortgage_goal_confirmed) pendingItems.push('mortgage goal');
+    if (!profile.occupancy_confirmed) pendingItems.push('occupancy type');
+    if (!profile.existing_relationship_confirmed) pendingItems.push('existing relationship');
+    if (!profile.timeline_confirmed) pendingItems.push('timeline');
+    if (!profile.co_borrower_confirmed && !profile.Q13_answered) pendingItems.push('co-borrower status');
+    ```
+  - Format the `GOAL` line strictly with the uncollected items: `GOAL: Learn ${pendingItems.map((item, idx) => `(${idx + 1}) ${item}`).join(', ')}. Collect in that order.`
+  - **Expected Outcome:** Eliminates contradictory instructions where item 5 was listed in the sequence but forbidden in the rules.
+
+---
+
+### 🔵 PHASE 3: Stage 2 Amnesia Prevention
+
+#### Task 3.1: Dynamically Filter Stage 2 Numbered Checklist in `buildStage2Instructions()`
+* **File:** `backend/src/prompts/stage2-prequalification.ts`
+* **Action:**
+  - In `buildStage2Instructions(profile)`:
+    Check `profile.veteran_flagged || profile.military_rural_confirmed || profile.Q43_answered`:
+    - If true: **Omit `military_rural`** from the numbered checklist!
+    - Inject rule: `- VETERAN / MILITARY STATUS ALREADY CONFIRMED: The borrower has already confirmed military service history (${profile.military_rural || 'military'}). Do NOT ask about military service history. Q43 is strictly complete.`
+  - Check `profile.gross_annual_income_confirmed || profile.Q35_answered`:
+    - If true: **Omit `gross_annual_income`** from the numbered checklist and mark income as already verified in the prompt header.
+  - Check `profile.down_payment_confirmed || profile.Q38_answered`:
+    - If true: **Omit `down_payment`** from the numbered checklist.
+  - **Expected Outcome:** When a borrower hesitates on property type / zip code, the LLM will NEVER ask about military history because `military_rural` is absent from its checklist.
+
+---
+
+### 🔵 PHASE 4: Verification & Automated Regression Testing
+
+#### Task 4.1: Add Unit Tests to `section0-routing.test.ts`
+* **File:** `backend/src/__tests__/section0-routing.test.ts`
+* **Test Cases to Add:**
+  - `S0-16`: Unclear response after fallback routing delivers SR-1 stall recovery (no loop).
+  - `S0-17`: Repeated unclear response after SR-1 triggers MLO handoff.
+  - `S0-18`: Home improvement / garage intent routes to `TT-HEL-AMBIG`.
+  - `S0-19`: `injectFallbackForPendingField` advances Stage 1 → Stage 2 when `timeline` is answered and `co_borrower` is already confirmed.
+  - `S0-20`: `buildStage2Instructions` excludes `military_rural` when `veteran_flagged === true`.
+
+#### Task 4.2: Run Full Test Suite
+* Run `npm test` across all 18 test suites to verify 0 regressions across Stage 1, Stage 2, Stage 2.5, Stage 3, and Stage 4.
+
+#### Task 4.3: Live E2E Scenario Verification
+* Re-run the exact user scenario:
+  > *"Hi Elena, I want to buy a home. and me and my wife both will contribute to the mortgage. Also, we are both veterans and other than that, um, I'm salaried for the last 10 years and my wife is a doctor and we earn around combined around 150,000 dollars. yearly. So, how do I proceed?"*
+* Verify:
+  - Turn 1: Acknowledges purchase, co-borrower, veteran, and $150k income; asks occupancy.
+  - Turn 2: Occupancy confirmed.
+  - Turn 3: Existing relationship confirmed.
+  - Turn 4: Timeline confirmed; transitions directly into Stage 2 financial bridge (co-borrower is NOT re-asked).
+  - Turn 14: If property type is unsure, veteran history is NOT re-asked.
+
+---
+
+## 4. Rollout & Risk Management
+
+* **Zero Regressions on Standard Flow**:
+  - Clean borrowers who do not front-load continue down the standard Stage 1 → Stage 2 path untouched.
+* **Strict Backward Compatibility**:
+  - All existing Q-numbers, compliance disclosures, and credit pull flows remain unchanged.
+* **Idempotent Profile Flags**:
+  - Dynamic checklists inspect `_confirmed` and `Q*_answered` boolean flags that already exist on `BorrowerProfile`.
+
+---
+
+*Plan stored in `Layer0ImplementationPlan.md` — Ready for execution upon confirmation.*
