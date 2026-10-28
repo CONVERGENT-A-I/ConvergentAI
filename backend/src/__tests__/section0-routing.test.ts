@@ -16,6 +16,7 @@ import {
   EQUITY_DISAMBIG_FORMULATION,
   HQ18_COMPARISON_FORMULATION,
   FALLBACK_ROUTING_FORMULATION,
+  SR1_ROUTING_FORMULATION,
   MIXED_INTENT_FORMULATION,
   formatMixedIntentGoal,
   renderMixedIntentFormulation,
@@ -33,6 +34,7 @@ import {
   parseEquityDisambiguationChoice,
   SessionContextManager,
 } from '../context/session-context-manager.js';
+import { buildStage2Instructions } from '../prompts/stage2-prequalification.js';
 
 console.log('🧪 Running Section 0 Test Suite (Phases 1–3: T1–T10)...\n');
 
@@ -48,6 +50,7 @@ console.log('🧪 Running Section 0 Test Suite (Phases 1–3: T1–T10)...\n');
   assert.strictEqual(profile.trid_gate_required, false);
   assert.strictEqual(profile.equity_disambig_delivered, false);
   assert.strictEqual(profile.fallback_routing_delivered, false);
+  assert.strictEqual(profile.sr1_delivered, false);
   assert.strictEqual(profile.holdout_routed, false);
 
   // Front-loading fields defaults
@@ -1077,9 +1080,116 @@ async function testE2E3_FullFrontLoadSuppression() {
 
 await testE2E3_FullFrontLoadSuppression();
 
+// ── S0-16: Unclear Response After Fallback Routing Delivers SR-1 Stall Recovery ──
+{
+  const scm = new SessionContextManager(null as any, null as any);
+  // Turn 1: 0 signals, standard Q9
+  await scm.onUserTurn("Hello there");
+  assert.strictEqual(scm.getProfile().fallback_routing_delivered, false);
+  assert.strictEqual(scm.getProfile().sr1_delivered, false);
+
+  // Turn 2: Unclear response -> triggers fallback routing
+  await scm.onUserTurn("I am really not sure");
+  assert.strictEqual(scm.getProfile().fallback_routing_delivered, true, 'Turn 2 must set fallback_routing_delivered=true');
+  assert.strictEqual(scm.getProfile().sr1_delivered, false, 'Turn 2 must NOT deliver SR-1 yet');
+
+  // Turn 3: Still unclear -> triggers SR-1 stall recovery (NOT repeating fallback)
+  await scm.onUserTurn("I still don't know what you mean");
+  assert.strictEqual(scm.getProfile().fallback_routing_delivered, true);
+  assert.strictEqual(scm.getProfile().sr1_delivered, true, 'Turn 3 must set sr1_delivered=true (SR-1 stall recovery delivered)');
+  assert.strictEqual(scm.getProfile().holdout_routed, false, 'Turn 3 must NOT escalate to holdout yet');
+  assert.strictEqual(scm.getSR1RoutingFormulation().includes("take a step back"), true, 'SR-1 formulation must match spec');
+
+  console.log('  ✅ S0-16 Passed: Unclear response after fallback routing delivers SR-1 stall recovery without looping.');
+}
+
+// ── S0-17: Repeated Unclear Response After SR-1 Triggers MLO Live Transfer Holdout ──
+{
+  const scm = new SessionContextManager(null as any, null as any);
+  await scm.onUserTurn("Hello there"); // Turn 1: Standard Q9
+  await scm.onUserTurn("I am really not sure"); // Turn 2: Fallback routing
+  await scm.onUserTurn("Still no clue"); // Turn 3: SR-1 stall recovery
+  assert.strictEqual(scm.getProfile().sr1_delivered, true);
+
+  // Turn 4: Still unclear after SR-1 -> triggers MLO holdout handoff
+  await scm.onUserTurn("I really cannot answer this");
+  assert.strictEqual(scm.getProfile().holdout_routed, true, 'Turn 4 must route to MLO holdout after repeated unclear responses');
+  assert.strictEqual(scm.getProfile().transaction_type, null, 'Holdout must keep transaction_type null');
+  assert.strictEqual(scm.getProfile().Q9_confirmed, false, 'Holdout must keep Q9_confirmed false to block Stage 1');
+  assert.strictEqual(scm.getSection0RoutingStep(), 'HOLDOUT', 'Must route to HOLDOUT step');
+
+  console.log('  ✅ S0-17 Passed: Repeated unclear response after SR-1 escalates cleanly to MLO live transfer handoff.');
+}
+
+// ── S0-18: Home Improvement / Garage Intent Routes to TT-HEL-AMBIG ───────────
+{
+  const profile = initBorrowerProfile();
+  const input = "So, I already have a mortgage and I wanted to like fix the garage.";
+  extractOpeningSignals(input, profile);
+
+  assert.ok(profile.signals_found?.includes('TT-HEL-AMBIG'), 'Must extract TT-HEL-AMBIG for home improvement / garage with mortgage');
+  assert.strictEqual(profile.transaction_type, null, 'Opening extraction must never set transaction_type directly');
+
+  // Verify direct response parsing in parseQ9RoutingDecision also resolves to TT-HEL-AMBIG
+  const decision = parseQ9RoutingDecision("I wanted to fix my garage and use my home equity");
+  assert.strictEqual(decision, 'TT-HEL-AMBIG', 'parseQ9RoutingDecision must resolve home repair intent to TT-HEL-AMBIG');
+
+  console.log('  ✅ S0-18 Passed: Home improvement and garage repair intents accurately classify to TT-HEL-AMBIG.');
+}
+
+// ── S0-19: injectFallbackForPendingField Optimistic Stage 1 -> Stage 2 Advance ──
+{
+  const scm = new SessionContextManager(null as any, null as any);
+  const profile = scm.getProfile();
+  profile.Q9_confirmed = true;
+  profile.transaction_type = 'TT-PUR';
+  profile.co_borrower = 'yes';
+  profile.co_borrower_confirmed = true;
+  profile.Q13_answered = true;
+
+  scm.setCurrentPendingField('timeline');
+  assert.strictEqual(scm.getActiveStage(), '1');
+
+  // Fast-path 0ms fallback injection when user answers timeline
+  scm.injectFallbackForPendingField();
+
+  assert.strictEqual(profile.timeline_confirmed, true, 'timeline must be confirmed');
+  assert.strictEqual(scm.getActiveStage(), '2', 'Must optimistically advance activeStage from 1 to 2');
+  assert.strictEqual(scm.getPendingField(), 'gross_annual_income', 'Must set pending field to gross_annual_income');
+  assert.strictEqual(profile.bridge_to_say, 'stage1_to_stage2', 'Must inject mandatory transition bridge');
+
+  console.log('  ✅ S0-19 Passed: injectFallbackForPendingField advances Stage 1 -> Stage 2 when co-borrower already confirmed.');
+}
+
+// ── S0-20: buildStage2Instructions Dynamically Excludes Confirmed Veteran History ──
+{
+  // 1. Without veteran flag: military_rural must be present
+  const standardInstructions = buildStage2Instructions({});
+  assert.ok(standardInstructions.includes('military_rural'), 'Standard Stage 2 must include military_rural in checklist');
+
+  // 2. With veteran_flagged = true: military_rural MUST be omitted from checklist
+  const veteranInstructions = buildStage2Instructions({
+    veteran_flagged: true,
+    military_rural: 'military',
+    military_rural_confirmed: true,
+    Q43_answered: true,
+  });
+
+  // Check that the numbered goal line does not list military_rural
+  const goalSection = veteranInstructions.split('RULES:')[0];
+  assert.ok(!goalSection.includes('military_rural'), 'Numbered checklist must strictly omit military_rural when veteran_flagged=true');
+  assert.ok(veteranInstructions.includes('VETERAN / MILITARY STATUS ALREADY CONFIRMED'), 'Rules must inject explicit veteran prohibition');
+  assert.ok(veteranInstructions.includes('Do NOT ask about military service history'), 'Rules must forbid asking military history');
+
+  console.log('  ✅ S0-20 Passed: buildStage2Instructions dynamically excludes military_rural from checklist when veteran_flagged=true.');
+}
+
 console.log('\n======================================================');
-console.log('✨ ALL 15 SECTION 0 UNIT TESTS (S0-1 to S0-15) PASSED! (15/15)');
-console.log('✨ ALL SECTION 0 PHASES 1 TO 4 (T1–T14) & T15 TESTS PASSED!');
+console.log('✨ ALL 20 SECTION 0 UNIT TESTS (S0-1 to S0-20) PASSED! (20/20)');
+
+
+
+
 console.log('======================================================\n');
 
 

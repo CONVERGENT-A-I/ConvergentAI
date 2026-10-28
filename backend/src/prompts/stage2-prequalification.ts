@@ -16,29 +16,46 @@ import type { BorrowerProfile } from './layer3-context.js';
 export function buildStage2Instructions(profile: BorrowerProfile = {}): string {
   const isRefinance = profile.mortgage_goal === 'refinance';
 
-  const fieldsList = isRefinance
-    ? `  1. gross_annual_income   — gross annual household income before taxes (a range is fine)
-  2. monthly_debt          — all recurring monthly debt payments (car, student loans, credit cards, etc.)
-  3. credit_range          — credit score estimate as a number or general tier/range
-  4. refinance_type        — whether they want a cash-out refinance or rate and term refinance
-  5. target_price          — estimated current market value of the home they wish to refinance (MV)
-  6. property_type         — type of property (single-family home, condo, townhome, multi-family) and city or zip code
-  7. military_rural        — military service history (active duty, veteran, Reserve/Guard, surviving spouse)
-  8. job_tenure_type       — current job tenure and income type (salary, hourly, self-employed, etc.)`
-    : `  1. gross_annual_income   — gross annual household income before taxes (a range is fine)
-  2. monthly_debt          — all recurring monthly debt payments (car, student loans, credit cards, etc.)
-  3. credit_range          — credit score estimate as a number or general tier/range
-  4. down_payment          — cash available for a down payment and initial closing costs
-  5. rent_own              — whether they currently rent or own; if owning, whether they plan to sell
-  6. realtor_status        — whether they have connected with a real estate agent
-  7. target_price          — general target purchase price range for the home
-  8. property_type         — type of property (single-family home, condo, townhome, multi-family) and city or zip code
-  9. military_rural        — military service history (active duty, veteran, Reserve/Guard, surviving spouse)
-  10. job_tenure_type      — current job tenure and income type (salary, hourly, self-employed, etc.)`;
+  const omitMilitary = !!(profile.veteran_flagged || profile.military_rural_confirmed || profile.Q43_answered);
+  const omitIncome = !!(profile.gross_annual_income_confirmed || profile.Q35_answered);
+  const omitDownPayment = !!(profile.down_payment_confirmed || profile.Q38_answered);
 
-  const nonNumericFieldsList = isRefinance
-    ? "credit_range, refinance_type, property_type, military_rural, job_tenure_type"
-    : "credit_range, rent_own, realtor_status, property_type, military_rural, job_tenure_type";
+  const rawFields: string[] = [];
+  if (isRefinance) {
+    if (!omitIncome) rawFields.push('gross_annual_income   — gross annual household income before taxes (a range is fine)');
+    rawFields.push('monthly_debt          — all recurring monthly debt payments (car, student loans, credit cards, etc.)');
+    rawFields.push('credit_range          — credit score estimate as a number or general tier/range');
+    rawFields.push('refinance_type        — whether they want a cash-out refinance or rate and term refinance');
+    rawFields.push('target_price          — estimated current market value of the home they wish to refinance (MV)');
+    rawFields.push('property_type         — type of property (single-family home, condo, townhome, multi-family) and city or zip code');
+    if (!omitMilitary) rawFields.push('military_rural        — military service history (active duty, veteran, Reserve/Guard, surviving spouse)');
+    rawFields.push('job_tenure_type       — current job tenure and income type (salary, hourly, self-employed, etc.)');
+  } else {
+    if (!omitIncome) rawFields.push('gross_annual_income   — gross annual household income before taxes (a range is fine)');
+    rawFields.push('monthly_debt          — all recurring monthly debt payments (car, student loans, credit cards, etc.)');
+    rawFields.push('credit_range          — credit score estimate as a number or general tier/range');
+    if (!omitDownPayment) rawFields.push('down_payment          — cash available for a down payment and initial closing costs');
+    rawFields.push('rent_own              — whether they currently rent or own; if owning, whether they plan to sell');
+    rawFields.push('realtor_status        — whether they have connected with a real estate agent');
+    rawFields.push('target_price          — general target purchase price range for the home');
+    rawFields.push('property_type         — type of property (single-family home, condo, townhome, multi-family) and city or zip code');
+    if (!omitMilitary) rawFields.push('military_rural        — military service history (active duty, veteran, Reserve/Guard, surviving spouse)');
+    rawFields.push('job_tenure_type       — current job tenure and income type (salary, hourly, self-employed, etc.)');
+  }
+
+  const fieldsList = rawFields.map((f, i) => `  ${i + 1}. ${f}`).join('\n');
+
+  const confirmedRules: string[] = [];
+  if (omitMilitary) {
+    confirmedRules.push(`- VETERAN / MILITARY STATUS ALREADY CONFIRMED: The borrower has already confirmed military service history (${profile.military_rural || 'military'}). Do NOT ask about military service history. Q43 is strictly complete.`);
+  }
+  if (omitIncome) {
+    confirmedRules.push(`- GROSS ANNUAL INCOME ALREADY CONFIRMED: The borrower has already stated their income ($${profile.gross_annual_income || profile.pre_stated_income}). Do NOT ask for gross annual income.`);
+  }
+  if (omitDownPayment) {
+    confirmedRules.push(`- DOWN PAYMENT / SAVINGS ALREADY CONFIRMED: The borrower has already stated down payment/savings ($${profile.down_payment || profile.pre_stated_savings}). Do NOT ask for down payment.`);
+  }
+  const confirmedRulesBlock = confirmedRules.length > 0 ? confirmedRules.join('\n') + '\n' : '';
 
   const questionWordingRules = isRefinance
     ? `- Refinance Specific Wording Rules (Crucial for sounding natural):
@@ -55,7 +72,7 @@ ${fieldsList}
 
 RULES:
 - Ask for the field named in CURRENT TASK. Do not ask for any other field.
-- TRANSITIONS & BRIDGE INSTRUCTIONS:
+${confirmedRulesBlock}- TRANSITIONS & BRIDGE INSTRUCTIONS:
   * If a BRIDGE INSTRUCTION is present in Layer 3, you MUST follow it: start your response by acknowledging the borrower's previous answer briefly (e.g. "Got it." or "Understood, thank you."), then say the specified verbatim bridge phrase, and then proceed to ask for the field named in CURRENT TASK. The bridge phrase is required for a smooth transition.
 - Acknowledge responses: When the borrower provides the value for a field, acknowledge it warmly and briefly (e.g., "Got it, thank you." or "Excellent, thanks for sharing that."), and then proceed to ask for the field named in CURRENT TASK.
 - Do NOT ask the borrower to confirm numeric values or repeat back their values for verification. Just accept their input and ask the next question in sequence.

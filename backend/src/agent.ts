@@ -400,8 +400,25 @@ class AilanaVoiceAgent extends voice.Agent {
         return createVerbatimStream(script) as any;
       }
 
-      // 1f. 0 Signals (Standard Q9 open routing or Fallback routing)
+      // 1f. 0 Signals (Standard Q9 open routing, Fallback routing, SR-1 Stall Recovery, or MLO handoff)
       if (signals.length === 0) {
+        if (profile.holdout_routed) {
+          const holdoutText = this.contextManager.getHoldoutFormulation();
+          if (holdoutText) {
+            profile.holdout_formulation_delivered = true;
+            console.log(`[agent-hook]: Delivering deterministic Section 0 stall recovery MLO handoff via ReadableStream!`);
+            return createVerbatimStream(holdoutText) as any;
+          }
+        }
+
+        if (profile.sr1_delivered) {
+          const sr1Text = this.contextManager.getSR1RoutingFormulation();
+          if (sr1Text) {
+            console.log(`[agent-hook]: Delivering deterministic Section 0 SR-1 stall recovery formulation via ReadableStream!`);
+            return createVerbatimStream(sr1Text) as any;
+          }
+        }
+
         if (profile.fallback_routing_delivered) {
           const fallbackText = this.contextManager.getFallbackRoutingFormulation();
           if (fallbackText) {

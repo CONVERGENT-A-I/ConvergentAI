@@ -18,6 +18,7 @@ export interface BorrowerProfile {
   trid_gate_required?: boolean;         // true = SSN or property address detected in opening msg
   equity_disambig_delivered?: boolean;  // true = HELOC vs HEQ disambiguation question delivered
   fallback_routing_delivered?: boolean; // true = fallback routing question already delivered
+  sr1_delivered?: boolean;              // true = SR-1 stall recovery question already delivered
   holdout_routed?: boolean;             // true = TT-CON/TT-HECM MLO handoff completed
   holdout_formulation_delivered?: boolean; // true = TT-CON/TT-HECM holdout formulation delivered
   holdout_contact_captured?: boolean;      // true = contact info captured after holdout

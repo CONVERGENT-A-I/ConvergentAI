@@ -60,6 +60,7 @@ export function initBorrowerProfile(): BorrowerProfile {
     trid_gate_required: false,
     equity_disambig_delivered: false,
     fallback_routing_delivered: false,
+    sr1_delivered: false,
     holdout_routed: false,
     holdout_formulation_delivered: false,
     holdout_contact_captured: false,
@@ -125,6 +126,8 @@ export function extractOpeningSignals(input: string, profile: BorrowerProfile, r
     signals.push('TT-HEL');
   } else if (/home equity loan|lump sum|equity loan/i.test(text)) {
     signals.push('TT-HEQ');
+  } else if (/\b(fix|repair|remodel|renovat|home improvement|garage|roof|patio|pool|addition)\b/i.test(text) && /\b(home|house|property|mortgage|equity)\b/i.test(text)) {
+    signals.push('TT-HEL-AMBIG');
   } else if (/equity/i.test(text)) {
     signals.push('TT-HEL-AMBIG');
   }
@@ -385,7 +388,7 @@ export function parseQ9RoutingDecision(output: string): Q9RouteDecision {
   const hasRef = /refinanc|refi|lower (?:my|the|a)?\s*(?:rate|payment)|change (?:the\s+)?terms|cash.?out/i.test(text);
   const hasHel = /heloc|line of credit|home equity line/i.test(text);
   const hasHeq = /home equity loan|fixed equity|lump sum/i.test(text);
-  const hasEquityAmbig = (/equity/i.test(text) || /borrow against/i.test(text)) && !hasHel && !hasHeq;
+  const hasEquityAmbig = (/equity/i.test(text) || /borrow against/i.test(text) || (/\b(fix|repair|remodel|renovat|home improvement|garage|roof|patio|pool|addition)\b/i.test(text) && /\b(home|house|property|mortgage|equity)\b/i.test(text))) && !hasHel && !hasHeq;
 
   const ttCount = [hasPur, hasRef, (hasHel || hasHeq || hasEquityAmbig)].filter(Boolean).length;
   if (ttCount >= 2) {
@@ -713,6 +716,20 @@ export const HQ18_COMPARISON_FORMULATION =
  */
 export const FALLBACK_ROUTING_FORMULATION =
   "No problem at all — let's figure it out together. Are you looking to purchase a new home, refinance an existing mortgage, or access the equity you've already built?";
+
+/**
+ * T8 / SR-1 — Stall Recovery Formulation (Layer0Doc.md Section 7.5 & SR-1)
+ * Delivered on turn 3 when borrower remains unclear after fallback routing question.
+ */
+export const SR1_ROUTING_FORMULATION =
+  "To make sure I take you in the right direction, let's take a step back. Are you looking to buy a property, change the terms of your current home loan, or take cash out of the equity you already have?";
+
+/**
+ * General MLO Holdout Formulation
+ * Delivered when repeated unclear responses or general holdouts require live loan officer handoff.
+ */
+export const GENERAL_HOLDOUT_FORMULATION =
+  "I want to make sure you get the right guidance for your unique situation. Let me connect you with a licensed loan officer who can walk through your options in detail. Can I get your best contact information?";
 
 export type EquityDisambigChoice = 'TT-HEL' | 'TT-HEQ' | 'UNSURE' | 'UNCLEAR';
 
@@ -1463,12 +1480,35 @@ export class SessionContextManager {
     const lastQuestion = this.getLastAssistantUtterance()?.toLowerCase() || '';
     const wasAskedCoBorrower = lastQuestion.includes('co-borrower') || lastQuestion.includes('co borrower') || lastQuestion.includes('applying on your own') || lastQuestion.includes('joining you on the loan');
 
+    if (field === 'timeline') {
+      this.profile.timeline = 'next few months';
+      this.profile.timeline_confirmed = true;
+      if (!this.profile.heloc_timeline) {
+        this.profile.heloc_timeline = 'next few months';
+        this.profile.heloc_timeline_confirmed = true;
+      }
+      if (this.profile.co_borrower_confirmed || this.profile.Q13_answered) {
+        this.activeStage = '2';
+        this.currentPendingField = (this.profile.gross_annual_income_confirmed || this.profile.Q35_answered)
+          ? 'monthly_debt'
+          : 'gross_annual_income';
+        this.profile.bridge_to_say = 'stage1_to_stage2';
+        console.log(`[agent-hook][fallback] Optimistically advanced field "timeline" -> Stage 2 "${this.currentPendingField}" (co-borrower already confirmed). Transitioning with bridge!`);
+      } else {
+        this.currentPendingField = 'co_borrower';
+        console.log(`[agent-hook][fallback] Optimistically advanced field "timeline" -> "co_borrower" (default="next few months").`);
+      }
+      return;
+    }
+
     if (field === 'co_borrower' && wasAskedCoBorrower) {
       this.profile.co_borrower = 'no'; // Default fallback value
       this.profile.co_borrower_confirmed = true;
       (this.profile as any)._optimistic_co_borrower = true;
       this.activeStage = '2';
-      this.currentPendingField = 'gross_annual_income';
+      this.currentPendingField = (this.profile.gross_annual_income_confirmed || this.profile.Q35_answered)
+        ? 'monthly_debt'
+        : 'gross_annual_income';
       this.profile.bridge_to_say = 'stage1_to_stage2';
       if (this.profile.timeline && !this.profile.heloc_timeline) {
         this.profile.heloc_timeline = this.profile.timeline;
@@ -3207,13 +3247,18 @@ export class SessionContextManager {
         }
       }
 
-      // T8: Fallback routing question delivery tracking
+      // T8 / SR-1: Fallback routing, SR-1 stall recovery, and MLO escalation sequence
       if (!this.profile.fallback_routing_delivered) {
         this.profile.fallback_routing_delivered = true;
         console.log('[section0]: 🔄 Fallback routing delivered after unclear response (fallback_routing_delivered=true).');
         return 'UNCLEAR';
+      } else if (!this.profile.sr1_delivered) {
+        this.profile.sr1_delivered = true;
+        console.log('[section0]: ⚠️ Unclear after fallback routing — route to stall recovery SR-1 (sr1_delivered=true).');
+        return 'UNCLEAR';
       } else {
-        console.log('[section0]: ⚠️ Unclear after fallback routing — route to stall recovery SR-1.');
+        console.log('[section0]: ⚠️ Unclear after SR-1 — routing to MLO live transfer holdout.');
+        this.applyHoldoutRouting();
         return 'UNCLEAR';
       }
     }
@@ -3323,6 +3368,13 @@ export class SessionContextManager {
   }
 
   /**
+   * T8 / SR-1 — Returns the SR-1 stall recovery question text.
+   */
+  public getSR1RoutingFormulation(): string {
+    return SR1_ROUTING_FORMULATION;
+  }
+
+  /**
    * T9 — Returns the mixed intent acknowledgment formulation with populated goal names.
    */
   public getMixedIntentFormulation(): string {
@@ -3337,7 +3389,11 @@ export class SessionContextManager {
    */
   public getHoldoutFormulation(): string {
     const holdout = getHoldoutFormulation(this.profile.signals_found || []);
-    return holdout ? holdout.text : '';
+    if (holdout) return holdout.text;
+    if (this.profile.holdout_routed) {
+      return GENERAL_HOLDOUT_FORMULATION;
+    }
+    return '';
   }
 
   private async runStage1Extraction(text: string): Promise<void> {
@@ -4226,7 +4282,7 @@ export class SessionContextManager {
           this.profile.property_type_confirmed = true;
         }
         if (!this.profile.gross_annual_income_confirmed && !this.profile.Q35_answered) {
-          this.currentPendingField = 'gross_annual_income';
+        this.currentPendingField = 'gross_annual_income';
         } else if (!this.profile.monthly_debt_confirmed) {
           this.currentPendingField = 'monthly_debt';
         } else if (!this.profile.credit_range_confirmed) {

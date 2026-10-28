@@ -4,6 +4,17 @@
 import type { BorrowerProfile } from './layer3-context.js';
 
 export function buildStage1Instructions(profile: BorrowerProfile = {}): string {
+  const pendingItems: string[] = [];
+  if (!profile.mortgage_goal_confirmed) pendingItems.push('mortgage goal');
+  if (!profile.occupancy_confirmed) pendingItems.push('occupancy type');
+  if (!profile.existing_relationship_confirmed) pendingItems.push('existing relationship');
+  if (!profile.timeline_confirmed) pendingItems.push('timeline');
+  if (!profile.co_borrower_confirmed && !profile.Q13_answered) pendingItems.push('co-borrower status');
+
+  const goalLine = pendingItems.length > 0
+    ? `GOAL: Learn ${pendingItems.map((item, idx) => `(${idx + 1}) ${item}`).join(', ')}. Collect in that order. Do not skip ahead.`
+    : `GOAL: All Stage 1 information has been gathered. Prepare to transition to Stage 2.`;
+
   const coBorrowerRule = (profile.co_borrower_confirmed || profile.Q13_answered)
     ? `- CO-BORROWER STATUS ALREADY CAPTURED: The borrower has already indicated they are applying with a co-borrower (${profile.co_borrower || 'yes'}). Do NOT ask the co-borrower question. The co-borrower question (Q13) is strictly complete.`
     : `- For the co-borrower question, ask: "Will anyone else be applying with you on this loan, such as a spouse or co-borrower?"`;
@@ -17,8 +28,7 @@ export function buildStage1Instructions(profile: BorrowerProfile = {}): string {
 
   return `
 STAGE: Greeting and intent discovery.
-GOAL: Learn (1) mortgage goal (Purchase, Refinance, or HELOC/Home Equity Line of Credit), (2) occupancy type, (3) existing relationship, (4) timeline, (5) co-borrower status.
-Collect in that order. Do not skip ahead.
+${goalLine}
 
 RULES:
 - Ask ONE question per turn. Always conclude your turn with the clear pending question so the borrower knows exactly what to do next. Never stop after a greeting or acknowledgment without asking the question.
