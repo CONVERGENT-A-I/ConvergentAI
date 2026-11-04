@@ -1,6 +1,6 @@
-name: Deploy CONVERGENT-AI to GKE
+name: Deploy CONVERGENT-AI to EKS Cluster into "us-east-1" region
 
-# - push to "dev"            -> auto build + deploy into GKE dev environment.
+# - push to "dev"            -> auto build + deploy into EKS dev environment.
 # - staging manual deploy    -> Actions -> Run workflow -> branch "staging" -> target "staging".
 # - production manual deploy -> Actions -> Run workflow -> branch "main" -> target "production".
 on:
@@ -20,23 +20,24 @@ on:
           - production
 
 concurrency:
-  group: deploy-${{ github.ref_name }}-${{ github.event.inputs.target || 'auto' }}
+  group: eks-deploy-${{ inputs.target || 'dev' }}
   cancel-in-progress: false
 
 env:
   DEVOPS_REPO_OWNER: sonphm
   DEVOPS_REPO_NAME: convergentai-devops
-  GCP_PROJECT: ailana-488814
-  GCP_REGION: us-east1
-  ARTIFACT_REPO: convergent-ai
-  GKE_CLUSTER: gke-convergent-ai-prod-7d82
-  GKE_LOCATION: us-east4
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: '939762009580'
+  EKS_CLUSTER: convergent-ai-eks-cluster
+  ECR_REPOSITORY: convergent-ai-ecr-repo
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    environment: ${{ inputs.target || 'dev' }}
+    runs-on: ${{ vars.EKS_RUNNER_LABEL || 'ubuntu-latest' }}
     permissions:
       contents: read
+      id-token: write
     steps:
       - name: Resolve target
         id: env
@@ -48,6 +49,10 @@ jobs:
             TARGET="dev"
           fi
 
+          if [ "$GITHUB_REF_TYPE" != branch ] || { [ "$TARGET" = dev ] && [ "$GITHUB_REF_NAME" != dev ]; }; then
+            echo "Select the matching deployment branch."
+            exit 1
+          fi
           # Prevent a manual deployment from using the wrong source branch.
           if [ "$TARGET" = "staging" ] && [ "$GITHUB_REF_NAME" != "staging" ]; then
             echo "Staging must be deployed manually from the staging branch."
@@ -89,6 +94,8 @@ jobs:
       # 1. Checkout Source codes repo
       - name: Checkout app source (ConvergentAI)
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       # 2. Checkout DevOps repo
       - name: Checkout devops repo (Dockerfile + Helm chart)
@@ -98,59 +105,56 @@ jobs:
           ref: main
           token: ${{ secrets.GIT_DEVOPS_TOKEN }}
           path: devops
+          persist-credentials: false
 
-      # 3. Google Cloud authen
-      - name: Auth to Google Cloud
-        uses: google-github-actions/auth@v2
+      - name: Assume AWS deployment role
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          allowed-account-ids: ${{ env.AWS_ACCOUNT_ID }}
+          role-session-name: github-${{ github.run_id }}
 
-      - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Configure Docker cho Artifact Registry
-        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
-
-      # 4. Build & push backend image 
-      - name: Build & push backend image
+      - name: Connect to EKS and log in to ECR
+        shell: bash
         env:
-          DOCKER_ENV: ${{ steps.env.outputs.docker_env }}
+          NAMESPACE: ${{ steps.env.outputs.namespace }}
         run: |
           set -euo pipefail
-          TAG="$(echo "$GITHUB_SHA" | cut -c1-7)"
-          IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.ARTIFACT_REPO }}/${DOCKER_ENV}-backend"
-          docker build \
-            -f "devops/docker/${DOCKER_ENV}/backend.Dockerfile" \
-            -t "$IMAGE:$TAG" -t "$IMAGE:latest" \
-            .
-          docker push "$IMAGE:$TAG"
-          docker push "$IMAGE:latest"
-          echo "IMAGE_TAG=$TAG" >> "$GITHUB_ENV"
+          umask 077
+          # tmp=$(mktemp -d "$RUNNER_TEMP/cta-deploy.XXXXXX")
+          # export KUBECONFIG="$tmp/kubeconfig" DOCKER_CONFIG="$tmp/docker"
+          # printf 'JOB_DIR=%s\nKUBECONFIG=%s\nDOCKER_CONFIG=%s\n' "$tmp" "$KUBECONFIG" "$DOCKER_CONFIG" >> "$GITHUB_ENV"
+          # mkdir "$DOCKER_CONFIG"
+          # aws eks update-kubeconfig --name "$EKS_CLUSTER" --kubeconfig "$KUBECONFIG"
+          aws eks update-kubeconfig --region "$AWS_REGION" --name "$EKS_CLUSTER"
+          kubectl -n "$NAMESPACE" get deployments --request-timeout=20s
+          registry="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+          aws ecr get-login-password | docker login --username AWS --password-stdin "$registry"
+          echo "IMAGE_REPO=$registry/$ECR_REPOSITORY" >> "$GITHUB_ENV"
 
-      # 5. Build & push frontend image
-      - name: Build & push frontend image
+      - name: Build and push backend and frontend
+        shell: bash
         env:
-          DOCKER_ENV: ${{ steps.env.outputs.docker_env }}
+          STAGE: ${{ steps.env.outputs.docker_env }}
           BACKEND_URL: ${{ steps.env.outputs.backend_url }}
         run: |
           set -euo pipefail
-          IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.ARTIFACT_REPO }}/${DOCKER_ENV}-frontend"
-          docker build \
-            -f "devops/docker/${DOCKER_ENV}/frontend.Dockerfile" \
-            --build-arg NEXT_PUBLIC_BACKEND_URL="$BACKEND_URL" \
-            -t "$IMAGE:$IMAGE_TAG" -t "$IMAGE:latest" \
-            .
-          docker push "$IMAGE:$IMAGE_TAG"
-          docker push "$IMAGE:latest"
+          suffix="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          for component in backend frontend; do
+            tag="$STAGE-$component-$suffix"
+            args=()
+            if [[ "$component" == frontend ]]; then
+              args+=(--build-arg "NEXT_PUBLIC_BACKEND_URL=$BACKEND_URL")
+            fi
+            docker build --platform linux/amd64 "${args[@]}" -f "devops/docker/$STAGE/$component.Dockerfile" -t "$IMAGE_REPO:$tag" .
+            docker push "$IMAGE_REPO:$tag"
+            echo "${component^^}_TAG=$tag" >> "$GITHUB_ENV"
+          done
 
-      - name: Get GKE credentials
-        uses: google-github-actions/get-gke-credentials@v2
+      - uses: azure/setup-helm@v4
         with:
-          cluster_name: ${{ env.GKE_CLUSTER }}
-          location: ${{ env.GKE_LOCATION }}
-
-      - name: Set up Helm
-        uses: azure/setup-helm@v4
+          version: v3.17.3
 
       # 6. Create/update ConfigMaps from GitHub repository variables
       - name: Apply application environment variables
@@ -192,10 +196,6 @@ jobs:
           printf '%s\n' "$FE_ENV" > "$FE_ENV_FILE"
           printf '%s\n' "$BE_ENV" > "$BE_ENV_FILE"
 
-          kubectl create namespace "$NAMESPACE" \
-            --dry-run=client \
-            -o yaml | kubectl apply -f -
-
           kubectl create configmap "cta-${DOCKER_ENV}-frontend-env" \
             --namespace "$NAMESPACE" \
             --from-env-file="$FE_ENV_FILE" \
@@ -218,14 +218,25 @@ jobs:
           DOCKER_ENV: ${{ steps.env.outputs.docker_env }}
           NAMESPACE: ${{ steps.env.outputs.namespace }}
           RELEASE: ${{ steps.env.outputs.helm_release }}
+          ACM_ARN: ${{ vars.ACM_CERTIFICATE_ARN }}
           VALUES_FILE: ${{ steps.env.outputs.values_file }}
         run: |
           set -euo pipefail
-          helm upgrade --install "$RELEASE" ./devops/helm \
-            -f "./devops/helm/${VALUES_FILE}" \
-            --namespace "$NAMESPACE" \
-            --create-namespace \
-            --set "fe-${DOCKER_ENV}.image.tag=${IMAGE_TAG}" \
-            --set "be-${DOCKER_ENV}.image.tag=${IMAGE_TAG}" \
-            --atomic \
-            --timeout 5m
+          extra=()
+          if [[ -n "$ACM_ARN" ]]; then extra+=(--set-string "global.alb.certificateArn=$ACM_ARN"); fi
+          if [[ "$DOCKER_ENV" == dev ]]; then
+            extra+=(--set-string "fe-dev.ingress.groupName=" --set-string "be-dev.ingress.groupName=")
+          fi
+          helm upgrade --install "$RELEASE" ./devops/aws-deploy/helm \
+            -f "./devops/aws-deploy/helm/${VALUES_FILE}" --namespace "$NAMESPACE" \
+            --set-string "fe-${DOCKER_ENV}.image.repository=$IMAGE_REPO" \
+            --set-string "fe-${DOCKER_ENV}.image.tag=$FRONTEND_TAG" \
+            --set-string "be-${DOCKER_ENV}.image.repository=$IMAGE_REPO" \
+            --set-string "be-${DOCKER_ENV}.image.tag=$BACKEND_TAG" \
+            "${extra[@]}" --atomic --timeout 10m
+
+      - name: Clean up job credentials
+        if: always()
+        shell: bash
+        run: |
+          if [[ -n "${JOB_DIR:-}" && "$JOB_DIR" == "$RUNNER_TEMP"/cta-deploy.* ]]; then rm -rf -- "$JOB_DIR"; fi
