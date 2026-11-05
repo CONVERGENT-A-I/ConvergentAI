@@ -25,6 +25,11 @@ const testFiles = [
   'production-fixes.test.ts',
   'expressive-mode-e1-e2-e3.test.ts',
   'verbal-submit-flow.test.ts',
+  // Section 0 (generic intent & fact capture) — pure building blocks
+  'section0-ledger.test.ts',
+  'section0-normalize.test.ts',
+  'section0-router.test.ts',
+  'section0-safety-net.test.ts',
 ];
 
 console.log('🚀 Running Complete ConvergentAI Multi-Track Test Suite...\n');

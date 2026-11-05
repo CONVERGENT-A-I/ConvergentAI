@@ -19,7 +19,7 @@
 | Part | What it checks | Needs (plan task) | Status |
 | :---: | :--- | :--- | :---: |
 | **0** | Localhost setup + flag on/off | S0-03 ✅ built | 🟢 0.6 passed (Nov 5) |
-| **1** | Code checks + unit tests | S0-09 … S0-21 | 🔴 |
+| **1** | Code checks + unit tests | S0-09 … S0-21 | 🟡 4 of 6 files ready to run (ledger, normalize, router, safety-net) |
 | **2** | Opening: greeting, card highlights, mic off, consent | S0-24 … S0-26 | 🔴 |
 | **3** | Routing: clear / unclear / clarify / two goals / holdouts / out of scope | S0-15 … S0-18 | 🔴 |
 | **4** | Fact capture: multi-fact, corrections, ambiguity | S0-11 … S0-13 | 🔴 |
@@ -29,7 +29,7 @@
 | **8** | David's 30 prospect replies (voice + typed) | All of Phase 3–4 | 🔴 |
 | **9** | Track regression: Purchase, Refi, HELOC, HEQ unchanged | S0-19 | 🔴 |
 | **10** | Flag-off parity (demo build unchanged) | S0-03, S0-19 | 🔴 |
-| **11** | LiveKit text simulations (the official measure) | S0-05 ✅ · S0-04 ✅ · S0-07 baseline · S0-08 | 🟢 spike passed (11.0) · 🟡 baseline ready to run (11.0b) |
+| **11** | LiveKit text simulations (the official measure) | S0-05 ✅ · S0-04 ✅ · S0-07 baseline · S0-08 | 🟢 spike passed (11.0) · 🟡 baseline B1 0/12 done, B2 re-run next (11.0b) |
 
 Status: 🔴 not run · 🟡 partial / failing · 🟢 passing
 
@@ -137,11 +137,18 @@ What each unit test file must prove:
 | File | Must prove |
 | :--- | :--- |
 | `section0-ledger` | New fact stored; a later value overwrites and the old one goes to history; declined facts are never asked again; serialize → hydrate gives the same ledger; SSN/address/protected-class keys are rejected. |
-| `section0-normalize` | "84,000 per year" → 84000/yr · "52 an hour" → hourly, **needs weekly hours** (never assumes 40) · "4,200 every two weeks" → 109,200/yr · "3,100" with no frequency → needs clarification · "20 percent down" + price 400,000 → 80,000 · "3,000, wait, no, 300" → 300 · down payment > price → needs clarification · "in the 770s" → stated range. |
+| `section0-normalize` | "84,000 per year" → 84000/yr · "I make 68" → 68,000/yr · "52 an hour" → hourly, **needs weekly hours** (never assumes 40) · "4,200 every two weeks" → 109,200/yr · "3,100" with no frequency → needs clarification · Social Security 2,400 → monthly · alimony only counted if the borrower wants it · "20 percent down" + price 400,000 → 80,000 · down payment > price → needs clarification · "in the 770s" → stated range · STT "710000" → 710. (In-sentence self-correction like "3,000, wait, no, 300" is handled by the extractor — S0-12; corrections across turns are in `section0-ledger`.) |
 | `section0-router` | One clear goal → track set, **no confirmation turn** · cash out unclear → keep-or-replace question · equity unclear → line vs lump sum · two goals → which first + secondary stored · unclear twice → general questions / loan officer, **no third ask** · construction / reverse → holdout · car loan → out of scope · off-topic → redirect · question first → answer then intent · contradiction later → track switch keeps shared facts. |
 | `section0-sync` | Profile with income + credit from the ledger: Purchase, Refi and HELOC sequences all skip income and credit · occupancy, co-borrower, timeline, debts, price, area, military, refi balance/value, equity amount all skip their questions · a value set by the soft pull is not overwritten except by an explicit correction. |
-| `section0-safety-net` | Caught: `412-55-6789`, `412 55 6789`, `412556789`, "four one two, five five…", "it's 4-1-2…", "1418 Riverview Drive", "22 Oak St", "900 W Main Street" · Not caught: "I make 84,000", "credit is 710", "owe 310 on a house worth 450", "zip 37421" · The matched text never appears in the output object or logs. |
+| `section0-safety-net` | Caught: `412-55-6789`, `412 55 6789`, "my social is 412556789", "my social security number is four one two…", "my social … it's 4-1-2…" (cut off), "1418 Riverview Drive", "22 Oak St", "900 W Main Street", "5 lakeview avenue" · Not caught: "I make 84,000", "credit is 710", "owe 310 on a house worth 450", "zip 37421", "2,400 Social Security" (income), "my social security is 2,400 a month", "100 down either way" · The matched text never appears in the output or logs. *(Known limit: 9 digits with no "SSN / my social" nearby are not treated as an SSN, so zip+4 codes aren't redacted by mistake; short types like "st"/"dr" need a Capitalised street name.)* |
 | `section0-flag-off` | With `SECTION_0_ENABLED=false`: first stage is `"1"`, greeting text, static prompt and Stage 1/2 sequences are identical to the demo build. |
+
+**Run now (ready):** `section0-ledger`, `section0-normalize`, `section0-router`, `section0-safety-net` — or just `npm test`, which includes them. `section0-sync` and `section0-flag-off` come with the wiring step.
+
+| Date | Tester | Result | Notes |
+| :--- | :--- | :---: | :--- |
+| Nov 5, 2026 | Claude (dev machine) | 🟢 | ledger 30/30 · normalize 44/44 · router 35/35 · safety-net 34/34 · `npm test` 21/21 suites · `tsc` clean |
+| | | | |
 
 ---
 
@@ -424,7 +431,7 @@ lk agent simulate text --scenarios scenarios/baseline_section0.yaml --samples 3 
 
 | Date | Tester | Run ID | Pass rate | Notes |
 | :--- | :--- | :--- | :---: | :--- |
-| | | | | |
+| Nov 5, 2026 | Sohail | `SR_K5hDnwMfgu7H` (B1) | 0/12 (0/4 scenarios) | Expected fail. Re-asking in 12/12. 8/12 also stalled after Stage 1 — typed-input bug, **fixed** in `agent.ts`. Details: [Section0Results.md](Section0Results.md). **Re-run as B2** (same command, after `npm run build`). |
 
 ### 11.1 Full runs (after Phase 2 scenarios are approved)
 

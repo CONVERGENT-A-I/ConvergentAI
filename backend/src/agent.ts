@@ -2606,7 +2606,15 @@ PAUSE CONSTRAINTS:
           }
           await contextManager.onUserTurn(messageText);
           updateSessionInstructions();
-          session.generateReply({ userInput: messageText });
+          // generateReply() does NOT run onUserTurnCompleted, so the per-turn Layer 3
+          // context (CURRENT TASK, bridge phrases, profile) that spoken turns get was
+          // missing for typed turns — Ailana stalled after Stage 1 ("waiting for the
+          // system"). Pass it as this reply's instructions: the SDK appends it to the
+          // agent's static instructions for this generation only.
+          session.generateReply({
+            userInput: messageText,
+            instructions: contextManager.getDynamicContext(),
+          });
         }
       } catch (err) {
         console.warn(`[agent]: Could not generate reply:`, err);

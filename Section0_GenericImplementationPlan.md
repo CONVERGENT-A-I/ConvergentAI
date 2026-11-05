@@ -2,7 +2,7 @@
 
 **Project:** ConvergentAI · Ailana
 **Date:** November 5, 2026
-**Status:** 🟡 In progress — Phase 0 complete (flag-off check + simulation spike passed); Phase 1 baseline run next (S0-07)
+**Status:** 🟡 In progress — Phase 0 complete; Phase 1 baseline B1 done (0/12, see [Section0Results.md](Section0Results.md)), B2 re-run pending; Phase 3 building blocks done (143 unit tests), wiring next
 **Branch:** `dev` (team decision, Nov 5, 2026 — work directly on `dev` while the GitHub deploy actions are off; everything new stays behind `SECTION_0_ENABLED`, default off, so `dev` keeps behaving like the demo build. If the deploy actions are switched back on, re-check that the flag is off in the deployed env before pushing.)
 
 **Source documents (client: David Patten)**
@@ -27,6 +27,8 @@
 | Nov 5, 2026 | Test results | Spike attempt 2: `lk cloud auth` done (project `convergentai`). Run stopped: the CLI requires an explicit entrypoint because `package.json` has a build script. Fix: `npm run build`, then pass the compiled `dist/agent.js` (build verified OK; `dist/agent.js` self-starts the worker). All simulation commands in this plan and the Test Guide updated accordingly. | Waiting on spike (S0-04) |
 | Nov 5, 2026 | **S0-04 spike passed** — Phase 0 complete | Run `SR_sE8vs3QiXM3N`: 2/2 scenarios completed and passed (scores 0.97 / 0.90). Confirmed: our Node agent runs under `lk agent simulate text`; simulation path active (greeting fired without a frontend → LemonSlice/DB skipped); `llmNode` deterministic paths run in text mode (transfer reply in 3 ms). Judge flagged the greeting as "not the mandatory verbatim script" — caused by the old conflicting greeting line in `stage1-greeting.ts` (fixed by S0-19 / S0-24). Seen, not caused by Phase 0: after the co-borrower answer Ailana said "I have all the initial details I need" without moving on to income (Stage 1→2 transition in text mode) — to watch in the baseline. | — |
 | Nov 5, 2026 | Phase 1 started — S0-07 | Baseline scenarios written: `backend/scenarios/baseline_section0.yaml` (David's tests #1, #2, #13, #30, run on today's build with the flag off). | **Yes** — Test Guide 11.0b (baseline run) |
+| Nov 5, 2026 | **Baseline B1 result** + typed-input fix | Run `SR_K5hDnwMfgu7H`: **0/12 passed (0/4 scenarios)**, 0 compliance failures. Fact re-asked in 12/12 (occupancy, co-borrower, income, debts, savings) — the core Section 0 problem. Also found a **typed-input bug** (not Section 0): typed turns go through `session.generateReply()`, which skips `onUserTurnCompleted`, so Ailana got no CURRENT TASK and stalled after Stage 1 in 8/12. **Fixed** in `agent.ts` (typed turns now pass the per-turn Layer 3 context as the reply's instructions); `tsc` clean, 17/17 suites pass. Write-up: [Section0Results.md](Section0Results.md). | **Yes** — re-run baseline as B2 (Test Guide 11.0b) |
+| Nov 5, 2026 | Phase 3 building blocks — S0-09, S0-10, S0-11, S0-16 (+ S0-21 module) | New pure modules in `backend/src/section0/` — **not wired into the live flow yet** (no behaviour change): `fact-schema.ts` (fixed fact keys, goal classes, intents, compliance flags, never-capture rule), `fact-ledger.ts` (memory: add / correct with history / declined / clarification / serialize-hydrate), `normalize.ts` (amounts & shorthand, income incl. hourly→ask hours, bi-weekly, monthly-by-nature; credit incl. "770s" and STT artifacts; down-payment %; plausibility), `router.ts` (pure routing: clear goal → track with no confirmation, one clarification max, never loops, holdouts, transfer/callback/resume), `safety-net.ts` (SSN incl. spoken/cut-off digits, street addresses, never logs the match; short TRID gate text). Unit tests: 30 + 44 + 35 + 34 = **143 pass**; added to `npm test` → **21/21 suites pass**; `tsc` clean. | **Yes** — Test Guide Part 1 (unit tests) |
 
 ---
 
@@ -529,7 +531,7 @@ Effort: S ≈ ≤½ day · M ≈ 1–2 days · L ≈ 3+ days. Status: 🔴 not s
 | ID | Task | Done when | Effort | Status |
 | :--- | :--- | :--- | :---: | :---: |
 | S0-06 | `docs/section0/REVIEW.md` per David's Step 2 (flow today, where the LLM decides, multi-fact handling, conflicting prompts, compliance risks, ranked recommendations, mocks, what applies to later stages) | Lead engineer adds notes; sent to David | M | 🔴 |
-| S0-07 | Baseline: scenarios for tests #1, #2, #13, #30 on the current build (flag off), then all 30 → `docs/section0/RESULTS.md` (pass rate, pass@3/pass^3, failures by category) | Baseline number sent to David | M | 🟡 4-test file written (`scenarios/baseline_section0.yaml`); run pending (Test Guide 11.0b) |
+| S0-07 | Baseline: scenarios for tests #1, #2, #13, #30 on the current build (flag off), then all 30 → [Section0Results.md](Section0Results.md) (pass rate, pass@3/pass^3, failures by category) | Baseline number sent to David | M | 🟡 B1 done (0/12, typed-input bug found + fixed); B2 re-run pending |
 
 ### Phase 2 — Scenarios for approval
 
@@ -543,14 +545,14 @@ Effort: S ≈ ≤½ day · M ≈ 1–2 days · L ≈ 3+ days. Status: 🔴 not s
 
 | ID | Task | Files | Done when | Effort | Status |
 | :--- | :--- | :--- | :--- | :---: | :---: |
-| S0-09 | Fact schema + catalogue + never-capture list | section0/fact-schema.ts | Types compile; catalogue matches §6.2 | S | 🔴 |
-| S0-10 | Fact Ledger (upsert, corrections + history, declined, serialize/hydrate) + unit tests | section0/fact-ledger.ts | Unit tests pass | M | 🔴 |
-| S0-11 | Normaliser + plausibility rules (§6.5) + unit tests | section0/normalize.ts | All §6.5 rules covered by tests | M | 🔴 |
+| S0-09 | Fact schema + catalogue + never-capture list | section0/fact-schema.ts | Types compile; catalogue matches §6.2 | S | 🟢 |
+| S0-10 | Fact Ledger (upsert, corrections + history, declined, serialize/hydrate) + unit tests | section0/fact-ledger.ts | Unit tests pass | M | 🟢 30 tests |
+| S0-11 | Normaliser + plausibility rules (§6.5) + unit tests | section0/normalize.ts | All §6.5 rules covered by tests | M | 🟢 44 tests (in-sentence self-correction is the extractor's job — tested in S0-12) |
 | S0-12 | Universal extractor (schema prompt, JSON, repair, parallel with stage extraction) | section0/universal-extractor.ts, session-context-manager.ts | Test #1 opening yields goal, occupancy, income, debt, credit in one turn | M | 🔴 |
 | S0-13 | Ledger → profile sync + `*_confirmed` flags; run before every `advanceWorkflow()` | section0/ledger-sync.ts, session-context-manager.ts | A profile with income + credit known skips Q35/Q37 in every track | M | 🔴 |
 | S0-14 | Layer 3 KNOWN FACTS block + Layer 1 no-repeat rule | layer3-context.ts, ailana-system.ts | Block present every turn in every stage | S | 🔴 |
 | S0-15 | Stage `"0"`: start stage, `buildLayer2("0")`, `stage0-opening.ts`, Section 0 turns wait for extraction | session-context-manager.ts, prompts | Section 0 prompt loads only before a track is set | M | 🔴 |
-| S0-16 | Router (all §6.9 branches, never-loop counters) + unit tests | section0/router.ts | Every branch unit-tested | M | 🔴 |
+| S0-16 | Router (all §6.9 branches, never-loop counters) + unit tests | section0/router.ts | Every branch unit-tested | M | 🟢 35 tests |
 | S0-17 | Next-question selector: clarification first, then first-name turn, then `advanceWorkflow()`; one-phrase acknowledgment | section0/next-question.ts | A2: no confirmation turn; next asks name or first missing item | M | 🔴 |
 | S0-18 | Track switching on contradiction | session-context-manager.ts | Purchase → refi mid-flow keeps income/credit/name | S | 🔴 |
 | S0-19 | Flag-guarded stage tweaks (§6.12): disable keyword re-sync, disable goal default, remove old greeting line, name field | session-context-manager.ts, stage1-greeting.ts | Flag-off parity test passes | S | 🔴 |
@@ -561,7 +563,7 @@ Effort: S ≈ ≤½ day · M ≈ 1–2 days · L ≈ 3+ days. Status: 🔴 not s
 
 | ID | Task | Files | Done when | Effort | Status |
 | :--- | :--- | :--- | :--- | :---: | :---: |
-| S0-21 | Safety net (SSN incl. spoken digits, street address) + redaction everywhere + unit tests | section0/safety-net.ts, agent.ts, session-context-manager.ts | A9 / test #11: neither stored nor repeated anywhere (transcript, chat, DB, logs) | M | 🔴 |
+| S0-21 | Safety net (SSN incl. spoken digits, street address) + redaction everywhere + unit tests | section0/safety-net.ts, agent.ts, session-context-manager.ts | A9 / test #11: neither stored nor repeated anywhere (transcript, chat, DB, logs) | M | 🟡 module + 34 tests done; wiring into agent.ts pending |
 | S0-22 | Short TRID gate (deterministic), Layer 1 compliance lines (§6.7), verbatim scripts file | ailana-system.ts, section0-scripts.ts | Long TRID variants gone; compliance scenarios pass | S | 🔴 |
 | S0-23 | Compliance-flag handling (rate, competitor, guarantee/letter, inflate income, protected class, privacy Q6, hardship → HUD counselor, documents, footprint) | router.ts, next-question.ts, lender config | Tests #10, #12, #16, #20, #23–#29 pass on compliance | M | 🔴 |
 | S0-24 | New greeting text + phrase-timed `SYSTEM_CARD_HIGHLIGHT` (spike option a vs b) | agent.ts, ailana-system.ts | Cards light on cue in the browser | M | 🔴 |
