@@ -2,8 +2,8 @@
 
 **Project:** ConvergentAI · Ailana
 **Date:** November 5, 2026
-**Status:** 🟡 Planned — not started
-**Branch:** `section0-generic` (new branch off `dev`; nothing merges without lead-engineer review)
+**Status:** 🟡 In progress — Phase 0 complete (flag-off check + simulation spike passed); Phase 1 baseline run next (S0-07)
+**Branch:** `dev` (team decision, Nov 5, 2026 — work directly on `dev` while the GitHub deploy actions are off; everything new stays behind `SECTION_0_ENABLED`, default off, so `dev` keeps behaving like the demo build. If the deploy actions are switched back on, re-check that the flag is off in the deployed env before pushing.)
 
 **Source documents (client: David Patten)**
 
@@ -15,7 +15,18 @@
 
 **Supersedes:** `Layer0Doc.md` and the removed `Layer0ImplementationPlan.md` (the October build: hard gate, forced confirmation, keyword routing, Q9-MULTI templates — all dropped). Overlaps with the Nov 4 task tracker `Section0ImplementationPlan.md`; this document is the consolidated plan.
 
-**Localhost testing guide:** [Layer0TestGuide.md](Layer0TestGuide.md) (rewritten for this generic Section 0).
+**Localhost testing guide:** [Section0TestGuide.md](Section0TestGuide.md).
+
+### Progress log
+
+| Date | Phase / tasks | What was done | Test break |
+| :--- | :--- | :--- | :--- |
+| Nov 5, 2026 | Phase 0 — S0-01, S0-02, S0-03, S0-05 (S0-04 prepared) | Working on `dev` (no separate branch — team decision); old `Layer0ImplementationPlan.md` removed; David's working rules merged into `CLAUDE.md` (adapted to Node); `SECTION_0_ENABLED` flag (default off); simulation guards + mocks (`backend/src/section0/sim-mocks.ts`): no LemonSlice, DB, CRS or SIP under simulation, greeting fires without a frontend, `onSimulationEnd` checks for unrequested transfers/bookings; spike scenarios `backend/scenarios/spike.yaml`. `tsc` clean; all 17 existing test suites pass. | **Yes** — Test Guide Part 0 (flag-off check) + Part 11.0 (simulation spike) |
+| Nov 5, 2026 | Test results | **Part 0.6 passed** — flag off, Purchase conversation identical to before Phase 0. **LiveKit CLI 2.19.3 installed**; `lk` not yet visible in the open terminal (stale PATH — fix in Test Guide 11.0). Next: `lk cloud auth` + spike run. | Waiting on spike (S0-04) |
+| Nov 5, 2026 | Test results | Spike attempt 1: `lk` found; CLI installed LiveKit agent skills + Docs MCP for Claude Code (covers David's Step 1); run stopped with "api-key is required" because no LiveKit project is configured yet. Next: complete `lk cloud auth`, re-run. | Waiting on spike (S0-04) |
+| Nov 5, 2026 | Test results | Spike attempt 2: `lk cloud auth` done (project `convergentai`). Run stopped: the CLI requires an explicit entrypoint because `package.json` has a build script. Fix: `npm run build`, then pass the compiled `dist/agent.js` (build verified OK; `dist/agent.js` self-starts the worker). All simulation commands in this plan and the Test Guide updated accordingly. | Waiting on spike (S0-04) |
+| Nov 5, 2026 | **S0-04 spike passed** — Phase 0 complete | Run `SR_sE8vs3QiXM3N`: 2/2 scenarios completed and passed (scores 0.97 / 0.90). Confirmed: our Node agent runs under `lk agent simulate text`; simulation path active (greeting fired without a frontend → LemonSlice/DB skipped); `llmNode` deterministic paths run in text mode (transfer reply in 3 ms). Judge flagged the greeting as "not the mandatory verbatim script" — caused by the old conflicting greeting line in `stage1-greeting.ts` (fixed by S0-19 / S0-24). Seen, not caused by Phase 0: after the co-borrower answer Ailana said "I have all the initial details I need" without moving on to income (Stage 1→2 transition in text mode) — to watch in the baseline. | — |
+| Nov 5, 2026 | Phase 1 started — S0-07 | Baseline scenarios written: `backend/scenarios/baseline_section0.yaml` (David's tests #1, #2, #13, #30, run on today's build with the flag off). | **Yes** — Test Guide 11.0b (baseline run) |
 
 ---
 
@@ -487,7 +498,8 @@ When `ctx.simulationContext()` is present:
 ### 7.5 Pass bar and commands
 
 ```bash
-lk agent simulate text --scenarios scenarios/section0.yaml --samples 3 --pass-rate 1.0
+npm run build    # simulations run the compiled dist/, so rebuild after every change
+lk agent simulate text --scenarios scenarios/section0.yaml --samples 3 --pass-rate 1.0 dist/agent.js
 lk agent simulate list
 lk agent simulate export <run-id> > docs/section0/runs/<name>.json
 ```
@@ -506,18 +518,18 @@ Effort: S ≈ ≤½ day · M ≈ 1–2 days · L ≈ 3+ days. Status: 🔴 not s
 
 | ID | Task | Files | Done when | Effort | Status |
 | :--- | :--- | :--- | :--- | :---: | :---: |
-| S0-01 | Create branch `section0-generic`; move the 3 client docs + this plan to `docs/section0/` | docs | Docs in place | S | 🔴 |
-| S0-02 | Merge David's CLAUDE.md working rules into our CLAUDE.md/AGENTS.md (keep the Next.js note) | CLAUDE.md, AGENTS.md | Both rule sets present | S | 🔴 |
-| S0-03 | Add `SECTION_0_ENABLED` flag (default off) | ailana-config.ts | Flag readable; off = no change | S | 🔴 |
-| S0-04 | Install `lk` CLI ≥ 2.19, `lk cloud auth`; spike: confirm our Node agent runs under `lk agent simulate text` and that `onUserTurnCompleted`/`llmNode` fire for simulated text turns | — | One trivial scenario runs end-to-end | M | 🔴 |
-| S0-05 | Simulation guards + mocks (§7.3) with `ctx.simulationContext()` | agent.ts, section0/sim-mocks.ts | Sim run never touches LemonSlice, DB, CRS, SIP, calendar; production unchanged | M | 🔴 |
+| S0-01 | ~~Create branch `section0-generic`~~ work on `dev` behind the flag (team decision); ~~move the 3 client docs + this plan to `docs/section0/`~~ docs stay in the repo root (links already point there) | docs | Working on `dev` | S | 🟢 |
+| S0-02 | Merge David's CLAUDE.md working rules into our CLAUDE.md/AGENTS.md (keep the Next.js note) | CLAUDE.md | Both rule sets present | S | 🟢 |
+| S0-03 | Add `SECTION_0_ENABLED` flag (default off) | ailana-config.ts | Flag readable; off = no change | S | 🟢 |
+| S0-04 | Install `lk` CLI ≥ 2.19, `lk cloud auth`; spike: confirm our Node agent runs under `lk agent simulate text` and that `onUserTurnCompleted`/`llmNode` fire for simulated text turns | backend/scenarios/spike.yaml | One trivial scenario runs end-to-end | M | 🟢 passed Nov 5 (run `SR_sE8vs3QiXM3N`, 2/2) |
+| S0-05 | Simulation guards + mocks (§7.3) with `ctx.simulationContext()` | agent.ts, section0/sim-mocks.ts, crs-service.ts, database.ts | Sim run never touches LemonSlice, DB, CRS, SIP, calendar; production unchanged | M | 🟢 done (verified by the S0-04 run) |
 
 ### Phase 1 — Baseline and review (no code changes to behaviour)
 
 | ID | Task | Done when | Effort | Status |
 | :--- | :--- | :--- | :---: | :---: |
 | S0-06 | `docs/section0/REVIEW.md` per David's Step 2 (flow today, where the LLM decides, multi-fact handling, conflicting prompts, compliance risks, ranked recommendations, mocks, what applies to later stages) | Lead engineer adds notes; sent to David | M | 🔴 |
-| S0-07 | Baseline: scenarios for tests #1, #2, #13, #30 on the current build (flag off), then all 30 → `docs/section0/RESULTS.md` (pass rate, pass@3/pass^3, failures by category) | Baseline number sent to David | M | 🔴 |
+| S0-07 | Baseline: scenarios for tests #1, #2, #13, #30 on the current build (flag off), then all 30 → `docs/section0/RESULTS.md` (pass rate, pass@3/pass^3, failures by category) | Baseline number sent to David | M | 🟡 4-test file written (`scenarios/baseline_section0.yaml`); run pending (Test Guide 11.0b) |
 
 ### Phase 2 — Scenarios for approval
 

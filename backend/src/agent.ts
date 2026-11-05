@@ -43,6 +43,12 @@ import { callCrsSoftPull } from './services/crs-service.js';
 import { classifyAuthorization, classifyLoanOfficerTransferIntent, extractMultipleFields } from './context/llm-extractor.js';
 import { BackgroundVoiceCancellation } from '@livekit/noise-cancellation-node';
 import { logAffordabilityEvent } from './utils/affordability-audit.js';
+import type { SimulationContext } from '@livekit/agents';
+import { activateSimulation, getSimRecords, getSimUserdata, recordSimTransfer } from './section0/sim-mocks.js';
+
+// Set only when this job runs under `lk agent simulate` — lets onSimulationEnd
+// inspect the final session state (Section 0 plan §7.3).
+let simContextManager: SessionContextManager | null = null;
 
 // Global error guard to catch LiveKit SDK RPC connection timeouts gracefully without crashing/stalling the agent loop
 process.on('unhandledRejection', (reason: any) => {
@@ -1149,6 +1155,13 @@ export default defineAgent({
   async entry(ctx: JobContext) {
     console.log(`[agent]: Receiving job for room: ${ctx.room.name}`);
 
+    // ── LiveKit Agent Simulation detection (Section 0 plan §7.3) ─────────────
+    // Must run before anything touches the database, CRS or SIP.
+    const simCtx = ctx.simulationContext();
+    if (simCtx) {
+      activateSimulation(simCtx);
+    }
+
     // ── STARTUP ENVIRONMENT DIAGNOSTICS ──────────────────────────────────────
     // Printed on every job start so GCP logs show exactly which secrets were
     // injected. Keys are shown as present/MISSING + last-4 chars only.
@@ -1176,6 +1189,9 @@ export default defineAgent({
       model: 'google/gemma-4-31b-it',
     });
     const contextManager = new SessionContextManager(summarizationLlm, metrics);
+    if (simCtx) {
+      simContextManager = contextManager;
+    }
 
     // ── Pre-cache System Prompt ───────────────────────────────────────────────
     // Warm up the inference server cache so the first user turn TTFT is fast
@@ -1326,6 +1342,11 @@ export default defineAgent({
       console.log('[agent]: 🔇 All tracks unsubscribed. User and loan officer now on direct line.');
 
       // 4. Dial the SIP trunk to bring the loan officer into the room
+      if (simCtx) {
+        // Simulations must never ring a real MLO — record the attempt instead.
+        recordSimTransfer(ctx.room.name || '', contextManager.getProfile());
+        return;
+      }
       try {
         const { transferRoomToMloQueue } = await import('./utils/sipTransfer.js');
         transferRoomToMloQueue({
@@ -2965,7 +2986,28 @@ PAUSE CONSTRAINTS:
     const lsAgentId = ailanaConfig.lemonsliceAgentId;
     console.log(`[avatar][${ts()}] LemonSlice credentials check: API Key ${lsApiKey ? 'PRESENT (len=' + lsApiKey.length + ', ends with ' + lsApiKey.slice(-4) + ')' : 'MISSING'}, Agent ID: ${lsAgentId || 'MISSING'}`);
 
-    if (lsApiKey && lsAgentId) {
+    if (simCtx) {
+      // ── Simulation: no avatar, no frontend. Start the session and greet directly. ──
+      console.log(`[simulation] Skipping LemonSlice avatar; starting AgentSession directly and firing the greeting.`);
+      isAvatarInitDone = true;
+      resolveAvatarReady();
+      try {
+        sessionStarted = true;
+        await session.start({
+          agent: vadAgent,
+          room: ctx.room,
+          inputOptions: { closeOnDisconnect: false },
+        });
+        greetingGenerated = true;
+        metrics.startTurn();
+        metrics.markAgentSpeaking();
+        session.say(GREETING_TEXT, { addToChatCtx: true });
+        console.log(`[simulation] Session started and greeting fired.`);
+      } catch (err) {
+        console.error(`[simulation] Failed to start session:`, err);
+        sessionStarted = false;
+      }
+    } else if (lsApiKey && lsAgentId) {
       // Quick LemonSlice API reachability test (non-blocking)
       (async () => {
         const t0 = Date.now();
@@ -3247,6 +3289,38 @@ PAUSE CONSTRAINTS:
     console.log(
       `[agent]: Ready — model=${activeModelName}, prompt=${ailanaConfig.promptVersion}, compact@${ailanaConfig.compactEveryNTurns} turns / ${ailanaConfig.forceCompactInputTokens} tokens`,
     );
+  },
+
+  // ── LiveKit Agent Simulations: end-of-run check (Section 0 plan §7.3) ───────
+  // Runs only under `lk agent simulate`. The effective result is the AND of the
+  // simulator's verdict and our own checks; ctx.fail() can only veto a pass.
+  // Phase 0: log the final state and mock records. Phase 3 adds the Fact Ledger
+  // comparison against scenario userdata.expected_facts.
+  async onSimulationEnd(simCtx: SimulationContext) {
+    const records = getSimRecords();
+    const userdata = getSimUserdata();
+    let verdict = '';
+    try {
+      verdict = `${simCtx.simulatorVerdict.success ? 'PASS' : 'FAIL'} — ${simCtx.simulatorVerdict.reason}`;
+    } catch {
+      verdict = 'unavailable';
+    }
+    console.log(`[simulation] END — simulator verdict: ${verdict}`);
+    console.log(`[simulation] END — stage=${simContextManager?.getActiveStage() ?? 'n/a'} pendingField=${simContextManager?.getPendingField() ?? 'n/a'}`);
+    console.log(`[simulation] END — mock records: transfers=${records.transfers.length} bookings=${records.bookings.length} consents=${records.consents.length} crsPulls=${records.crsPulls}`);
+
+    // Every scenario: no transfer or appointment unless the scenario expects one.
+    const expectTransfer = userdata['expect_transfer'] === true;
+    const expectBooking = userdata['expect_booking'] === true;
+    if (!expectTransfer && records.transfers.length > 0) {
+      simCtx.fail(`Transfer attempted (${records.transfers.length}) but the scenario did not ask for one.`);
+    }
+    if (!expectBooking && records.bookings.length > 0) {
+      simCtx.fail(`Callback booked (${records.bookings.length}) but the scenario did not ask for one.`);
+    }
+    if (expectBooking && records.bookings.length > 1) {
+      simCtx.fail(`Duplicate callback bookings (${records.bookings.length}); exactly one expected.`);
+    }
   },
 });
 

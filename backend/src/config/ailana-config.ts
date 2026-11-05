@@ -13,6 +13,13 @@ export const ailanaConfig = {
   promptVersion: process.env.PROMPT_VERSION ?? 'mvp-1',
   expressiveMode: process.env.EXPRESSIVE_MODE !== 'false', // Enabled by default unless explicitly disabled
 
+  /**
+   * Section 0 (generic intent & fact capture). OFF unless SECTION_0_ENABLED=true.
+   * Off = today's demo build exactly. See Section0_GenericImplementationPlan.md §6.15.
+   * Getter so tests can toggle the env var at runtime.
+   */
+  get section0Enabled() { return process.env.SECTION_0_ENABLED === 'true'; },
+
   /** Compaction triggers — tuned for latency, not just 32k limit */
   compactEveryNTurns: envInt('AILANA_COMPACT_EVERY_N_TURNS', 6),
   compactEveryMs: envInt('AILANA_COMPACT_EVERY_MS', 3 * 60 * 1000),

@@ -18,7 +18,7 @@
 
 | Part | What it checks | Needs (plan task) | Status |
 | :---: | :--- | :--- | :---: |
-| **0** | Localhost setup + flag on/off | S0-03 | 🔴 |
+| **0** | Localhost setup + flag on/off | S0-03 ✅ built | 🟢 0.6 passed (Nov 5) |
 | **1** | Code checks + unit tests | S0-09 … S0-21 | 🔴 |
 | **2** | Opening: greeting, card highlights, mic off, consent | S0-24 … S0-26 | 🔴 |
 | **3** | Routing: clear / unclear / clarify / two goals / holdouts / out of scope | S0-15 … S0-18 | 🔴 |
@@ -29,7 +29,7 @@
 | **8** | David's 30 prospect replies (voice + typed) | All of Phase 3–4 | 🔴 |
 | **9** | Track regression: Purchase, Refi, HELOC, HEQ unchanged | S0-19 | 🔴 |
 | **10** | Flag-off parity (demo build unchanged) | S0-03, S0-19 | 🔴 |
-| **11** | LiveKit text simulations (the official measure) | S0-04, S0-05, S0-08 | 🔴 |
+| **11** | LiveKit text simulations (the official measure) | S0-05 ✅ · S0-04 ✅ · S0-07 baseline · S0-08 | 🟢 spike passed (11.0) · 🟡 baseline ready to run (11.0b) |
 
 Status: 🔴 not run · 🟡 partial / failing · 🟢 passing
 
@@ -95,6 +95,25 @@ These log tags are part of the build (S0-10 … S0-28). If a tag never appears, 
 - **Any compliance Fail blocks sign-off** until fixed and retested.
 
 Run every conversation test **twice: once by voice, once typed** (Chat channel) — numbers parse differently.
+
+### 0.6 Phase 0 check — nothing changed for users (run now)
+
+Phase 0 only added a flag and simulation plumbing, so the app must behave **exactly** like before.
+
+1. Make sure `backend/.env` has **no** `SECTION_0_ENABLED` line (or `SECTION_0_ENABLED=false`).
+2. Stay on the `dev` branch (all Section 0 work is on `dev`, behind the flag), then start both servers (0.2).
+3. Run one normal Purchase conversation with the avatar to the Stage 2 closing offer.
+
+**Pass when**
+
+- [ ] Avatar connects and greets as before (old greeting is expected in Phase 0).
+- [ ] The conversation behaves exactly as it did before Phase 0 (same questions, same order, same panel).
+- [ ] The backend log contains **no** `[simulation]` lines (they only appear under `lk agent simulate`).
+- [ ] In `backend/`: `npx tsc --noEmit` → 0 errors, and `npm test` → `ALL 17 CONVERGENTAI UNIT & INTEGRATION TEST SUITES PASSED`.
+
+| Date | Tester | Result | Notes |
+| :--- | :--- | :---: | :--- |
+| Nov 5, 2026 | Sohail | 🟢 Pass | Purchase conversation (voice) on `dev` with flag off: old greeting; Stage 1 (goal → occupancy → relationship → timeline → co-borrower) and Stage 2 (income → debt → credit → down payment → rent/own → realtor → price → property type + zip → military → job tenure) in the same order as before, then the Stage 2 closing offer. Behaves as before Phase 0. Backend log not yet checked for `[simulation]` lines (expected: none). |
 
 ---
 
@@ -345,17 +364,83 @@ With `SECTION_0_ENABLED=true`, give **only the goal** in the first reply (no ext
 
 ## Part 11 — LiveKit text simulations (the official measure)
 
-Manual tests find problems; **simulations decide pass/fail** for David. Run from `backend/` once S0-04 and S0-05 are done:
+Manual tests find problems; **simulations decide pass/fail** for David.
+
+### 11.0 Spike (S0-04) — prove simulations work with our Node agent (run now)
+
+This is a one-time check before we rely on simulations. It uses `backend/scenarios/spike.yaml` (2 small scenarios — **not** David's approved set).
+
+1. **Install the LiveKit CLI** (v2.19.0 or later) — Windows: `winget install LiveKit.LiveKitCLI` (or see LiveKit's CLI install page). Check: `lk --version`.
+   > **"`lk` is not recognized" after installing?** The installer adds `lk` to your PATH, but terminals that were already open don't see it. Fix: **close VS Code completely and reopen it** (its terminals inherit the old PATH), or open a brand-new PowerShell window. Or refresh the current PowerShell session:
+   > ```powershell
+   > $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+   > lk --version
+   > ```
+2. **Log in once:** `lk cloud auth` → a browser opens → sign in and pick the ConvergentAI LiveKit Cloud project → back in the terminal, wait for the success message. Check with `lk project list` — it must show the project (marked default).
+   > **"api-key is required"** when running a simulation = this step isn't done (`lk project list` says "No projects configured").
+3. **Check how the CLI wants to start a Node agent:** `lk agent simulate text --help` (note any "entrypoint" argument).
+4. **Build, then run the spike** from `backend/` (keep `backend/.env` as for localhost):
+
+   ```bash
+   cd backend
+   npm run build                                                        # compiles src/ → dist/
+   lk agent simulate text --scenarios scenarios/spike.yaml dist/agent.js
+   ```
+
+   - Our `package.json` has a `build` script, so the CLI **requires the entrypoint** at the end of the command — the compiled `dist/agent.js` (LiveKit's docs: "A Node.js project with a build script must name its entrypoint, such as dist/main.js"). Without it you get: *"you currently have a build task in your package.json, but no entrypoint was explicitly given"*.
+   - **Re-run `npm run build` after every code change** — the simulation runs the compiled code, not `src/`.
+
+   > The first run also installs LiveKit's agent skills and Docs MCP server for Claude Code (David's "Step 1") — that's expected.
+
+**Pass when**
+
+- [ ] Both scenarios run to the end (pass or fail is fine — we only need them to *run*).
+- [ ] The agent log shows `[simulation] ACTIVE`, then `[simulation] Session started and greeting fired.`
+- [ ] Ailana answers the simulated user's messages (look for `[agent-hook]: onUserTurnCompleted` — this proves our turn hooks run in text mode).
+- [ ] **No** LemonSlice, CRS or SIP activity in the log (no `LemonSlice API ping`, no `SIP Transfer initiated`).
+- [ ] At the end: `[simulation] END — simulator verdict: …` and `mock records: …`.
+
+**Send me:** the CLI output and the agent log (or the failure). If the spike fails, that's fine — it tells us what to fix before Phase 1.
+
+| Date | Tester | `lk --version` | Ran end-to-end? | Hooks fired? | Mocks only? | Notes |
+| :--- | :--- | :---: | :---: | :---: | :---: | :--- |
+| Nov 5, 2026 | Sohail | 2.19.3 ✅ | — | — | — | CLI installed via winget. `lk` not found in the already-open terminal (stale PATH) — restart VS Code / new terminal, then `lk cloud auth` and run the spike. |
+| Nov 5, 2026 | Sohail | 2.19.3 ✅ | ❌ not started | — | — | `lk` now found. First run installed LiveKit skills + Docs MCP, then stopped: **"api-key is required"** — no project configured (`lk cloud auth` not completed). Next: finish `lk cloud auth`, confirm with `lk project list`, re-run. |
+| Nov 5, 2026 | Sohail | 2.19.3 ✅ | ❌ not started | — | — | `lk cloud auth` done — project `convergentai` is default. Run stopped: *"build task in your package.json, but no entrypoint was explicitly given"*. Fix: `npm run build` then pass `dist/agent.js` (build verified OK). |
+| Nov 5, 2026 | Sohail | 2.19.3 ✅ | ✅ 2/2 passed (run `SR_sE8vs3QiXM3N`, 59 s) | ✅ (Stage 1 flow + 3 ms deterministic transfer reply) | ✅ (greeting fired with no frontend → simulation path) | **Spike PASSED.** Judge note: greeting "not the mandatory verbatim script" — caused by the old greeting line in the Stage 1 prompt (Section 0 fixes it). |
+
+### 11.0b Baseline run (S0-07) — today's build, before Section 0 (run now)
+
+Measures how often today's Ailana re-asks facts the prospect already gave. Uses `backend/scenarios/baseline_section0.yaml` — David's tests **#1, #2, #13, #30**, 3 samples each (12 conversations). **Most are expected to FAIL** — that's the point: it's the "before" number we improve on.
+
+```powershell
+cd backend
+npm run build
+lk agent simulate text --scenarios scenarios/baseline_section0.yaml --samples 3 --pass-rate 1.0 dist/agent.js
+```
+
+- Keep `SECTION_0_ENABLED` **unset/false** for this run.
+- When it finishes, copy the run ID (`SR_...`) from the first line and send it to me with the summary — I'll export the transcripts and write the baseline results (pass rate + failures by category).
+
+| Date | Tester | Run ID | Pass rate | Notes |
+| :--- | :--- | :--- | :---: | :--- |
+| | | | | |
+
+### 11.1 Full runs (after Phase 2 scenarios are approved)
+
+Run from `backend/`:
 
 ```bash
 lk --version                       # must be v2.19.0 or later
 lk cloud auth                      # once per machine
 
+npm run build                      # always rebuild first — simulations run dist/
+
 # Section 0 scenarios — 3 runs each, all 3 must pass
-lk agent simulate text --scenarios scenarios/section0.yaml --samples 3 --pass-rate 1.0
+lk agent simulate text --scenarios scenarios/section0.yaml --samples 3 --pass-rate 1.0 dist/agent.js
 
 # Track regression scenarios
-lk agent simulate text --scenarios scenarios/tracks_regression.yaml --samples 3 --pass-rate 1.0
+lk agent simulate text --scenarios scenarios/tracks_regression.yaml --samples 3 --pass-rate 1.0 dist/agent.js
 
 # Save a run
 lk agent simulate list

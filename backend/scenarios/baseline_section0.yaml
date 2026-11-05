@@ -1,0 +1,156 @@
+# S0-07 baseline — David's tests #1, #2, #13, #30 run on TODAY'S build (SECTION_0_ENABLED off).
+# Purpose: measure how often Ailana re-asks facts the prospect already gave, BEFORE Section 0 exists.
+# Expected: these mostly FAIL today. The Revised spec asks for exactly this run before building.
+# Not David's approved file (that will be section0.yaml). All people and numbers are invented.
+id: SCNG_section0_baseline
+name: Section 0 baseline (tests 1, 2, 13, 30)
+scenarios:
+  - id: SCN_s0_baseline_t01
+    label: "Baseline #1 — drove by a house, 84k, 1,200 debt, 710"
+    instructions: |
+      PERSONA: Jordan Ellis, a renter who wants to buy a home to live in (invented person).
+      OPENING LINE: "I just drove by a house that I like that I would like to have as my residence and I would like to see if I am eligible for a mortgage. I make 84,000 per year and have 1200.00 per month in debt and my credit score is 710."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Jordan
+      - you have never worked with this lender before
+      - you hope to buy within three months
+      - you are applying alone, no co-borrower
+      - you have 30,000 saved for a down payment
+      - you currently rent
+      - you don't have a real estate agent yet
+      - the house is listed at about 350,000
+      - it's a single-family home in Chattanooga, Tennessee, zip 37421
+      - no military service
+      - you've been salaried at the same employer for 6 years
+      - you will NOT give a street address; if asked, give only the city and zip
+      HOW TO ANSWER:
+      - If Ailana asks for something you already said in your opening line, answer it again briefly
+        and consistently (same numbers) — do not argue.
+      - Keep answers short and natural.
+      STOP: once Ailana has asked about your job tenure or offers you a choice between a credit review
+      and a summary, or after 14 of your replies — whichever comes first.
+    agent_expectations: >
+      Treats the goal as a home purchase for a primary residence without a separate confirmation
+      question. Never asks again for the caller's annual income, monthly debts, credit score, or
+      whether the home is their residence, because the caller stated $84,000 per year, $1,200 per
+      month in debts, a 710 credit score and that it will be their residence in the opening line.
+      Never asks for or repeats a street address. Does not quote an interest rate or payment and
+      does not promise approval.
+    tags:
+      feature: section0_baseline
+      test_set_id: "1"
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+
+  - id: SCN_s0_baseline_t02
+    label: "Baseline #2 — couple, Ooltewah, 52/hr, spouse 48k, 25k saved, 450 car"
+    instructions: |
+      PERSONA: Riley Morgan, a registered nurse buying a first home with her husband (invented person).
+      OPENING LINE: "My husband and I want to buy our first home around Ooltewah. I make about 52 an hour as an RN, he teaches and makes 48,000, we've saved around 25 thousand, and I have a 450 car payment."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Riley
+      - you work about 36 hours a week
+      - your credit score is about 720; your husband's is about 700
+      - you have never worked with this lender before
+      - you hope to buy within six months
+      - you currently rent
+      - you don't have a real estate agent yet
+      - target price around 300,000
+      - single-family home in Ooltewah, Tennessee, zip 37363
+      - no military service for either of you
+      - you've been at the hospital 5 years (hourly); he has taught 8 years (salaried)
+      HOW TO ANSWER:
+      - If Ailana asks for something you already said in your opening line, answer it again briefly
+        and consistently (same numbers) — do not argue.
+      - Keep answers short and natural.
+      STOP: once Ailana has asked about job tenure or offers you a choice between a credit review
+      and a summary, or after 14 of your replies — whichever comes first.
+    agent_expectations: >
+      Treats the goal as a home purchase. Records that the caller is applying jointly with a
+      co-borrower (her husband) and never asks again whether there is a co-borrower. Asks how many
+      hours a week she works instead of assuming 40 hours before treating her hourly pay as annual
+      income. Never asks again for the husband's $48,000 income, the $25,000 saved, the $450 monthly
+      car payment, or the Ooltewah area, because the caller already stated them. Does not quote an
+      interest rate or payment and does not promise approval.
+    tags:
+      feature: section0_baseline
+      test_set_id: "2"
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+
+  - id: SCN_s0_baseline_t13
+    label: "Baseline #13 — duplex near UTC, 68k, self-correction 3,000 → 300 debt"
+    instructions: |
+      PERSONA: Casey Brooks, buying a duplex to live in one side and rent the other (invented person).
+      OPENING LINE: "I want to buy a duplex near UTC, live in one side and rent the other. I make 68, the other unit would rent for about 1,300, and I have 3,000 a month in, wait, no, 300 a month in debt."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Casey
+      - your credit score is about 700
+      - you have 20,000 saved for a down payment
+      - you have never worked with this lender before
+      - you hope to buy within four months
+      - you are applying alone, no co-borrower
+      - you currently rent
+      - you don't have a real estate agent yet
+      - target price around 320,000
+      - the area is near UTC in Chattanooga, Tennessee, zip 37403
+      - no military service
+      - you've been salaried at the same employer for 3 years
+      HOW TO ANSWER:
+      - If Ailana asks for something you already said in your opening line, answer it again briefly
+        and consistently (your debt is 300 a month) — do not argue.
+      - Keep answers short and natural.
+      STOP: once Ailana has asked about job tenure or offers you a choice between a credit review
+      and a summary, or after 14 of your replies — whichever comes first.
+    agent_expectations: >
+      Treats the goal as a home purchase of a duplex the caller will live in. Uses $300 per month as
+      the caller's monthly debts (the caller corrected 3,000 to 300) and never states or uses $3,000.
+      Never asks again for the caller's $68,000 income, the monthly debts, whether they will live in
+      the home, the property type, or the area near UTC, because the caller already stated them.
+      Does not quote an interest rate or payment and does not promise approval.
+    tags:
+      feature: section0_baseline
+      test_set_id: "13"
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+
+  - id: SCN_s0_baseline_t30
+    label: "Baseline #30 — relocating from Atlanta, many facts"
+    instructions: |
+      PERSONA: Morgan Hayes, relocating with his wife and buying a home (invented person).
+      OPENING LINE: "We're relocating from Atlanta. My wife's a nurse at 85, I'm in sales, 60 base plus commission that was 40 last year but 25 the year before. Scores are 700 and 745. We have 55k saved but 15 is her 401k. We owe 900 on a car and 200 on a student loan. Oh, and we're keeping the Atlanta house, we owe 220 on it and plan to rent it."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Morgan
+      - you are moving to Chattanooga, Tennessee, zip 37421
+      - the Atlanta house should rent for about 2,100 a month
+      - the new home will be your primary residence
+      - you have never worked with this lender before
+      - you hope to buy within three months
+      - target price around 450,000
+      - single-family home
+      - you don't have a real estate agent yet
+      - no military service for either of you
+      - you've been in sales 6 years; your wife has been a nurse 9 years
+      HOW TO ANSWER:
+      - If Ailana asks for something you already said in your opening line, answer it again briefly
+        and consistently (same numbers) — do not argue.
+      - Keep answers short and natural.
+      STOP: once Ailana has asked about job tenure or offers you a choice between a credit review
+      and a summary, or after 16 of your replies — whichever comes first.
+    agent_expectations: >
+      Treats the goal as a home purchase with the caller's wife as co-borrower and never asks again
+      whether there is a co-borrower. Never asks again for either spouse's income, the credit scores
+      (700 and 745), the $55,000 saved, the monthly debts ($900 car and $200 student loan), or
+      whether they rent or own (they own the Atlanta home and are keeping it to rent out), because
+      the caller already stated them. Asks for things not yet stated, such as the destination city
+      or zip and the expected rent on the Atlanta home. Does not quote an interest rate or payment
+      and does not promise approval.
+    tags:
+      feature: section0_baseline
+      test_set_id: "30"
+    userdata:
+      expect_transfer: false
+      expect_booking: false

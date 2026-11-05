@@ -1,3 +1,5 @@
+import { isSimulationActive } from '../section0/sim-mocks.js';
+
 // Feature flag: Only enable database if DATABASE_URL is set and real
 const DATABASE_URL = process.env.DATABASE_URL || '';
 const IS_REAL_DATABASE = !!DATABASE_URL && !DATABASE_URL.includes('dummy');
@@ -44,6 +46,8 @@ process.on('beforeExit', async () => {
 
 // Helper to check if database is enabled
 export function isDatabaseEnabled(): boolean {
+  // Simulations never touch the database (Section 0 plan §7.3).
+  if (isSimulationActive()) return false;
   return !!prisma;
 }
 
