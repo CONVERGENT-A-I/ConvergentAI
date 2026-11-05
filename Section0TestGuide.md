@@ -29,7 +29,7 @@
 | **8** | David's 30 prospect replies (voice + typed) | All of Phase 3–4 | 🔴 |
 | **9** | Track regression: Purchase, Refi, HELOC, HEQ unchanged | S0-19 | 🔴 |
 | **10** | Flag-off parity (demo build unchanged) | S0-03, S0-19 | 🔴 |
-| **11** | LiveKit text simulations (the official measure) | S0-05 ✅ · S0-04 ✅ · S0-07 baseline · S0-08 | 🟢 spike passed (11.0) · 🟡 baseline B1 0/12 done, B2 re-run next (11.0b) |
+| **11** | LiveKit text simulations (the official measure) | S0-05 ✅ · S0-04 ✅ · S0-07 baseline · S0-08 | 🟢 spike passed (11.0) · 🟡 B1/B2 invalid (harness bug, fixed) — **B3** next (11.0b) |
 
 Status: 🔴 not run · 🟡 partial / failing · 🟢 passing
 
@@ -432,6 +432,7 @@ lk agent simulate text --scenarios scenarios/baseline_section0.yaml --samples 3 
 | Date | Tester | Run ID | Pass rate | Notes |
 | :--- | :--- | :--- | :---: | :--- |
 | Nov 5, 2026 | Sohail | `SR_K5hDnwMfgu7H` (B1) | 0/12 (0/4 scenarios) | Expected fail. Re-asking in 12/12. 8/12 also stalled after Stage 1 — typed-input bug, **fixed** in `agent.ts`. Details: [Section0Results.md](Section0Results.md). **Re-run as B2** (same command, after `npm run build`). |
+| Nov 5, 2026 | Sohail | `SR_TfavTyVffBjH` (B2) | 0/12 (0/4 scenarios) | ⚠️ **B1 and B2 invalid:** the simulator sends messages via `session.run()`, which bypassed our state machine (Ailana improvised). **Fixed** in `agent.ts`. **Re-run as B3** — same command after `npm run build`. Expect our scripted Stage 1 → Stage 2 questions; re-asking still fails. |
 
 ### 11.1 Full runs (after Phase 2 scenarios are approved)
 

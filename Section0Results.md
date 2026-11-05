@@ -10,7 +10,21 @@
 
 | # | Date | Run ID | Build | Scenarios | Pass rate | pass@3 | pass^3 | Notes |
 | :---: | :--- | :--- | :--- | :--- | :---: | :---: | :---: | :--- |
-| B1 | Nov 5, 2026 | `SR_K5hDnwMfgu7H` | `dev`, Section 0 **off** (demo build) | Baseline: David's tests #1, #2, #13, #30 | **0 / 12 (0%)** | 0/4 | 0/4 | Valid for *re-asking*; the *stalled-flow* failures were partly caused by a typed-input bug, since fixed (see below). Re-run as B2. |
+| B1 | Nov 5, 2026 | `SR_K5hDnwMfgu7H` | `dev`, Section 0 **off** (demo build) | Baseline: David's tests #1, #2, #13, #30 | **0 / 12 (0%)** | 0/4 | 0/4 | ⚠️ **Not a valid measure of our flow** — see "Simulation harness finding" below. |
+| B2 | Nov 5, 2026 | `SR_TfavTyVffBjH` | `dev`, Section 0 off, + typed-input fix | Same 4 tests | **0 / 12 (0%)** | 0/4 | 0/4 | ⚠️ Same problem as B1 — the typed-input fix doesn't touch the path simulations use. Re-run as **B3** after the harness fix. |
+
+### Simulation harness finding (Nov 5) — why B1 and B2 don't measure our real flow
+
+Reading the B2 transcripts showed Ailana asking questions in **our** wording through Stage 1 but **not** in Stage 2 ("total annual gross income", down payment before credit — not our scripts or order). Root cause, confirmed in the SDK source (`voice/remote_session.js → handleRunInput`):
+
+- The simulator delivers each simulated-user message by calling **`session.run({ userInput })`** directly.
+- That path skips **both** `onUserTurnCompleted` (voice turns) **and** our typed-message handler (`lk.chat`).
+- So in B1/B2 our state machine **never processed a single user message**: no extraction, no stage change, no CURRENT TASK. Ailana improvised from the Stage 1 prompt — hence the stalls, the "I have everything I need", the invented login/verification steps and the non-scripted Stage 2.
+- Proven locally: feeding the same Stage 1 answers into the session state directly moves it to Stage 2 with the bridge on the co-borrower answer (repro script, Nov 5).
+
+**Fix (Nov 5, `agent.ts`):** any user turn that reaches `llmNode` without having been processed is now processed there exactly like a typed turn (state update + per-turn context). Voice and typed turns are marked as already processed, so **production behaviour is unchanged**; simulations now exercise the same state machine real users get. `tsc` clean, `npm test` 21/21.
+
+**B1/B2 conclusions that still stand:** compliance held (0 failures). The re-asking is real (also seen in the localhost voice test and in the code: Stage 1 extracts only 5 fields; Stage 2 extracts a number only when that question is pending) — B3 will measure it properly.
 
 ---
 
@@ -30,7 +44,7 @@
 | Rank | Category | Conversations affected | What happened | Cause | Fixed by |
 | :---: | :--- | :---: | :--- | :--- | :--- |
 | 1 | **Fact re-asked** (the core Section 0 problem) | **12 / 12** | Occupancy re-asked 6/6 where stated (#1, #13); co-borrower re-asked 6/6 where stated (#2, #30); income/debt/savings re-asked in **4/4** conversations that reached Stage 2. | Stage 1 only extracts 5 fields; Stage 2 only extracts a number while that exact question is being asked — everything else in the opening is dropped. | Section 0 Fact Ledger + ledger→profile sync (S0-09 … S0-14) |
-| 2 | **Stalled flow after Stage 1** | **8 / 12** | After the co-borrower answer Ailana said "I have all the initial details" and never asked income — then looped on "waiting for the system" (3/12) or improvised a flow (5/12). | **Bug in typed input (not Section 0):** typed messages go through `session.generateReply()`, which skips `onUserTurnCompleted`, so Ailana never received her per-turn CURRENT TASK / bridge context. Spoken turns were fine (the localhost voice test in Part 0.6 progressed normally). Affects simulations **and real users who type during a voice/video session**. | **Fixed Nov 5** in `agent.ts` (typed turns now get the same per-turn context). Verify with run B2. |
+| 2 | **Stalled flow after Stage 1** | **8 / 12** | After the co-borrower answer Ailana said "I have all the initial details" and never asked income — then looped on "waiting for the system" (3/12) or improvised a flow (5/12). | **Corrected after B2:** the simulator calls `session.run()` directly, so our state machine never processed the simulated messages (see "Simulation harness finding" above). *(A related real bug was also fixed: typed messages during a voice/video session skipped the per-turn context.)* | Harness fix Nov 5 (`agent.ts`) — verify with run B3. |
 | 3 | **Invented actions** | 6 / 12 | Claimed a secure-login prompt / one-time code was sent, offered to "resend" it, and to "flag a manual review" — none of which happened. | Side effect of #2: with no CURRENT TASK the model improvised the Stage 3A steps. | Should disappear with the #2 fix (check in B2). |
 | 4 | **Hourly pay — hours not asked** | 3 / 3 (#2) | Treated "$52 an hour" as known income without asking weekly hours. | No normaliser for hourly pay. | Section 0 normaliser (S0-11) |
 | 5 | **Next move missing** | 3 / 3 (#30) | Never asked the destination city/zip or expected rent on the retained Atlanta home. | Flow stalled (#2) and those facts have no field today. | #2 fix + Section 0 fact catalogue (S0-09) |
@@ -38,14 +52,13 @@
 | 7 | **Unneeded intent question** | 1 / 12 (#30) | Asked "are you looking to purchase a new home?" when relocating to buy was clear. | No routing layer. | Section 0 router (S0-16) |
 
 ### What this tells us
-- The **re-asking problem is real and universal** on today's build (12/12). This is exactly what Section 0's memory is for. This confirms the Revised spec's point: the stages need the no-repeat rule regardless of Section 0.
-- Separately, we found and fixed a **typed-input bug** that made 8/12 conversations stall. Because it inflated the failures, the baseline should be re-run (**B2**) so the "before" number reflects only what Section 0 is meant to fix.
+- **Superseded by the harness finding** — B1's transcripts were Ailana improvising without our state machine, so its numbers are not the real "before". Compliance held throughout. B3 is the valid baseline.
 
 ---
 
 ## Next run
 
-**B2 — re-run the same baseline with the typed-input fix** (Section 0 still off):
+**B3 — re-run the same baseline with the simulation-harness fix** (Section 0 still off). This is the first run that measures our real state machine:
 
 ```powershell
 cd backend
@@ -53,4 +66,4 @@ npm run build
 lk agent simulate text --scenarios scenarios/baseline_section0.yaml --samples 3 --pass-rate 1.0 dist/agent.js
 ```
 
-Expected: the stalled-flow and invented-action failures disappear; re-asking failures remain (still ~0% pass). That is the clean "before" number for David.
+Expected: Ailana follows our scripted Stage 1 → bridge → Stage 2 questions in our order (income, debts, credit, down payment…); the stalls and invented verification steps disappear; re-asking failures remain (still ~0% pass). That is the clean "before" number for David.

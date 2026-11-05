@@ -2,7 +2,7 @@
 
 **Project:** ConvergentAI · Ailana
 **Date:** November 5, 2026
-**Status:** 🟡 In progress — Phase 0 complete; Phase 1 baseline B1 done (0/12, see [Section0Results.md](Section0Results.md)), B2 re-run pending; Phase 3 building blocks done (143 unit tests), wiring next
+**Status:** 🟡 In progress — Phase 0 complete; Phase 1 baseline: B1/B2 invalid (simulator bypassed our state machine — fixed), **B3** pending (see [Section0Results.md](Section0Results.md)); Phase 3 building blocks done (143 unit tests), wiring next
 **Branch:** `dev` (team decision, Nov 5, 2026 — work directly on `dev` while the GitHub deploy actions are off; everything new stays behind `SECTION_0_ENABLED`, default off, so `dev` keeps behaving like the demo build. If the deploy actions are switched back on, re-check that the flag is off in the deployed env before pushing.)
 
 **Source documents (client: David Patten)**
@@ -29,6 +29,7 @@
 | Nov 5, 2026 | Phase 1 started — S0-07 | Baseline scenarios written: `backend/scenarios/baseline_section0.yaml` (David's tests #1, #2, #13, #30, run on today's build with the flag off). | **Yes** — Test Guide 11.0b (baseline run) |
 | Nov 5, 2026 | **Baseline B1 result** + typed-input fix | Run `SR_K5hDnwMfgu7H`: **0/12 passed (0/4 scenarios)**, 0 compliance failures. Fact re-asked in 12/12 (occupancy, co-borrower, income, debts, savings) — the core Section 0 problem. Also found a **typed-input bug** (not Section 0): typed turns go through `session.generateReply()`, which skips `onUserTurnCompleted`, so Ailana got no CURRENT TASK and stalled after Stage 1 in 8/12. **Fixed** in `agent.ts` (typed turns now pass the per-turn Layer 3 context as the reply's instructions); `tsc` clean, 17/17 suites pass. Write-up: [Section0Results.md](Section0Results.md). | **Yes** — re-run baseline as B2 (Test Guide 11.0b) |
 | Nov 5, 2026 | Phase 3 building blocks — S0-09, S0-10, S0-11, S0-16 (+ S0-21 module) | New pure modules in `backend/src/section0/` — **not wired into the live flow yet** (no behaviour change): `fact-schema.ts` (fixed fact keys, goal classes, intents, compliance flags, never-capture rule), `fact-ledger.ts` (memory: add / correct with history / declined / clarification / serialize-hydrate), `normalize.ts` (amounts & shorthand, income incl. hourly→ask hours, bi-weekly, monthly-by-nature; credit incl. "770s" and STT artifacts; down-payment %; plausibility), `router.ts` (pure routing: clear goal → track with no confirmation, one clarification max, never loops, holdouts, transfer/callback/resume), `safety-net.ts` (SSN incl. spoken/cut-off digits, street addresses, never logs the match; short TRID gate text). Unit tests: 30 + 44 + 35 + 34 = **143 pass**; added to `npm test` → **21/21 suites pass**; `tsc` clean. | **Yes** — Test Guide Part 1 (unit tests) |
+| Nov 5, 2026 | **Baseline B2** + simulation-harness fix | Run `SR_TfavTyVffBjH`: 0/12 again. Transcripts showed non-scripted Stage 2 wording/order → root cause found in the SDK: the simulator sends each message via `session.run({ userInput })`, which bypasses `onUserTurnCompleted` **and** our typed handler — our state machine never processed simulated messages, so **B1 and B2 did not measure our real flow**. **Fix** in `agent.ts`: any user turn reaching `llmNode` unprocessed is processed there like a typed turn (new shared `applyTurnContext()`; voice/typed turns marked processed → production unchanged). Local repro confirmed the state machine itself moves Stage 1 → 2 correctly. `tsc` clean, 21/21 suites. | **Yes** — re-run baseline as **B3** (Test Guide 11.0b) |
 
 ---
 
@@ -531,7 +532,7 @@ Effort: S ≈ ≤½ day · M ≈ 1–2 days · L ≈ 3+ days. Status: 🔴 not s
 | ID | Task | Done when | Effort | Status |
 | :--- | :--- | :--- | :---: | :---: |
 | S0-06 | `docs/section0/REVIEW.md` per David's Step 2 (flow today, where the LLM decides, multi-fact handling, conflicting prompts, compliance risks, ranked recommendations, mocks, what applies to later stages) | Lead engineer adds notes; sent to David | M | 🔴 |
-| S0-07 | Baseline: scenarios for tests #1, #2, #13, #30 on the current build (flag off), then all 30 → [Section0Results.md](Section0Results.md) (pass rate, pass@3/pass^3, failures by category) | Baseline number sent to David | M | 🟡 B1 done (0/12, typed-input bug found + fixed); B2 re-run pending |
+| S0-07 | Baseline: scenarios for tests #1, #2, #13, #30 on the current build (flag off), then all 30 → [Section0Results.md](Section0Results.md) (pass rate, pass@3/pass^3, failures by category) | Baseline number sent to David | M | 🟡 B1/B2 invalid (simulator bypassed our state machine — fixed); **B3** pending |
 
 ### Phase 2 — Scenarios for approval
 

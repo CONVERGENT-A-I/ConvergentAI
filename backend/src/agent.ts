@@ -169,6 +169,13 @@ class AilanaVoiceAgent extends voice.Agent {
   public onAgentTurnCallback: ((text: string) => Promise<void>) | null = null;
   private _stage2ClosingOfferDelivered = false;
   public activeFieldAtTurnStart: string | null = null;
+  /**
+   * True when the current user turn has already been processed (state updated +
+   * per-turn context applied) by onUserTurnCompleted (voice) or the typed-message
+   * handler. Turns that reach llmNode without it — e.g. LiveKit Agent Simulations,
+   * which call session.run({ userInput }) directly — are processed in llmNode.
+   */
+  public turnPrepared = false;
 
   constructor(
     options: voice.AgentOptions<any>,
@@ -201,12 +208,13 @@ class AilanaVoiceAgent extends voice.Agent {
       : Array.isArray(lastUserMsg?.content)
         ? lastUserMsg.content.join(' ')
         : '';
-    const userAskedQuestion = isQuestionOrCorrection(lastUserText) || (initialProfile as any).last_extracted_offer_val === 'explain';
+    let userAskedQuestion = isQuestionOrCorrection(lastUserText) || (initialProfile as any).last_extracted_offer_val === 'explain';
 
     // ── Ignore Historical Messages ──
     // If the session was just restored, the last user message is from the past.
     // We should not trigger any active intents or transitions based on it.
     if (lastUserMsg && (lastUserMsg as any).isRestored) {
+      this.turnPrepared = false;
       console.log(`[agent-hook]: Skipping intent processing for restored historical message: "${lastUserText}"`);
       return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
     }
@@ -218,10 +226,12 @@ class AilanaVoiceAgent extends voice.Agent {
              t.includes('the borrower has returned') ||
              t.includes('please say exactly:') ||
              t.includes('the application has been submitted to underwriting') ||
-             t.includes('the eligibility review has returned with status');
+             t.includes('the eligibility review has returned with status') ||
+             t.includes('accidentally interrupted you with a noise');
     };
 
     if (isSystemInjectedPrompt(lastUserText)) {
+      this.turnPrepared = false;
       console.log(`[agent-hook]: Skipping intent processing for system-injected prompt: "${lastUserText}"`);
       return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
     }
@@ -230,9 +240,26 @@ class AilanaVoiceAgent extends voice.Agent {
     // If the VAD triggered on pure noise and the STT transcribed nothing, stay silent.
     // This prevents noise from triggering fallbacks (e.g. military_rural fallback).
     if (!lastUserText.trim()) {
+      this.turnPrepared = false;
       console.log('[agent-hook]: Ignored empty user turn (likely background noise). Staying silent.');
       return createVerbatimStream('') as any;
     }
+
+    // ── Unprocessed user turn (e.g. LiveKit Agent Simulations) ──
+    // Voice turns are processed in onUserTurnCompleted and typed turns in the
+    // typed-message handler. A turn that arrives any other way — the simulator
+    // calls session.run({ userInput }) directly — would otherwise reach the LLM
+    // with no state update and no CURRENT TASK, so Ailana would improvise.
+    // Process it here, exactly like a typed turn, before any fast path reads state.
+    if (!this.turnPrepared) {
+      console.log(`[agent-hook]: User turn reached llmNode unprocessed (session.run / generateReply) — processing now: "${lastUserText.slice(0, 80)}"`);
+      this.activeFieldAtTurnStart = this.contextManager.getPendingField();
+      await this.contextManager.onUserTurn(lastUserText);
+      this.updateInstructionsCallback();
+      this.applyTurnContext(chatCtx);
+      userAskedQuestion = isQuestionOrCorrection(lastUserText) || (this.contextManager.getProfile() as any).last_extracted_offer_val === 'explain';
+    }
+    this.turnPrepared = false;
 
     // ── 0ms Verbal Submit Fast-Path (Stage 2.5) ──
     // Fires before LLM so the base LiveKit Inference model never produces a UI-redirect deflection.
@@ -1095,8 +1122,17 @@ class AilanaVoiceAgent extends voice.Agent {
 
     // ── Instructions update ───────────────────────────────────────────
     this.updateInstructionsCallback();
+    this.applyTurnContext(chatCtx);
+    this.turnPrepared = true;
+  }
 
-    // Update local mutable chatCtx copy to align the LLM prompt for the current generation
+  /**
+   * Put the current static instructions (Layer 1 + 2) at the head of this
+   * generation's chat context and the per-turn dynamic context (Layer 3:
+   * profile, CURRENT TASK, bridges) at its tail. Shared by voice turns
+   * (onUserTurnCompleted) and turns processed in llmNode (simulations).
+   */
+  private applyTurnContext(chatCtx: any): void {
     const staticInstructions = this.contextManager.getStaticInstructions();
     const systemItem = (chatCtx.items.find(
       (item: any) => item.type === 'message' && item.id === 'lk.agent_task.instructions'
@@ -2606,6 +2642,7 @@ PAUSE CONSTRAINTS:
           }
           await contextManager.onUserTurn(messageText);
           updateSessionInstructions();
+          if (vadAgent) vadAgent.turnPrepared = true; // already processed — llmNode must not process it again
           // generateReply() does NOT run onUserTurnCompleted, so the per-turn Layer 3
           // context (CURRENT TASK, bridge phrases, profile) that spoken turns get was
           // missing for typed turns — Ailana stalled after Stage 1 ("waiting for the
