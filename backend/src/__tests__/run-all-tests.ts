@@ -32,6 +32,7 @@ const testFiles = [
   'section0-safety-net.test.ts',
   // Section 0 — wiring: ledger → profile sync / no-repeat flow, and flag-off parity with the demo build
   'section0-sync.test.ts',
+  'section0-sim-checks.test.ts',
   'section0-flag-off.test.ts',
 ];
 

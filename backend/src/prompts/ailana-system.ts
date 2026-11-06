@@ -71,7 +71,7 @@ NO-REPEAT RULE (applies in every stage):
 - Never announce that you are going to ask about something that is already known.
 
 NAME USE:
-- The system asks for the borrower's first name once. Use it only where a scripted line already includes it — never add it anywhere else.` : '');
+- The system asks for the borrower's first name once. Scripted lines that contain the name (such as the closing offer and the mid-flow check-in) say it as written; do not add the name anywhere else.` : '');
 }
 
 import { buildStage2Instructions } from './stage2-prequalification.js';

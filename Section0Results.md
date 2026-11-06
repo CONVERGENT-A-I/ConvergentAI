@@ -16,6 +16,7 @@
 | B4 | Nov 6, 2026 | `SR_f7XRsUAt2c6z` | same as B3 + empty-reply diagnostic | Same 4 tests | **0 / 12 (0%)** | 0/4 | 0/4 | Diagnostic re-run (run by Claude). **Every** failure is re-asking (income, debts, credit, savings, area, rent/own); **0** "no response items" this time → that error is intermittent (occasional empty model reply); an `⚠️ EMPTY REPLY` log line now records it if it recurs. |
 | **S1** | Nov 6, 2026 | `SR_yViuDuagBYEd` | `dev`, Section 0 **ON** (memory + routing + no-repeat sync) | Same 4 tests | **6 / 12 (50%)** | 2/4 | 2/4 | First run with Section 0 on: 0% → 50%. **#2 and #13 pass 3/3.** #1 and #30 fail on specific, fixable gaps — see "Run S1" below. Fixes applied the same day → run **S2**. |
 | **S2** | Nov 6, 2026 | `SR_XGKzNfWQgAmV` | S1 + fixes (bridge, tenure from memory, situational follow-ups) | Same 4 tests, stop at the closing offer | **12 / 12 (100%)** | 4/4 | 4/4 | ✅ **Baseline set fully passes.** Nothing re-asked; hours asked before hourly pay; $300 correction kept; Atlanta rent asked; no rate or approval statements. Two judge notes, not failures — see "Run S2". |
+| **S3** | Nov 6, 2026 | `SR_4JB8GRpwAiwJ` + `SR_ntCPmjEHE2Ud` | S2 + track switching (S0-18) | Baseline 4 + proposed 2 (R-8 switch, question is not a switch) | **12 / 12 + 6 / 6 (100%)** | 6/6 | 6/6 | ✅ No regression; the track switch keeps every fact; a HELOC question does not switch the track. Judge notes: name in scripted lines; refinance fee wording in the existing Refi script (for David). |
 
 ---
 
@@ -93,6 +94,19 @@ Reading the B2 transcripts showed Ailana asking questions in **our** wording thr
 
 ---
 
+## Run S3 — 12/12 baseline + 6/6 track switching (Nov 6)
+
+- **Baseline (regression):** 12/12 again.
+- **R-8 switch (3/3):** Ailana accepted "actually I already own and want to refinance", carried on with refinance questions and did not re-ask income, debts, credit or name.
+- **Question is not a switch (3/3):** the HELOC question got a short answer, and she went back to the pending purchase question.
+- **Judge notes (not failures):**
+  1. The name appears in two scripted lines: the closing offer and the Refinance check-in ("…your refinance goals, Taylor"). Our Section 0 name rule now says these scripted lines keep the name. Whether to keep it is a question for David.
+  2. The existing Refinance script (`stage2-refinance.ts:48`) claims "no upfront government fees, no permanent mortgage insurance once you reach 20% equity". The judge calls this unqualified. It's outside Section 0, so it goes to David for compliance review, unchanged.
+
+**Next: Phase 2.** `backend/scenarios/section0.yaml` (47 scenarios) and `docs/section0/SCENARIOS_FOR_APPROVAL.md` are drafted for David's approval. A **preview run** (1 sample, not counted) is used to catch problems in the scenarios themselves. See Test Guide 11.1.
+
+---
+
 ## Run S2 — 12/12 (Nov 6)
 
 **Result: 12/12 (100%), pass^3 4/4.** Up from 6/12 in S1 and 0/12 in the B3/B4 baseline.
@@ -131,7 +145,7 @@ Two notes from the judge, neither of which failed a test:
 
 ## Next run
 
-**Next: run S3**: the baseline set (regression, must stay 12/12) plus the 2 proposed track-switching scenarios. Steps: Test Guide 11.0c.
+**Next:** send `docs/section0/SCENARIOS_FOR_APPROVAL.md` to David. Meanwhile, run the 1-sample **preview** of `section0.yaml` (Test Guide 11.1). The official Section 0 baseline is the first 3-sample run after David approves.
 
 Previous instruction kept for reference — **B3 — re-run the same baseline with the simulation-harness fix** (Section 0 still off):
 

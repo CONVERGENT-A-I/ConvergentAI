@@ -45,6 +45,7 @@ import { BackgroundVoiceCancellation } from '@livekit/noise-cancellation-node';
 import { logAffordabilityEvent } from './utils/affordability-audit.js';
 import type { SimulationContext } from '@livekit/agents';
 import { activateSimulation, getSimRecords, getSimUserdata, recordSimTransfer } from './section0/sim-mocks.js';
+import { checkExpectedFacts, type ExpectedFacts } from './section0/sim-checks.js';
 
 // Set only when this job runs under `lk agent simulate` — lets onSimulationEnd
 // inspect the final session state (Section 0 plan §7.3).
@@ -3417,6 +3418,20 @@ PAUSE CONSTRAINTS:
     }
     if (expectBooking && records.bookings.length > 1) {
       simCtx.fail(`Duplicate callback bookings (${records.bookings.length}); exactly one expected.`);
+    }
+    if (expectTransfer && records.transfers.length !== 1) {
+      simCtx.fail(`Expected exactly one transfer attempt, got ${records.transfers.length}.`);
+    }
+    if (expectBooking && records.bookings.length === 0) {
+      simCtx.fail('Expected one callback booking, but none was made.');
+    }
+
+    // Section 0: what Ailana stored must match what the borrower said (not just sound right).
+    const expected = userdata['expected_facts'] as ExpectedFacts | undefined;
+    if (expected && simContextManager) {
+      const misses = checkExpectedFacts(expected, simContextManager.getFactLedger(), simContextManager.getProfile());
+      console.log(`[simulation] END — expected_facts: ${misses.length ? misses.join(' · ') : 'all match ✅'}`);
+      if (misses.length) simCtx.fail(`Stored facts do not match what the borrower said: ${misses.join('; ')}`);
     }
   },
 });
