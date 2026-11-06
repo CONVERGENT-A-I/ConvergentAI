@@ -1,4 +1,4 @@
-import { routeSection0, initialSection0State, type Section0State } from '../section0/router.js';
+import { routeSection0, initialSection0State, trackSwitchFor, type Section0State } from '../section0/router.js';
 import type { GoalClass, Intent } from '../section0/fact-schema.js';
 
 console.log('🧪 Section 0 — router unit tests\n');
@@ -117,6 +117,26 @@ assert(route(null, 'asks_if_human').decision.kind === 'ai_disclosure', '"Are you
   const before = JSON.stringify(s);
   route('equity_unclear', 'states_goal_or_facts', s);
   assert(JSON.stringify(s) === before, 'router never mutates the input state');
+}
+
+// ── Track switching mid-flow (S0-18) ──
+{
+  const sw = (goal: GoalClass | null, currentTrack: any, extra: Record<string, unknown> = {}) =>
+    trackSwitchFor({ goal, intent: 'states_goal_or_facts', currentTrack, ...extra });
+  assert(JSON.stringify(sw('refinance', 'TT-PUR')) === '{"track":"TT-REF"}', 'purchase → "actually refinance" switches to TT-REF');
+  assert(JSON.stringify(sw('refinance_cash_out', 'TT-PUR')) === '{"track":"TT-REF","refinanceType":"cash_out"}', 'purchase → cash-out refinance carries the sub-type');
+  assert(sw('purchase', 'TT-REF')?.track === 'TT-PUR', 'refinance → purchase switches');
+  assert(sw('heloc', 'TT-REF')?.track === 'TT-HEL', 'refinance → HELOC switches');
+  assert(sw('purchase', 'TT-PUR') === null, 'same goal again → no switch');
+  assert(sw('refinance', 'TT-REF', { currentRefinanceType: 'cash_out' }) === null, 'plain "refinance" while in cash-out refi → no switch');
+  assert(JSON.stringify(sw('refinance_rate_term', 'TT-REF', { currentRefinanceType: 'cash_out' })) === '{"track":"TT-REF","refinanceType":"rate_term"}', 'cash-out → rate/term updates the sub-type');
+  assert(sw('home_equity_loan', 'TT-HEL') === null, 'line ↔ lump sum stays inside the equity flow (no switch)');
+  assert(sw('equity_unclear', 'TT-PUR') === null, 'unclear equity goal → no switch (code cannot decide)');
+  assert(sw('cash_out_unclear', 'TT-PUR') === null, 'unclear cash-out goal → no switch');
+  assert(sw('cash_out_unclear', 'TT-PUR', { refiKeepFirst: false })?.track === 'TT-REF', 'cash out + replace first mortgage → TT-REF');
+  assert(sw('construction', 'TT-PUR') === null && sw('out_of_scope', 'TT-PUR') === null && sw('unclear', 'TT-PUR') === null, 'holdouts / out of scope / unclear never switch');
+  assert(trackSwitchFor({ goal: 'refinance', intent: 'asks_question', currentTrack: 'TT-PUR' }) === null, 'a QUESTION about refinancing is not a switch');
+  assert(sw('refinance', null) === null && sw(null, 'TT-PUR') === null, 'no current track or no goal → no switch');
 }
 
 console.log(`\n✨ ALL ${total} SECTION 0 ROUTER TESTS PASSED!`);

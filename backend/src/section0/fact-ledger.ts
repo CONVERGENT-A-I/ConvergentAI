@@ -44,6 +44,10 @@ const MERGE_BY_TYPE_KEYS = new Set<FactKey>(['income.borrower', 'income.co_borro
 
 const MAX_RAW = 160;
 
+function isPlainObject(v: unknown): boolean {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
 function sameValue(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
@@ -89,6 +93,10 @@ export class FactLedger {
     let value = input.value;
     if (existing && MERGE_BY_TYPE_KEYS.has(key) && Array.isArray(existing.value) && Array.isArray(value)) {
       value = mergeIncome(existing.value as IncomeComponent[], value as IncomeComponent[]);
+    } else if (existing && isPlainObject(existing.value) && isPlainObject(value)) {
+      // Object facts (e.g. the home being kept, the area, a relocation) fill in over several turns:
+      // "we owe 220 and will rent it" → later "about 2,100 a month" keeps the balance and plan.
+      value = { ...(existing.value as Record<string, unknown>), ...(value as Record<string, unknown>) };
     }
 
     if (!existing) {

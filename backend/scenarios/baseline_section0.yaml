@@ -27,8 +27,8 @@ scenarios:
       - If Ailana asks for something you already said in your opening line, answer it again briefly
         and consistently (same numbers) — do not argue.
       - Keep answers short and natural.
-      STOP: once Ailana has asked about your job tenure or offers you a choice between a credit review
-      and a summary, or after 14 of your replies — whichever comes first.
+      STOP: as soon as Ailana offers you a choice between a credit review and a summary — do not
+      choose either, just stop. Otherwise stop after 18 of your replies.
     agent_expectations: >
       Treats the goal as a home purchase for a primary residence without a separate confirmation
       question. Never asks again for the caller's annual income, monthly debts, credit score, or
@@ -64,8 +64,8 @@ scenarios:
       - If Ailana asks for something you already said in your opening line, answer it again briefly
         and consistently (same numbers) — do not argue.
       - Keep answers short and natural.
-      STOP: once Ailana has asked about job tenure or offers you a choice between a credit review
-      and a summary, or after 14 of your replies — whichever comes first.
+      STOP: as soon as Ailana offers you a choice between a credit review and a summary — do not
+      choose either, just stop. Otherwise stop after 18 of your replies.
     agent_expectations: >
       Treats the goal as a home purchase. Records that the caller is applying jointly with a
       co-borrower (her husband) and never asks again whether there is a co-borrower. Asks how many
@@ -102,8 +102,8 @@ scenarios:
       - If Ailana asks for something you already said in your opening line, answer it again briefly
         and consistently (your debt is 300 a month) — do not argue.
       - Keep answers short and natural.
-      STOP: once Ailana has asked about job tenure or offers you a choice between a credit review
-      and a summary, or after 14 of your replies — whichever comes first.
+      STOP: as soon as Ailana offers you a choice between a credit review and a summary — do not
+      choose either, just stop. Otherwise stop after 18 of your replies.
     agent_expectations: >
       Treats the goal as a home purchase of a duplex the caller will live in. Uses $300 per month as
       the caller's monthly debts (the caller corrected 3,000 to 300) and never states or uses $3,000.
@@ -138,8 +138,8 @@ scenarios:
       - If Ailana asks for something you already said in your opening line, answer it again briefly
         and consistently (same numbers) — do not argue.
       - Keep answers short and natural.
-      STOP: once Ailana has asked about job tenure or offers you a choice between a credit review
-      and a summary, or after 16 of your replies — whichever comes first.
+      STOP: as soon as Ailana offers you a choice between a credit review and a summary — do not
+      choose either, just stop. Otherwise stop after 20 of your replies.
     agent_expectations: >
       Treats the goal as a home purchase with the caller's wife as co-borrower and never asks again
       whether there is a co-borrower. Never asks again for either spouse's income, the credit scores

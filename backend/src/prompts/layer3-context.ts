@@ -229,6 +229,8 @@ export interface Section0TurnExtras {
   knownFacts: string;
   /** CURRENT TASK chosen by the Section 0 router (stage "0" only). */
   section0Task?: string;
+  /** Stages ≥ 1: a task line built by code from what is already known (replaces the generic one). */
+  taskOverride?: string;
 }
 
 export function buildLayer3TurnContext(
@@ -458,7 +460,11 @@ export function buildLayer3TurnContext(
 
   // ── Stage transition bridge instruction ───────────────────────────────────
   let bridgeBlock = '';
-  if (profile.bridge_to_say === 'stage1_to_stage2') {
+  const financesAlreadyKnown = !!(profile.gross_annual_income_confirmed || profile.monthly_debt_confirmed || profile.credit_range_confirmed);
+  if (profile.bridge_to_say === 'stage1_to_stage2' && section0 && financesAlreadyKnown) {
+    // Section 0: some finances are already known — don't announce we're going to ask for them.
+    bridgeBlock = `\n\n*** MANDATORY TRANSITION — DO NOT SKIP ***\nYour response for this turn MUST follow this exact structure:\n1. One brief sentence acknowledging what the borrower just said.\n2. Then say this transition phrase VERBATIM:\n"That gives me a great starting point. I just need a few more details so I can map out the loan programs that may be most relevant to your situation."\n3. Then immediately ask for ${pendingField} — and nothing listed in KNOWN FACTS.`;
+  } else if (profile.bridge_to_say === 'stage1_to_stage2') {
     bridgeBlock = `\n\n*** MANDATORY TRANSITION — DO NOT SKIP ***\nYour response for this turn MUST follow this exact structure:\n1. One brief sentence acknowledging what the borrower just said (e.g. "Got it." or "Understood, thank you.").\n2. Then say the following transition phrase VERBATIM, word-for-word:\n"That gives me a great starting point. Now I would like to spend a few minutes exploring your financial picture — income, current debts, credit profile, and a few other details — so I can map out the loan programs that may be most relevant to your situation."\n3. Then immediately ask for ${pendingField}.\nDo NOT skip this transition regardless of what the borrower just said. Do NOT replace the verbatim phrase with your own words.`;
   } else if (profile.bridge_to_say === 'stage2_to_stage3') {
     bridgeBlock = `\n\n*** MANDATORY TRANSITION — DO NOT SKIP ***\nYour response for this turn MUST follow this exact structure:\n1. One brief sentence acknowledging what the borrower just said.\n2. Then say the following transition phrase VERBATIM, word-for-word:\n"Based on what you have shared, I can walk you through the loan programs that may be most relevant to your situation and answer any questions you have about the process."\nDo NOT skip this transition regardless of what the borrower just said. Do NOT replace the verbatim phrase with your own words.`;
@@ -593,6 +599,8 @@ Do NOT ask them to read the code out loud. Do NOT ask for anything else. Wait fo
       // In Section 0 the router (code) chooses the task; the field-based task line doesn't apply.
       taskLine = section0.section0Task ?? '';
       circleBackInstruction = '';
+    } else if (section0.taskOverride) {
+      taskLine = section0.taskOverride;
     }
     if (section0.knownFacts) blocks.push(section0.knownFacts);
   }

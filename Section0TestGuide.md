@@ -21,7 +21,7 @@
 | **0** | Localhost setup + flag on/off | S0-03 ✅ built | 🟢 0.6 passed (Nov 5) |
 | **1** | Code checks + unit tests | S0-09 … S0-21 | 🟢 all 6 files ready & passing (Nov 6) |
 | **2** | Opening: greeting, card highlights, mic off, consent | S0-24 … S0-26 | 🔴 |
-| **3** | Routing: clear / unclear / clarify / two goals / holdouts / out of scope | S0-15 … S0-18 | 🟡 testable with the flag on (track switching R-8 not built yet) |
+| **3** | Routing: clear / unclear / clarify / two goals / holdouts / out of scope | S0-15 … S0-18 | 🟡 testable with the flag on (incl. track switching R-8) |
 | **4** | Fact capture: multi-fact, corrections, ambiguity | S0-11 … S0-13 | 🟡 testable with the flag on |
 | **5** | **Memory across the whole flow** (no re-asking anywhere) | S0-13, S0-14, S0-20 | 🟡 testable with the flag on (DB resume not built yet) |
 | **6** | Compliance traps | S0-21 … S0-23 | 🔴 |
@@ -29,7 +29,7 @@
 | **8** | David's 30 prospect replies (voice + typed) | All of Phase 3–4 | 🔴 |
 | **9** | Track regression: Purchase, Refi, HELOC, HEQ unchanged | S0-19 | 🔴 |
 | **10** | Flag-off parity (demo build unchanged) | S0-03, S0-19 | 🟢 automated: `section0-flag-off` 23/23 (prompts byte-identical) |
-| **11** | LiveKit text simulations (the official measure) | S0-05 ✅ · S0-04 ✅ · S0-07 baseline · S0-08 | 🟢 spike (11.0) · 🟢 baseline B3/B4 = 0/12 (11.0b) · 🟡 **first run with Section 0 ON next (11.0c)** |
+| **11** | LiveKit text simulations (the official measure) | S0-05 ✅ · S0-04 ✅ · S0-07 baseline · S0-08 | 🟢 spike (11.0) · 🟢 baseline B3/B4 = 0/12 (11.0b) · 🟢 S2 (Section 0 ON) = 12/12 · **S3 next (11.0c)** |
 
 Status: 🔴 not run · 🟡 partial / failing · 🟢 passing
 
@@ -437,7 +437,7 @@ lk agent simulate text --scenarios scenarios/baseline_section0.yaml --samples 3 
 | Nov 6, 2026 | Sohail | `SR_wDGZ27nXmCJ7` (B3) | 0/12 (0/4) | ✅ **First valid baseline.** Our scripted flow runs. Stage 1 facts already skipped; Stage 2 facts re-asked 12/12. 5/12 "no response items" (intermittent). |
 | Nov 6, 2026 | Claude | `SR_f7XRsUAt2c6z` (B4) | 0/12 (0/4) | Diagnostic re-run: every failure is re-asking; "no response items" did not recur. **This is the "before" number.** |
 
-### 11.0c First simulation with Section 0 ON (run now)
+### 11.0c Simulations with Section 0 ON — S1, S2 done, **run S3 now**
 
 Same 4 tests (#1, #2, #13, #30), now with Section 0 memory, routing and the no-repeat sync switched on. PowerShell, from `backend/`:
 
@@ -462,9 +462,27 @@ Send me the run ID (`SR_...`) — I'll export it and write it up as run **S1** i
 
 | Date | Tester | Run ID | Pass rate | Notes |
 | :--- | :--- | :--- | :---: | :--- |
-| | | | | |
+| Nov 6, 2026 | Team | `SR_yViuDuagBYEd` (S1) | 6/12 (2/4) | #2 and #13 pass 3/3. #1 failed on the bridge line (announced income/debts/credit again). #30 failed on job tenure re-asking pay type plus no Atlanta-rent question. All fixed → S2. |
+| Nov 6, 2026 | Team | `SR_XGKzNfWQgAmV` (S2) | **12/12 (4/4)** | All pass. Judge notes (not failures): name in the demo closing script; the short acknowledgment is sometimes skipped. |
+| | | (S3 baseline) | | |
+| | | (S3 proposed) | | |
 
-**Localhost (optional):** with `SECTION_0_ENABLED=true` in `backend/.env`, restart the backend and try Parts 3–5 in **Text chat**. Not built yet: new greeting & cards (Part 2), the spoken TRID gate (Part 6 — the SSN / address *is* already removed before anything is stored), callback booking (Part 7), track switching (R-8). Remove the line again afterwards.
+**S3 (run now):** two commands from `backend/`, with the flag on:
+
+```powershell
+npm run build
+$env:SECTION_0_ENABLED = "true"
+lk agent simulate text --scenarios scenarios/baseline_section0.yaml --samples 3 --pass-rate 1.0 dist/agent.js
+lk agent simulate text --scenarios scenarios/scenarios_proposed.yaml --samples 3 --pass-rate 1.0 dist/agent.js
+Remove-Item Env:SECTION_0_ENABLED
+```
+
+Expect:
+- **Baseline:** still 12/12. This is the regression check.
+- **R-8 (switch):** after "Actually, wait — I already own my home… refinance", Ailana acknowledges the change in one phrase and continues as a refinance. Name, income, debts and credit are not re-asked. No purchase questions follow (price, down payment, rent/own, realtor).
+- **Question ≠ switch:** "could I take out a home equity line later?" gets a short answer, then the purchase questions continue.
+
+**Localhost (optional):** with `SECTION_0_ENABLED=true` in `backend/.env`, restart the backend and try Parts 3–5 in **Text chat**. Not built yet: new greeting & cards (Part 2), the spoken TRID gate (Part 6 — the SSN / address *is* already removed before anything is stored), callback booking (Part 7). Remove the line again afterwards.
 
 ### 11.1 Full runs (after Phase 2 scenarios are approved)
 

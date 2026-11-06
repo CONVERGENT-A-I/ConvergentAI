@@ -171,3 +171,42 @@ function routeEquity(state: Section0State, equityFixed: boolean | null, answerQu
   if (equityFixed === false) return setTrack(state, 'TT-HEL', answerQuestion);
   return clarifyOnce(state, 'heloc_vs_heq', answerQuestion);
 }
+
+// ── Track switching mid-flow (plan §6.9, S0-18) ─────────────────────────────
+
+export interface TrackSwitch { track: Track; refinanceType?: 'cash_out' | 'rate_term' }
+
+/**
+ * After the track is set, the borrower states a different goal ("actually I already
+ * own and want to refinance"). Returns the new track when the new goal maps to one
+ * clearly and it differs from the current track (or refines the refinance type);
+ * otherwise null. Pure: uses the same goal → track mapping as `routeSection0`.
+ * Unclear goals, holdouts and questions never switch the track.
+ */
+export function trackSwitchFor(input: {
+  goal: GoalClass | null;
+  intent: Intent;
+  refiKeepFirst?: boolean | null;
+  equityFixed?: boolean | null;
+  currentTrack: Track | null;
+  currentRefinanceType?: 'cash_out' | 'rate_term' | null;
+}): TrackSwitch | null {
+  if (!input.goal || !input.currentTrack) return null;
+  if (input.intent !== 'states_goal_or_facts') return null; // a question about another product is not a switch
+  // Line vs lump sum is already handled inside the equity flow — never a "switch".
+  const equity = (t: Track) => t === 'TT-HEL' || t === 'TT-HEQ';
+  const out = routeSection0({
+    goal: input.goal,
+    refiKeepFirst: input.refiKeepFirst ?? null,
+    equityFixed: input.equityFixed ?? null,
+    intent: input.intent,
+    state: { ...initialSection0State(), intentAsked: true },
+  });
+  if (out.decision.kind !== 'set_track') return null;
+  const { track, refinanceType } = out.decision;
+  if (track === input.currentTrack || (equity(track) && equity(input.currentTrack))) {
+    if (track === 'TT-REF' && refinanceType && refinanceType !== input.currentRefinanceType) return { track, refinanceType };
+    return null;
+  }
+  return refinanceType ? { track, refinanceType } : { track };
+}

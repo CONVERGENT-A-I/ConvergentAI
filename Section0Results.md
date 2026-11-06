@@ -14,6 +14,8 @@
 | B2 | Nov 5, 2026 | `SR_TfavTyVffBjH` | `dev`, Section 0 off, + typed-input fix | Same 4 tests | **0 / 12 (0%)** | 0/4 | 0/4 | ⚠️ Same problem as B1 — the typed-input fix doesn't touch the path simulations use. Re-run as **B3** after the harness fix. |
 | **B3** | Nov 6, 2026 | `SR_wDGZ27nXmCJ7` | `dev`, Section 0 off, + harness fix | Same 4 tests | **0 / 12 (0%)** | 0/4 | 0/4 | ✅ **First valid baseline** — Ailana follows our scripted flow. Details below. 5/12 hit "agent produced no response items" (investigating). |
 | B4 | Nov 6, 2026 | `SR_f7XRsUAt2c6z` | same as B3 + empty-reply diagnostic | Same 4 tests | **0 / 12 (0%)** | 0/4 | 0/4 | Diagnostic re-run (run by Claude). **Every** failure is re-asking (income, debts, credit, savings, area, rent/own); **0** "no response items" this time → that error is intermittent (occasional empty model reply); an `⚠️ EMPTY REPLY` log line now records it if it recurs. |
+| **S1** | Nov 6, 2026 | `SR_yViuDuagBYEd` | `dev`, Section 0 **ON** (memory + routing + no-repeat sync) | Same 4 tests | **6 / 12 (50%)** | 2/4 | 2/4 | First run with Section 0 on: 0% → 50%. **#2 and #13 pass 3/3.** #1 and #30 fail on specific, fixable gaps — see "Run S1" below. Fixes applied the same day → run **S2**. |
+| **S2** | Nov 6, 2026 | `SR_XGKzNfWQgAmV` | S1 + fixes (bridge, tenure from memory, situational follow-ups) | Same 4 tests, stop at the closing offer | **12 / 12 (100%)** | 4/4 | 4/4 | ✅ **Baseline set fully passes.** Nothing re-asked; hours asked before hourly pay; $300 correction kept; Atlanta rent asked; no rate or approval statements. Two judge notes, not failures — see "Run S2". |
 
 ---
 
@@ -91,9 +93,45 @@ Reading the B2 transcripts showed Ailana asking questions in **our** wording thr
 
 ---
 
+## Run S2 — 12/12 (Nov 6)
+
+**Result: 12/12 (100%), pass^3 4/4.** Up from 6/12 in S1 and 0/12 in the B3/B4 baseline.
+
+Two notes from the judge, neither of which failed a test:
+1. **Name in the closing offer** ("Great work exploring your numbers, Casey"). This is the demo build's verbatim closing script (`agent.ts`, `STAGE2_CLOSING_OFFER_SCRIPT`), and our name rule allows names only in scripted lines. The closing offer belongs to Stage 2, after Section 0, so I left it unchanged. **Question for David:** keep the name in the closing script, or drop it?
+2. **A few turns skip the short acknowledgment** before the next question: once after a price answer in #13, and once after a location answer in #30. The model doesn't always follow the existing "opening sentence" rule. I'll watch this on the full scenario set rather than add prompt rules now.
+
+**Next:** S0-18 (track switching) is built, with two proposed scenarios in `scenarios_proposed.yaml`. Run **S3** = baseline (regression) + proposed. Steps: Test Guide 11.0c.
+
+---
+
+## Run S1 — first run with Section 0 ON (Nov 6)
+
+**Result: 6/12 (50%)**, up from 0/12 in the B3/B4 baseline. No compliance failures: no rates, no approval promises, no SSN or address requests.
+
+| Test | Result | What happened |
+| :--- | :---: | :--- |
+| #2 hourly pay + spouse | ✅ 3/3 | Asked hours per week before using the hourly pay; spouse income, $25k, $450 car and Ooltewah were not re-asked. |
+| #13 duplex, $3,000→$300 correction | ✅ 3/3 | $300 kept; duplex, occupancy and area were not re-asked. |
+| #1 primary home, $84k, 710 | ❌ 0/3 | Facts were not re-asked. The **only** failure was the Stage 1→2 bridge line ("…ask about your income, current debts, credit profile…"), which announces questions about things the borrower had already told her. The judge counted it as re-asking. |
+| #30 relocating from Atlanta | ❌ 0/3 | (a) The job-tenure question re-asked how they are paid ("salaried, hourly, or self-employed?"), though both incomes were already known. (b) She never asked the expected rent on the Atlanta house she is keeping. |
+
+**Fixes (same day, behind the flag, no prompt rules for specific phrasings):**
+1. **Bridge** — when finances are already known, the flag-on bridge says only "That gives me a great starting point. I just need a few more details…". Layer 1 also adds: "Never announce that you are going to ask about something already known."
+2. **Job tenure from memory** — code builds the question from the ledger. If the pay type is known it asks only "how long", for each borrower when there is a co-borrower. Used in the normal flow and the military fast path.
+3. **Situational follow-ups** — a short code list of facts that only matter in some situations, asked once just before the closing offer: the expected rent on a home being kept, and current rental income. Asked only when the situation applies and the value is missing; "not sure" moves on and the question is never repeated.
+4. **Object facts fill in over turns** — "we owe 220 and will rent it" followed later by "about 2,100" keeps all three values.
+5. **Name use** — the first name is used only where a scripted line includes it (the judge noted overuse).
+
+**Scenario change (our baseline file, not David's approved file):** the simulated borrower used to stop once job tenure was asked, which ended the conversation before the new follow-up. Every scenario now stops when Ailana offers the credit-review-or-summary choice, and the borrower doesn't choose. Stage 2.5 is out of Section 0 scope. Turn caps were raised by 4 to fit. The pass criteria are unchanged.
+
+**Checks:** `section0-sync` 38 → 50 tests (bridge wording, tenure-only question, rent follow-up asked once and merged, "not sure" moves on). Full `npm test` 23/23 suites; flag-off parity 23/23; `tsc` clean.
+
+---
+
 ## Next run
 
-*(B3 and B4 done — see above.)* **Next: run S1 — the same 4 tests with `SECTION_0_ENABLED=true`** (Section 0 memory, routing and no-repeat sync wired Nov 6). Steps: Test Guide 11.0c.
+**Next: run S3**: the baseline set (regression, must stay 12/12) plus the 2 proposed track-switching scenarios. Steps: Test Guide 11.0c.
 
 Previous instruction kept for reference — **B3 — re-run the same baseline with the simulation-harness fix** (Section 0 still off):
 

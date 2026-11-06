@@ -185,4 +185,127 @@ async function turn(cm: SessionContextManager, e: UniversalExtraction) {
   assert(/Funds available: \$55,000/.test(cm2.getDynamicContext()), 'KNOWN FACTS after reconnect still lists the funds');
 }
 
+// ── 9. S1 fix: the Stage 1→2 bridge must not announce finances that are already known (#1) ──
+{
+  const cm = newManager();
+  await turn(cm, ex({
+    goal: 'purchase',
+    facts: [
+      { key: 'occupancy', value: 'primary', raw: '' },
+      { key: 'income.borrower', value: [{ type: 'salary', amount: 84000, frequency: 'yearly' }], raw: '' },
+      { key: 'debt.monthly_total', value: 1200, raw: '' },
+      { key: 'credit.borrower', value: '710', raw: '' },
+    ],
+  }));
+  await turn(cm, ex({ facts: [{ key: 'borrower.first_name', value: 'Jordan', raw: '' }] }));
+  await turn(cm, ex({ facts: [{ key: 'borrower.existing_member', value: false, raw: '' }] }));
+  await turn(cm, ex({ facts: [{ key: 'timeline', value: 'three months', raw: '' }] }));
+  await turn(cm, ex({ facts: [{ key: 'co_borrower.present', value: false, raw: '' }] }));
+  const ctx = cm.getDynamicContext();
+  assert(cm.getProfile().bridge_to_say === 'stage1_to_stage2' && /I just need a few more details/.test(ctx), 'bridge uses the "few more details" wording');
+  assert(!/income, current debts, credit profile/.test(ctx), 'bridge does NOT announce income/debts/credit again');
+}
+
+// ── 10. S1 fix: job tenure asks only what's missing; retained-home rent asked once before the closing offer (#30) ──
+{
+  const cm = newManager();
+  await turn(cm, ex({
+    goal: 'purchase',
+    facts: [
+      { key: 'co_borrower.present', value: true, raw: 'my wife' },
+      { key: 'income.borrower', value: [{ type: 'salary', amount: 60, frequency: 'yearly' }, { type: 'commission', amount: 40, frequency: 'yearly', variable: true }], raw: '' },
+      { key: 'income.co_borrower', value: [{ type: 'salary', amount: 85, frequency: 'yearly' }], raw: '' },
+      { key: 'credit.borrower', value: '700', raw: '' },
+      { key: 'funds.total', value: 55000, raw: '' },
+      { key: 'debt.monthly_total', value: 1100, raw: '' },
+      { key: 'housing.current', value: 'own_keeping', raw: '' },
+      { key: 'housing.retained_home', value: { balance: 220, plan: 'rent' }, raw: 'keeping the Atlanta house' },
+    ],
+  }));
+  const p = cm.getProfile();
+  assert(p.gross_annual_income === 185000, 'household income $185,000 (both spouses, commission included)');
+  // Walk to the end of Stage 2 (only the still-missing items)
+  for (const f of [
+    { key: 'borrower.first_name', value: 'Morgan' }, { key: 'occupancy', value: 'primary' }, { key: 'borrower.existing_member', value: false },
+    { key: 'timeline', value: 'three months' }, { key: 'purchase.price', value: 450 },
+    { key: 'property.type', value: 'single_family' }, { key: 'location.area', value: { city: 'Chattanooga', state: 'TN', zip: '37421' } },
+    { key: 'military.status', value: 'none' },
+  ] as const) {
+    await turn(cm, ex({ facts: [{ key: f.key as any, value: f.value, raw: '' }] }));
+  }
+  // realtor_status is still a Stage 2 question (not stated) — answer it as the track normally would
+  if (cm.getPendingField() === 'realtor_status') { cm.getProfile().realtor_status = 'no'; cm.getProfile().realtor_status_confirmed = true; quietly(() => cm.advanceWorkflow()); }
+  assert(cm.getPendingField() === 'job_tenure_type', 'reaches job tenure', cm.getPendingField());
+  assert(/How long have each of you been in your current line of work\?/.test(cm.getDynamicContext()), 'job tenure question asks ONLY how long (pay type already known)');
+  assert(!/salaried, hourly, or self-employed/.test(cm.getDynamicContext()), 'does not re-ask how they are paid');
+
+  cm.getProfile().job_tenure_type = '6 years sales; 9 years nurse'; cm.getProfile().job_tenure_type_confirmed = true;
+  quietly(() => cm.advanceWorkflow());
+  assert(cm.getPendingField() === 'section0_followup', 'before the closing offer: a follow-up is needed', cm.getPendingField());
+  assert(/rent for each month/.test(cm.getDynamicContext()), 'follow-up asks the expected rent on the home they are keeping');
+  await quietlyAsync(() => cm.onAgentTurn('How much do you expect the Atlanta home to rent for each month?'));
+  await turn(cm, ex({ facts: [{ key: 'housing.retained_home', value: { expected_rent: 2100 }, raw: 'about 2,100' }] }));
+  const kept = cm.getFactLedger().value<any>('housing.retained_home');
+  assert(kept.expected_rent === 2100 && kept.balance === 220000 && kept.plan === 'rent', 'expected rent merged in; balance and plan kept');
+  assert(cm.getPendingField() === 'stage2_closing_offer', 'then the closing offer', cm.getPendingField());
+}
+
+// ── 11. Follow-up is never asked twice ("not sure" → move on) ──
+{
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', facts: [{ key: 'housing.retained_home', value: { plan: 'rent' }, raw: '' }] }));
+  const prof = cm.getProfile() as any;
+  for (const k of ['borrower_name', 'occupancy', 'existing_relationship', 'timeline', 'co_borrower', 'gross_annual_income', 'monthly_debt', 'credit_range', 'down_payment', 'rent_own', 'realtor_status', 'target_price', 'property_type', 'military_rural', 'job_tenure_type']) prof[`${k}_confirmed`] = true;
+  cm.setActiveStage('2');
+  quietly(() => cm.advanceWorkflow());
+  assert(cm.getPendingField() === 'section0_followup', 'follow-up pending');
+  await quietlyAsync(() => cm.onAgentTurn('How much do you expect it to rent for?'));
+  await turn(cm, ex({ intent: 'declines_to_answer' }));
+  assert(cm.getPendingField() === 'stage2_closing_offer', '"not sure" → closing offer, follow-up not repeated', cm.getPendingField());
+}
+
+// ── 12. S0-18: Purchase → "actually I already own and want to refinance" keeps every shared fact ──
+{
+  const cm = newManager();
+  await turn(cm, ex({
+    goal: 'purchase',
+    facts: [
+      { key: 'income.borrower', value: [{ type: 'salary', amount: 84000, frequency: 'yearly' }], raw: '' },
+      { key: 'debt.monthly_total', value: 1200, raw: '' },
+      { key: 'credit.borrower', value: '710', raw: '' },
+      { key: 'purchase.price', value: 350, raw: '' },
+      { key: 'housing.current', value: 'rent', raw: '' },
+    ],
+  }));
+  await turn(cm, ex({ facts: [{ key: 'borrower.first_name', value: 'Jordan', raw: '' }] }));
+  assert(cm.getProfile().target_price === 350000, 'purchase price known before the switch');
+  await turn(cm, ex({ goal: 'refinance', facts: [{ key: 'housing.current', value: 'own', raw: 'I already own' }] }));
+  const p = cm.getProfile();
+  assert(p.transaction_type === 'TT-REF' && p.mortgage_goal === 'refinance', 'track switched to Refinance');
+  assert(p.borrower_name === 'Jordan' && p.gross_annual_income === 84000 && p.monthly_debt === 1200 && p.credit_range_confirmed === true, 'name, income, debts, credit kept');
+  assert(p.target_price == null && p.target_price_confirmed === false, 'purchase-only price cleared from the profile');
+  assert(cm.getFactLedger().value('purchase.price') === 350000, 'ledger still remembers what was said');
+  assert(!['borrower_name', 'gross_annual_income', 'monthly_debt', 'credit_range'].includes(String(cm.getPendingField())), 'next question is not a known fact', cm.getPendingField());
+  assert(/GOAL CHANGED: the borrower now wants a refinance/.test(cm.getDynamicContext()), 'one-turn note: acknowledge the goal change');
+  await quietlyAsync(() => cm.onAgentTurn('Got it, a refinance instead. What is your timeline?'));
+  assert(!/GOAL CHANGED/.test(cm.getDynamicContext()), 'note disappears after Ailana answers');
+
+  // A question about another product is not a switch
+  await turn(cm, ex({ goal: 'heloc', intent: 'asks_question' }));
+  assert(cm.getProfile().transaction_type === 'TT-REF', 'asking about HELOCs does not switch the track');
+
+  // Switching back restores the purchase price from memory
+  await turn(cm, ex({ goal: 'purchase' }));
+  assert(cm.getProfile().transaction_type === 'TT-PUR' && cm.getProfile().target_price === 350000, 'back to Purchase → price restored from the ledger');
+}
+
+// ── 13. No switch at the closing offer ──
+{
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase' }));
+  (cm as any).activeStage = '2'; (cm as any).currentPendingField = 'stage2_closing_offer';
+  await turn(cm, ex({ goal: 'refinance' }));
+  assert(cm.getProfile().transaction_type === 'TT-PUR', 'goal change at the closing offer does not switch');
+}
+
 console.log(`\n✨ ALL ${total} SECTION 0 SYNC / FLOW TESTS PASSED!`);

@@ -157,6 +157,63 @@ export function formatKnownFacts(ledger: FactLedger): string {
   return lines.join('\n');
 }
 
+// ── Questions built from what is already known (stages ≥ 1) ─────────────────
+
+const INCOME_TYPE_WORDS = new Set(['salary', 'hourly', 'self_employed_net', 'gig_1099', 'commission', 'bonus', 'pension', 'military_retirement', 'social_security']);
+
+/**
+ * The job tenure / income type question (Q44), asking ONLY for what's missing.
+ * If how they're paid is already known (any stated income type or employment type),
+ * ask just how long they've been in their current work.
+ */
+export function jobTenureQuestion(ledger: FactLedger, hasCoBorrower: boolean): string {
+  const incomes = [
+    ...(ledger.value<IncomeComponent[]>('income.borrower') ?? []),
+    ...(ledger.value<IncomeComponent[]>('income.co_borrower') ?? []),
+  ];
+  const payKnown = !!ledger.value('employment.type') || incomes.some((c) => INCOME_TYPE_WORDS.has(c.type));
+  const tenureKnown = ledger.value('employment.tenure_years') !== undefined;
+  if (payKnown && !tenureKnown) {
+    return hasCoBorrower && (ledger.value<IncomeComponent[]>('income.co_borrower') ?? []).length
+      ? "How long have each of you been in your current line of work?"
+      : "How long have you been in your current line of work?";
+  }
+  if (tenureKnown && !payKnown) {
+    return 'And how are you paid — salaried, hourly, or self-employed?';
+  }
+  return "Could you tell me a bit about your current job tenure and how you're paid — for example, whether you are salaried, hourly, or self-employed?";
+}
+
+/** Situational follow-ups: facts a stated situation makes necessary. Asked once each, before the closing offer. */
+interface Followup { id: string; needed: (l: FactLedger) => boolean; ask: string }
+const FOLLOWUPS: Followup[] = [
+  {
+    id: 'retained_home_rent',
+    needed: (l) => {
+      const h = l.value<{ plan?: string; expected_rent?: number }>('housing.retained_home');
+      return !!h && h.plan === 'rent' && h.expected_rent === undefined;
+    },
+    ask: 'Ask how much they expect the home they are keeping to rent for each month. If they are not sure yet, that is fine — move on.',
+  },
+  {
+    id: 'existing_rental_income',
+    needed: (l) => {
+      const owned = l.value<number>('housing.properties_owned') ?? 0;
+      const incomes = [...(l.value<IncomeComponent[]>('income.borrower') ?? []), ...(l.value<IncomeComponent[]>('income.co_borrower') ?? [])];
+      return owned > 0 && l.value('occupancy') === 'investment' && !incomes.some((c) => c.type === 'rental' && c.annual);
+    },
+    ask: 'Ask roughly how much net rental income their current rental properties bring in each month. If they are not sure, that is fine — move on.',
+  },
+];
+
+/** The next follow-up still needed and not yet asked (never loops: each is asked at most once). */
+export function nextSituationalFollowup(ledger: FactLedger, asked: string[]): { id: string; ask: string } | null {
+  for (const f of FOLLOWUPS) {
+    if (!asked.includes(f.id) && f.needed(ledger)) return { id: f.id, ask: f.ask };
+  }
+  return null;
+}
+
 // ── Section 0 CURRENT TASK (chosen by code) ──────────────────────────────────
 
 export const INTENT_QUESTION = "Great. What brings you here today: buying a home, refinancing, or using your home's equity?";

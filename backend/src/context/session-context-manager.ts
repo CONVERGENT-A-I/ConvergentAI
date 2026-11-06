@@ -16,12 +16,12 @@ import { callCrsSoftPull } from '../services/crs-service.js';
 import { lookupZipData } from '../utils/zip-lookup.js';
 import { logAffordabilityEvent } from '../utils/affordability-audit.js';
 import { FactLedger, type SerializedLedger } from '../section0/fact-ledger.js';
-import type { GoalClass } from '../section0/fact-schema.js';
+import type { FactKey, GoalClass } from '../section0/fact-schema.js';
 import { extractUniversal, type UniversalExtraction } from '../section0/universal-extractor.js';
 import { ingestExtraction } from '../section0/ingest.js';
-import { routeSection0, initialSection0State, type Section0Decision, type Section0State } from '../section0/router.js';
+import { routeSection0, initialSection0State, trackSwitchFor, type Section0Decision, type Section0State, type Track } from '../section0/router.js';
 import { syncLedgerToProfile, type SyncedMap } from '../section0/ledger-sync.js';
-import { formatKnownFacts, section0TaskText } from '../section0/turn-context.js';
+import { formatKnownFacts, jobTenureQuestion, nextSituationalFollowup, section0TaskText } from '../section0/turn-context.js';
 import { applySafetyNet } from '../section0/safety-net.js';
 
 export type TurnLogEntry = {
@@ -73,6 +73,10 @@ export class SessionContextManager {
   private ledgerSynced: SyncedMap = {};
   private section0State: Section0State = initialSection0State();
   private section0Decision: Section0Decision | null = null;
+  private followupsAsked: string[] = [];
+  private activeFollowup: { id: string; ask: string } | null = null;
+  private trackSwitchNotice: string | null = null; // one turn: acknowledge a goal change (S0-18)
+  private trackSwitches = 0;
 
   // Parallel asynchronous extraction state
   private nextExtractionTurn = 1;
@@ -134,6 +138,10 @@ export class SessionContextManager {
     cloned.ledgerSynced = { ...this.ledgerSynced };
     cloned.section0State = JSON.parse(JSON.stringify(this.section0State));
     cloned.section0Decision = this.section0Decision;
+    cloned.followupsAsked = [...this.followupsAsked];
+    cloned.activeFollowup = this.activeFollowup;
+    cloned.trackSwitchNotice = this.trackSwitchNotice;
+    cloned.trackSwitches = this.trackSwitches;
     return cloned;
   }
 
@@ -623,9 +631,18 @@ export class SessionContextManager {
     // Section 0: merge the background turn's memory and routing state.
     if (ailanaConfig.section0Enabled) {
       this.ledger.mergeFrom(clone.ledger);
-      Object.assign(this.ledgerSynced, clone.ledgerSynced);
+      // A track switch in the background turn clears old-track sync marks — take the clone's map as is.
+      if (clone.trackSwitches > this.trackSwitches) {
+        this.ledgerSynced = { ...clone.ledgerSynced };
+        this.trackSwitches = clone.trackSwitches;
+        this.trackSwitchNotice = clone.trackSwitchNotice;
+      } else {
+        Object.assign(this.ledgerSynced, clone.ledgerSynced);
+      }
       this.section0State = clone.section0State;
       this.section0Decision = clone.section0Decision;
+      this.activeFollowup = clone.activeFollowup;
+      for (const id of clone.followupsAsked) if (!this.followupsAsked.includes(id)) this.followupsAsked.push(id);
     }
   }
 
@@ -769,6 +786,7 @@ export class SessionContextManager {
       'affordability_panel_active',
       // Section 0: the reply must wait for extraction + routing (the next step depends on it)
       'section0',
+      'section0_followup',
     ]);
     return DETERMINISTIC_FIELDS.has(target);
   }
@@ -868,7 +886,7 @@ export class SessionContextManager {
     if (field === 'job_tenure_type') {
       this.profile.job_tenure_type = 'salaried'; // Default fallback value
       this.profile.job_tenure_type_confirmed = true;
-      this.currentPendingField = 'stage2_closing_offer';
+      this.currentPendingField = this.closingOfferOrFollowup();
       console.log(`[agent-hook][fallback] Optimistically advanced field "job_tenure_type" -> "stage2_closing_offer" (default="salaried").`);
       return;
     }
@@ -1081,8 +1099,10 @@ export class SessionContextManager {
   private async applyUniversalExtraction(uniPromise: Promise<UniversalExtraction>): Promise<void> {
     const ex = await uniPromise;
     const r = ingestExtraction(ex, this.ledger, this.turnCount, this.activeStage);
+    const switched = this.maybeSwitchTrack(ex, r.changed);
     const written = this.syncLedger();
-    if (r.changed.length || written.length) {
+    // A follow-up is asked once: answered or not ("not sure"), the flow moves on.
+    if (switched || r.changed.length || written.length || this.currentPendingField === 'section0_followup') {
       const before = this.currentPendingField;
       this.advanceWorkflow();
       if (before !== this.currentPendingField) {
@@ -1096,6 +1116,95 @@ export class SessionContextManager {
 
   private syncLedger(): string[] {
     return syncLedgerToProfile(this.ledger, this.profile, this.ledgerSynced);
+  }
+
+  /**
+   * S0-18 — the borrower changes their goal after the track is set ("actually I already
+   * own and want to refinance"). Code switches the track before the Stage 2 closing
+   * offer; every shared fact (name, income, debts, credit, co-borrower, location …)
+   * stays. Profile fields that only belong to the old track are cleared; the ledger
+   * keeps what was said, so switching back restores them.
+   */
+  private maybeSwitchTrack(ex: UniversalExtraction, changed: FactKey[]): boolean {
+    if (this.activeStage !== '1' && this.activeStage !== '2') return false;
+    if (this.currentPendingField === 'stage2_closing_offer') return false;
+    if (!changed.some((k) => k === 'goal.primary' || k === 'refi.keep_first' || k === 'equity.fixed_preference')) return false;
+    const current = (this.profile.transaction_type as Track | null) ?? null;
+    const sw = trackSwitchFor({
+      goal: this.ledger.value<GoalClass>('goal.primary') ?? null,
+      intent: ex.intent,
+      refiKeepFirst: this.ledger.value<boolean>('refi.keep_first') ?? null,
+      equityFixed: this.ledger.value<boolean>('equity.fixed_preference') ?? null,
+      currentTrack: current,
+      currentRefinanceType: (this.profile.refinance_type as 'cash_out' | 'rate_term' | null) ?? null,
+    });
+    if (!sw) return false;
+
+    // Leaving a track: clear its own fields from the profile (the sync marks stay, so they
+    // aren't written straight back). Entering a track: drop its sync marks so the ledger
+    // refills whatever the borrower already said for it.
+    const p = this.profile as any;
+    const OWN: Partial<Record<Track, { fields: string[]; syncIds: string[] }>> = {
+      'TT-PUR': { fields: ['target_price', 'down_payment', 'realtor_status', 'rent_own'], syncIds: ['purchase.price', 'purchase.down_payment|funds.total', 'housing.current'] },
+      'TT-REF': { fields: ['refinance_type'], syncIds: ['goal.refi_purpose'] },
+    };
+    const leaving = current ? OWN[current] : undefined;
+    if (leaving && (sw.track !== current || sw.refinanceType)) {
+      for (const f of leaving.fields) { p[f] = null; if (`${f}_confirmed` in p) p[`${f}_confirmed`] = false; }
+    }
+    const entering = sw.track !== current ? OWN[sw.track] : undefined;
+    if (entering) for (const id of entering.syncIds) delete this.ledgerSynced[id];
+
+    const goal = sw.track === 'TT-PUR' ? 'purchase' : sw.track === 'TT-REF' ? 'refinance' : 'heloc';
+    this.profile.transaction_type = sw.track;
+    this.profile.mortgage_goal = goal;
+    this.profile.mortgage_goal_confirmed = true;
+    if (sw.refinanceType) {
+      this.profile.refinance_type = sw.refinanceType;
+      this.profile.refinance_type_confirmed = true;
+    }
+    this.currentPendingField = null;
+    this.trackSwitches++;
+    this.trackSwitchNotice = goal === 'heloc' ? (sw.track === 'TT-HEQ' ? 'home equity loan' : 'home equity line of credit') : goal;
+    console.log(`[section0] 🔀 track switched: ${current} → ${sw.track}${sw.refinanceType ? ' (' + sw.refinanceType + ')' : ''} — shared facts kept`);
+    return true;
+  }
+
+  /**
+   * End of Stage 2: the closing offer — unless a stated situation still needs one
+   * follow-up (e.g. expected rent on a home they're keeping). Each follow-up is asked
+   * at most once. Flag off → always the closing offer (demo behaviour).
+   */
+  private closingOfferOrFollowup(): string {
+    if (ailanaConfig.section0Enabled) {
+      const fu = nextSituationalFollowup(this.ledger, this.followupsAsked);
+      if (fu) {
+        if (this.activeFollowup?.id !== fu.id) console.log(`[next-question] situational follow-up before the closing offer: ${fu.id}`);
+        this.activeFollowup = fu;
+        return 'section0_followup';
+      }
+    }
+    this.activeFollowup = null;
+    return 'stage2_closing_offer';
+  }
+
+  /**
+   * Voice fast path guard: the job-tenure answer would normally trigger the closing
+   * offer script at 0 ms. If a follow-up is still needed, switch to it instead.
+   */
+  takeFollowupBeforeClosingOffer(): boolean {
+    if (!ailanaConfig.section0Enabled || this.activeStage !== '2') return false;
+    const fu = nextSituationalFollowup(this.ledger, this.followupsAsked);
+    if (!fu) return false;
+    this.activeFollowup = fu;
+    this.currentPendingField = 'section0_followup';
+    console.log(`[next-question] follow-up "${fu.id}" asked before the closing offer (fast path held back)`);
+    return true;
+  }
+
+  /** The job-tenure question built from what is already known (Section 0). */
+  getJobTenureQuestion(): string {
+    return jobTenureQuestion(this.ledger, this.profile.co_borrower === 'yes');
   }
 
   /** Serializable Section 0 state — sent to the frontend with every stage update and restored on reconnect. */
@@ -2317,7 +2426,13 @@ export class SessionContextManager {
     if (!trimmed) return;
     this.turnLog.push({ role: 'assistant', text: trimmed, timestamp: Date.now() });
     this.profile.bridge_to_say = null;
+    this.trackSwitchNotice = null; // acknowledged (S0-18)
     this.lastProcessedInput = null;
+
+    // Section 0: a situational follow-up counts as asked once Ailana has spoken it (never asked twice).
+    if (this.currentPendingField === 'section0_followup' && this.activeFollowup && !this.followupsAsked.includes(this.activeFollowup.id)) {
+      this.followupsAsked.push(this.activeFollowup.id);
+    }
 
     // Synchronize currentPendingField with what Ailana ACTUALLY asked in Stage 1
     // (disabled with Section 0: it re-targeted the pending field from keywords in Ailana's own
@@ -3312,7 +3427,7 @@ export class SessionContextManager {
             this.currentPendingField = 'job_tenure_type';
           } else {
             this.calculateEligibility();
-            this.currentPendingField = 'stage2_closing_offer';
+            this.currentPendingField = this.closingOfferOrFollowup();
             console.log('[context-manager]: Transitioning to STAGE 2 Closing Transition (Refinance - USDA)!');
           }
         } else if (this.profile.current_mortgage_type === 'unknown' && !this.profile.refinance_type_confirmed) {
@@ -3339,7 +3454,7 @@ export class SessionContextManager {
           this.currentPendingField = 'job_tenure_type';
         } else {
           this.calculateEligibility();
-          this.currentPendingField = 'stage2_closing_offer';
+          this.currentPendingField = this.closingOfferOrFollowup();
           console.log('[context-manager]: Transitioning to STAGE 2 Closing Transition (Refinance)!');
         }
       } else if (isHel) {
@@ -3364,7 +3479,7 @@ export class SessionContextManager {
           this.currentPendingField = 'job_tenure_type';
         } else {
           this.calculateEligibility();
-          this.currentPendingField = 'stage2_closing_offer';
+          this.currentPendingField = this.closingOfferOrFollowup();
           console.log('[context-manager]: Transitioning to STAGE 2 Closing Transition (HELOC)!');
         }
       } else {
@@ -3385,7 +3500,7 @@ export class SessionContextManager {
           this.currentPendingField = 'job_tenure_type';
         } else {
           this.calculateEligibility();
-          this.currentPendingField = 'stage2_closing_offer';
+          this.currentPendingField = this.closingOfferOrFollowup();
           console.log('[context-manager]: Transitioning to STAGE 2 Closing Transition (Purchase)!');
         }
       }
@@ -3519,9 +3634,20 @@ export class SessionContextManager {
 
   getDynamicContext(): string {
     if (ailanaConfig.section0Enabled) {
+      // Stages ≥ 1: a few questions are built from what's already known (code), overriding the generic task line.
+      let taskOverride: string | undefined;
+      if (this.activeStage !== '0' && this.currentPendingField === 'section0_followup' && this.activeFollowup) {
+        taskOverride = `CURRENT TASK:\n${this.activeFollowup.ask}\nAsk only this one thing. Do NOT ask for anything in KNOWN FACTS.`;
+      } else if (this.activeStage === '2' && this.currentPendingField === 'job_tenure_type') {
+        taskOverride = `CURRENT TASK:\nCollect job_tenure_type\n\nAsk: "${this.getJobTenureQuestion()}"\nDO NOT ask for anything in KNOWN FACTS (how they are paid may already be known).`;
+      }
       const extras = {
-        knownFacts: formatKnownFacts(this.ledger),
+        knownFacts: formatKnownFacts(this.ledger) + (this.trackSwitchNotice
+          ? `
+GOAL CHANGED: the borrower now wants a ${this.trackSwitchNotice}. Acknowledge it in one short phrase; everything else they told you still stands — do not ask it again.`
+          : ''),
         ...(this.activeStage === '0' ? { section0Task: section0TaskText(this.section0Decision, this.ledger) } : {}),
+        ...(taskOverride ? { taskOverride } : {}),
       };
       return buildDynamicContext(this.profile, this.currentPendingField, this.activeStage, this.lowConfidence, extras);
     }

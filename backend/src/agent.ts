@@ -461,6 +461,14 @@ class AilanaVoiceAgent extends voice.Agent {
     const isExplicitPathA = isAtClosingOffer &&
       !isExplicitPathB && /\b(soft\s*pull|credit\s*review|first(?:\s*option)?|most\s*complete|yes|sure|okay|go\s*ahead|proceed|run\s*it|run\s*the\s*review)\b/i.test(lastUserText);
 
+    // Section 0: a stated situation still needs one follow-up (e.g. rent on a home they're keeping)
+    // → ask it before the closing offer instead of firing the closing script at 0 ms.
+    if (isAnsweringJobTenure && !this._stage2ClosingOfferDelivered && this.contextManager.takeFollowupBeforeClosingOffer()) {
+      this.updateInstructionsCallback();
+      this.applyTurnContext(chatCtx);
+      return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+    }
+
     if (isAtClosingOffer || isAnsweringJobTenure) {
       if (isAnsweringJobTenure) {
         console.log('[agent-hook]: Parallel 0ms Fast-Path — job_tenure_type answer detected. Triggering STAGE2_CLOSING_OFFER_SCRIPT!');
@@ -694,7 +702,10 @@ class AilanaVoiceAgent extends voice.Agent {
         profile.military_rural_confirmed = true;
         this.contextManager.advanceWorkflow();
 
-        const scriptText = "Got it, thank you. Could you tell me a bit about your current job tenure and how you're paid — for example, whether you are salaried, hourly, or self-employed?";
+        // Section 0: ask only what's missing (how they're paid may already be known).
+        const scriptText = ailanaConfig.section0Enabled
+          ? `Got it, thank you. ${this.contextManager.getJobTenureQuestion()}`
+          : "Got it, thank you. Could you tell me a bit about your current job tenure and how you're paid — for example, whether you are salaried, hourly, or self-employed?";
         return createVerbatimStream(scriptText) as any;
       }
 

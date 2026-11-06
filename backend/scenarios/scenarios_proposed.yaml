@@ -1,0 +1,82 @@
+# PROPOSED scenarios — for David's approval. Not the approved file (section0.yaml).
+# Run with SECTION_0_ENABLED=true. All people and numbers are invented.
+id: SCNG_section0_proposed
+name: Section 0 proposed (track switching)
+scenarios:
+  - id: SCN_s0_prop_r8_switch
+    label: "R-8 — starts as Purchase, then 'actually I already own and want to refinance'"
+    instructions: |
+      PERSONA: Taylor Brooks, a homeowner who at first sounds like a buyer (invented person).
+      OPENING LINE: "Hi, I'm thinking about buying a home. I make 96,000 a year, my debts are about 650 a month, and my credit score is around 740."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Taylor
+      - you have never worked with this lender before
+      - AFTER you have answered TWO of Ailana's questions, your next reply must be:
+        "Actually, wait — I already own my home. What I really want is to refinance it to lower my payment."
+      - it's your primary residence, a single-family home in Chattanooga, Tennessee, zip 37421
+      - the home is worth about 380,000 and you owe about 240,000
+      - it's a conventional loan
+      - you have never refinanced this home before
+      - you'd roll the closing costs into the loan
+      - you plan to stay at least 10 more years
+      - you'd like to get it done in the next couple of months
+      - you are applying alone, no co-borrower
+      - no military service
+      - you've been salaried at the same employer for 8 years
+      HOW TO ANSWER:
+      - If Ailana asks for something you already said, answer it again briefly and consistently
+        (same numbers) — do not argue.
+      - Keep answers short and natural.
+      STOP: as soon as Ailana offers you a choice between a credit review and a summary — do not
+      choose either, just stop. Otherwise stop after 20 of your replies.
+    agent_expectations: >
+      After the caller says they already own their home and want to refinance to lower the payment,
+      continues as a refinance conversation without starting over. Never asks again for the
+      caller's $96,000 income, the $650 monthly debts, the 740 credit score, or the caller's first
+      name once given. After the switch, does not ask home-purchase questions such as a purchase
+      price, a down payment, whether they rent or own, or whether they have a real estate agent.
+      Does not quote an interest rate or payment and does not promise approval.
+    tags:
+      feature: section0_track_switch
+      test_set_id: "R-8"
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+
+  - id: SCN_s0_prop_question_not_switch
+    label: "Question about another product is not a goal change"
+    instructions: |
+      PERSONA: Casey Morgan, a renter buying a first home (invented person).
+      OPENING LINE: "I want to buy my first home. I earn 72,000 a year, I pay 400 a month on a car, and my score is about 720."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Casey
+      - you have never worked with this lender before
+      - AFTER you have answered TWO of Ailana's questions, your next reply must be this question
+        (and nothing else): "Quick question — could I take out a home equity line on the house later on?"
+        After Ailana answers, carry on answering her questions.
+      - it will be your primary residence
+      - you hope to buy within six months
+      - you are applying alone, no co-borrower
+      - you have 20,000 saved
+      - you currently rent
+      - no real estate agent yet
+      - target price around 300,000, a townhouse in Chattanooga, Tennessee, zip 37421
+      - no military service
+      - you've been salaried at the same employer for 4 years
+      HOW TO ANSWER:
+      - If Ailana asks for something you already said, answer it again briefly and consistently.
+      - Keep answers short and natural.
+      STOP: as soon as Ailana offers you a choice between a credit review and a summary — do not
+      choose either, just stop. Otherwise stop after 20 of your replies.
+    agent_expectations: >
+      Answers the caller's question about a future home equity line briefly and in general terms,
+      then continues the home-purchase conversation; it does not switch to a home equity
+      conversation. Never asks again for the caller's $72,000 income, $400 car payment, 720 credit
+      score, or that this is a first home purchase. Does not quote an interest rate or payment and
+      does not promise approval.
+    tags:
+      feature: section0_track_switch
+      test_set_id: "R-8b"
+    userdata:
+      expect_transfer: false
+      expect_booking: false

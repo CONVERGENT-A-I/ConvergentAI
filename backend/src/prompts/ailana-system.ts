@@ -67,7 +67,11 @@ AVATAR EXPRESSION GUIDANCE:
 `.trim() + (ailanaConfig.section0Enabled ? `
 
 NO-REPEAT RULE (applies in every stage):
-- Never ask a question whose answer is already in KNOWN FACTS or the borrower profile — in any wording. Ask only for what is still missing.` : '');
+- Never ask a question whose answer is already in KNOWN FACTS or the borrower profile — in any wording. Ask only for what is still missing.
+- Never announce that you are going to ask about something that is already known.
+
+NAME USE:
+- The system asks for the borrower's first name once. Use it only where a scripted line already includes it — never add it anywhere else.` : '');
 }
 
 import { buildStage2Instructions } from './stage2-prequalification.js';
