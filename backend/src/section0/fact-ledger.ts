@@ -204,4 +204,21 @@ export class FactLedger {
   clone(): FactLedger {
     return FactLedger.hydrate(this.serialize(), { log: this.log });
   }
+
+  /**
+   * Merge another ledger into this one (background extraction runs on a clone;
+   * its results are merged back in turn order). An entry from `other` wins when
+   * this ledger doesn't have the key, or when `other`'s entry is from the same
+   * or a later turn and differs. Never removes facts.
+   */
+  mergeFrom(other: FactLedger): FactKey[] {
+    const changed: FactKey[] = [];
+    for (const e of other.entries.values()) {
+      const mine = this.entries.get(e.key);
+      if (mine && (mine.turn > e.turn || JSON.stringify(mine) === JSON.stringify(e))) continue;
+      this.entries.set(e.key, JSON.parse(JSON.stringify(e)));
+      changed.push(e.key);
+    }
+    return changed;
+  }
 }

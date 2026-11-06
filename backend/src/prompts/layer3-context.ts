@@ -223,11 +223,20 @@ const FIELD_LABELS: Record<string, string> = {
   scheduled_call_time: 'preferred date and time for the callback',
 };
 
+/** Section 0 additions to Layer 3 (only passed when SECTION_0_ENABLED is on). */
+export interface Section0TurnExtras {
+  /** KNOWN FACTS block built from the Fact Ledger. */
+  knownFacts: string;
+  /** CURRENT TASK chosen by the Section 0 router (stage "0" only). */
+  section0Task?: string;
+}
+
 export function buildLayer3TurnContext(
   profile: BorrowerProfile,
   pendingField: string | null,
   stage: string = '1',
-  isLowConfidence: boolean = false
+  isLowConfidence: boolean = false,
+  section0?: Section0TurnExtras,
 ): string {
   // ── Stage 1 profile block ─────────────────────────────────────────────────
   const stage1Block = [
@@ -416,7 +425,10 @@ export function buildLayer3TurnContext(
       else creditCategory = 'Poor';
       taskLine = `CURRENT TASK:\nPrefill walkthrough: Credit Category Rating\n\nAsk: "Lastly, we retrieved your credit profile showing a category rating in the ${creditCategory} range. Does that match what you expect or is anything out of date?"\nNEVER quote exact numeric credit score. Only the range category. DO NOT ASK FOR ANY OTHER FIELD.`;
     } else if (pendingField === 'property_type') {
-      if (profile.property_type && !profile.zip_code) {
+      if (section0 && !profile.property_type && profile.zip_code) {
+        // Section 0 already knows the area — ask only for the property type.
+        taskLine = `CURRENT TASK:\nCollect property_type (the area is already known: ${profile.zip_code})\n\nAsk: "What type of home are you looking for — such as a single-family home, condo, townhome, or multi-family?"\nDO NOT ask for the city or zip code again.`;
+      } else if (profile.property_type && !profile.zip_code) {
         taskLine = `CURRENT TASK:\nCollect zip_code (borrower already specified ${profile.property_type})\n\nAsk: "What city or zip code are you looking in?"\nDO NOT repeat the property type choices.`;
       } else {
         const questionText = isRef
@@ -573,6 +585,16 @@ Do NOT ask them to read the code out loud. Do NOT ask for anything else. Wait fo
   let antiRedundancyBlock = '';
   if (stage === '2.5') {
     antiRedundancyBlock = `\n\n*** ANTI-REDUNDANCY RULES (STAGE 2.5 AFFORDABILITY) ***\n- Do NOT repeat the initial affordability summary explanation on subsequent turns.\n- If the borrower is just adjusting targets/sliders without asking a question, keep your response extremely brief (1 short sentence) and conversational (e.g. "Got it, your summary is updated.").\n- Do NOT repeatedly recite full Q48 scripts like "That sounds like a comfortable spot" or "With those targets, your total debt ratio..." every single time they change a number.\n- Once the initial panel is explained, adopt a concise, listening posture.`;
+  }
+
+  // ── Section 0 (SECTION_0_ENABLED only) ────────────────────────────────────
+  if (section0) {
+    if (stage === '0') {
+      // In Section 0 the router (code) chooses the task; the field-based task line doesn't apply.
+      taskLine = section0.section0Task ?? '';
+      circleBackInstruction = '';
+    }
+    if (section0.knownFacts) blocks.push(section0.knownFacts);
   }
 
   blocks.push(taskLine + bridgeBlock + stage2ClosingBlock + consentBlock + otpBlock + lowConfidenceBlock + circleBackInstruction + antiRedundancyBlock);

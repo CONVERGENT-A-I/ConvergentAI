@@ -1,6 +1,8 @@
 import { buildStage1Instructions } from './stage1-greeting.js';
-import { buildLayer3TurnContext } from './layer3-context.js';
+import { buildStage0Instructions } from './stage0-opening.js';
+import { buildLayer3TurnContext, type Section0TurnExtras } from './layer3-context.js';
 import type { BorrowerProfile } from './layer3-context.js';
+import { ailanaConfig } from '../config/ailana-config.js';
 
 /**
  * Layer 1: Static System Prompt
@@ -62,7 +64,10 @@ AVATAR EXPRESSION GUIDANCE:
 - Reserve neutral or calm expressions for standard question-answer exchanges.
 - Use warm/happy expressions when acknowledging good news (e.g., strong savings, no debt, stable employment).
 - The borrower should never feel judged by Ailana's facial expression.
-`.trim();
+`.trim() + (ailanaConfig.section0Enabled ? `
+
+NO-REPEAT RULE (applies in every stage):
+- Never ask a question whose answer is already in KNOWN FACTS or the borrower profile — in any wording. Ask only for what is still missing.` : '');
 }
 
 import { buildStage2Instructions } from './stage2-prequalification.js';
@@ -78,6 +83,10 @@ import { buildStage5Instructions } from './stage5-escalation.js';
  * Layer 2 Stage selector
  */
 export function buildLayer2(stage: string = '1', profile: BorrowerProfile = {}): string {
+  if (stage === '0') {
+    // Section 0 (only reachable with SECTION_0_ENABLED) — stops loading once a track is set.
+    return buildStage0Instructions();
+  }
   if (stage === '1') {
     return buildStage1Instructions();
   }
@@ -131,9 +140,10 @@ export function buildDynamicContext(
   profile: BorrowerProfile,
   pendingField: string | null,
   stage: string = '1',
-  isLowConfidence: boolean = false
+  isLowConfidence: boolean = false,
+  section0?: Section0TurnExtras,
 ): string {
-  return buildLayer3TurnContext(profile, pendingField, stage, isLowConfidence);
+  return buildLayer3TurnContext(profile, pendingField, stage, isLowConfidence, section0);
 }
 
 /**

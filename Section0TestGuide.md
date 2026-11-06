@@ -19,17 +19,17 @@
 | Part | What it checks | Needs (plan task) | Status |
 | :---: | :--- | :--- | :---: |
 | **0** | Localhost setup + flag on/off | S0-03 ✅ built | 🟢 0.6 passed (Nov 5) |
-| **1** | Code checks + unit tests | S0-09 … S0-21 | 🟡 4 of 6 files ready to run (ledger, normalize, router, safety-net) |
+| **1** | Code checks + unit tests | S0-09 … S0-21 | 🟢 all 6 files ready & passing (Nov 6) |
 | **2** | Opening: greeting, card highlights, mic off, consent | S0-24 … S0-26 | 🔴 |
-| **3** | Routing: clear / unclear / clarify / two goals / holdouts / out of scope | S0-15 … S0-18 | 🔴 |
-| **4** | Fact capture: multi-fact, corrections, ambiguity | S0-11 … S0-13 | 🔴 |
-| **5** | **Memory across the whole flow** (no re-asking anywhere) | S0-13, S0-14, S0-20 | 🔴 |
+| **3** | Routing: clear / unclear / clarify / two goals / holdouts / out of scope | S0-15 … S0-18 | 🟡 testable with the flag on (track switching R-8 not built yet) |
+| **4** | Fact capture: multi-fact, corrections, ambiguity | S0-11 … S0-13 | 🟡 testable with the flag on |
+| **5** | **Memory across the whole flow** (no re-asking anywhere) | S0-13, S0-14, S0-20 | 🟡 testable with the flag on (DB resume not built yet) |
 | **6** | Compliance traps | S0-21 … S0-23 | 🔴 |
 | **7** | Loan officer transfer & callback (T1–T6) | S0-27, S0-28 | 🔴 |
 | **8** | David's 30 prospect replies (voice + typed) | All of Phase 3–4 | 🔴 |
 | **9** | Track regression: Purchase, Refi, HELOC, HEQ unchanged | S0-19 | 🔴 |
-| **10** | Flag-off parity (demo build unchanged) | S0-03, S0-19 | 🔴 |
-| **11** | LiveKit text simulations (the official measure) | S0-05 ✅ · S0-04 ✅ · S0-07 baseline · S0-08 | 🟢 spike passed (11.0) · 🟡 B1/B2 invalid (harness bug, fixed) — **B3** next (11.0b) |
+| **10** | Flag-off parity (demo build unchanged) | S0-03, S0-19 | 🟢 automated: `section0-flag-off` 23/23 (prompts byte-identical) |
+| **11** | LiveKit text simulations (the official measure) | S0-05 ✅ · S0-04 ✅ · S0-07 baseline · S0-08 | 🟢 spike (11.0) · 🟢 baseline B3/B4 = 0/12 (11.0b) · 🟡 **first run with Section 0 ON next (11.0c)** |
 
 Status: 🔴 not run · 🟡 partial / failing · 🟢 passing
 
@@ -143,11 +143,12 @@ What each unit test file must prove:
 | `section0-safety-net` | Caught: `412-55-6789`, `412 55 6789`, "my social is 412556789", "my social security number is four one two…", "my social … it's 4-1-2…" (cut off), "1418 Riverview Drive", "22 Oak St", "900 W Main Street", "5 lakeview avenue" · Not caught: "I make 84,000", "credit is 710", "owe 310 on a house worth 450", "zip 37421", "2,400 Social Security" (income), "my social security is 2,400 a month", "100 down either way" · The matched text never appears in the output or logs. *(Known limit: 9 digits with no "SSN / my social" nearby are not treated as an SSN, so zip+4 codes aren't redacted by mistake; short types like "st"/"dr" need a Capitalised street name.)* |
 | `section0-flag-off` | With `SECTION_0_ENABLED=false`: first stage is `"1"`, greeting text, static prompt and Stage 1/2 sequences are identical to the demo build. |
 
-**Run now (ready):** `section0-ledger`, `section0-normalize`, `section0-router`, `section0-safety-net` — or just `npm test`, which includes them. `section0-sync` and `section0-flag-off` come with the wiring step.
+**Run now (ready):** all six — or just `npm test`, which includes them. Run `npm test` with `SECTION_0_ENABLED` **unset** (the Section 0 tests set the flag themselves).
 
 | Date | Tester | Result | Notes |
 | :--- | :--- | :---: | :--- |
 | Nov 5, 2026 | Claude (dev machine) | 🟢 | ledger 30/30 · normalize 44/44 · router 35/35 · safety-net 34/34 · `npm test` 21/21 suites · `tsc` clean |
+| Nov 6, 2026 | Claude (dev machine) | 🟢 | + sync/flow 38/38 · flag-off parity 23/23 · `npm test` **23/23 suites** · `tsc` clean |
 | | | | |
 
 ---
@@ -433,6 +434,37 @@ lk agent simulate text --scenarios scenarios/baseline_section0.yaml --samples 3 
 | :--- | :--- | :--- | :---: | :--- |
 | Nov 5, 2026 | Sohail | `SR_K5hDnwMfgu7H` (B1) | 0/12 (0/4 scenarios) | Expected fail. Re-asking in 12/12. 8/12 also stalled after Stage 1 — typed-input bug, **fixed** in `agent.ts`. Details: [Section0Results.md](Section0Results.md). **Re-run as B2** (same command, after `npm run build`). |
 | Nov 5, 2026 | Sohail | `SR_TfavTyVffBjH` (B2) | 0/12 (0/4 scenarios) | ⚠️ **B1 and B2 invalid:** the simulator sends messages via `session.run()`, which bypassed our state machine (Ailana improvised). **Fixed** in `agent.ts`. **Re-run as B3** — same command after `npm run build`. Expect our scripted Stage 1 → Stage 2 questions; re-asking still fails. |
+| Nov 6, 2026 | Sohail | `SR_wDGZ27nXmCJ7` (B3) | 0/12 (0/4) | ✅ **First valid baseline.** Our scripted flow runs. Stage 1 facts already skipped; Stage 2 facts re-asked 12/12. 5/12 "no response items" (intermittent). |
+| Nov 6, 2026 | Claude | `SR_f7XRsUAt2c6z` (B4) | 0/12 (0/4) | Diagnostic re-run: every failure is re-asking; "no response items" did not recur. **This is the "before" number.** |
+
+### 11.0c First simulation with Section 0 ON (run now)
+
+Same 4 tests (#1, #2, #13, #30), now with Section 0 memory, routing and the no-repeat sync switched on. PowerShell, from `backend/`:
+
+```powershell
+cd backend
+npm run build
+$env:SECTION_0_ENABLED = "true"
+lk agent simulate text --scenarios scenarios/baseline_section0.yaml --samples 3 --pass-rate 1.0 dist/agent.js
+Remove-Item Env:SECTION_0_ENABLED     # switch it back off afterwards
+```
+
+**What should change vs. the baseline:**
+- No "is that right?" — the track is set from the opening line.
+- The next question is the **first name**, then only what's missing (e.g. #1: name → relationship → timeline → co-borrower → down payment; income, debts and credit are **not** asked again).
+- #2: Ailana asks **how many hours a week** before relying on the hourly pay; spouse income, $25k, $450 car and Ooltewah are not re-asked.
+- #13: $300 debt kept; duplex and area not re-asked.
+- #30: incomes, scores, savings, debts and the kept Atlanta house are not re-asked; she asks the destination area and the Atlanta rent instead.
+
+**Not built yet, so these may still fail:** the new greeting (S0-24 — the judge may still say "not the verbatim greeting"), and anything after the "summary or soft credit review" choice (the Stage 2.5 panel is visual — out of Section 0 scope).
+
+Send me the run ID (`SR_...`) — I'll export it and write it up as run **S1** in [Section0Results.md](Section0Results.md).
+
+| Date | Tester | Run ID | Pass rate | Notes |
+| :--- | :--- | :--- | :---: | :--- |
+| | | | | |
+
+**Localhost (optional):** with `SECTION_0_ENABLED=true` in `backend/.env`, restart the backend and try Parts 3–5 in **Text chat**. Not built yet: new greeting & cards (Part 2), the spoken TRID gate (Part 6 — the SSN / address *is* already removed before anything is stored), callback booking (Part 7), track switching (R-8). Remove the line again afterwards.
 
 ### 11.1 Full runs (after Phase 2 scenarios are approved)
 

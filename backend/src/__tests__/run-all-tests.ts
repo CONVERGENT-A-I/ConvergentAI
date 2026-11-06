@@ -30,6 +30,9 @@ const testFiles = [
   'section0-normalize.test.ts',
   'section0-router.test.ts',
   'section0-safety-net.test.ts',
+  // Section 0 — wiring: ledger → profile sync / no-repeat flow, and flag-off parity with the demo build
+  'section0-sync.test.ts',
+  'section0-flag-off.test.ts',
 ];
 
 console.log('🚀 Running Complete ConvergentAI Multi-Track Test Suite...\n');

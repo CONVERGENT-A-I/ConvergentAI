@@ -12,6 +12,41 @@
 | :---: | :--- | :--- | :--- | :--- | :---: | :---: | :---: | :--- |
 | B1 | Nov 5, 2026 | `SR_K5hDnwMfgu7H` | `dev`, Section 0 **off** (demo build) | Baseline: David's tests #1, #2, #13, #30 | **0 / 12 (0%)** | 0/4 | 0/4 | ⚠️ **Not a valid measure of our flow** — see "Simulation harness finding" below. |
 | B2 | Nov 5, 2026 | `SR_TfavTyVffBjH` | `dev`, Section 0 off, + typed-input fix | Same 4 tests | **0 / 12 (0%)** | 0/4 | 0/4 | ⚠️ Same problem as B1 — the typed-input fix doesn't touch the path simulations use. Re-run as **B3** after the harness fix. |
+| **B3** | Nov 6, 2026 | `SR_wDGZ27nXmCJ7` | `dev`, Section 0 off, + harness fix | Same 4 tests | **0 / 12 (0%)** | 0/4 | 0/4 | ✅ **First valid baseline** — Ailana follows our scripted flow. Details below. 5/12 hit "agent produced no response items" (investigating). |
+| B4 | Nov 6, 2026 | `SR_f7XRsUAt2c6z` | same as B3 + empty-reply diagnostic | Same 4 tests | **0 / 12 (0%)** | 0/4 | 0/4 | Diagnostic re-run (run by Claude). **Every** failure is re-asking (income, debts, credit, savings, area, rent/own); **0** "no response items" this time → that error is intermittent (occasional empty model reply); an `⚠️ EMPTY REPLY` log line now records it if it recurs. |
+
+---
+
+## Baseline B3 — the real "before" (Nov 6)
+
+Ailana now follows our real state machine: scripted Stage 1 questions → verbatim Stage 1→2 bridge → Stage 2 questions in our order → Stage 2 closing offer (two-path choice). **0 compliance failures.**
+
+### What today's build already does right
+| Opening fact | Re-asked? | Why it works |
+| :--- | :---: | :--- |
+| Occupancy — "as my residence" (#1), "live in one side" (#13) | **No** (0/6) | Stage 1 extracts all 5 Stage 1 fields from any turn |
+| Co-borrower — "my husband and I" (#2), "my wife…" (#30) | **No** (0/6) | same |
+
+### What it gets wrong — the gap Section 0 fills
+| Opening fact | Re-asked | Tests |
+| :--- | :---: | :--- |
+| Income ($84k / $68k / $52/hr + $48k / $85k + $60k base) | **12 / 12** | #1, #2, #13, #30 |
+| Monthly debts ($1,200 / $300 / $450 car / $1,100) | **12 / 12** (#2 s2 partly: "besides the car payment…") | all |
+| Credit score (710 / 700 & 745) | **6 / 6** where stated | #1, #30 |
+| Funds saved ($25k / $55k) | **6 / 6** | #2, #30 |
+| Property type + area (duplex near UTC / Ooltewah) | **6 / 6** | #13, #2 |
+| Rent / own (keeping the Atlanta house) | **3 / 3** | #30 |
+| Weekly hours for "$52 an hour" | **never asked** (3/3) — the simulated borrower volunteered 36 h | #2 |
+
+**Why:** Stage 2 extracts a number **only while that exact question is pending**, so every Stage 2 fact in the opening line is dropped. → Section 0 Fact Ledger + ledger→profile sync (S0-12, S0-13).
+
+### Other findings
+| Finding | Count | Cause / owner |
+| :--- | :---: | :--- |
+| **Over-inference:** "our first home" taken as "first time with this lender" and occupancy assumed → relationship + occupancy questions skipped | 3/3 (#2) | Stage 1 extractor reads too much into "first home". Section 0's extractor handles `borrower.existing_member` and `borrower.first_time_buyer` as separate facts. |
+| **"Agent produced no response items"** — the run ended on a turn where Ailana produced no reply | 5/12 | Under investigation (diagnostic logging added Nov 6). Seen after the Path B choice (3), after the military answer (1), after the realtor answer (1). |
+| After choosing Path B (summary), the judge expects a visible summary; in text mode the affordability panel can't be shown | 3/12 | Stage 2.5 is UI-driven; out of Section 0 scope. Baseline scenarios should stop at the closing offer. |
+| Greeting ≠ "mandatory verbatim script"; greeting mentions loan officer during Stage 1 | judge note | Old conflicting greeting line in the Stage 1 prompt → fixed by S0-19 / S0-24 |
 
 ### Simulation harness finding (Nov 5) — why B1 and B2 don't measure our real flow
 
@@ -58,7 +93,9 @@ Reading the B2 transcripts showed Ailana asking questions in **our** wording thr
 
 ## Next run
 
-**B3 — re-run the same baseline with the simulation-harness fix** (Section 0 still off). This is the first run that measures our real state machine:
+*(B3 and B4 done — see above.)* **Next: run S1 — the same 4 tests with `SECTION_0_ENABLED=true`** (Section 0 memory, routing and no-repeat sync wired Nov 6). Steps: Test Guide 11.0c.
+
+Previous instruction kept for reference — **B3 — re-run the same baseline with the simulation-harness fix** (Section 0 still off):
 
 ```powershell
 cd backend

@@ -194,6 +194,35 @@ class AilanaVoiceAgent extends voice.Agent {
   }
 
   override async llmNode(chatCtx: any, toolCtx: any, modelSettings: any): ReturnType<typeof voice.Agent.prototype.llmNode> {
+    const out = await this.llmNodeInner(chatCtx, toolCtx, modelSettings);
+    return this.logIfEmpty(out) as any;
+  }
+
+  /**
+   * Diagnostic: pass the reply stream through unchanged, but log a warning if it
+   * ends without any text (shows up as "agent produced no response items" in
+   * LiveKit Agent Simulations, or as Ailana going silent).
+   */
+  private logIfEmpty(stream: any): any {
+    if (!stream || typeof stream.pipeThrough !== 'function') return stream;
+    let chars = 0;
+    const stage = this.contextManager.getActiveStage();
+    const pending = this.contextManager.getPendingField();
+    return stream.pipeThrough(new TransformStream({
+      transform(chunk: any, controller) {
+        const text = typeof chunk === 'string' ? chunk : (chunk?.delta?.content ?? '');
+        if (text) chars += String(text).trim().length;
+        controller.enqueue(chunk);
+      },
+      flush() {
+        if (chars === 0) {
+          console.warn(`[agent-hook]: ⚠️ EMPTY REPLY produced (stage=${stage}, pendingField=${pending}).`);
+        }
+      },
+    }));
+  }
+
+  private async llmNodeInner(chatCtx: any, toolCtx: any, modelSettings: any): Promise<any> {
     this.metrics.markLlmStart();
 
     // We only need profile for a flag check initially.
@@ -376,6 +405,16 @@ class AilanaVoiceAgent extends voice.Agent {
     // We MUST read the profile and pending fields AFTER the await above.
     const pending = this.contextManager.getPendingField();
     const profile = this.contextManager.getProfile();
+
+    // Section 0: the universal extractor understood a request for a loan officer (any phrasing,
+    // any stage) → use the existing transfer path (popup → SIP), exactly once.
+    if ((profile as any)._section0TransferRequested) {
+      delete (profile as any)._section0TransferRequested;
+      if (loIntent !== 'yes') {
+        console.log('[section0] transfer requested (extractor intent) → loan officer transfer path');
+        loIntent = 'yes';
+      }
+    }
 
     if (loIntent === 'yes') {
       console.log(`[agent-hook]: 📞 Loan Officer transfer confirmed — transferring via SYSTEM_TRIGGER_MLO_TRANSFER.`);
@@ -2051,6 +2090,8 @@ PAUSE CONSTRAINTS:
             otp_sent: !!(prof as any)._otpReadyToShow,
             // ── Flow state ──────────────────────────────────────────
             current_pending_field: contextManager.getPendingField(),
+            // ── Section 0 memory (SECTION_0_ENABLED) — saved in the frontend snapshot, restored on reconnect ──
+            ...(contextManager.getSection0Snapshot() ? { statedFacts: contextManager.getSection0Snapshot() } : {}),
           }
         }));
         await ctx.room.localParticipant?.publishData(payload, { reliable: true, topic: 'lk-chat' });

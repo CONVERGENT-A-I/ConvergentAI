@@ -15,6 +15,14 @@ import { isDatabaseEnabled } from '../services/database.js';
 import { callCrsSoftPull } from '../services/crs-service.js';
 import { lookupZipData } from '../utils/zip-lookup.js';
 import { logAffordabilityEvent } from '../utils/affordability-audit.js';
+import { FactLedger, type SerializedLedger } from '../section0/fact-ledger.js';
+import type { GoalClass } from '../section0/fact-schema.js';
+import { extractUniversal, type UniversalExtraction } from '../section0/universal-extractor.js';
+import { ingestExtraction } from '../section0/ingest.js';
+import { routeSection0, initialSection0State, type Section0Decision, type Section0State } from '../section0/router.js';
+import { syncLedgerToProfile, type SyncedMap } from '../section0/ledger-sync.js';
+import { formatKnownFacts, section0TaskText } from '../section0/turn-context.js';
+import { applySafetyNet } from '../section0/safety-net.js';
 
 export type TurnLogEntry = {
   role: 'user' | 'assistant';
@@ -60,6 +68,12 @@ export class SessionContextManager {
   private fieldAttempts: Record<string, number> = {};
   private softPullExplanationCount = 0;
 
+  // Section 0 (SECTION_0_ENABLED): memory + routing state
+  private ledger = new FactLedger();
+  private ledgerSynced: SyncedMap = {};
+  private section0State: Section0State = initialSection0State();
+  private section0Decision: Section0Decision | null = null;
+
   // Parallel asynchronous extraction state
   private nextExtractionTurn = 1;
   private lastAppliedTurn = 0;
@@ -89,6 +103,12 @@ export class SessionContextManager {
     private readonly metrics: LatencyTracker,
   ) {
     this.dbEnabled = isDatabaseEnabled();
+    if (ailanaConfig.section0Enabled) {
+      // Section 0 owns the opening; Stage 1 starts once a track is set.
+      this.activeStage = '0';
+      this.currentPendingField = 'section0';
+      console.log('[section0] ENABLED — session starts in Section 0 (stage "0")');
+    }
     if (this.dbEnabled) {
       console.log('[context-manager] Database persistence ENABLED');
     } else {
@@ -110,6 +130,10 @@ export class SessionContextManager {
     cloned.lastRotationAt = this.lastRotationAt;
     cloned.conversationSummary = this.conversationSummary;
     cloned.lastInputTokens = this.lastInputTokens;
+    cloned.ledger = this.ledger.clone();
+    cloned.ledgerSynced = { ...this.ledgerSynced };
+    cloned.section0State = JSON.parse(JSON.stringify(this.section0State));
+    cloned.section0Decision = this.section0Decision;
     return cloned;
   }
 
@@ -595,6 +619,14 @@ export class SessionContextManager {
     for (const [field, attempts] of Object.entries(clone.fieldAttempts)) {
       this.fieldAttempts[field] = attempts;
     }
+
+    // Section 0: merge the background turn's memory and routing state.
+    if (ailanaConfig.section0Enabled) {
+      this.ledger.mergeFrom(clone.ledger);
+      Object.assign(this.ledgerSynced, clone.ledgerSynced);
+      this.section0State = clone.section0State;
+      this.section0Decision = clone.section0Decision;
+    }
   }
 
 
@@ -623,7 +655,16 @@ export class SessionContextManager {
 
   hydrateFromSnapshot(stage: string, profile: any): void {
     this.activeStage = stage as any;
+    if (ailanaConfig.section0Enabled && profile?.statedFacts) {
+      // Section 0 memory travels with the frontend snapshot (statedFacts = { ledger, state }).
+      this.ledger = FactLedger.hydrate(profile.statedFacts.ledger);
+      if (profile.statedFacts.state) this.section0State = { ...initialSection0State(), ...profile.statedFacts.state };
+      this.ledgerSynced = {};
+      console.log(`[section0] ♻️ restored Fact Ledger from snapshot (${this.ledger.size()} facts)`);
+    }
     if (profile) {
+      const { statedFacts: _ignored, ...rest } = profile;
+      profile = rest;
       this.profile = { ...this.profile, ...profile };
 
       // Re-establish confirmation flags for any populated fields
@@ -725,7 +766,9 @@ export class SessionContextManager {
       'declarations',
       'submit_confirmation',
       'military_rural',
-      'affordability_panel_active'
+      'affordability_panel_active',
+      // Section 0: the reply must wait for extraction + routing (the next step depends on it)
+      'section0',
     ]);
     return DETERMINISTIC_FIELDS.has(target);
   }
@@ -764,6 +807,10 @@ export class SessionContextManager {
       if (this.profile.timeline && !this.profile.heloc_timeline) {
         this.profile.heloc_timeline = this.profile.timeline;
         this.profile.heloc_timeline_confirmed = true;
+      }
+      if (ailanaConfig.section0Enabled) {
+        // No-repeat rule: start Stage 2 at the first field that is actually missing.
+        this.advanceWorkflow();
       }
       console.log(`[agent-hook][fallback] Optimistically advanced Stage 1 -> Stage 2 for field "co_borrower" (default="no"). LLM transitions immediately with bridge!`);
       return;
@@ -838,7 +885,12 @@ export class SessionContextManager {
 
 
     // Redact SSNs from user input to comply with TRID logging requirements
-    trimmed = trimmed.replace(/\b\d{3}[- ]?\d{2}[- ]?\d{4}\b/g, '[REDACTED_SSN]');
+    if (ailanaConfig.section0Enabled) {
+      // Section 0 safety net: SSN (incl. spoken / cut-off digits) AND street addresses.
+      trimmed = applySafetyNet(trimmed).text;
+    } else {
+      trimmed = trimmed.replace(/\b\d{3}[- ]?\d{2}[- ]?\d{4}\b/g, '[REDACTED_SSN]');
+    }
 
     // Pre-clean STT currency artifacts for credit score if currentPendingField is credit_range or if user input contains e.g. "$710000" / "710000"
     if (this.currentPendingField === 'credit_range' || (!this.profile.credit_range_confirmed && this.activeStage === '2')) {
@@ -865,6 +917,30 @@ export class SessionContextManager {
     this.turnLog.push({ role: 'user', text: trimmed, timestamp: Date.now() });
     this.turnCount += 1;
 
+    if (ailanaConfig.section0Enabled) {
+      // Section 0: one universal extraction per turn, started in parallel with the stage logic.
+      const uniPromise = extractUniversal({
+        text: trimmed,
+        lastAssistant: this.getLastAssistantUtterance(),
+        track: this.profile.transaction_type ?? null,
+        knownKeys: this.ledger.known().map((e) => e.key),
+      });
+      if (this.activeStage === '0') {
+        await this.runSection0Turn(uniPromise);
+        await this.saveConversationTurn('user', trimmed);
+        await this.syncToDatabase();
+        return;
+      }
+      await this.runStageTurn(trimmed, _perfOnUserTurnStart);
+      await this.applyUniversalExtraction(uniPromise);
+      return;
+    }
+
+    await this.runStageTurn(trimmed, _perfOnUserTurnStart);
+  }
+
+  /** The existing per-stage turn logic (unchanged). */
+  private async runStageTurn(trimmed: string, _perfOnUserTurnStart: number): Promise<void> {
     // Handle Stage 2 pending confirmations local loop directly on this turn
     if (this.activeStage === '2' && this.profile.pending_confirm_field && this.profile.pending_confirm_value != null) {
       const _t = performance.now();
@@ -947,6 +1023,89 @@ export class SessionContextManager {
     // Save user turn to database and sync profile state
     await this.saveConversationTurn('user', trimmed);
     await this.syncToDatabase();
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Section 0 (SECTION_0_ENABLED) — memory, routing, no-repeat sync
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /** Stage "0": extract → ledger → router (code decides) → maybe set the track. */
+  private async runSection0Turn(uniPromise: Promise<UniversalExtraction>): Promise<void> {
+    const ex = await uniPromise;
+    ingestExtraction(ex, this.ledger, this.turnCount, this.activeStage);
+
+    const out = routeSection0({
+      goal: this.ledger.value<GoalClass>('goal.primary') ?? ex.goal,
+      secondaryGoal: this.ledger.value<GoalClass>('goal.secondary') ?? ex.secondaryGoal,
+      refiKeepFirst: this.ledger.value<boolean>('refi.keep_first') ?? null,
+      equityFixed: this.ledger.value<boolean>('equity.fixed_preference') ?? null,
+      intent: ex.intent,
+      state: this.section0State,
+    });
+    this.section0State = out.state;
+    this.section0Decision = out.decision;
+    console.log(`[section0] decision=${out.decision.kind}${'track' in out.decision ? ':' + out.decision.track : ''}${'which' in out.decision ? ':' + out.decision.which : ''} intent=${ex.intent} goal=${this.ledger.value('goal.primary') ?? '-'}`);
+
+    if (out.decision.kind === 'set_track') {
+      this.setSection0Track(out.decision.track, out.decision.refinanceType);
+    } else {
+      // Facts still go into the profile so nothing is re-asked once the track starts.
+      this.syncLedger();
+      if (out.decision.kind === 'transfer') {
+        (this.profile as any)._section0TransferRequested = true;
+      }
+    }
+  }
+
+  /** Track chosen by the router: hand off to the existing Stage 1 / Stage 2 flow. */
+  private setSection0Track(track: 'TT-PUR' | 'TT-REF' | 'TT-HEL' | 'TT-HEQ', refinanceType?: 'cash_out' | 'rate_term'): void {
+    const goal = track === 'TT-PUR' ? 'purchase' : track === 'TT-REF' ? 'refinance' : 'heloc';
+    this.profile.transaction_type = track;
+    this.profile.mortgage_goal = goal;
+    this.profile.mortgage_goal_confirmed = true;
+    if (refinanceType) {
+      this.profile.refinance_type = refinanceType;
+      this.profile.refinance_type_confirmed = true;
+    }
+    const secondary = this.ledger.value<string>('goal.secondary');
+    if (secondary) (this.profile as any).secondary_intent = secondary;
+    (this.profile as any).section0_complete = true;
+    this.activeStage = '1';
+    this.currentPendingField = null;
+    this.syncLedger();
+    this.advanceWorkflow();
+    console.log(`[section0] ✅ track set: ${track}${refinanceType ? ' (' + refinanceType + ')' : ''} → stage ${this.activeStage}, next: ${this.currentPendingField}`);
+  }
+
+  /** Stages ≥ 1: fold this turn's universal extraction into the ledger and skip anything now known. */
+  private async applyUniversalExtraction(uniPromise: Promise<UniversalExtraction>): Promise<void> {
+    const ex = await uniPromise;
+    const r = ingestExtraction(ex, this.ledger, this.turnCount, this.activeStage);
+    const written = this.syncLedger();
+    if (r.changed.length || written.length) {
+      const before = this.currentPendingField;
+      this.advanceWorkflow();
+      if (before !== this.currentPendingField) {
+        console.log(`[next-question] ledger filled known facts → next: ${this.currentPendingField} (was ${before})`);
+      }
+    }
+    if (ex.intent === 'requests_transfer_now') {
+      (this.profile as any)._section0TransferRequested = true;
+    }
+  }
+
+  private syncLedger(): string[] {
+    return syncLedgerToProfile(this.ledger, this.profile, this.ledgerSynced);
+  }
+
+  /** Serializable Section 0 state — sent to the frontend with every stage update and restored on reconnect. */
+  getSection0Snapshot(): { ledger: SerializedLedger; state: Section0State } | null {
+    if (!ailanaConfig.section0Enabled) return null;
+    return { ledger: this.ledger.serialize(), state: this.section0State };
+  }
+
+  getFactLedger(): FactLedger {
+    return this.ledger;
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -2161,7 +2320,9 @@ export class SessionContextManager {
     this.lastProcessedInput = null;
 
     // Synchronize currentPendingField with what Ailana ACTUALLY asked in Stage 1
-    if (this.activeStage === '1') {
+    // (disabled with Section 0: it re-targeted the pending field from keywords in Ailana's own
+    // speech, e.g. "purchase" → mortgage_goal, which fights the code-chosen next question)
+    if (this.activeStage === '1' && !ailanaConfig.section0Enabled) {
       const lower = trimmed.toLowerCase();
       if (lower.includes('co-borrower') || lower.includes('co borrower') || lower.includes('applying on your own') || lower.includes('joining you on the loan')) {
         this.currentPendingField = 'co_borrower';
@@ -2221,7 +2382,8 @@ export class SessionContextManager {
         name: 'existing_relationship',
         description: 'Whether they have worked with this lending institution before',
         expectedType: 'string',
-        additionalInstructions: 'Extract "yes" or "no". If they say they have worked with us before or have an existing mortgage, return "yes". If they say it is their first time, return "no". If they say they don\'t know or are unsure, return "no". If not found, return null.',
+        additionalInstructions: 'Extract "yes" or "no". If they say they have worked with us before or have an existing mortgage, return "yes". If they say it is their first time, return "no". If they say they don\'t know or are unsure, return "no". If not found, return null.'
+          + (ailanaConfig.section0Enabled ? ' IMPORTANT: buying a first home or being a first-time buyer is NOT the same as a first time with this lender — return null unless they talk about this lender.' : ''),
       });
     }
     if (!this.profile.timeline_confirmed) {
@@ -3046,10 +3208,19 @@ export class SessionContextManager {
       console.log(`[context-manager]: Auto-seeded heloc_timeline globally from Stage 1 timeline: "${this.profile.timeline}"`);
     }
 
+    // ── Section 0 (stage "0"): the router decides; nothing to advance here ──────────────
+    if (this.activeStage === '0') {
+      this.currentPendingField = 'section0';
+      return;
+    }
+
     // ── Stage 1 ──────────────────────────────────────────────────────────────────────────
     if (this.activeStage === '1') {
 
-      if (!this.profile.mortgage_goal_confirmed) {
+      if (ailanaConfig.section0Enabled && !this.profile.borrower_name_confirmed) {
+        // First track turn: ask the first name once (moved out of the old Q9). Declined → never asked again.
+        this.currentPendingField = 'borrower_name';
+      } else if (!this.profile.mortgage_goal_confirmed) {
         this.currentPendingField = 'mortgage_goal';
       } else if (!this.profile.occupancy_confirmed) {
         this.currentPendingField = 'occupancy';
@@ -3069,6 +3240,10 @@ export class SessionContextManager {
           console.log(`[context-manager]: Auto-seeded heloc_timeline from Stage 1 timeline: "${this.profile.timeline}"`);
         }
         console.log('[context-manager]: Transitioning to STAGE 2 Pre-Qualification Discovery!');
+        if (ailanaConfig.section0Enabled) {
+          // No-repeat rule: start Stage 2 at the first field that is actually missing.
+          this.advanceWorkflow();
+        }
       }
     } else if (this.activeStage === '2') {
       const isRef = this.profile.transaction_type === 'TT-REF' || this.profile.mortgage_goal === 'refinance';
@@ -3343,6 +3518,13 @@ export class SessionContextManager {
   }
 
   getDynamicContext(): string {
+    if (ailanaConfig.section0Enabled) {
+      const extras = {
+        knownFacts: formatKnownFacts(this.ledger),
+        ...(this.activeStage === '0' ? { section0Task: section0TaskText(this.section0Decision, this.ledger) } : {}),
+      };
+      return buildDynamicContext(this.profile, this.currentPendingField, this.activeStage, this.lowConfidence, extras);
+    }
     return buildDynamicContext(this.profile, this.currentPendingField, this.activeStage, this.lowConfidence);
   }
 
@@ -3769,7 +3951,10 @@ If no correction/change is found, return null.`
     const field = this.currentPendingField;
     this.fieldAttempts[field] = 0;
 
-    if (field === 'mortgage_goal') {
+    if (field === 'borrower_name') {
+      // Section 0: never block on the first name.
+      this.profile.borrower_name_confirmed = true;
+    } else if (field === 'mortgage_goal' && !ailanaConfig.section0Enabled) {
       this.profile.mortgage_goal = 'purchase';
       this.profile.transaction_type = 'TT-PUR';
       this.profile.mortgage_goal_confirmed = true;
