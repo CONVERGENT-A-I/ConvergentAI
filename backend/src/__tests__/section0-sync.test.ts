@@ -383,7 +383,7 @@ async function turn(cm: SessionContextManager, e: UniversalExtraction) {
   assert(cm.getPendingField() === 'section0_followup' && /discharged/.test(cm.getDynamicContext()), 'Stage 2 opens with the bankruptcy discharge date', cm.getPendingField());
   await quietlyAsync(() => cm.onAgentTurn('When was the bankruptcy discharged?'));
   await turn(cm, ex({ facts: [] }));
-  assert(cm.getPendingField() === 'section0_followup' && /before it and for how long/.test(cm.getDynamicContext()), 'then prior employment (new job not started)');
+  assert(cm.getPendingField() === 'section0_followup' && /what they did for work before and for how long/.test(cm.getDynamicContext()), 'then prior employment (new job not started)');
   await quietlyAsync(() => cm.onAgentTurn('What did you do before this job?'));
   await turn(cm, ex({ facts: [] }));
   assert(cm.getPendingField() !== 'section0_followup', 'then the track continues — each follow-up asked once', cm.getPendingField());
@@ -425,6 +425,31 @@ async function turn(cm: SessionContextManager, e: UniversalExtraction) {
     { key: 'property.rental_plan', value: true, raw: 'rent the other side' },
   ] }));
   assert(duplex.getFactLedger().get('occupancy')?.status === 'stated', '#13: living in one unit and renting the other is not a conflict');
+}
+
+{
+  // #30: relocating, destination not said → asked early in Stage 2, before the retained-home rent
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', facts: [
+    { key: 'situation.relocation', value: { from: 'Atlanta' }, raw: '' },
+    { key: 'housing.retained_home', value: { balance: 220, plan: 'rent' }, raw: '' },
+  ] }));
+  for (const f of [{ key: 'borrower.first_name', value: 'Morgan' }, { key: 'occupancy', value: 'primary' }, { key: 'borrower.existing_member', value: false }, { key: 'timeline', value: 'three months' }, { key: 'co_borrower.present', value: true }] as const) {
+    await turn(cm, ex({ facts: [{ key: f.key as any, value: f.value, raw: '' }] }));
+  }
+  assert(cm.getPendingField() === 'section0_followup' && /which city or zip code they are moving to/.test(cm.getDynamicContext()), '#30: asks the destination city/zip first', cm.getPendingField());
+  await quietlyAsync(() => cm.onAgentTurn('Which city are you moving to?'));
+  await turn(cm, ex({ facts: [{ key: 'location.area', value: { city: 'Chattanooga', state: 'TN', zip: '37421' }, raw: '' }] }));
+  assert(/rent for each month/.test(cm.getDynamicContext()), '#30: then the expected rent on the home they keep');
+}
+{
+  // #4: refinance goal known → the overview drops its closing goal question
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'refinance_rate_term', facts: [{ key: 'goal.refi_purpose', value: 'lower_payment', raw: '' }] }));
+  cm.getProfile().current_mortgage_type = 'conventional';
+  cm.setActiveStage('2');
+  const prompt = (await import('../prompts/stage2-refinance.js')).buildStage2RefinanceInstructions(cm.getProfile());
+  assert(/WITHOUT its final question about their goal/.test(prompt), '#4: known refinance goal → overview without the goal question');
 }
 
 // ── 13. No switch at the closing offer ──

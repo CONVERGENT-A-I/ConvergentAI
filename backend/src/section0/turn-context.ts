@@ -200,7 +200,12 @@ const FOLLOWUPS: Followup[] = [
   {
     id: 'prior_employment',
     needed: (l) => l.value('employment.new_job') !== undefined,
-    ask: 'Their new job has not started yet. Ask briefly what they did before it and for how long, so the loan officer has their recent work history. Do not ask for an offer letter or any documents.',
+    ask: 'Ask briefly what they did for work before and for how long, so the loan officer has their recent work history. Do not restate or ask again about the new job, and do not ask for an offer letter or any documents.',
+  },
+  {
+    id: 'destination_area',
+    needed: (l) => l.value('situation.relocation') !== undefined && l.value('location.area') === undefined,
+    ask: 'They are relocating. Ask which city or zip code they are moving to (where they want to buy). Never ask for a street address.',
   },
   {
     id: 'self_employed_years',

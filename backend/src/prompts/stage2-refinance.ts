@@ -1,4 +1,5 @@
 import type { BorrowerProfile } from './layer3-context.js';
+import { ailanaConfig } from '../config/ailana-config.js';
 
 /**
  * Layer 2 Stage 2: Refinance Track (TT-REF) Discovery (RQ14–RQ29)
@@ -47,6 +48,12 @@ USDA SUB-TRACK GUIDELINES (USDA-REF-OVERVIEW) — MANDATORY COMPLIANCE ITEM 27:
 CONVENTIONAL SUB-TRACK GUIDELINES (CONV-REF-OVERVIEW):
 - Verbatim Overview: "Since you have a conventional loan, your two main refinance options are a Rate-and-Term Refinance — which changes your interest rate, loan term, or loan structure — or a Cash-Out Refinance, which lets you access your home's equity in a lump sum. Conventional refinancing has some meaningful advantages: no upfront government fees, no permanent mortgage insurance once you reach 20% equity, and higher loan limits. Are you primarily looking to lower your rate or payment, shorten your term, or access cash from your equity?"
 - [DO NOT DELIVER UNPROMPTED]: Detailed LTV guidelines (95%-97% for rate-and-term, 80% cap for cash-out) delivered ONLY when asked.`;
+  }
+
+  // Section 0 no-repeat rule: the borrower already said what they want from the refinance —
+  // deliver the overview without its closing question about their goal.
+  if (ailanaConfig.section0Enabled && profile.refinance_type_confirmed && subtrackOverview) {
+    subtrackOverview += `\n- Their refinance goal is already known (${profile.refinance_type === 'cash_out' ? 'cash out' : 'rate and term / lower payment'}): deliver the overview WITHOUT its final question about their goal.`;
   }
 
   return `

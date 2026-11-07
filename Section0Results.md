@@ -18,6 +18,7 @@
 | **S2** | Nov 6, 2026 | `SR_XGKzNfWQgAmV` | S1 + fixes (bridge, tenure from memory, situational follow-ups) | Same 4 tests, stop at the closing offer | **12 / 12 (100%)** | 4/4 | 4/4 | ✅ **Baseline set fully passes.** Nothing re-asked; hours asked before hourly pay; $300 correction kept; Atlanta rent asked; no rate or approval statements. Two judge notes, not failures — see "Run S2". |
 | **S3** | Nov 6, 2026 | `SR_4JB8GRpwAiwJ` + `SR_ntCPmjEHE2Ud` | S2 + track switching (S0-18) | Baseline 4 + proposed 2 (R-8 switch, question is not a switch) | **12 / 12 + 6 / 6 (100%)** | 6/6 | 6/6 | ✅ No regression; the track switch keeps every fact; a HELOC question does not switch the track. Judge notes: name in scripted lines; refinance fee wording in the existing Refi script (for David). |
 | **P1** | Nov 7, 2026 | `SR_JZpTbodioxrV` | S3 build | **Full set `section0.yaml` (47), 1 sample — preview, not counted** | **20 / 47 (43%)** | — | — | First look at the full set. Failures are triaged into 9 causes below; fix cycle 1 applied Nov 8 → run **P2**. Export: `docs/section0/runs/preview1.json`. |
+| **P2** | Nov 8, 2026 | `SR_X8rcV2B7QjJJ` | fix cycle 1 | Full set (47), 1 sample, preview | **31 / 47 (66%)** | — | — | +11 from P1. 13 scenarios now pass that failed before. 16 failures triaged below; fix cycle 2 applied the same day → **P3**. Export: `docs/section0/runs/preview2.json`. |
 
 ---
 
@@ -92,6 +93,28 @@ Reading the B2 transcripts showed Ailana asking questions in **our** wording thr
 
 ### What this tells us
 - **Superseded by the harness finding** — B1's transcripts were Ailana improvising without our state machine, so its numbers are not the real "before". Compliance held throughout. B3 is the valid baseline.
+
+---
+
+## Preview P2: 31/47 (Nov 8) and fix cycle 2
+
+**Newly passing:** #2, #3, #5, #8, #9, #12, #14, #15, #17, #25, A3, A4, A8. The cycle-1 fixes worked.
+
+| Cause of the 16 failures | Scenarios | Fix (cycle 2) |
+| :--- | :--- | :--- |
+| Transfer and callback only spoken, never executed | T1, T2, T3, T6 (+T5) | ✅ **Real tool calls**: `transfer_to_loan_officer` and `schedule_callback` (`section0/handoff-tools.ts`). Code decides the handoff state (confirm once → transfer; unavailable → callback; "never mind" cancels) and refuses tool calls outside it. Each action happens once. Production uses the existing popup → SIP path; simulations write mock records. Checked live: Gemma 4 calls both tools correctly and calls neither on normal turns |
+| Two goals or an implied goal dropped, so intent was asked again. **Caused by my cycle-1 schema wording** ("still deciding → unclear") | #22, #30 | ✅ Schema: two goals = primary + secondary (never unclear); a goal can be plain from the situation. Live: both correct |
+| Didn't ask the city/zip after a street address | #11, A9 | ✅ The short TRID gate (Revised spec, verbatim) is now triggered by the safety net, followed by a city/zip question unless already known |
+| Pre-approval note ignored in favour of the intent question | #23 | ✅ Compliance notes are handled first; the letter question can be combined with the next question |
+| Footprint not checked (Phoenix had no state) | #26 | ✅ The extractor fills in the state when the city makes it clear (live: Phoenix → AZ) |
+| "Each borrower authorizes" not said | #18 | ✅ Given for any co-borrower |
+| Relocation destination never asked | #30 | ✅ New `destination_area` follow-up |
+| Refinance overview re-asked the goal ("lower payment, shorten term, or cash?") | #4 | ✅ Flag on + goal known → the overview skips its final question |
+| Inherited home still went to line-vs-lump-sum (model variance) | #19 | ✅ Schema wording; live 2/2 now "unclear" |
+| Prior employment question restated the new job | #29 | ✅ Follow-up wording |
+| Refinance: home value not reached within 8 replies | #16 | ❌ Track order. Open |
+
+**Tests:** + `section0-handoff` (25), compliance 16 → 21, sync 87 → 90. `npm test` 26/26; flag-off parity 23/23.
 
 ---
 
@@ -172,7 +195,7 @@ Two notes from the judge, neither of which failed a test:
 
 ## Next run
 
-**Run P2**: the same 1-sample preview of `section0.yaml` after fix cycle 1 (Test Guide 11.1). Then S0-22 (TRID gate) and S0-27/28 (transfer and callback as real actions).
+**Run P3**: the same 1-sample preview after fix cycle 2 (Test Guide 11.1). If it's at or near 95%, run the first **official** 3-sample run.
 
 
 Previous instruction kept for reference — **B3 — re-run the same baseline with the simulation-harness fix** (Section 0 still off):

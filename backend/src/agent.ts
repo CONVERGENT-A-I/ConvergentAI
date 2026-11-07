@@ -45,7 +45,8 @@ import { classifyAuthorization, classifyLoanOfficerTransferIntent, extractMultip
 import { BackgroundVoiceCancellation } from '@livekit/noise-cancellation-node';
 import { logAffordabilityEvent } from './utils/affordability-audit.js';
 import type { SimulationContext } from '@livekit/agents';
-import { activateSimulation, getSimRecords, getSimUserdata, recordSimTransfer } from './section0/sim-mocks.js';
+import { activateSimulation, getSimRecords, getSimUserdata, recordSimTransfer, recordSimBooking, simMloAvailable } from './section0/sim-mocks.js';
+import { buildHandoffTools } from './section0/handoff-tools.js';
 import { checkExpectedFacts, type ExpectedFacts } from './section0/sim-checks.js';
 
 // Set only when this job runs under `lk agent simulate` — lets onSimulationEnd
@@ -227,6 +228,15 @@ class AilanaVoiceAgent extends voice.Agent {
   private async llmNodeInner(chatCtx: any, toolCtx: any, modelSettings: any): Promise<any> {
     this.metrics.markLlmStart();
 
+    // A tool just ran (e.g. transfer_to_loan_officer): this call is the model's follow-up reply to the
+    // tool result, not a new user turn — never process the user's message a second time.
+    const items = chatCtx?.items || [];
+    const lastItem = items[items.length - 1];
+    if (lastItem?.type === 'function_call_output' || lastItem?.type === 'function_call') {
+      this.turnPrepared = false;
+      return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+    }
+
     // We only need profile for a flag check initially.
     const initialProfile = this.contextManager.getProfile();
 
@@ -291,6 +301,13 @@ class AilanaVoiceAgent extends voice.Agent {
       userAskedQuestion = isQuestionOrCorrection(lastUserText) || (this.contextManager.getProfile() as any).last_extracted_offer_val === 'explain';
     }
     this.turnPrepared = false;
+
+    // Section 0 (S0-27/28): while a transfer or call back is being arranged, skip every scripted
+    // fast path so the model can call the handoff tools (code decided the handoff state).
+    if (ailanaConfig.section0Enabled && this.contextManager.isHandoffActive()) {
+      console.log(`[section0] handoff in progress (${this.contextManager.getHandoffMode()}) — model with handoff tools`);
+      return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+    }
 
     // ── 0ms Verbal Submit Fast-Path (Stage 2.5) ──
     // Fires before LLM so the base LiveKit Inference model never produces a UI-redirect deflection.
@@ -1463,9 +1480,40 @@ export default defineAgent({
       }
     };
 
+    // Section 0 (S0-27/28): transfer and callback are real tool calls. Code performs the action —
+    // production: the existing popup → SIP transfer path; simulation: mock records only.
+    contextManager.setMloAvailability(() => (simCtx ? simMloAvailable() : true));
+    const handoffTools = ailanaConfig.section0Enabled
+      ? buildHandoffTools({
+          transfer: async () => {
+            const p = contextManager.getProfile();
+            p.escalation_preference = 'live_transfer';
+            (p as any).escalation_preference_confirmed = true;
+            contextManager.setActiveStage('5');
+            contextManager.setCurrentPendingField(null);
+            sendStageUpdate('5').catch((err) => console.warn(err));
+            if (simCtx) {
+              recordSimTransfer(ctx.room.name || '', { profile: p, statedFacts: contextManager.getFactLedger().serialize() });
+              return;
+            }
+            await sendMloPopupTrigger();
+          },
+          book: async (req) => {
+            (contextManager.getProfile() as any).callback_request = req;
+            if (simCtx) { recordSimBooking({ day: req.date ?? req.day, time: req.time, timeZone: req.timeZone }); return; }
+            // Google Calendar booking is decision D1 — until then the request travels with the profile to the loan officer.
+            console.log(`[section0] callback requested: ${JSON.stringify(req)}`);
+          },
+          onResult: (r) => contextManager.onHandoffResult(r),
+          canTransfer: () => contextManager.getHandoffMode() === 'confirm_answer',
+          canBook: () => contextManager.getHandoffMode() === 'callback',
+        })
+      : undefined;
+
     const createVadAgent = (customVad: any) => {
       console.log('[agent]: Creating LiveKit Inference agent (Gemma 4 31B LLM + Cartesia Ink-2 STT + Cartesia Sonic-3.6 TTS + TurnDetector)...');
       return new AilanaVoiceAgent({
+        ...(handoffTools ? { tools: handoffTools } : {}),
         vad: customVad,
         instructions: contextManager.getStaticInstructions(),
         stt: sessionStt,

@@ -7,6 +7,7 @@
  */
 import type { ComplianceFlag, IncomeComponent } from './fact-schema.js';
 import type { FactLedger } from './fact-ledger.js';
+import { tridGateScript } from './safety-net.js';
 
 export const PRIVACY_POLICY_URL = 'https://convergentai.tech/privacy';
 
@@ -57,6 +58,10 @@ export interface NotesInput {
   /** How the privacy answer ends, e.g. "let's pick up with your refinance". */
   continueWith: string;
   licensedStates: string[];
+  /** The safety net removed an SSN and/or street address from this message. */
+  safetyHit?: { ssn: boolean; address: boolean } | null;
+  /** Turn number — the TRID gate is given every time it is needed, not once per session. */
+  turn?: number;
 }
 
 /** The compliance notes needed this turn that have not been shown yet. */
@@ -66,11 +71,16 @@ export function complianceNotes(input: NotesInput): ComplianceNote[] {
   const add = (id: string, text: string) => { if (!shown.includes(id) && !out.some((n) => n.id === id)) out.push({ id, text }); };
   const has = (f: ComplianceFlag) => flags.includes(f);
 
+  if (input.safetyHit && (input.safetyHit.ssn || input.safetyHit.address)) {
+    const areaKnown = !!ledger.value('location.area');
+    add(`trid_gate:${input.turn ?? 0}`, `They started to give a Social Security number or street address. It was removed — never repeat or ask for it. Say exactly: "${tridGateScript(input.safetyHit)}"` +
+      (areaKnown ? '' : ' Then ask for just the city or zip code of the home as your next question.'));
+  }
   if (has('privacy_question')) {
     add('privacy', `PRIVACY QUESTION — answer first with this approved wording, word for word, then continue:\n"${privacyScript(input.channel, input.continueWith)}"`);
   }
   if (has('approval_guarantee_or_preapproval_letter')) {
-    add('preapproval', 'Do NOT confirm or imply any pre-approval, approval or amount you did not issue. Ask what the letter or offer is for.');
+    add('preapproval', 'Do NOT confirm or imply any pre-approval, approval or amount you did not issue. In this reply, ask what the letter or offer is about (you may ask it together with your next question).');
   }
   if (has('protected_class_topic')) {
     add('protected_class', 'Explain that loan programs are never based on race, ethnicity, national origin, religion, sex, age, marital or familial status, and do not ask about or repeat any of these. You may mention programs that depend on things like first-time-buyer status, income or location.');
@@ -91,7 +101,7 @@ export function complianceNotes(input: NotesInput): ComplianceNote[] {
     add('support_income', 'Tell them alimony or child support only needs to be disclosed if they want it counted toward qualifying, and ask whether they want it counted.');
   }
   const role = ledger.value<string>('co_borrower.role');
-  if (role === 'co_signer' || role === 'other_is_primary') {
+  if (role === 'co_signer' || role === 'other_is_primary' || ledger.value('co_borrower.present') === true) {
     add('each_authorizes', 'Mention briefly that each borrower authorizes their own credit check and contact later in the process.');
   }
   const area = ledger.value<{ state?: string; to?: string }>('location.area');

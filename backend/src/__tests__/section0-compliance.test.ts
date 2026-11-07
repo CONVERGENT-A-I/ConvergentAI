@@ -62,4 +62,22 @@ const ids = (n: Array<{ id: string }>) => n.map((x) => x.id);
   assert(complianceNotes({ ...base, flags: [], ledger: tn }).length === 0, 'in-footprint home, no flags → no notes');
 }
 
+// Short TRID gate (Revised spec, verbatim) when the safety net removed an SSN / address
+{
+  const n = complianceNotes({ ...base, flags: [], ledger: empty(), safetyHit: { ssn: true, address: true }, turn: 1 });
+  const t = n.find((x) => x.id.startsWith('trid_gate'))?.text ?? '';
+  assert(t.includes("I'm not able to take that information here, and I haven't recorded it.") && t.includes('A city or zip code is all I need.'), 'SSN + address → short TRID gate, verbatim, with the city/zip line');
+  assert(/ask for just the city or zip code/.test(t), 'then asks for the city or zip as the next question (#11, A9)');
+  const known = empty();
+  known.upsert({ key: 'location.area', value: { city: 'Chattanooga', state: 'TN' } }, 1, '0');
+  assert(!/ask for just the city/.test(complianceNotes({ ...base, flags: [], ledger: known, safetyHit: { ssn: true, address: false }, turn: 2 })[0]!.text), 'city already known → does not ask it again');
+  const second = complianceNotes({ ...base, flags: [], ledger: empty(), safetyHit: { ssn: true, address: false }, turn: 5, shown: ['trid_gate:1'] });
+  assert(second.length === 1, 'a second SSN attempt gets the gate again (not once per session)');
+}
+{
+  const joint = empty();
+  joint.upsert({ key: 'co_borrower.present', value: true }, 1, '0');
+  assert(ids(complianceNotes({ ...base, flags: [], ledger: joint })).includes('each_authorizes'), 'any co-borrower → each borrower authorizes their own credit check (#18)');
+}
+
 console.log(`\n✨ ALL ${total} SECTION 0 COMPLIANCE TESTS PASSED!`);

@@ -25,6 +25,8 @@ import { formatKnownFacts, jobTenureQuestion, nextSituationalFollowup, section0T
 import { applySafetyNet } from '../section0/safety-net.js';
 import { complianceNotes, lenderStates, type ComplianceNote } from '../section0/compliance-notes.js';
 
+type HandoffMode = 'confirm_asked' | 'confirm_answer' | 'callback' | 'transferred' | 'booked';
+
 export type TurnLogEntry = {
   role: 'user' | 'assistant';
   text: string;
@@ -81,6 +83,9 @@ export class SessionContextManager {
   private channel: 'voice' | 'text' = 'voice';
   private notesShown: string[] = [];          // compliance notes already given (each once per session)
   private pendingNotes: ComplianceNote[] = []; // compliance notes for the reply being generated
+  private handoff: { mode: HandoffMode; turn: number; afterUnavailable: boolean } | null = null;
+  private mloAvailable: () => boolean = () => true;
+  private safetyHit: { ssn: boolean; address: boolean } | null = null; // this turn only
 
   // Parallel asynchronous extraction state
   private nextExtractionTurn = 1;
@@ -149,6 +154,9 @@ export class SessionContextManager {
     cloned.channel = this.channel;
     cloned.notesShown = [...this.notesShown];
     cloned.pendingNotes = [...this.pendingNotes];
+    cloned.handoff = this.handoff ? { ...this.handoff } : null;
+    cloned.safetyHit = this.safetyHit;
+    cloned.mloAvailable = this.mloAvailable;
     return cloned;
   }
 
@@ -640,6 +648,8 @@ export class SessionContextManager {
       this.ledger.mergeFrom(clone.ledger);
       // A track switch in the background turn clears old-track sync marks — take the clone's map as is.
       for (const n of clone.pendingNotes) if (!this.pendingNotes.some((m) => m.id === n.id) && !this.notesShown.includes(n.id)) this.pendingNotes.push(n);
+      // A finished action (transferred / booked) recorded live always wins over the background copy.
+      if (!(this.handoff && (this.handoff.mode === 'transferred' || this.handoff.mode === 'booked'))) this.handoff = clone.handoff;
       if (clone.trackSwitches > this.trackSwitches) {
         this.ledgerSynced = { ...clone.ledgerSynced };
         this.trackSwitches = clone.trackSwitches;
@@ -913,7 +923,9 @@ export class SessionContextManager {
     // Redact SSNs from user input to comply with TRID logging requirements
     if (ailanaConfig.section0Enabled) {
       // Section 0 safety net: SSN (incl. spoken / cut-off digits) AND street addresses.
-      trimmed = applySafetyNet(trimmed).text;
+      const sn = applySafetyNet(trimmed);
+      trimmed = sn.text;
+      this.safetyHit = sn.ssn || sn.address ? { ssn: sn.ssn, address: sn.address } : null;
     } else {
       trimmed = trimmed.replace(/\b\d{3}[- ]?\d{2}[- ]?\d{4}\b/g, '[REDACTED_SSN]');
     }
@@ -1077,10 +1089,8 @@ export class SessionContextManager {
     } else {
       // Facts still go into the profile so nothing is re-asked once the track starts.
       this.syncLedger();
-      if (out.decision.kind === 'transfer') {
-        (this.profile as any)._section0TransferRequested = true;
-      }
     }
+    this.updateHandoff(ex);
     this.queueComplianceNotes(ex);
   }
 
@@ -1118,10 +1128,79 @@ export class SessionContextManager {
         console.log(`[next-question] ledger filled known facts → next: ${this.currentPendingField} (was ${before})`);
       }
     }
-    if (ex.intent === 'requests_transfer_now') {
-      (this.profile as any)._section0TransferRequested = true;
-    }
+    this.updateHandoff(ex);
     this.queueComplianceNotes(ex);
+  }
+
+  /**
+   * S0-27/28 — loan officer transfer and callback, decided by code from the extractor's intent:
+   *   transfer request → (loan officer available) ask once to confirm → next turn: if they said yes,
+   *   the model calls `transfer_to_loan_officer`; (unavailable) → offer a call back.
+   *   callback request / accepted → collect day, time, time zone → `schedule_callback`, once.
+   * "Never mind" before the transfer cancels it. Each action happens at most once.
+   */
+  private updateHandoff(ex: UniversalExtraction): void {
+    const prev = this.handoff;
+    const set = (mode: HandoffMode, afterUnavailable = false) => {
+      this.handoff = { mode, turn: this.turnCount, afterUnavailable };
+      console.log(`[section0] handoff → ${mode}${afterUnavailable ? ' (no loan officer available)' : ''}`);
+    };
+    if (ex.intent === 'cancels_transfer') {
+      if (prev && (prev.mode === 'confirm_asked' || prev.mode === 'confirm_answer')) { this.handoff = null; console.log('[section0] handoff cancelled — resuming'); }
+      return;
+    }
+    if (prev?.mode === 'transferred') return;
+    if (prev?.mode === 'confirm_asked') { set('confirm_answer'); return; }
+    if (prev?.mode === 'callback') {
+      if (ex.intent === 'declines_to_answer' && prev.afterUnavailable) { this.handoff = null; return; }
+      if (this.turnCount - prev.turn > 6) { this.handoff = null; return; } // never stall in callback mode
+      return;
+    }
+    if (prev?.mode === 'confirm_answer') this.handoff = null; // a turn passed without a transfer → back to normal
+    if (ex.intent === 'requests_callback' && prev?.mode !== 'booked') { set('callback'); return; }
+    if (ex.intent === 'requests_transfer_now') {
+      if (this.mloAvailable()) set('confirm_asked');
+      else set('callback', true);
+    }
+  }
+
+  /** Whether the loan officer line is open (simulation: scenario userdata; production: assumed until D1). */
+  setMloAvailability(fn: () => boolean): void {
+    this.mloAvailable = fn;
+  }
+
+  /** A transfer or callback is being arranged → the model must be free to call the handoff tools. */
+  isHandoffActive(): boolean {
+    const m = this.handoff?.mode;
+    return m === 'confirm_asked' || m === 'confirm_answer' || m === 'callback';
+  }
+
+  getHandoffMode(): HandoffMode | null {
+    return this.handoff?.mode ?? null;
+  }
+
+  /** Called by the handoff tools after the action really happened. */
+  onHandoffResult(result: 'transferred' | 'booked'): void {
+    this.handoff = { mode: result, turn: this.turnCount, afterUnavailable: false };
+    console.log(`[section0] handoff done: ${result}`);
+  }
+
+  private handoffTaskText(): string | null {
+    const h = this.handoff;
+    if (!h) return null;
+    if (h.mode === 'confirm_asked') {
+      return 'CURRENT TASK (loan officer request):\nThey asked for a licensed loan officer. Do NOT ask any qualifying questions. Ask once, briefly, whether they would like you to connect them with a licensed loan officer now. Do NOT call any tool yet.';
+    }
+    if (h.mode === 'confirm_answer') {
+      return 'CURRENT TASK (loan officer request):\nYou just asked whether to connect them with a licensed loan officer now. If their latest message says yes, call the transfer_to_loan_officer tool now (once) and then tell them you are connecting them. If they said no or want to keep going, say that is fine and continue where you left off. Never say you are connecting them unless the tool was called.';
+    }
+    if (h.mode === 'callback') {
+      const lead = h.afterUnavailable
+        ? 'No licensed loan officer is available right now. Say so plainly and offer to set up a call back. If they want one: '
+        : 'They want a call back from a licensed loan officer. ';
+      return `CURRENT TASK (call back):\n${lead}get the day, the time and their time zone — ask only for what they have not said yet, one at a time. As soon as you have all three, call the schedule_callback tool once, then read the booking back (day, time, time zone). Do NOT ask qualifying questions, do NOT offer or attempt a transfer, and never say it is booked unless the tool was called.`;
+    }
+    return null;
   }
 
   /** S0-23: compliance responses chosen by code from the extractor's flags and the ledger (each once). */
@@ -1133,6 +1212,7 @@ export class SessionContextManager {
       : "let's get started";
     const notes = complianceNotes({
       flags: ex.flags, ledger: this.ledger, channel: this.channel, continueWith, licensedStates: lenderStates(),
+      safetyHit: this.safetyHit, turn: this.turnCount,
       shown: [...this.notesShown, ...this.pendingNotes.map((n) => n.id)],
     });
     if (notes.length) {
@@ -3700,10 +3780,10 @@ export class SessionContextManager {
             ? `\nGOAL CHANGED: the borrower now wants a ${this.trackSwitchNotice}. Acknowledge it in one short phrase; everything else they told you still stands — do not ask it again.`
             : '')
           + (this.pendingNotes.length
-            ? `\nCOMPLIANCE (this reply):\n${this.pendingNotes.map((n) => `- ${n.text}`).join('\n')}`
+            ? `\nCOMPLIANCE (this reply) — handle this FIRST, then the current task:\n${this.pendingNotes.map((n) => `- ${n.text}`).join('\n')}`
             : ''),
-        ...(this.activeStage === '0' ? { section0Task: section0TaskText(this.section0Decision, this.ledger) } : {}),
-        ...(taskOverride ? { taskOverride } : {}),
+        ...(this.activeStage === '0' ? { section0Task: this.handoffTaskText() ?? section0TaskText(this.section0Decision, this.ledger) } : {}),
+        ...((this.activeStage !== '0' && this.handoffTaskText()) ? { taskOverride: this.handoffTaskText()! } : taskOverride ? { taskOverride } : {}),
       };
       return buildDynamicContext(this.profile, this.currentPendingField, this.activeStage, this.lowConfidence, extras);
     }

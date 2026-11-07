@@ -64,7 +64,7 @@ FACT KEYS (use only these; omit anything not stated):
 - housing.current: rent | own | own_selling | own_keeping · housing.properties_owned (number) · housing.retained_home ({balance, plan: rent|sell|keep, expected_rent})
 - purchase.price (number as said) · purchase.down_payment ({amount} or {percent}) · purchase.zero_down_goal (bool)
 - property.type: single_family | condo | townhome | multi_family | manufactured | cabin | other · property.units (number) · property.projected_rent (number per month) · property.rental_plan (bool: they plan to rent this home out, fully or part of the time)
-- location.area: {city, state, zip, area} — NEVER a street address
+- location.area: {city, state, zip, area} of the home they want to buy or own — NEVER a street address. state = two-letter code; fill it whenever the city makes the state clear
 - military.status: active | veteran | retired | reserve_guard | surviving_spouse | none · military.years
 - refi.balance · refi.value · refi.current_rate · refi.loan_type: conventional|fha|va|usda|unknown · refi.purchase_year · refi.cash_out_amount · refi.cash_out_use · refi.keep_first (bool: false = they said they want to refinance / replace the current mortgage; true = keep it)
 - equity.paid_off (bool) · equity.amount · equity.use · equity.fixed_preference (bool: true = lump sum / fixed payment, false = line of credit)
@@ -86,7 +86,9 @@ GOALS (what the borrower wants): ${GOAL_CLASSES.join(' | ')}.
 - equity_unclear = wants to use home equity, type not clear. cash_out_unclear = wants cash out of the home but did NOT say whether to refinance (replace) or keep the current mortgage.
 - construction = building / lot / construction draws. reverse_mortgage = reverse mortgage / HECM.
 - out_of_scope = not a home loan (car, personal, business loan). unclear = no goal can be told.
-- Use a specific goal only when the borrower's words say it; when they fit two goals, use the *_unclear goal. If they are still deciding between different options, use unclear.
+- The goal can be plain from their situation (e.g. moving to a new city while keeping or selling their home = purchase).
+- Two DIFFERENT goals named (even if they haven't chosen which comes first) = primary + secondary — never unclear.
+- Still deciding WHAT to do with a home (e.g. keep it, sell it, or borrow against it) = unclear. Wants money from the home but how is not clear = cash_out_unclear / equity_unclear.
 - secondary = a SECOND, different goal the borrower also mentions; otherwise null.
 - Use null when the message says nothing about a goal (e.g. it only answers a question).
 
