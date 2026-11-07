@@ -18,6 +18,8 @@ export interface ExtractedFact {
   key: FactKey;
   value: unknown;
   raw: string;
+  /** The borrower's words point to two different values → confirm before relying on it. */
+  uncertain?: boolean;
 }
 
 export interface UniversalExtraction {
@@ -48,11 +50,12 @@ FACT KEYS (use only these; omit anything not stated):
 - occupancy: primary | second_home | investment  (living in part of a multi-unit home = primary)
 - timeline (short text)
 - co_borrower.present (bool) · co_borrower.relationship (text) · co_borrower.role: co_borrower | co_signer | other_is_primary
-- income.borrower, income.co_borrower: ARRAY of {type, amount, frequency, hours_per_week, counted, variable, history}
+- income.borrower, income.co_borrower: ARRAY of {type, amount, frequency, hours_per_week, counted, variable, history, combined}
     type: salary | hourly | self_employed_net | gig_1099 | commission | bonus | social_security | pension | military_retirement | va_disability | alimony | child_support | rental | other
     amount: number exactly as said (e.g. said "68" → 68; said "52 an hour" → 52)
     frequency: hourly | weekly | biweekly | semimonthly | monthly | yearly | null if not said
     hours_per_week: number only if said; counted: true/false only if the borrower said whether to count it; history: past-year amounts if said
+    combined: true when one amount is the total for all borrowers together (put it under income.borrower)
 - employment.type: w2_salary | w2_hourly | self_employed | gig_1099 | retired | commission | other · employment.occupation (text) · employment.tenure_years (number) · employment.new_job ({starts})
 - debt.monthly_total (number per month) · debt.items (array of {kind, monthly})
 - credit.borrower, credit.co_borrower: the score/range/tier as said (string)
@@ -60,10 +63,10 @@ FACT KEYS (use only these; omit anything not stated):
 - funds.total (number as said) · funds.sources (array of {kind: savings | sale_proceeds | retirement | gift | other, amount})
 - housing.current: rent | own | own_selling | own_keeping · housing.properties_owned (number) · housing.retained_home ({balance, plan: rent|sell|keep, expected_rent})
 - purchase.price (number as said) · purchase.down_payment ({amount} or {percent}) · purchase.zero_down_goal (bool)
-- property.type: single_family | condo | townhome | multi_family | manufactured | cabin | other · property.units (number) · property.projected_rent (number per month)
+- property.type: single_family | condo | townhome | multi_family | manufactured | cabin | other · property.units (number) · property.projected_rent (number per month) · property.rental_plan (bool: they plan to rent this home out, fully or part of the time)
 - location.area: {city, state, zip, area} — NEVER a street address
 - military.status: active | veteran | retired | reserve_guard | surviving_spouse | none · military.years
-- refi.balance · refi.value · refi.current_rate · refi.loan_type: conventional|fha|va|usda|unknown · refi.purchase_year · refi.cash_out_amount · refi.cash_out_use · refi.keep_first (bool)
+- refi.balance · refi.value · refi.current_rate · refi.loan_type: conventional|fha|va|usda|unknown · refi.purchase_year · refi.cash_out_amount · refi.cash_out_use · refi.keep_first (bool: false = they said they want to refinance / replace the current mortgage; true = keep it)
 - equity.paid_off (bool) · equity.amount · equity.use · equity.fixed_preference (bool: true = lump sum / fixed payment, false = line of credit)
 - situation.relocation ({from, to, when}) · situation.divorce_buyout · situation.inherited_home · situation.delinquent_months · situation.job_loss · situation.preapproval_letter · situation.competitor_offer (bools / number)`;
 
@@ -74,15 +77,16 @@ Return ONLY a JSON object:
 {"goal": {"primary": <goal|null>, "secondary": <goal|null>},
  "intent": <one intent>,
  "flags": [<compliance flags>],
- "facts": [{"key": <fact key>, "value": <value>, "raw": <the borrower's own words for it, max 12 words>}],
+ "facts": [{"key": <fact key>, "value": <value>, "raw": <the borrower's own words for it, max 12 words>, "uncertain": <true only if their words point to two different values>}],
  "declined": [<fact keys the borrower explicitly refused or said they don't know>]}
 
 GOALS (what the borrower wants): ${GOAL_CLASSES.join(' | ')}.
-- purchase = buy a home. refinance = replace the current mortgage (rate_term / cash_out when that is clear).
+- purchase = buy a home. refinance = replace the current mortgage. refinance_rate_term / refinance_cash_out only when the borrower said they want to refinance or replace the mortgage AND the purpose is clear.
 - heloc = line of credit on the home. home_equity_loan = lump sum / fixed payment against the home.
-- equity_unclear = wants to use home equity, type not clear. cash_out_unclear = wants cash from the home, not clear whether to keep or replace the first mortgage.
+- equity_unclear = wants to use home equity, type not clear. cash_out_unclear = wants cash out of the home but did NOT say whether to refinance (replace) or keep the current mortgage.
 - construction = building / lot / construction draws. reverse_mortgage = reverse mortgage / HECM.
 - out_of_scope = not a home loan (car, personal, business loan). unclear = no goal can be told.
+- Use a specific goal only when the borrower's words say it; when they fit two goals, use the *_unclear goal. If they are still deciding between different options, use unclear.
 - secondary = a SECOND, different goal the borrower also mentions; otherwise null.
 - Use null when the message says nothing about a goal (e.g. it only answers a question).
 
@@ -103,7 +107,8 @@ RULES
 5. Use the assistant's last question to understand short answers ("yes", "about 36", "the second one").
 6. NEVER output a Social Security number, a street address, account numbers, race, ethnicity, national origin, religion or familial status — not as a key, not inside any value. A city, state or zip is fine.
 7. If the borrower asks to state a number different from the truth, output only the true number and add the flag inflate_income_request.
-8. Output valid JSON only — no prose, no code fences.`;
+8. If the borrower's words fit two different values of one fact (for example two possible occupancy types), give the most likely value and add "uncertain": true.
+9. Output valid JSON only — no prose, no code fences.`;
 }
 
 function buildUserPrompt(input: ExtractorInput): string {
@@ -153,7 +158,7 @@ export function parseUniversalResponse(raw: string | null | undefined): Universa
       if (!f || typeof f.key !== 'string') continue;
       if (isForbiddenKey(f.key) || !isFactKey(f.key)) continue;
       if (f.value === undefined || f.value === null || f.value === '') continue;
-      facts.push({ key: f.key, value: f.value, raw: typeof f.raw === 'string' ? f.raw.slice(0, 160) : '' });
+      facts.push({ key: f.key, value: f.value, raw: typeof f.raw === 'string' ? f.raw.slice(0, 160) : '', ...(f.uncertain === true ? { uncertain: true } : {}) });
     }
   }
 

@@ -104,3 +104,10 @@ Not in this file:
    - **The approved privacy wording (#28):** we need the approved script text.
 3. **Borrower's name in the closing offer.** The existing closing line says "Great work exploring your numbers, *Casey*." The simulation judge keeps flagging the name. Keep it, or drop it?
 4. **Refinance wording to review (outside Section 0).** The existing Refinance script says conventional refinancing has "no upfront government fees, no permanent mortgage insurance once you reach 20% equity" (`stage2-refinance.ts`, line 48). The judge called this an unqualified claim. Please have compliance review it. We have not changed it.
+
+## David's response (Nov 7, 2026)
+
+- The review was **very favorable**. The set is treated as approved and locked from here.
+- **Privacy wording received.** Ailana now says it word for word: voice puts the link on screen and never reads the URL; text includes the link and the request line.
+- **Generalization:** the goal is for Section 0 to handle phrasings far beyond these 30 without developers supplying them. That's how it's built: a fixed set of facts and intents, with code making every decision. It will be measured with a separate stress set of varied phrasings.
+- **Still open:** the borrower's name in the closing offer (item 3) and the Refinance fee wording (item 4).

@@ -129,6 +129,7 @@ const CLARIFY_TEXT: Record<string, string> = {
   frequency: 'whether that amount is per month or per year',
   magnitude: 'the exact amount (the number heard was unclear)',
   conflict: 'which number is right — two stated figures do not fit together',
+  uncertain: 'which one it is — what they said could mean either',
 };
 
 /** The KNOWN FACTS block for Layer 3. Empty string when nothing is known yet. */
@@ -184,9 +185,32 @@ export function jobTenureQuestion(ledger: FactLedger, hasCoBorrower: boolean): s
   return "Could you tell me a bit about your current job tenure and how you're paid — for example, whether you are salaried, hourly, or self-employed?";
 }
 
-/** Situational follow-ups: facts a stated situation makes necessary. Asked once each, before the closing offer. */
+/**
+ * Situational follow-ups: facts a stated situation makes necessary. Each is asked once, early in
+ * Stage 2 (code chooses when; "not sure" moves on). Conditions read only the fact ledger.
+ */
 interface Followup { id: string; needed: (l: FactLedger) => boolean; ask: string }
+const allIncome = (l: FactLedger) => [...(l.value<IncomeComponent[]>('income.borrower') ?? []), ...(l.value<IncomeComponent[]>('income.co_borrower') ?? [])];
 const FOLLOWUPS: Followup[] = [
+  {
+    id: 'credit_event_timing',
+    needed: (l) => (l.value<Array<{ type: string }>>('credit.events') ?? []).some((e) => ['bankruptcy', 'foreclosure', 'short_sale'].includes(e.type)),
+    ask: 'Ask, without judgment, when the bankruptcy, foreclosure or short sale they mentioned was discharged or completed (month and year is enough). If they are not sure, that is fine — move on.',
+  },
+  {
+    id: 'prior_employment',
+    needed: (l) => l.value('employment.new_job') !== undefined,
+    ask: 'Their new job has not started yet. Ask briefly what they did before it and for how long, so the loan officer has their recent work history. Do not ask for an offer letter or any documents.',
+  },
+  {
+    id: 'self_employed_years',
+    needed: (l) => {
+      const t = l.value<string>('employment.type');
+      const selfEmployed = t === 'self_employed' || t === 'gig_1099' || allIncome(l).some((c) => c.type === 'self_employed_net' || c.type === 'gig_1099');
+      return selfEmployed && l.value('employment.tenure_years') === undefined;
+    },
+    ask: 'Ask how many years they have been doing this self-employed or 1099 work. Do not ask for tax returns, 1099s or any documents.',
+  },
   {
     id: 'retained_home_rent',
     needed: (l) => {
@@ -255,6 +279,9 @@ export function section0TaskText(decision: Section0Decision | null, ledger: Fact
       return decision.holdout === 'construction'
         ? 'CURRENT TASK (Section 0):\nConstruction / lot / draw financing is handled directly by a licensed loan officer. Briefly explain that and offer to connect them now or set up a callback. Do NOT start discovery questions.'
         : 'CURRENT TASK (Section 0):\nReverse mortgages (HECM) are handled by a licensed loan officer, and HUD requires counseling with an approved HECM counselor before applying. Briefly explain that and offer to connect them now or set up a callback. Do NOT start discovery questions.';
+    case 'holdout_followup':
+      return `CURRENT TASK (Section 0):
+${answerFirst}Do NOT ask discovery questions (no intent, co-borrower, occupancy, income or other qualifying questions) and do NOT offer the loan officer connection again unless they ask for it. Acknowledge briefly, remind them they can reach a licensed loan officer whenever they are ready, and ask if there is anything else you can help with.`;
     case 'out_of_scope':
       return "CURRENT TASK (Section 0):\nSay that this type of loan is outside what you can help with here. Offer help with buying a home, refinancing, or home equity — or the lender's other contact options.";
     case 'off_topic':

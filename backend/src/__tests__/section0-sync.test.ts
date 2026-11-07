@@ -224,12 +224,25 @@ async function turn(cm: SessionContextManager, e: UniversalExtraction) {
   }));
   const p = cm.getProfile();
   assert(p.gross_annual_income === 185000, 'household income $185,000 (both spouses, commission included)');
-  // Walk to the end of Stage 2 (only the still-missing items)
+  // Stage 1 (only the still-missing items)
   for (const f of [
     { key: 'borrower.first_name', value: 'Morgan' }, { key: 'occupancy', value: 'primary' }, { key: 'borrower.existing_member', value: false },
-    { key: 'timeline', value: 'three months' }, { key: 'purchase.price', value: 450 },
-    { key: 'property.type', value: 'single_family' }, { key: 'location.area', value: { city: 'Chattanooga', state: 'TN', zip: '37421' } },
-    { key: 'military.status', value: 'none' },
+    { key: 'timeline', value: 'three months' },
+  ] as const) {
+    await turn(cm, ex({ facts: [{ key: f.key as any, value: f.value, raw: '' }] }));
+  }
+  // Stage 2 opens with the follow-up the borrower's own story calls for (asked early, once)
+  assert(cm.getActiveStage() === '2' && cm.getPendingField() === 'section0_followup', 'Stage 2 starts with the situational follow-up', cm.getPendingField());
+  assert(/rent for each month/.test(cm.getDynamicContext()), 'follow-up asks the expected rent on the home they are keeping');
+  await quietlyAsync(() => cm.onAgentTurn('How much do you expect the Atlanta home to rent for each month?'));
+  await turn(cm, ex({ facts: [{ key: 'housing.retained_home', value: { expected_rent: 2100 }, raw: 'about 2,100' }] }));
+  const kept = cm.getFactLedger().value<any>('housing.retained_home');
+  assert(kept.expected_rent === 2100 && kept.balance === 220000 && kept.plan === 'rent', 'expected rent merged in; balance and plan kept');
+  assert(cm.getPendingField() !== 'section0_followup', 'follow-up not asked again', cm.getPendingField());
+
+  for (const f of [
+    { key: 'purchase.price', value: 450 }, { key: 'property.type', value: 'single_family' },
+    { key: 'location.area', value: { city: 'Chattanooga', state: 'TN', zip: '37421' } }, { key: 'military.status', value: 'none' },
   ] as const) {
     await turn(cm, ex({ facts: [{ key: f.key as any, value: f.value, raw: '' }] }));
   }
@@ -241,12 +254,6 @@ async function turn(cm: SessionContextManager, e: UniversalExtraction) {
 
   cm.getProfile().job_tenure_type = '6 years sales; 9 years nurse'; cm.getProfile().job_tenure_type_confirmed = true;
   quietly(() => cm.advanceWorkflow());
-  assert(cm.getPendingField() === 'section0_followup', 'before the closing offer: a follow-up is needed', cm.getPendingField());
-  assert(/rent for each month/.test(cm.getDynamicContext()), 'follow-up asks the expected rent on the home they are keeping');
-  await quietlyAsync(() => cm.onAgentTurn('How much do you expect the Atlanta home to rent for each month?'));
-  await turn(cm, ex({ facts: [{ key: 'housing.retained_home', value: { expected_rent: 2100 }, raw: 'about 2,100' }] }));
-  const kept = cm.getFactLedger().value<any>('housing.retained_home');
-  assert(kept.expected_rent === 2100 && kept.balance === 220000 && kept.plan === 'rent', 'expected rent merged in; balance and plan kept');
   assert(cm.getPendingField() === 'stage2_closing_offer', 'then the closing offer', cm.getPendingField());
 }
 
@@ -297,6 +304,127 @@ async function turn(cm: SessionContextManager, e: UniversalExtraction) {
   // Switching back restores the purchase price from memory
   await turn(cm, ex({ goal: 'purchase' }));
   assert(cm.getProfile().transaction_type === 'TT-PUR' && cm.getProfile().target_price === 350000, 'back to Purchase → price restored from the ledger');
+}
+
+// ── 14. Preview fixes, fed with the extractor's REAL output for those turns ──
+{
+  // #2: "I usually work 36 hours a week." arrives as {hours_per_week: 36} with no type
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', facts: [
+    { key: 'co_borrower.present', value: true, raw: '' },
+    { key: 'income.borrower', value: [{ type: 'hourly', amount: 52 }], raw: '52 an hour' },
+    { key: 'income.co_borrower', value: [{ type: 'salary', amount: 48000, frequency: 'yearly' }], raw: '' },
+  ] }));
+  assert(cm.getFactLedger().get('income.borrower')?.status === 'needs_clarification', '#2: hourly pay waits for weekly hours');
+  await turn(cm, ex({ facts: [{ key: 'income.borrower', value: [{ hours_per_week: 36 }], raw: '36 hours a week' }] }));
+  const inc = cm.getFactLedger().value<any[]>('income.borrower') ?? [];
+  assert(inc.length === 1 && inc[0].type === 'hourly' && inc[0].annual === 97344, '#2: type-less hours attach to the hourly pay (52 × 36 × 52)', inc);
+  assert(cm.getProfile().gross_annual_income === 145344, '#2: household income $145,344', cm.getProfile().gross_annual_income);
+}
+{
+  // Same reply, but the model labelled it "salary" (seen live): a detail with no amount still completes the hourly pay
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', facts: [{ key: 'income.borrower', value: [{ type: 'hourly', amount: 52 }], raw: '52 an hour' }] }));
+  await turn(cm, ex({ facts: [{ key: 'income.borrower', value: { type: 'salary', hours_per_week: 36 }, raw: '36 hours a week' }] }));
+  const inc = cm.getFactLedger().value<any[]>('income.borrower') ?? [];
+  assert(inc.length === 1 && inc[0].type === 'hourly' && inc[0].annual === 97344, '#2: mislabelled detail still attaches to the waiting hourly pay', inc);
+}
+{
+  // #4: "We both work, combined around 140,000" → one combined amount
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'refinance_rate_term', facts: [
+    { key: 'co_borrower.present', value: true, raw: '' },
+    { key: 'income.borrower', value: [{ type: 'other', amount: 140000, frequency: 'yearly', combined: true }], raw: 'combined around 140,000' },
+  ] }));
+  assert(cm.getProfile().gross_annual_income === 140000 && cm.getProfile().gross_annual_income_confirmed === true, '#4: combined household income counts — not re-asked');
+}
+{
+  // #3: retired military, benefit income only, "nothing down"
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', facts: [
+    { key: 'military.status', value: 'retired', raw: '' },
+    { key: 'income.borrower', value: [{ type: 'military_retirement', amount: 3100, frequency: 'monthly' }, { type: 'va_disability', amount: 1800, frequency: 'monthly' }], raw: '' },
+    { key: 'purchase.zero_down_goal', value: true, raw: 'nothing down' },
+    { key: 'credit.borrower', value: '680', raw: '' },
+  ] }));
+  const p = cm.getProfile();
+  assert(p.gross_annual_income === 58800, '#3: retirement + VA disability = $58,800/yr');
+  assert(p.down_payment_confirmed === true && p.down_payment === 0, '#3: zero-down goal answers the down-payment question');
+  assert(p.job_tenure_type_confirmed === true, '#3: benefit income only → no job-tenure question');
+  // Stage 2 must still ask what is genuinely missing (debts) — the old tenure shortcut must not skip it
+  for (const f of [{ key: 'borrower.first_name', value: 'Sam' }, { key: 'occupancy', value: 'primary' }, { key: 'borrower.existing_member', value: false }, { key: 'timeline', value: 'two months' }, { key: 'co_borrower.present', value: false }] as const) {
+    await turn(cm, ex({ facts: [{ key: f.key as any, value: f.value, raw: '' }] }));
+  }
+  assert(cm.getActiveStage() === '2' && cm.getPendingField() === 'monthly_debt', '#3: Stage 2 asks the debts (not skipped to the closing offer)', cm.getPendingField());
+}
+{
+  // #15: occupancy that points two ways → one confirmation; "combined 210"
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', facts: [
+    { key: 'occupancy', value: 'second_home', raw: "vacation place and we'd Airbnb it", uncertain: true },
+    { key: 'co_borrower.present', value: true, raw: '' },
+    { key: 'income.borrower', value: [{ type: 'other', amount: 210, combined: true }], raw: 'Combined income is 210' },
+  ] }));
+  assert(cm.getFactLedger().get('occupancy')?.status === 'needs_clarification', '#15: occupancy marked for one quick check');
+  assert(/Occupancy[^\n]*which one it is/.test(cm.getDynamicContext()), '#15: Ailana is told to check which it is');
+  assert(cm.getProfile().occupancy_confirmed !== true, '#15: occupancy is not treated as settled');
+  assert(cm.getProfile().gross_annual_income === 210000, '#15: combined income $210,000 counts');
+}
+{
+  // Follow-ups early in Stage 2: bankruptcy timing, prior employment, self-employed years
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', facts: [
+    { key: 'credit.events', value: [{ type: 'bankruptcy', when: 'two years ago' }], raw: '' },
+    { key: 'employment.new_job', value: { starts: 'in two weeks' }, raw: '' },
+  ] }));
+  for (const f of [{ key: 'borrower.first_name', value: 'Jesse' }, { key: 'occupancy', value: 'primary' }, { key: 'borrower.existing_member', value: false }, { key: 'timeline', value: 'six months' }, { key: 'co_borrower.present', value: false }] as const) {
+    await turn(cm, ex({ facts: [{ key: f.key as any, value: f.value, raw: '' }] }));
+  }
+  assert(cm.getPendingField() === 'section0_followup' && /discharged/.test(cm.getDynamicContext()), 'Stage 2 opens with the bankruptcy discharge date', cm.getPendingField());
+  await quietlyAsync(() => cm.onAgentTurn('When was the bankruptcy discharged?'));
+  await turn(cm, ex({ facts: [] }));
+  assert(cm.getPendingField() === 'section0_followup' && /before it and for how long/.test(cm.getDynamicContext()), 'then prior employment (new job not started)');
+  await quietlyAsync(() => cm.onAgentTurn('What did you do before this job?'));
+  await turn(cm, ex({ facts: [] }));
+  assert(cm.getPendingField() !== 'section0_followup', 'then the track continues — each follow-up asked once', cm.getPendingField());
+}
+{
+  // Compliance notes reach the prompt once, then disappear
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'refinance', flags: ['privacy_question'], facts: [{ key: 'refi.balance', value: 200, raw: '' }] }));
+  const ctx = cm.getDynamicContext();
+  assert(/COMPLIANCE \(this reply\)/.test(ctx) && /I'm provided by ConvergentAI/.test(ctx), 'privacy question → approved answer in this reply');
+  assert(/let's pick up with your refinance\./.test(ctx), 'the privacy answer returns to their refinance');
+  await quietlyAsync(() => cm.onAgentTurn("That's a fair question to ask before we start..."));
+  assert(!/COMPLIANCE/.test(cm.getDynamicContext()), 'note is gone after Ailana answers');
+  await turn(cm, ex({ flags: ['privacy_question'] }));
+  assert(!/COMPLIANCE/.test(cm.getDynamicContext()), 'never repeated in the same session');
+}
+{
+  // #8: construction → holdout response, then no intake questions on later turns
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'construction', facts: [{ key: 'refi.value', value: 380, raw: '' }] }));
+  assert(/Construction \/ lot \/ draw/.test(cm.getDynamicContext()), '#8: construction bridge response first');
+  await turn(cm, ex({ intent: 'asks_about_human_later' }));
+  assert(cm.getActiveStage() === '0' && /Do NOT ask discovery questions/.test(cm.getDynamicContext()), '#8: later turns stay in the holdout, no intake questions');
+}
+
+{
+  // #15 (code rule): second home + plans to rent it out → occupancy confirmed once; a duplex they live in is fine
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', facts: [
+    { key: 'occupancy', value: 'second_home', raw: 'vacation place' },
+    { key: 'property.rental_plan', value: true, raw: "we'd Airbnb it" },
+  ] }));
+  assert(cm.getFactLedger().get('occupancy')?.status === 'needs_clarification', '#15: second home + rental plan → one quick check');
+  await turn(cm, ex({ facts: [{ key: 'occupancy', value: 'second_home', raw: 'mostly for us' }] }));
+  assert(cm.getFactLedger().get('occupancy')?.status === 'stated' && cm.getProfile().occupancy_confirmed === true, '#15: their answer settles it — not asked again');
+  const duplex = newManager();
+  await turn(duplex, ex({ goal: 'purchase', facts: [
+    { key: 'occupancy', value: 'primary', raw: '' }, { key: 'property.type', value: 'multi_family', raw: '' },
+    { key: 'property.rental_plan', value: true, raw: 'rent the other side' },
+  ] }));
+  assert(duplex.getFactLedger().get('occupancy')?.status === 'stated', '#13: living in one unit and renting the other is not a conflict');
 }
 
 // ── 13. No switch at the closing offer ──

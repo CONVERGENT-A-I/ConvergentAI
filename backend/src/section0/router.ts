@@ -32,6 +32,8 @@ export type Section0Decision =
   | { kind: 'offer_general_or_lo'; answerQuestion: boolean }
   | { kind: 'answer_only' }
   | { kind: 'holdout'; holdout: 'construction' | 'reverse_mortgage' }
+  /** After the holdout response: no more discovery questions, no repeated loan-officer offer. */
+  | { kind: 'holdout_followup'; answerQuestion: boolean }
   | { kind: 'out_of_scope' }
   | { kind: 'off_topic' }
   | { kind: 'ai_disclosure' }
@@ -96,13 +98,21 @@ export function routeSection0(input: RouterInput): RouterOutput {
     return { decision: { kind: 'callback' }, state };
   }
   if (intent === 'cancels_transfer') {
-    return { decision: { kind: 'resume' }, state: { ...state, transferPending: false } };
-  }
-  if (intent === 'asks_about_human_later') {
-    return { decision: { kind: 'explain_human_later' }, state };
+    // Back to Ailana: if the goal was already stated ("refinance… actually, transfer me"), start that track.
+    state = { ...state, transferPending: false };
+    const resumed = routeSection0({ ...input, intent: 'states_goal_or_facts', state });
+    if (resumed.decision.kind === 'set_track') return resumed;
+    return { decision: { kind: 'resume' }, state };
   }
   if (intent === 'asks_if_human') {
     return { decision: { kind: 'ai_disclosure' }, state };
+  }
+  if (state.holdoutRouted && (intent === 'asks_about_human_later' || !input.goal || input.goal === 'construction' || input.goal === 'reverse_mortgage')) {
+    // The holdout response was given once; later turns stay helpful without restarting intake.
+    return { decision: { kind: 'holdout_followup', answerQuestion }, state };
+  }
+  if (intent === 'asks_about_human_later') {
+    return { decision: { kind: 'explain_human_later' }, state };
   }
 
   // ── 2. Goal-based routing ──────────────────────────────────────────────────
@@ -130,7 +140,11 @@ export function routeSection0(input: RouterInput): RouterOutput {
       case 'refinance_rate_term':
         return setTrack(state, 'TT-REF', answerQuestion, 'rate_term');
       case 'refinance_cash_out':
-        return setTrack(state, 'TT-REF', answerQuestion, 'cash_out');
+        // Cash out is a cash-out refinance only once the borrower has said they are replacing the
+        // current mortgage; otherwise ask keep-or-replace once (Revised spec), then follow the answer.
+        if (input.refiKeepFirst === true) return routeEquity(state, input.equityFixed ?? null, answerQuestion);
+        if (input.refiKeepFirst === false || state.clarifyAsked.includes('cash_out_vs_equity')) return setTrack(state, 'TT-REF', answerQuestion, 'cash_out');
+        return clarifyOnce(state, 'cash_out_vs_equity', answerQuestion);
       case 'heloc':
         return setTrack(state, 'TT-HEL', answerQuestion);
       case 'home_equity_loan':
@@ -149,7 +163,8 @@ export function routeSection0(input: RouterInput): RouterOutput {
     return { decision: { kind: 'off_topic' }, state };
   }
   if (!state.intentAsked) {
-    return { decision: { kind: 'ask_intent', answerQuestion }, state: { ...state, intentAsked: true } };
+    // The intent question already names the three options, so it counts as offering them once.
+    return { decision: { kind: 'ask_intent', answerQuestion }, state: { ...state, intentAsked: true, clarifyAsked: [...state.clarifyAsked, 'three_options'], unclearCount: 1 } };
   }
   if (answerQuestion) {
     // A question while the goal is still open: answer it; don't push the intent question again.
@@ -200,7 +215,8 @@ export function trackSwitchFor(input: {
     refiKeepFirst: input.refiKeepFirst ?? null,
     equityFixed: input.equityFixed ?? null,
     intent: input.intent,
-    state: { ...initialSection0State(), intentAsked: true },
+    // Mid-flow there is no room for the keep-or-replace question: a stated cash-out refinance maps directly.
+    state: { ...initialSection0State(), intentAsked: true, clarifyAsked: ['cash_out_vs_equity'] },
   });
   if (out.decision.kind !== 'set_track') return null;
   const { track, refinanceType } = out.decision;

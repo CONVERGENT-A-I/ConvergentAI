@@ -25,8 +25,13 @@ function route(goal: GoalClass | null, intent: Intent = 'states_goal_or_facts', 
 }
 assert((route('refinance').decision as any).track === 'TT-REF', 'refinance → TT-REF');
 {
-  const d = route('refinance_cash_out').decision as any;
-  assert(d.track === 'TT-REF' && d.refinanceType === 'cash_out', 'cash-out refinance → TT-REF + cash_out');
+  const d = route('refinance_cash_out', 'states_goal_or_facts', afterIntentQ(), { refiKeepFirst: false }).decision as any;
+  assert(d.track === 'TT-REF' && d.refinanceType === 'cash_out', 'cash-out refinance (said they are replacing the mortgage) → TT-REF + cash_out');
+  const q = route('refinance_cash_out');
+  assert(q.decision.kind === 'clarify' && (q.decision as any).which === 'cash_out_vs_equity', 'cash out, replace-or-keep not said → ask keep-or-replace once (#5)', q.decision);
+  const after = routeSection0({ goal: 'refinance_cash_out', intent: 'states_goal_or_facts', state: q.state });
+  assert((after.decision as any).track === 'TT-REF', 'asked once already → never asked again; continue as cash-out refinance');
+  assert((route('refinance_cash_out', 'states_goal_or_facts', afterIntentQ(), { refiKeepFirst: true, equityFixed: true }).decision as any).track === 'TT-HEQ', 'keep the first mortgage + lump sum → home equity loan');
 }
 {
   const d = route('refinance_rate_term').decision as any;
@@ -78,12 +83,12 @@ assert(route(null, 'off_topic').decision.kind === 'off_topic', 'weather → one-
 
 // ── Unclear: three options once, then help, never loop (A3, A4) ──
 {
-  const first = routeSection0({ goal: null, intent: 'states_goal_or_facts', state: initialSection0State() });
-  assert(first.decision.kind === 'ask_intent' && first.state.intentAsked, 'nothing known yet → ask intent once');
-  const yeah = routeSection0({ goal: 'unclear', intent: 'states_goal_or_facts', state: first.state });
-  assert(yeah.decision.kind === 'clarify' && (yeah.decision as any).which === 'three_options', '"Yeah." → offer the three options once', yeah.decision);
+  // "Yeah." as the first reply → the intent question, which names the three options (= offered once).
+  const yeah = routeSection0({ goal: 'unclear', intent: 'states_goal_or_facts', state: initialSection0State() });
+  assert(yeah.decision.kind === 'ask_intent' && yeah.state.intentAsked, '"Yeah." first → intent question (names the three options once)', yeah.decision);
+  assert(yeah.state.clarifyAsked.includes('three_options'), 'the intent question counts as offering the three options');
   const dunno = routeSection0({ goal: null, intent: 'declines_to_answer', state: yeah.state });
-  assert(dunno.decision.kind === 'offer_general_or_lo', '"I don\'t know." → general questions or a loan officer', dunno.decision);
+  assert(dunno.decision.kind === 'offer_general_or_lo', '"I don\'t know." → general questions or a loan officer (options NOT repeated)', dunno.decision);
   const again = routeSection0({ goal: null, intent: 'states_goal_or_facts', state: dunno.state });
   assert(again.decision.kind === 'answer_only', 'still unclear → keeps talking, no third ask (never loops)', again.decision);
   const late = routeSection0({ goal: 'purchase', intent: 'states_goal_or_facts', state: again.state });
@@ -117,6 +122,27 @@ assert(route(null, 'asks_if_human').decision.kind === 'ai_disclosure', '"Are you
   const before = JSON.stringify(s);
   route('equity_unclear', 'states_goal_or_facts', s);
   assert(JSON.stringify(s) === before, 'router never mutates the input state');
+}
+
+// ── Preview fixes: holdout stays a holdout; cancelling a transfer keeps the stated goal ──
+{
+  const h = route('construction');
+  assert(h.decision.kind === 'holdout' && h.state.holdoutRouted, 'construction → holdout response once');
+  const later = routeSection0({ goal: 'construction', intent: 'asks_about_human_later', state: h.state });
+  assert(later.decision.kind === 'holdout_followup', '"I\'ll reach out later" after the holdout → no restart of intake', later.decision);
+  const unsure = routeSection0({ goal: 'construction', intent: 'declines_to_answer', state: h.state });
+  assert(unsure.decision.kind === 'holdout_followup', 'later turns stay holdout follow-ups (no repeated loan-officer offer)', unsure.decision);
+  assert(routeSection0({ goal: 'construction', intent: 'requests_transfer_now', state: h.state }).decision.kind === 'transfer', 'a transfer request is still honoured after a holdout');
+  assert(routeSection0({ goal: 'construction', intent: 'asks_if_human', state: h.state }).decision.kind === 'ai_disclosure', '"are you a person?" still gets the AI disclosure');
+  assert((routeSection0({ goal: 'heloc', intent: 'states_goal_or_facts', state: h.state }).decision as any).track === 'TT-HEL', 'a new mortgage goal after a holdout still sets a track');
+}
+{
+  const t = route('refinance', 'requests_transfer_now');
+  assert(t.decision.kind === 'transfer', 'refinance + transfer request → transfer');
+  const back = routeSection0({ goal: 'refinance', intent: 'cancels_transfer', state: t.state });
+  assert(back.decision.kind === 'set_track' && (back.decision as any).track === 'TT-REF' && !back.state.transferPending, '"never mind" → resumes AND starts the refinance already stated (T5)', back.decision);
+  const back2 = routeSection0({ goal: null, intent: 'cancels_transfer', state: { ...afterIntentQ(), transferPending: true } });
+  assert(back2.decision.kind === 'resume', 'no goal yet → plain resume');
 }
 
 // ── Track switching mid-flow (S0-18) ──

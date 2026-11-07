@@ -37,7 +37,7 @@ const PLAIN_NUMBER_KEYS = new Set<FactKey>([
 
 const BOOL_KEYS = new Set<FactKey>([
   'borrower.first_time_buyer', 'borrower.existing_member', 'co_borrower.present', 'purchase.zero_down_goal',
-  'refi.keep_first', 'equity.paid_off', 'equity.fixed_preference', 'situation.divorce_buyout',
+  'refi.keep_first', 'equity.paid_off', 'equity.fixed_preference', 'situation.divorce_buyout', 'property.rental_plan',
   'situation.inherited_home', 'situation.job_loss', 'situation.preapproval_letter', 'situation.competitor_offer',
 ]);
 
@@ -61,7 +61,12 @@ function normalizeIncomeList(value: unknown, existing: IncomeComponent[] | undef
   for (const item of items) {
     if (!item || typeof item !== 'object') continue;
     const it = item as Record<string, unknown>;
-    const type = (typeof it.type === 'string' ? it.type : 'other') as IncomeType;
+    // A reply that only adds a detail ("about 36 hours") may arrive without a type → it belongs to
+    // the income that is waiting for that detail.
+    const waiting = existing?.find((c) => c.annual === null || c.annual === undefined);
+    // A detail with no amount (whatever label the model gave it) can only complete the waiting income.
+    const detailOnly = it.amount === undefined || it.amount === null;
+    const type = ((detailOnly && waiting) ? waiting.type : typeof it.type === 'string' ? it.type : 'other') as IncomeType;
     // "about 36 hours" answering a weekly-hours question may arrive without the amount → reuse the stated rate.
     let amount: unknown = it.amount;
     if ((amount === undefined || amount === null) && existing) {
@@ -76,6 +81,7 @@ function normalizeIncomeList(value: unknown, existing: IncomeComponent[] | undef
       ...(typeof it.counted === 'boolean' ? { counted: it.counted } : {}),
       ...(typeof it.variable === 'boolean' ? { variable: it.variable } : {}),
       ...(Array.isArray(it.history) ? { history: it.history } : {}),
+      ...(it.combined === true || existing?.find((c) => c.type === type)?.combined ? { combined: true } : {}),
     });
     if (r.value) list.push(r.value);
     if (r.clarify && !clarify) clarify = r.clarify;
@@ -171,6 +177,8 @@ export function ingestExtraction(ex: UniversalExtraction, ledger: FactLedger, tu
     const n = normalizeFact(f, ledger, batchPrice);
     if (!n) continue;
     if (f.key === 'purchase.price' && typeof n.value === 'number') batchPrice = n.value;
+    // The borrower's words point two ways (e.g. "vacation home we'd also rent out") → confirm, never guess.
+    if (!n.clarify && f.uncertain) n.clarify = 'uncertain';
     const status = n.clarify ? 'needs_clarification' : 'stated';
     const r = ledger.upsert({ key: f.key, value: n.value, raw: f.raw, status, ...(n.clarify ? { clarify: n.clarify } : {}) }, turn, stage);
     if (r === 'added' || r === 'corrected') result.changed.push(f.key);
@@ -187,6 +195,17 @@ export function ingestExtraction(ex: UniversalExtraction, ledger: FactLedger, tu
     const total = items.reduce((s, d) => s + d.monthly, 0);
     ledger.upsert({ key: 'debt.monthly_total', value: total, raw: 'sum of stated debts' }, turn, stage);
     result.changed.push('debt.monthly_total');
+  }
+
+  // Conflicting facts → one confirmation, never a guess: a home they will live in (or use as a second
+  // home) that they also plan to rent out — unless it is a multi-unit home they live in part of.
+  if (result.changed.some((k) => k === 'occupancy' || k === 'property.rental_plan') && ledger.value('property.rental_plan') === true) {
+    const occ = ledger.get('occupancy');
+    const multiUnit = (ledger.value<number>('property.units') ?? 1) > 1 || ledger.value('property.type') === 'multi_family';
+    if (occ && occ.status !== 'needs_clarification' && occ.status !== 'confirmed' && (occ.value === 'second_home' || occ.value === 'primary') && !multiUnit) {
+      ledger.upsert({ key: 'occupancy', value: occ.value, raw: occ.raw, status: 'needs_clarification', clarify: 'uncertain' }, turn, stage);
+      result.clarifications.push({ key: 'occupancy', clarify: 'uncertain' });
+    }
   }
 
   // Cross-fact plausibility → one confirmation, never a guess.

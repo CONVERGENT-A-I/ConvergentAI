@@ -8,6 +8,7 @@ export {
   buildLayer1,
   buildLayer2,
   GREETING_TEXT,
+  getGreetingText,
   GREETING_USER_INPUT,
   RESUME_USER_INPUT,
 } from './ailana-system.js';

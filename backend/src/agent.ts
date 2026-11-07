@@ -28,6 +28,7 @@ import {
   buildBaseInstructions,
   buildVoiceInstructions,
   GREETING_TEXT,
+  getGreetingText,
   GREETING_USER_INPUT,
   RESUME_USER_INPUT,
 } from './prompts/index.js';
@@ -1278,6 +1279,7 @@ export default defineAgent({
     const contextManager = new SessionContextManager(summarizationLlm, metrics);
     if (simCtx) {
       simContextManager = contextManager;
+      contextManager.setChannel('text'); // simulations run in text mode
     }
 
     // ── Pre-cache System Prompt ───────────────────────────────────────────────
@@ -2596,11 +2598,13 @@ PAUSE CONSTRAINTS:
 
       if (messageText === 'SYSTEM_VOICE_MUTED') {
         voiceMuted = true;
+        contextManager.setChannel('text');
         console.log(`[agent]: Avatar voice disabled — text-only replies.`);
         return;
       }
       if (messageText === 'SYSTEM_VOICE_UNMUTED') {
         voiceMuted = false;
+        contextManager.setChannel('voice');
         console.log(`[agent]: Avatar voice enabled — resuming voice replies.`);
         return;
       }
@@ -2608,6 +2612,7 @@ PAUSE CONSTRAINTS:
       if (messageText.startsWith('SYSTEM_CHANNEL_START')) {
         const targetMode = messageText.split(':')[1] || 'video';
         console.log(`[agent]: Channel started (${targetMode}).`);
+        contextManager.setChannel(targetMode === 'video' || targetMode === 'voice' ? 'voice' : 'text');
 
         if (targetMode === 'video' || targetMode === 'voice') {
           if (voiceMuted) {
@@ -2643,7 +2648,7 @@ PAUSE CONSTRAINTS:
         }
 
         pendingGreeting = false;
-        const greetingText = GREETING_TEXT;
+        const greetingText = getGreetingText();
 
         try {
           if (!(session as any)._started) {
@@ -2826,7 +2831,7 @@ PAUSE CONSTRAINTS:
         console.log(`[agent]: Sent SYSTEM_AGENT_READY signal.`);
 
         // If the channel start signal already arrived while we were waiting, say greeting now
-        const greetingText = GREETING_TEXT;
+        const greetingText = getGreetingText();
         if (pendingGreeting && !greetingGenerated) {
           greetingGenerated = true;
           pendingGreeting = false;
@@ -3099,7 +3104,7 @@ PAUSE CONSTRAINTS:
         greetingGenerated = true;
         metrics.startTurn();
         metrics.markAgentSpeaking();
-        session.say(GREETING_TEXT, { addToChatCtx: true });
+        session.say(getGreetingText(), { addToChatCtx: true });
         console.log(`[simulation] Session started and greeting fired.`);
       } catch (err) {
         console.error(`[simulation] Failed to start session:`, err);

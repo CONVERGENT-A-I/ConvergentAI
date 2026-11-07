@@ -17,6 +17,7 @@
 | **S1** | Nov 6, 2026 | `SR_yViuDuagBYEd` | `dev`, Section 0 **ON** (memory + routing + no-repeat sync) | Same 4 tests | **6 / 12 (50%)** | 2/4 | 2/4 | First run with Section 0 on: 0% → 50%. **#2 and #13 pass 3/3.** #1 and #30 fail on specific, fixable gaps — see "Run S1" below. Fixes applied the same day → run **S2**. |
 | **S2** | Nov 6, 2026 | `SR_XGKzNfWQgAmV` | S1 + fixes (bridge, tenure from memory, situational follow-ups) | Same 4 tests, stop at the closing offer | **12 / 12 (100%)** | 4/4 | 4/4 | ✅ **Baseline set fully passes.** Nothing re-asked; hours asked before hourly pay; $300 correction kept; Atlanta rent asked; no rate or approval statements. Two judge notes, not failures — see "Run S2". |
 | **S3** | Nov 6, 2026 | `SR_4JB8GRpwAiwJ` + `SR_ntCPmjEHE2Ud` | S2 + track switching (S0-18) | Baseline 4 + proposed 2 (R-8 switch, question is not a switch) | **12 / 12 + 6 / 6 (100%)** | 6/6 | 6/6 | ✅ No regression; the track switch keeps every fact; a HELOC question does not switch the track. Judge notes: name in scripted lines; refinance fee wording in the existing Refi script (for David). |
+| **P1** | Nov 7, 2026 | `SR_JZpTbodioxrV` | S3 build | **Full set `section0.yaml` (47), 1 sample — preview, not counted** | **20 / 47 (43%)** | — | — | First look at the full set. Failures are triaged into 9 causes below; fix cycle 1 applied Nov 8 → run **P2**. Export: `docs/section0/runs/preview1.json`. |
 
 ---
 
@@ -94,6 +95,32 @@ Reading the B2 transcripts showed Ailana asking questions in **our** wording thr
 
 ---
 
+## Preview P1: full set, 20/47 (Nov 7)
+
+1 sample per scenario, not counted. The official baseline is the first 3-sample run after approval. Every failure was read in the transcript and grouped by root cause. Live extractor checks reproduced the Section 0 causes.
+
+| # | Cause | Scenarios | Fixed in cycle 1? |
+| :--- | :--- | :--- | :--- |
+| 1 | **Transfer and callback are spoken, not executed.** The judge needs a real tool call. | T1, T2, T3, T6 | ❌ Next: S0-27/28 (transfer and callback as real actions, with mock records) |
+| 2 | **Compliance answers missing:** alimony disclosure, each borrower authorizes, ask what the letter is for, national origin, footprint, hardship → HUD counselor | #16, #18, #23, #25, #26, #29 | ✅ Compliance notes chosen by code (S0-23) |
+| 3 | **Situational questions asked too late or never:** prior job, discharge date, net rental income, years self-employed | #9, #12, #14, #17 | ✅ Follow-ups now open Stage 2 (+3 new follow-ups) |
+| 4 | **"Combined" income not treated as household income**, so it was re-asked | #4, #15 | ✅ `combined` on income + sync |
+| 5 | **Hours reply without an income type** never completed the hourly pay (data check failed) | #2 | ✅ A detail with no amount attaches to the income waiting for it |
+| 6 | **Too-specific goal when undecided:** cash out → refinance assumed; inherited home → line-vs-lump-sum assumed | #5, #19 | ✅ Schema: undecided → unclear; code asks keep-or-replace unless the borrower said they're replacing |
+| 7 | **Occupancy that points two ways** (vacation home + Airbnb) taken at face value | #15 | ✅ New `property.rental_plan` fact; the conflict gets one confirmation |
+| 8 | **Facts that should settle a question:** retired → asked how long retired; "nothing down" → asked down payment | #3 | ✅ Benefit-only income settles job tenure; zero-down settles down payment. Also removed an old Stage 2 shortcut that would have skipped debts and credit |
+| 9 | **Holdout restarts intake:** after the construction response, she asked co-borrower and occupancy questions and re-offered the loan officer | #8, A8 | ✅ Holdout follow-up turns |
+| 10 | **Intent asked twice / options repeated:** the demo greeting itself asks "what mortgage questions do you have?" | A3, A4 | ✅ Revised-spec greeting (flag on); the intent question counts as offering the options |
+| 11 | **Cancelled transfer lost the goal** (track never set) | T5 | ✅ "Never mind" resumes and starts the goal already stated |
+| 12 | **Address/SSN: doesn't ask city/zip; explanation too long** | #11, A9 | ❌ Next: S0-22 (short spoken TRID gate) |
+| 13 | **Refinance: home value not reached within 8 replies** | #16 | ❌ Track order. Will check after P2 |
+
+**Expected after cycle 1:** about 37–40 of 47. Causes 1 and 12 (6 scenarios) remain, plus model variance.
+
+**David's response (Nov 7):** "very favorable". He sent the approved privacy wording, which is now used word for word (voice: link on screen, URL never read aloud; text: link included). His overall goal: generalize beyond the 30, so developers don't have to supply hundreds of phrasings. That is the design (fixed fact keys + code decisions) and will be measured with the stress set (S0-30). Still open: name in the closing offer, the Refinance fee wording, and what he meant by highlighting #9 and T4.
+
+---
+
 ## Run S3 — 12/12 baseline + 6/6 track switching (Nov 6)
 
 - **Baseline (regression):** 12/12 again.
@@ -145,7 +172,8 @@ Two notes from the judge, neither of which failed a test:
 
 ## Next run
 
-**Next:** send `docs/section0/SCENARIOS_FOR_APPROVAL.md` to David. Meanwhile, run the 1-sample **preview** of `section0.yaml` (Test Guide 11.1). The official Section 0 baseline is the first 3-sample run after David approves.
+**Run P2**: the same 1-sample preview of `section0.yaml` after fix cycle 1 (Test Guide 11.1). Then S0-22 (TRID gate) and S0-27/28 (transfer and callback as real actions).
+
 
 Previous instruction kept for reference — **B3 — re-run the same baseline with the simulation-harness fix** (Section 0 still off):
 

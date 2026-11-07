@@ -23,6 +23,7 @@ import { routeSection0, initialSection0State, trackSwitchFor, type Section0Decis
 import { syncLedgerToProfile, type SyncedMap } from '../section0/ledger-sync.js';
 import { formatKnownFacts, jobTenureQuestion, nextSituationalFollowup, section0TaskText } from '../section0/turn-context.js';
 import { applySafetyNet } from '../section0/safety-net.js';
+import { complianceNotes, lenderStates, type ComplianceNote } from '../section0/compliance-notes.js';
 
 export type TurnLogEntry = {
   role: 'user' | 'assistant';
@@ -77,6 +78,9 @@ export class SessionContextManager {
   private activeFollowup: { id: string; ask: string } | null = null;
   private trackSwitchNotice: string | null = null; // one turn: acknowledge a goal change (S0-18)
   private trackSwitches = 0;
+  private channel: 'voice' | 'text' = 'voice';
+  private notesShown: string[] = [];          // compliance notes already given (each once per session)
+  private pendingNotes: ComplianceNote[] = []; // compliance notes for the reply being generated
 
   // Parallel asynchronous extraction state
   private nextExtractionTurn = 1;
@@ -142,6 +146,9 @@ export class SessionContextManager {
     cloned.activeFollowup = this.activeFollowup;
     cloned.trackSwitchNotice = this.trackSwitchNotice;
     cloned.trackSwitches = this.trackSwitches;
+    cloned.channel = this.channel;
+    cloned.notesShown = [...this.notesShown];
+    cloned.pendingNotes = [...this.pendingNotes];
     return cloned;
   }
 
@@ -632,6 +639,7 @@ export class SessionContextManager {
     if (ailanaConfig.section0Enabled) {
       this.ledger.mergeFrom(clone.ledger);
       // A track switch in the background turn clears old-track sync marks — take the clone's map as is.
+      for (const n of clone.pendingNotes) if (!this.pendingNotes.some((m) => m.id === n.id) && !this.notesShown.includes(n.id)) this.pendingNotes.push(n);
       if (clone.trackSwitches > this.trackSwitches) {
         this.ledgerSynced = { ...clone.ledgerSynced };
         this.trackSwitches = clone.trackSwitches;
@@ -1073,6 +1081,7 @@ export class SessionContextManager {
         (this.profile as any)._section0TransferRequested = true;
       }
     }
+    this.queueComplianceNotes(ex);
   }
 
   /** Track chosen by the router: hand off to the existing Stage 1 / Stage 2 flow. */
@@ -1112,6 +1121,29 @@ export class SessionContextManager {
     if (ex.intent === 'requests_transfer_now') {
       (this.profile as any)._section0TransferRequested = true;
     }
+    this.queueComplianceNotes(ex);
+  }
+
+  /** S0-23: compliance responses chosen by code from the extractor's flags and the ledger (each once). */
+  private queueComplianceNotes(ex: UniversalExtraction): void {
+    const t = this.profile.transaction_type;
+    const continueWith = t === 'TT-PUR' ? "let's pick up with your home purchase"
+      : t === 'TT-REF' ? "let's pick up with your refinance"
+      : t === 'TT-HEL' || t === 'TT-HEQ' ? "let's pick up with your home equity options"
+      : "let's get started";
+    const notes = complianceNotes({
+      flags: ex.flags, ledger: this.ledger, channel: this.channel, continueWith, licensedStates: lenderStates(),
+      shown: [...this.notesShown, ...this.pendingNotes.map((n) => n.id)],
+    });
+    if (notes.length) {
+      this.pendingNotes.push(...notes);
+      console.log(`[section0] compliance notes this turn: ${notes.map((n) => n.id).join(', ')}`);
+    }
+  }
+
+  /** Voice or text channel — decides e.g. whether the privacy link is read out (never in voice). */
+  setChannel(channel: 'voice' | 'text'): void {
+    this.channel = channel;
   }
 
   private syncLedger(): string[] {
@@ -1145,7 +1177,7 @@ export class SessionContextManager {
     // refills whatever the borrower already said for it.
     const p = this.profile as any;
     const OWN: Partial<Record<Track, { fields: string[]; syncIds: string[] }>> = {
-      'TT-PUR': { fields: ['target_price', 'down_payment', 'realtor_status', 'rent_own'], syncIds: ['purchase.price', 'purchase.down_payment|funds.total', 'housing.current'] },
+      'TT-PUR': { fields: ['target_price', 'down_payment', 'realtor_status', 'rent_own'], syncIds: ['purchase.price', 'purchase.down_payment|funds.total|purchase.zero_down_goal', 'housing.current'] },
       'TT-REF': { fields: ['refinance_type'], syncIds: ['goal.refi_purpose'] },
     };
     const leaving = current ? OWN[current] : undefined;
@@ -1186,6 +1218,21 @@ export class SessionContextManager {
     }
     this.activeFollowup = null;
     return 'stage2_closing_offer';
+  }
+
+  /**
+   * Section 0: situational follow-ups (e.g. the rent on a home they're keeping, work before a job that
+   * hasn't started, when a bankruptcy was discharged) are asked early in Stage 2 — right after the track's
+   * first questions — each at most once (onAgentTurn marks it asked once Ailana has said it).
+   */
+  private takeStage2Followup(): boolean {
+    if (!ailanaConfig.section0Enabled) return false;
+    const fu = nextSituationalFollowup(this.ledger, this.followupsAsked);
+    if (!fu) { this.activeFollowup = null; return false; }
+    if (this.activeFollowup?.id !== fu.id) console.log(`[next-question] situational follow-up: ${fu.id}`);
+    this.activeFollowup = fu;
+    this.currentPendingField = 'section0_followup';
+    return true;
   }
 
   /**
@@ -2427,6 +2474,8 @@ export class SessionContextManager {
     this.turnLog.push({ role: 'assistant', text: trimmed, timestamp: Date.now() });
     this.profile.bridge_to_say = null;
     this.trackSwitchNotice = null; // acknowledged (S0-18)
+    for (const n of this.pendingNotes) if (!this.notesShown.includes(n.id)) this.notesShown.push(n.id);
+    this.pendingNotes = [];
     this.lastProcessedInput = null;
 
     // Section 0: a situational follow-up counts as asked once Ailana has spoken it (never asked twice).
@@ -3367,7 +3416,9 @@ export class SessionContextManager {
       // ── Auto-Recovery & Desync Protection ──
       // If we have reached or confirmed the final Stage 2 question (job_tenure_type),
       // auto-resolve any earlier unconfirmed fields so the state machine advances directly to the closing offer.
-      if (this.profile.job_tenure_type_confirmed) {
+      // Section 0: job tenure can be known from the very first message (e.g. retired, or "salaried 6 years"),
+      // so this shortcut would skip real questions — the ledger sync keeps the profile consistent instead.
+      if (this.profile.job_tenure_type_confirmed && !ailanaConfig.section0Enabled) {
         if (!this.profile.gross_annual_income_confirmed) {
           this.profile.gross_annual_income_confirmed = true;
           this.profile.gross_annual_income = this.profile.gross_annual_income ?? 0;
@@ -3393,7 +3444,9 @@ export class SessionContextManager {
         this.profile.heloc_timeline_confirmed = true;
       }
 
-      if (!this.profile.gross_annual_income_confirmed) {
+      if (this.takeStage2Followup()) {
+        // A situational follow-up the borrower's own story calls for (asked once, early in Stage 2).
+      } else if (!this.profile.gross_annual_income_confirmed) {
         this.currentPendingField = 'gross_annual_income';
       } else if (!this.profile.monthly_debt_confirmed) {
         this.currentPendingField = 'monthly_debt';
@@ -3642,10 +3695,13 @@ export class SessionContextManager {
         taskOverride = `CURRENT TASK:\nCollect job_tenure_type\n\nAsk: "${this.getJobTenureQuestion()}"\nDO NOT ask for anything in KNOWN FACTS (how they are paid may already be known).`;
       }
       const extras = {
-        knownFacts: formatKnownFacts(this.ledger) + (this.trackSwitchNotice
-          ? `
-GOAL CHANGED: the borrower now wants a ${this.trackSwitchNotice}. Acknowledge it in one short phrase; everything else they told you still stands — do not ask it again.`
-          : ''),
+        knownFacts: formatKnownFacts(this.ledger)
+          + (this.trackSwitchNotice
+            ? `\nGOAL CHANGED: the borrower now wants a ${this.trackSwitchNotice}. Acknowledge it in one short phrase; everything else they told you still stands — do not ask it again.`
+            : '')
+          + (this.pendingNotes.length
+            ? `\nCOMPLIANCE (this reply):\n${this.pendingNotes.map((n) => `- ${n.text}`).join('\n')}`
+            : ''),
         ...(this.activeStage === '0' ? { section0Task: section0TaskText(this.section0Decision, this.ledger) } : {}),
         ...(taskOverride ? { taskOverride } : {}),
       };

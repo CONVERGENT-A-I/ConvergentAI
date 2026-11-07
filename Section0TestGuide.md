@@ -29,7 +29,7 @@
 | **8** | David's 30 prospect replies (voice + typed) | All of Phase 3–4 | 🔴 |
 | **9** | Track regression: Purchase, Refi, HELOC, HEQ unchanged | S0-19 | 🔴 |
 | **10** | Flag-off parity (demo build unchanged) | S0-03, S0-19 | 🟢 automated: `section0-flag-off` 23/23 (prompts byte-identical) |
-| **11** | LiveKit text simulations (the official measure) | S0-05 ✅ · S0-04 ✅ · S0-07 baseline · S0-08 | 🟢 spike (11.0) · 🟢 baseline B3/B4 = 0/12 (11.0b) · 🟢 S2 12/12 · S3 12/12 + 6/6 (track switch) · **next: 47-scenario preview (11.1)** |
+| **11** | LiveKit text simulations (the official measure) | S0-05 ✅ · S0-04 ✅ · S0-07 baseline · S0-08 | 🟢 spike (11.0) · 🟢 baseline B3/B4 = 0/12 (11.0b) · 🟢 S2 12/12 · S3 12/12 + 6/6 · 🟡 full-set preview P1 20/47 → fix cycle 1 → **P2 next (11.1)** |
 
 Status: 🔴 not run · 🟡 partial / failing · 🟢 passing
 
@@ -503,6 +503,16 @@ Send me the run ID and summary. Some failures are expected because the feature i
 - **#25, #26:** footprint checks (decision D3).
 - **#28:** the approved privacy script.
 - Possibly the compliance answers in #10, #20, #23 and #29 (S0-23).
+
+| Date | Tester | Run ID | Result | Notes |
+| :--- | :--- | :--- | :---: | :--- |
+| Nov 7, 2026 | Team | `SR_JZpTbodioxrV` (P1 preview) | 20/47 | 27 failures, 13 causes (see Results). Fix cycle 1 applied Nov 8. |
+| | | (P2 preview) | | |
+
+**P2 (run now):** the same preview command. Still expected to fail:
+- **T1, T2, T3, T6:** transfer and callback aren't real actions yet (next).
+- **#11, A9:** the short TRID gate isn't built yet (next).
+- Possibly **#16:** home value is reached after 8 replies.
 
 **Official runs (after David approves):** the same command with `--samples 3 --pass-rate 1.0`. The first one is the Section 0 baseline.
 

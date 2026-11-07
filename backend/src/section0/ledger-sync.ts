@@ -70,8 +70,9 @@ const WRITERS: Array<{ keys: FactKey[]; write: Writer }> = [
       const c = l.value<IncomeComponent[]>('income.co_borrower') ?? [];
       // Anything still waiting for a clarification (e.g. weekly hours) blocks the total.
       if (l.get('income.borrower')?.status === 'needs_clarification' || l.get('income.co_borrower')?.status === 'needs_clarification') return null;
-      // A co-borrower is applying but their income isn't known yet → household total incomplete.
-      if (l.value('co_borrower.present') === true && c.length === 0 && b.length > 0) return null;
+      // A co-borrower is applying but their income isn't known yet → household total incomplete
+      // (unless the amount stated was already the combined household total).
+      if (l.value('co_borrower.present') === true && c.length === 0 && b.length > 0 && !b.some((x) => x.combined)) return null;
       const t = totalAnnualIncome([...b, ...c]);
       if (!t.complete || t.total <= 0) return null;
       return { gross_annual_income: t.total, gross_annual_income_confirmed: true };
@@ -113,12 +114,25 @@ const WRITERS: Array<{ keys: FactKey[]; write: Writer }> = [
     },
   },
   {
-    keys: ['purchase.down_payment', 'funds.total'],
+    keys: ['purchase.down_payment', 'funds.total', 'purchase.zero_down_goal'],
     write: (l) => {
       const dp = l.value<{ amount?: number }>('purchase.down_payment');
       const funds = l.value<number>('funds.total');
       const v = dp?.amount ?? funds;
-      return v === undefined ? null : { down_payment: v, down_payment_confirmed: true };
+      if (v !== undefined) return { down_payment: v, down_payment_confirmed: true };
+      // "Nothing down" answers the down-payment question — never ask it against a stated zero-down goal.
+      return l.value('purchase.zero_down_goal') === true ? { down_payment: 0, down_payment_confirmed: true } : null;
+    },
+  },
+  {
+    // Income that comes only from retirement / benefits / support: there is no job to ask tenure about.
+    keys: ['income.borrower', 'income.co_borrower', 'employment.type'],
+    write: (l) => {
+      const all = [...(l.value<IncomeComponent[]>('income.borrower') ?? []), ...(l.value<IncomeComponent[]>('income.co_borrower') ?? [])];
+      const NON_JOB = new Set(['social_security', 'pension', 'military_retirement', 'va_disability', 'alimony', 'child_support', 'rental']);
+      const retired = l.value('employment.type') === 'retired';
+      if (!all.length || !all.every((c) => NON_JOB.has(c.type))) return retired ? { job_tenure_type: 'retired', job_tenure_type_confirmed: true } : null;
+      return { job_tenure_type: 'retirement / benefit income (no current job)', job_tenure_type_confirmed: true };
     },
   },
   {

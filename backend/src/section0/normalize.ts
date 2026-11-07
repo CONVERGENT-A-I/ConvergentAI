@@ -8,7 +8,7 @@
  */
 import type { CreditValue, Frequency, IncomeComponent, IncomeType } from './fact-schema.js';
 
-export type Clarify = 'weekly_hours' | 'frequency' | 'magnitude' | 'conflict';
+export type Clarify = 'weekly_hours' | 'frequency' | 'magnitude' | 'conflict' | 'uncertain';
 
 export interface Normalized<T> {
   value: T | null;
@@ -77,6 +77,7 @@ export interface IncomeInput {
   counted?: boolean;
   variable?: boolean;
   history?: unknown[];
+  combined?: boolean;
 }
 
 /**
@@ -94,6 +95,7 @@ export function normalizeIncome(input: IncomeInput): Normalized<IncomeComponent>
   const base: IncomeComponent = { type: input.type, amount: raw, frequency };
   if (input.counted !== undefined) base.counted = input.counted;
   if (input.variable !== undefined) base.variable = input.variable;
+  if (input.combined === true) base.combined = true;
   if (Array.isArray(input.history)) {
     base.history = input.history.map((h) => resolveMagnitude(parseAmount(h), 'annual').value).filter((h): h is number => h !== null);
   }

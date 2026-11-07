@@ -53,6 +53,7 @@ export const FACT_KEYS = [
   'property.type',           // 'single_family' | 'condo' | 'townhome' | 'multi_family' | 'manufactured' | 'cabin' | 'other'
   'property.units',          // number
   'property.projected_rent', // number ($/month)
+  'property.rental_plan',    // boolean — they plan to rent this home out, fully or part of the time
   'location.area',           // { city?: string; state?: string; zip?: string; area?: string } — NEVER a street address
   // Military
   'military.status',         // 'active' | 'veteran' | 'retired' | 'reserve_guard' | 'surviving_spouse' | 'none'
@@ -122,6 +123,7 @@ export interface IncomeComponent {
   counted?: boolean;              // alimony/child support only counted if the borrower wants it
   variable?: boolean;             // commission/bonus that varies year to year
   history?: number[];             // e.g. commission by year, most recent first
+  combined?: boolean;             // the amount is the household total for all borrowers together
 }
 
 export interface DebtItem { kind: string; monthly: number }
