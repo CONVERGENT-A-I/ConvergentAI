@@ -1192,7 +1192,7 @@ export class SessionContextManager {
       return 'CURRENT TASK (loan officer request):\nThey asked for a licensed loan officer. Do NOT ask any qualifying questions. Ask once, briefly, whether they would like you to connect them with a licensed loan officer now. Do NOT call any tool yet.';
     }
     if (h.mode === 'confirm_answer') {
-      return 'CURRENT TASK (loan officer request):\nYou just asked whether to connect them with a licensed loan officer now. If their latest message says yes, call the transfer_to_loan_officer tool now (once) and then tell them you are connecting them. If they said no or want to keep going, say that is fine and continue where you left off. Never say you are connecting them unless the tool was called.';
+      return 'CURRENT TASK (loan officer request):\nYou just asked whether to connect them with a licensed loan officer now. If their latest message says yes, call the transfer_to_loan_officer tool now (once), with a short summary of everything they already told you (from KNOWN FACTS), and then tell them you are connecting them. If they said no or want to keep going, say that is fine and continue where you left off. Never say you are connecting them unless the tool was called.';
     }
     if (h.mode === 'callback') {
       const lead = h.afterUnavailable
@@ -1212,7 +1212,7 @@ export class SessionContextManager {
       : "let's get started";
     const notes = complianceNotes({
       flags: ex.flags, ledger: this.ledger, channel: this.channel, continueWith, licensedStates: lenderStates(),
-      safetyHit: this.safetyHit, turn: this.turnCount,
+      safetyHit: this.safetyHit, turn: this.turnCount, intent: ex.intent,
       shown: [...this.notesShown, ...this.pendingNotes.map((n) => n.id)],
     });
     if (notes.length) {

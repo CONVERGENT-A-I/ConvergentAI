@@ -80,4 +80,9 @@ const ids = (n: Array<{ id: string }>) => n.map((x) => x.id);
   assert(ids(complianceNotes({ ...base, flags: [], ledger: joint })).includes('each_authorizes'), 'any co-borrower → each borrower authorizes their own credit check (#18)');
 }
 
+{
+  const n = complianceNotes({ ...base, flags: [], ledger: empty(), intent: 'ends_conversation', turn: 7 });
+  assert(n.length === 1 && /do NOT ask another question/.test(n[0]!.text), 'borrower wraps up → warm goodbye, no further question');
+}
+
 console.log(`\n✨ ALL ${total} SECTION 0 COMPLIANCE TESTS PASSED!`);

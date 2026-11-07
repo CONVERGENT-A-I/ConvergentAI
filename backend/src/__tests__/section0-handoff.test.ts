@@ -35,9 +35,9 @@ async function turn(cm: SessionContextManager, e: UniversalExtraction) {
     else await anyCm.applyUniversalExtraction(Promise.resolve(e));
   });
 }
-function toolsFor(cm: SessionContextManager, log: { transfers: number; bookings: CallbackRequest[] }) {
+function toolsFor(cm: SessionContextManager, log: { transfers: number; bookings: CallbackRequest[]; summary: string }) {
   const [transfer, book] = buildHandoffTools({
-    transfer: async () => { log.transfers++; },
+    transfer: async (s: string) => { log.transfers++; log.summary = s; },
     book: async (r) => { log.bookings.push(r); },
     onResult: (r) => cm.onHandoffResult(r),
     canTransfer: () => cm.getHandoffMode() === 'confirm_answer',
@@ -45,7 +45,7 @@ function toolsFor(cm: SessionContextManager, log: { transfers: number; bookings:
     now: () => new Date(2026, 10, 9), // Mon Nov 9, 2026
   }) as any[];
   return {
-    transfer: () => quietlyAsync(() => transfer.execute({}, {} as any)),
+    transfer: () => quietlyAsync(() => transfer.execute({ summary: 'purchase in Ooltewah, 95k income, ~740 credit, 40k saved' }, {} as any)),
     book: (a: { day: string; time: string; time_zone: string }) => quietlyAsync(() => book.execute(a, {} as any)),
   };
 }
@@ -53,7 +53,7 @@ function toolsFor(cm: SessionContextManager, log: { transfers: number; bookings:
 // T1: request → confirm question → "yes" → one transfer
 {
   const cm = newManager(true);
-  const log = { transfers: 0, bookings: [] as CallbackRequest[] };
+  const log = { transfers: 0, bookings: [] as CallbackRequest[], summary: '' };
   const t = toolsFor(cm, log);
   await turn(cm, ex({ intent: 'requests_transfer_now' }));
   assert(cm.getHandoffMode() === 'confirm_asked' && cm.isHandoffActive(), 'T1: request → ask once to confirm');
@@ -64,6 +64,7 @@ function toolsFor(cm: SessionContextManager, log: { transfers: number; bookings:
   assert(cm.getHandoffMode() === 'confirm_answer' && /call the transfer_to_loan_officer tool now/.test(cm.getDynamicContext()), 'T1: next turn → model told to call the transfer tool if they said yes');
   const r = await t.transfer();
   assert(r.status === 'connecting' && log.transfers === 1 && cm.getHandoffMode() === 'transferred', 'T1: exactly one transfer happens');
+  assert(/Ooltewah/.test(log.summary), 'T2: the transfer carries the summary of what they already said');
   const again = await t.transfer();
   assert(again.status === 'already_connecting' && log.transfers === 1, 'never transfers twice');
 }
@@ -82,7 +83,7 @@ function toolsFor(cm: SessionContextManager, log: { transfers: number; bookings:
 // T3: no loan officer available → no transfer, straight to a call back, booked once
 {
   const cm = newManager(false);
-  const log = { transfers: 0, bookings: [] as CallbackRequest[] };
+  const log = { transfers: 0, bookings: [] as CallbackRequest[], summary: '' };
   const t = toolsFor(cm, log);
   await turn(cm, ex({ intent: 'requests_transfer_now' }));
   assert(cm.getHandoffMode() === 'callback', 'T3: unavailable → call back (no confirm-to-transfer step)');
@@ -105,7 +106,7 @@ function toolsFor(cm: SessionContextManager, log: { transfers: number; bookings:
 // T5: transfer request, then "never mind" → nothing happens, resumes the stated refinance
 {
   const cm = newManager(true);
-  const log = { transfers: 0, bookings: [] as CallbackRequest[] };
+  const log = { transfers: 0, bookings: [] as CallbackRequest[], summary: '' };
   const t = toolsFor(cm, log);
   await turn(cm, ex({ goal: 'refinance', intent: 'requests_transfer_now' }));
   assert(cm.getHandoffMode() === 'confirm_asked', 'T5: confirm question first');
@@ -117,7 +118,7 @@ function toolsFor(cm: SessionContextManager, log: { transfers: number; bookings:
 // T6: callback request → booked once with the stated day/time/zone
 {
   const cm = newManager(true);
-  const log = { transfers: 0, bookings: [] as CallbackRequest[] };
+  const log = { transfers: 0, bookings: [] as CallbackRequest[], summary: '' };
   const t = toolsFor(cm, log);
   await turn(cm, ex({ intent: 'requests_callback' }));
   assert(cm.getHandoffMode() === 'callback' && /ask only for what they have not said yet/.test(cm.getDynamicContext()), 'T6: call back mode — only the missing details');

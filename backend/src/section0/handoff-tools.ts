@@ -18,7 +18,7 @@ export interface CallbackRequest {
 
 export interface HandoffDeps {
   /** Start the real transfer (production: existing popup → SIP path; simulation: mock record). */
-  transfer: () => Promise<void>;
+  transfer: (summary: string) => Promise<void>;
   /** Book the call back (production: stored for the loan officer until the calendar is wired — D1; simulation: mock record). */
   book: (req: CallbackRequest) => Promise<void>;
   /** Tell the session state what happened. */
@@ -59,12 +59,15 @@ export function buildHandoffTools(deps: HandoffDeps) {
   const transfer_to_loan_officer = llm.tool({
     name: 'transfer_to_loan_officer',
     description:
-      'Connect the borrower to a licensed loan officer right now. Call this only after the borrower has confirmed they want to be connected now. Call it once.',
-    execute: async () => {
+      'Connect the borrower to a licensed loan officer right now, passing a short summary of what they already told you. Call this only after the borrower has confirmed they want to be connected now. Call it once.',
+    parameters: z.object({
+      summary: z.string().describe('What the borrower already told you, for the loan officer: goal, area, income, credit, savings, debts, anything else stated. Never a Social Security number or street address.'),
+    }),
+    execute: async ({ summary }) => {
       if (transferred) return { status: 'already_connecting', say: 'The connection is already in progress.' };
       if (!deps.canTransfer()) return { status: 'not_now', say: 'Do not transfer yet. If they asked for a loan officer, first ask whether they want to be connected now.' };
       transferred = true;
-      await deps.transfer();
+      await deps.transfer(summary);
       deps.onResult('transferred');
       return { status: 'connecting', say: 'Tell the borrower you are connecting them with a licensed loan officer now.' };
     },

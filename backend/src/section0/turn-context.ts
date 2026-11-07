@@ -208,6 +208,15 @@ const FOLLOWUPS: Followup[] = [
     ask: 'They are relocating. Ask which city or zip code they are moving to (where they want to buy). Never ask for a street address.',
   },
   {
+    id: 'home_value',
+    needed: (l) => {
+      const g = l.value<string>('goal.primary') ?? '';
+      const homeGoal = g.startsWith('refinance') || g === 'heloc' || g === 'home_equity_loan' || g === 'equity_unclear' || g === 'cash_out_unclear';
+      return homeGoal && l.value('refi.value') === undefined;
+    },
+    ask: 'Ask roughly what they think their home is worth today. If they are not sure, an estimate is fine — move on.',
+  },
+  {
     id: 'self_employed_years',
     needed: (l) => {
       const t = l.value<string>('employment.type');
@@ -263,6 +272,10 @@ export function section0TaskText(decision: Section0Decision | null, ledger: Fact
     : '';
   switch (decision.kind) {
     case 'ask_intent':
+      if (ledger.known().length) {
+        // They already described their situation — ask what they want, in terms of what they said.
+        return `CURRENT TASK (Section 0):\n${answerFirst}They shared their situation but not yet what they want to do. In one natural sentence tied to what they told you, ask what they would like to do (the paths are buying a home, refinancing, or using their home's equity). Do not use a canned "what brings you here" line.`;
+      }
       return `CURRENT TASK (Section 0):\n${answerFirst}ask exactly: "${INTENT_QUESTION}"`;
     case 'clarify': {
       if (decision.which === 'heloc_vs_heq') return `CURRENT TASK (Section 0):\n${answerFirst}ask exactly: "${EQUITY_QUESTION}"`;

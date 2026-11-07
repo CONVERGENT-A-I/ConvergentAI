@@ -19,6 +19,7 @@
 | **S3** | Nov 6, 2026 | `SR_4JB8GRpwAiwJ` + `SR_ntCPmjEHE2Ud` | S2 + track switching (S0-18) | Baseline 4 + proposed 2 (R-8 switch, question is not a switch) | **12 / 12 + 6 / 6 (100%)** | 6/6 | 6/6 | ✅ No regression; the track switch keeps every fact; a HELOC question does not switch the track. Judge notes: name in scripted lines; refinance fee wording in the existing Refi script (for David). |
 | **P1** | Nov 7, 2026 | `SR_JZpTbodioxrV` | S3 build | **Full set `section0.yaml` (47), 1 sample — preview, not counted** | **20 / 47 (43%)** | — | — | First look at the full set. Failures are triaged into 9 causes below; fix cycle 1 applied Nov 8 → run **P2**. Export: `docs/section0/runs/preview1.json`. |
 | **P2** | Nov 8, 2026 | `SR_X8rcV2B7QjJJ` | fix cycle 1 | Full set (47), 1 sample, preview | **31 / 47 (66%)** | — | — | +11 from P1. 13 scenarios now pass that failed before. 16 failures triaged below; fix cycle 2 applied the same day → **P3**. Export: `docs/section0/runs/preview2.json`. |
+| **P3** | Nov 8, 2026 | `SR_nn7BEtsZyFKx` | fix cycle 2 | Full set (47), 1 sample, preview | **40 / 47 (85%)** | — | — | +9. Transfers and callbacks now real (T1, T3, T5, T6 pass); TRID gate passes (#11, A9). 7 failures triaged below; fix cycle 3 applied → **P4** + track regression. Export: `docs/section0/runs/preview3.json`. |
 
 ---
 
@@ -93,6 +94,29 @@ Reading the B2 transcripts showed Ailana asking questions in **our** wording thr
 
 ### What this tells us
 - **Superseded by the harness finding** — B1's transcripts were Ailana improvising without our state machine, so its numbers are not the real "before". Compliance held throughout. B3 is the valid baseline.
+
+---
+
+## Preview P3: 40/47 (Nov 8) and fix cycle 3
+
+| Failure | Cause | Fix (cycle 3) |
+| :--- | :--- | :--- |
+| T2 | The transfer worked but carried no facts (`transfer_to_loan_officer({})`) | The tool now takes a `summary` of what the borrower already said. It's stored with the transfer record (simulation) and on the profile for the loan officer (production) |
+| #25 | **Compliance:** the extractor's quote *"We're a Hispanic family"* was stored as the source of "co-borrower present". The data check caught it | Code guarantee: a message flagged as touching a protected class keeps **no quotes at all**, only structured values. The schema rule now covers quotes too |
+| #30 | Scores 700/745 "double-checked" although known | Layer 1 (flag on): never re-confirm a known fact unless code flagged it for a quick check |
+| #26 | "Relocating in May" → timeline asked again | The relocation month fills the timeline |
+| #19 | The canned intent line ignored the situation they described | When the borrower already described their situation, the intent question is asked in their terms |
+| #16 | Refinance home value reached too late (3rd time) | New `home_value` follow-up early in Stage 2 for refinance and equity goals when the value is unknown |
+| #18 | The judge read "a wonderful way to help your son" as an age comment | Layer 1 (flag on): never comment on anyone's age |
+
+**Judge notes from P3, also handled:**
+- **Clean goodbye:** a new `ends_conversation` intent means a warm close and no further question.
+- **Neutral acknowledgments:** no "very manageable" or "strong score".
+- **Still for David:** the Refinance fee wording, and his separate-disclosure wish for SSN/address (we use the Revised-spec verbatim gate).
+
+**Track regression (A14):** `backend/scenarios/tracks_regression.yaml` has 5 plain borrowers (Purchase, Refinance rate/term, Refinance cash-out, HELOC, Home equity loan), each answering every track question until the closing offer. Run it with the flag **off** (demo baseline) and **on**. Both should pass, proving Section 0 doesn't disturb the tracks.
+
+**Tests:** handoff 26, compliance 22, sync 95. `npm test` 26/26; flag-off parity 23/23.
 
 ---
 
@@ -195,7 +219,7 @@ Two notes from the judge, neither of which failed a test:
 
 ## Next run
 
-**Run P3**: the same 1-sample preview after fix cycle 2 (Test Guide 11.1). If it's at or near 95%, run the first **official** 3-sample run.
+**Run P4** (1-sample preview) and the **track regression** with the flag off and on (Test Guide 11.1). If P4 is at or near 95%, run the first **official** 3-sample run.
 
 
 Previous instruction kept for reference — **B3 — re-run the same baseline with the simulation-harness fix** (Section 0 still off):

@@ -144,6 +144,7 @@ export const INTENTS = [
   'concern_or_worry',
   'off_topic',
   'asks_if_human',
+  'ends_conversation',
 ] as const;
 export type Intent = (typeof INTENTS)[number];
 

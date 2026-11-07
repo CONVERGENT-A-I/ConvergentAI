@@ -96,7 +96,7 @@ INTENT (exactly one): ${INTENTS.join(' | ')}.
 - states_goal_or_facts = shares goals or information. asks_question = asks something. requests_transfer_now = wants a human / loan officer now.
 - asks_about_human_later = asks whether a person can help later, without asking for one now. requests_callback = wants a call back / appointment.
 - cancels_transfer = takes back a request for a person. declines_to_answer = refuses or doesn't know. concern_or_worry = expresses worry.
-- off_topic = not about home financing. asks_if_human = asks whether you are a person or AI.
+- off_topic = not about home financing. asks_if_human = asks whether you are a person or AI. ends_conversation = they are wrapping up (done for now, thanks, goodbye).
 
 COMPLIANCE FLAGS (any that apply): ${COMPLIANCE_FLAGS.join(' | ')}.
 ${FACT_GUIDE}
@@ -107,7 +107,7 @@ RULES
 3. If the borrower corrects themselves in the same message, output only the corrected value.
 4. Attribute income and credit to the right person (borrower vs co-borrower).
 5. Use the assistant's last question to understand short answers ("yes", "about 36", "the second one").
-6. NEVER output a Social Security number, a street address, account numbers, race, ethnicity, national origin, religion or familial status — not as a key, not inside any value. A city, state or zip is fine.
+6. NEVER output a Social Security number, a street address, account numbers, race, ethnicity, national origin, religion, age or familial status — not as a key, not inside any value, not in a raw quote. A city, state or zip is fine.
 7. If the borrower asks to state a number different from the truth, output only the true number and add the flag inflate_income_request.
 8. If the borrower's words fit two different values of one fact (for example two possible occupancy types), give the most likely value and add "uncertain": true.
 9. Output valid JSON only — no prose, no code fences.`;

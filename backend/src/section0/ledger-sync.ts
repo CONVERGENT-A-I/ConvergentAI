@@ -50,9 +50,10 @@ const WRITERS: Array<{ keys: FactKey[]; write: Writer }> = [
     },
   },
   {
-    keys: ['timeline'],
+    keys: ['timeline', 'situation.relocation'],
     write: (l) => {
-      const v = l.value<string>('timeline');
+      // "relocating in May" already answers when they want to move.
+      const v = l.value<string>('timeline') ?? l.value<{ when?: string }>('situation.relocation')?.when;
       return v ? { timeline: String(v), timeline_confirmed: true } : null;
     },
   },

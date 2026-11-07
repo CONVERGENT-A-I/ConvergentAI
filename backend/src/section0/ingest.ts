@@ -180,7 +180,10 @@ export function ingestExtraction(ex: UniversalExtraction, ledger: FactLedger, tu
     // The borrower's words point two ways (e.g. "vacation home we'd also rent out") → confirm, never guess.
     if (!n.clarify && f.uncertain) n.clarify = 'uncertain';
     const status = n.clarify ? 'needs_clarification' : 'stated';
-    const r = ledger.upsert({ key: f.key, value: n.value, raw: f.raw, status, ...(n.clarify ? { clarify: n.clarify } : {}) }, turn, stage);
+    // A message that touches a protected class (ethnicity, religion, ...) keeps no quotes at all —
+    // only the structured values, which never carry those characteristics (ECOA / Reg B).
+    const raw = ex.flags.includes('protected_class_topic') ? '' : f.raw;
+    const r = ledger.upsert({ key: f.key, value: n.value, raw, status, ...(n.clarify ? { clarify: n.clarify } : {}) }, turn, stage);
     if (r === 'added' || r === 'corrected') result.changed.push(f.key);
     if (n.clarify) result.clarifications.push({ key: f.key, clarify: n.clarify });
   }

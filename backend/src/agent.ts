@@ -1485,7 +1485,7 @@ export default defineAgent({
     contextManager.setMloAvailability(() => (simCtx ? simMloAvailable() : true));
     const handoffTools = ailanaConfig.section0Enabled
       ? buildHandoffTools({
-          transfer: async () => {
+          transfer: async (summary) => {
             const p = contextManager.getProfile();
             p.escalation_preference = 'live_transfer';
             (p as any).escalation_preference_confirmed = true;
@@ -1493,9 +1493,10 @@ export default defineAgent({
             contextManager.setCurrentPendingField(null);
             sendStageUpdate('5').catch((err) => console.warn(err));
             if (simCtx) {
-              recordSimTransfer(ctx.room.name || '', { profile: p, statedFacts: contextManager.getFactLedger().serialize() });
+              recordSimTransfer(ctx.room.name || '', { summary, profile: p, statedFacts: contextManager.getFactLedger().serialize() });
               return;
             }
+            (p as any).mlo_handoff_summary = summary; // travels with the profile to the loan officer
             await sendMloPopupTrigger();
           },
           book: async (req) => {

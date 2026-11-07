@@ -452,6 +452,40 @@ async function turn(cm: SessionContextManager, e: UniversalExtraction) {
   assert(/WITHOUT its final question about their goal/.test(prompt), '#4: known refinance goal → overview without the goal question');
 }
 
+{
+  // #25: a message that touches a protected class keeps no quotes in memory (ethnicity never stored)
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', flags: ['protected_class_topic'], facts: [
+    { key: 'co_borrower.present', value: true, raw: "We're a Hispanic family" },
+    { key: 'location.area', value: { city: 'Dalton', state: 'GA' }, raw: 'looking in Dalton, Georgia' },
+  ] }));
+  const stored = JSON.stringify(cm.getFactLedger().serialize()) + JSON.stringify(cm.getProfile());
+  assert(!/hispanic/i.test(stored), '#25: no quote from a protected-class message is stored');
+  assert(cm.getFactLedger().value('co_borrower.present') === true, '#25: the structured facts are still kept');
+}
+{
+  // #26: "relocating in May" answers the timeline question
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', facts: [{ key: 'situation.relocation', value: { from: 'Tennessee', to: 'Phoenix', when: 'May' }, raw: '' }] }));
+  assert(cm.getProfile().timeline === 'May' && cm.getProfile().timeline_confirmed === true, '#26: relocation month fills the timeline — not asked again');
+}
+{
+  // #16: refinance with the balance but no value → home value asked early in Stage 2
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'refinance', facts: [{ key: 'refi.balance', value: 240, raw: '' }, { key: 'situation.divorce_buyout', value: true, raw: '' }] }));
+  for (const f of [{ key: 'borrower.first_name', value: 'Robin' }, { key: 'occupancy', value: 'primary' }, { key: 'borrower.existing_member', value: false }, { key: 'timeline', value: 'three months' }, { key: 'co_borrower.present', value: false }] as const) {
+    await turn(cm, ex({ facts: [{ key: f.key as any, value: f.value, raw: '' }] }));
+  }
+  assert(cm.getPendingField() === 'section0_followup' && /what they think their home is worth/.test(cm.getDynamicContext()), '#16: home value asked early (refinance)', cm.getPendingField());
+}
+{
+  // #19: situation described, goal undecided → intent asked in their own terms, not the canned line
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'unclear', facts: [{ key: 'situation.inherited_home', value: true, raw: '' }] }));
+  const ctx = cm.getDynamicContext();
+  assert(/tied to what they told you/.test(ctx) && !/ask exactly: "Great\. What brings you here today/.test(ctx), '#19: asks what they want to do with what they described');
+}
+
 // ── 13. No switch at the closing offer ──
 {
   const cm = newManager();

@@ -62,6 +62,8 @@ export interface NotesInput {
   safetyHit?: { ssn: boolean; address: boolean } | null;
   /** Turn number — the TRID gate is given every time it is needed, not once per session. */
   turn?: number;
+  /** The extractor's intent for this message. */
+  intent?: string;
 }
 
 /** The compliance notes needed this turn that have not been shown yet. */
@@ -75,6 +77,9 @@ export function complianceNotes(input: NotesInput): ComplianceNote[] {
     const areaKnown = !!ledger.value('location.area');
     add(`trid_gate:${input.turn ?? 0}`, `They started to give a Social Security number or street address. It was removed — never repeat or ask for it. Say exactly: "${tridGateScript(input.safetyHit)}"` +
       (areaKnown ? '' : ' Then ask for just the city or zip code of the home as your next question.'));
+  }
+  if (input.intent === 'ends_conversation') {
+    add(`closing:${input.turn ?? 0}`, 'They are wrapping up. Thank them warmly in one or two sentences, say they can come back or reach a licensed loan officer anytime, and do NOT ask another question (this overrides the current task).');
   }
   if (has('privacy_question')) {
     add('privacy', `PRIVACY QUESTION — answer first with this approved wording, word for word, then continue:\n"${privacyScript(input.channel, input.continueWith)}"`);
