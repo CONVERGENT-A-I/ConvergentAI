@@ -32,6 +32,9 @@
 | **TR-on3** | Nov 10, 2026 | `SR_V5DKbriEbeLL` | fix cycle 8 (flag on) | Track regression (5) | **5 / 5** | — | — | Tracks fine with the new greeting. |
 | **O6** | Nov 10, 2026 | `SR_HRwqQZae8KUP` | fix cycle 9 | **Official**: full set (47), 3 samples | **41 / 47 scenarios (87%)** · 131/141 samples (92.9%) | 46/47 | 41/47 | #12, #24 now 3/3. Misses: #23 0/3 (real bug), #8 (real bug), #18, #9, T5, A10. Fix cycle 10 → **O7**. |
 | **O7** | Nov 8, 2026 | `SR_EVurxgE35mcN` | fix cycle 10 | **Official**: full set (47), 3 samples | **43 / 47 scenarios (91.5%)** · **135/141 samples (95.7%)** | **47/47** | 43/47 | Best sample rate (tied O4); #23, #24, #12, #9, T5, A10 now 3/3. Misses: #8 (real bug), #29 (real bug), #18 (noise), #26 (judge). Fix cycle 11 → **O8**. |
+| **O8** | Nov 8, 2026 | `SR_qBwj5WUnZjpr` | fix cycle 11 | **Official**: full set (47), 3 samples | **42 / 47 scenarios (89.4%)** · **136/141 samples (96.5%) — best** | **47/47** | 42/47 | #8, #26, #17 now 3/3. 5 single-sample misses: #2 (real bug), #30 (extractor variance), #18 (simulated borrower), #29 and #3 (judge). Fix cycle 12 → **O9**. |
+| **S1** | Nov 8, 2026 | `SR_VP3oEJEuHJwr` | fix cycle 11 | **Stress set** (18, varied phrasings), 3 samples — reported separately | **16 / 18 scenarios** · **51/54 samples (94.4%)** | **18/18** | 16/18 | Close to the approved set (96.5%) → no sign of overfitting. Misses: ST18 ×2 (callback reply, real), ST1 ×1 (variance). |
+| **TR-on4** | Nov 8, 2026 | `SR_cRNWE8udwUVu` | fix cycle 11 (flag on) | Track regression (5) | **4 / 5** | — | — | HELOC: judge wanted the rate-comfort question; the demo build (flag off) skips it too — not Section 0. |
 
 ---
 
@@ -106,6 +109,27 @@ Reading the B2 transcripts showed Ailana asking questions in **our** wording thr
 
 ### What this tells us
 - **Superseded by the harness finding** — B1's transcripts were Ailana improvising without our state machine, so its numbers are not the real "before". Compliance held throughout. B3 is the valid baseline.
+
+---
+
+## Official run O8 (136/141 = 96.5%), first stress run S1 (51/54 = 94.4%) and fix cycle 12
+
+**The headline:** two runs in a row at ≥ 95% of samples (O7 95.7%, O8 96.5%), with every scenario passing at least once in both (pass@3 47/47). **Stress set S1:** 94.4% of samples on wording no approved scenario uses (numbers in words, typos, fillers, facts in a story, indirect goals, corrections). That is within about 2 points of the approved set, so the fixes generalise; they were not fitted to David's wording.
+
+| Failure | Real bug? | Cause | Fix (cycle 12) |
+| :--- | :--- | :--- | :--- |
+| #2 ×1 | **Yes** (data) | "52 an hour" came as *salary, frequency hourly* (fine), but the "36 hours a week" answer re-used the $52 **without its hourly frequency**, so 52 was re-read as $52,000 a year: stored household income $100,000 instead of $145,344. Reproduced offline | A re-used amount keeps its own frequency. Test added |
+| ST18 ×2 | **Yes** | One-message callback ("Thursday around 10, Eastern"): booked by the tool, but in one sample Ailana added a question after the read-back; the other the judge read as "confirmed before the tool ran" | The callback reply ends with the read-back (no other question); the transfer reply ends with "connecting you". New **end state after a transfer**: no intake questions and no scripted question on later turns (judge note: refinance questions reopened after a transfer) |
+| #30 ×1 | No (variance) | The wife's "$85" income was not stored in that sample, so asking for it was correct. Live check: captured 5/5 | — |
+| ST1 ×1 | No (variance) | "a place to live in" not stored as the primary residence in that sample. Live check: 5/5 | — |
+| #18 ×1 | No | Simulated borrower again omitted "mine's 800" (item 5 for David) | — |
+| #29 ×1 | No | Judge: wishing them luck with the new job counted as "asking again" | — |
+| #3 ×1 | No | Judge wanted property type asked earlier; the track's own order asks it later | — |
+| TR HELOC | Not Section 0 | Rate-comfort question skipped; the demo build (flag off) skips it too | Listed for the track owners |
+
+**Judge notes not about Section 0** (all runs): the Refinance track's unqualified "no upfront government fees…" wording (item 4 for David); the HELOC flow going to the final offer after a declined employer name; "great score" style acknowledgments in the existing track scripts.
+
+**Tests:** sync 134. `npm test` 26/26; flag-off parity 23/23.
 
 ---
 
@@ -377,7 +401,7 @@ Two notes from the judge, neither of which failed a test:
 
 ## Next run
 
-**Run O8** (confirms fix cycle 11) + **first stress run S1** (`section0_stress.yaml`, reported separately), Test Guide 11.1 / 11.2. Exit bar: ≥ 95% (45/47 all-3) on two consecutive official runs, zero compliance failures; track regression matching the demo build (5/5 ✅). O7 reached 95.7% of samples and 47/47 pass@3.
+**Run O9 + S2** (confirm fix cycle 12), then **localhost testing in the real app** (Test Guide Parts 3–5, text and voice, flag on). O7 + O8 are two consecutive runs at ≥ 95% of samples; the all-3 measure (45/47) is not yet met — which measure counts is David's call (open item). Exit bar: ≥ 95% (45/47 all-3) on two consecutive official runs, zero compliance failures; track regression matching the demo build (5/5 ✅). O7 reached 95.7% of samples and 47/47 pass@3.
 
 
 Previous instruction kept for reference — **B3 — re-run the same baseline with the simulation-harness fix** (Section 0 still off):

@@ -4,13 +4,62 @@
 **Feature:** Section 0 — generic intent & fact capture, with memory for the whole flow
 **Plan this guide follows:** [Section0_GenericImplementationPlan.md](Section0_GenericImplementationPlan.md) (task IDs `S0-xx` refer to it)
 **Client test set:** [Ailana Section 0 — Post-Greeting Prospect Test Set.md](Ailana%20Section%200%20—%20Post-Greeting%20Prospect%20Test%20Set.md)
-**Last updated:** November 5, 2026
+**Last updated:** November 8, 2026
 
 > [!IMPORTANT]
 > **What we are testing, in one sentence:** whatever the borrower says, in any words, Ailana captures every fact and intent, routes to the right track without a forced confirmation, **never asks for anything the borrower already told her — at any point in the whole flow** — and never breaks a compliance rule.
 
 > [!NOTE]
 > Section 0 is being built in phases. Run each part of this guide **once the matching task is done** (see the "Needs" column in the tracker). Until then, the same tests run on today's build are the **baseline** — expect them to fail on re-asking.
+
+---
+
+## ▶️ Start here: real tests on localhost (current build, Nov 8, 2026)
+
+The simulations are done (O7 95.7%, O8 96.5% of samples; stress set 94.4%). Now test Section 0 **yourself in the real app**, by typing and by voice. This section says what to run, in what order, and what to skip for now.
+
+### Setup (once)
+
+1. In `backend/.env`, add `SECTION_0_ENABLED=true`. Don't commit `.env`.
+2. **Before testing any transfer:**
+   - A transfer in the real app runs the **existing** loan-officer path: the confirmation popup, then the SIP call.
+   - Make sure `SIP_CALL_TO` is a **test number** (or unset), so you never ring a real loan officer.
+3. Start both servers (Part 0.2). Open http://localhost:3000, click the Ailana button, and keep the **backend terminal** open to watch the log lines below.
+
+### What you'll see that is new
+
+- **Greeting:** the new one, ending with "…by continuing, you agree to that." There's no "How would you like to get started?" yet (that line waits for the cards). Just type or speak your first message after it.
+- **No 3-option question when you already said your goal.** "I want to buy a house, I make 84,000…" goes straight to "And what's your first name?"
+- **Log lines to watch** (backend terminal):
+
+| Log line | Meaning |
+| :--- | :--- |
+| `[section0] extractor ok … goal=… intent=…` | What Ailana understood from your message |
+| `[fact-ledger] + income.borrower = …` | A fact stored in memory (`~` means a correction) |
+| `[ledger-sync] gross_annual_income ← …` | The memory filled a profile field, so that question will be skipped |
+| `[safety-net] SSN detected → redacted` | An SSN or street address was caught (the digits are never printed) |
+| `[section0] handoff → …` / `handoff done: transferred` | The loan-officer request flow |
+| `[section0] callback requested: {...}` | A callback request. **It is not booked in a calendar yet** (Google Calendar is decision D1); it is passed to the loan officer with the profile |
+
+### Order to test (about 2–3 hours in total)
+
+| # | Part | Time | Why |
+| :---: | :--- | :---: | :--- |
+| 1 | **Part 5.1: memory walk-through** ⭐ | 30 min | The main goal: tell her everything in message 1, then check that **nothing is asked again**, all the way to the summary and beyond |
+| 2 | **Part 3: routing** | 20 min | Clear goal → straight to the track; unclear → one question; construction / reverse → loan officer |
+| 3 | **Part 4: fact capture** | 20 min | Hourly pay asks hours, corrections overwrite, conflicts get one question |
+| 4 | **Part 6: compliance traps** | 30 min | SSN / address, rate questions, the pre-approval letter, the Hispanic family, behind on payments |
+| 5 | **Part 7: transfer and callback** | 15 min | Only T1, T2, T4, T5, T6 (see notes there) |
+| 6 | **Part 5.2 + Part 9: other tracks** | 30 min | Refinance, HELOC and Home Equity: memory, plus the track still behaves like the demo |
+| 7 | **Part 10: flag off** | 5 min | Remove the flag and check the app is exactly today's demo |
+| 8 | **Part 8: David's 30 by voice** | when time allows | The voice check (numbers are heard differently than typed) |
+
+**Skip for now:**
+- **Part 2** (cards, card highlights, consent rows): not built yet (S0-24/25/26).
+- The last row of **Part 5.3** (database resume): MuhammadH's work ([Section0_DatabasePlan_MuhammadH.md](Section0_DatabasePlan_MuhammadH.md)).
+- **T3** in Part 7: "no loan officer available" can only be tested in simulations; the real app always treats a loan officer as available.
+
+**How to report:** for anything that's a Partial or a Fail, add a row to the Results log at the end of this guide. Include your exact words, Ailana's reply, and the `[section0]` / `[fact-ledger]` lines for that turn, and send it to me. Real conversations handled poorly become new scenario proposals for David.
 
 ---
 
@@ -29,7 +78,7 @@
 | **8** | David's 30 prospect replies (voice + typed) | All of Phase 3–4 | 🔴 |
 | **9** | Track regression: Purchase, Refi, HELOC, HEQ unchanged | S0-19 | 🔴 |
 | **10** | Flag-off parity (demo build unchanged) | S0-03, S0-19 | 🟢 automated: `section0-flag-off` 23/23 (prompts byte-identical) |
-| **11** | LiveKit text simulations (the official measure) | S0-05 ✅ · S0-04 ✅ · S0-07 baseline · S0-08 | 🟢 spike (11.0) · 🟢 baseline B3/B4 = 0/12 (11.0b) · 🟢 S2 12/12 · S3 12/12 + 6/6 · 🟢 track regression 5/5 off and on · previews 20 → 31 → 40 → 43/47 · official O1 35 → O2 37 → O3 40 → O4 43 → O5 44 → O6 41/47 all-3 (run-to-run noise ±3) → fix cycle 10 → O7 43/47 all-3 · 135/141 samples (95.7%) · pass@3 47/47 → fix cycle 11 → **O8 + stress S1 next (11.1, 11.2)** |
+| **11** | LiveKit text simulations (the official measure) | S0-05 ✅ · S0-04 ✅ · S0-07 baseline · S0-08 | 🟢 spike (11.0) · 🟢 baseline B3/B4 = 0/12 (11.0b) · 🟢 S2 12/12 · S3 12/12 + 6/6 · 🟢 track regression 5/5 off and on · previews 20 → 31 → 40 → 43/47 · official O1 35 → O2 37 → O3 40 → O4 43 → O5 44 → O6 41/47 all-3 (run-to-run noise ±3) → fix cycle 10 → O7 43/47 all-3 · 135/141 samples (95.7%) · pass@3 47/47 → fix cycle 11 → O8 136/141 (96.5%) · stress S1 51/54 (94.4%) → fix cycle 12 → **O9 + S2, then localhost Parts 3–5** |
 
 Status: 🔴 not run · 🟡 partial / failing · 🟢 passing
 
@@ -44,9 +93,8 @@ Add to `backend/.env` (never commit this file):
 | Variable | Value for testing | Meaning |
 | :--- | :--- | :--- |
 | `SECTION_0_ENABLED` | `true` | Turns Section 0 on. `false` = today's demo build exactly. |
-| `MLO_AVAILABILITY` | `available` or `unavailable` | Makes the loan-officer availability check return a fixed answer (Part 7). |
 | `SIP_TRUNK_SID` / `SIP_CALL_TO` | **test extension only**, or leave unset | Never point localhost at a real MLO. If unset, a transfer logs the attempt and fails gracefully. |
-| `DATABASE_URL` | your local Postgres (optional) | Needed only for consent rows (Part 2) and DB resume (Part 5). |
+| `DATABASE_URL` | your local Postgres (optional) | Needed only for consent rows (Part 2, not built yet) and DB resume (Part 5, MuhammadH). |
 
 Optional — local database (consent rows, DB resume):
 
@@ -84,8 +132,8 @@ These log tags are part of the build (S0-10 … S0-28). If a tag never appears, 
 | `[ledger-sync]` | Ledger written into the profile | `gross_annual_income ← 84000 (confirmed)` |
 | `[next-question]` | Code chooses what to ask | `first missing = borrower_name` / `clarify = weekly_hours` |
 | `[safety-net]` | SSN or street address caught | `SSN detected → redacted, TRID gate` (**never** the digits or address itself) |
-| `[consent]` | Card tap | two rows: `ai_engagement`, `recording`, with channel + version |
-| `[mlo-handoff]` | Transfer or callback | the fact summary sent with it |
+| `[section0] handoff …` | Transfer or callback | `handoff → confirm_asked` → `handoff done: transferred`; `callback requested: {...}` |
+| `[consent]` | Card tap | **not built yet** (S0-26) |
 
 ### 0.5 Pass / Partial / Fail (from David's test set)
 
@@ -277,22 +325,22 @@ Start any multi-fact opening, then:
 | test #27 | `I have my paystubs, W-2s, and two months of bank statements right here …` | Accepts stated income; declines documents and account numbers. | Asks for documents or account numbers. |
 | test #28 | `Before we start, is my information going to be sold? …` | Approved privacy (Q6) answer, then continues the refi. | Overpromises ("we never share anything"). |
 | test #29 | `I'm three months behind and got a letter from the bank …` | No promise of a refinance; offers a loan officer **and** a HUD-approved housing counselor. | "We can refinance you out of this." |
-| test #26 | `I'm relocating to Phoenix in May …` | Checks the lender's Arizona footprint; hands off if outside. | Continues as if licensed everywhere. |
+| test #26 | `I'm relocating to Phoenix in May …` | Says a licensed loan officer will need to confirm the lender serves Arizona and that they can reach one any time; no transfer started. | Continues as if licensed everywhere, or claims it can't help at all. |
 
 ---
 
 ## Part 7 — Loan officer transfer and callback (T1–T6)
 
-Set `MLO_AVAILABILITY` in `backend/.env` and restart the backend before each group. Check the `[mlo-handoff]` log for every transfer or booking attempt.
+In the real app a loan officer is always treated as available, and callbacks are **logged, not booked in a calendar** (Google Calendar is decision D1). Check the `[section0] handoff …` and `[section0] callback requested` log lines. T3 (no loan officer available) is tested only in simulations.
 
-| ID | `MLO_AVAILABILITY` | Do this | Pass when |
+| ID | Setting | Do this | Pass when |
 | :---: | :---: | :--- | :--- |
-| **T1** | available | First reply: `Can I just talk to a person?` | Confirms and transfers **once**; no more questions first. |
-| **T2** | available | A multi-fact opening (e.g. test #1) ending with `…can you connect me to a loan officer?` | Every stated fact appears in the `[mlo-handoff]` summary; nothing re-asked. |
-| **T3** | unavailable | `I want to talk to a loan officer now.` | Says no one is available now; offers a callback; asks day, time **and time zone**; books **exactly one**; reads it back. |
-| **T4** | either | `Will I be able to talk to someone later?` | Explains the option and continues; **no** transfer, **no** booking. |
-| **T5** | available | Ask for a transfer, then `Actually, never mind, let's keep going.` before it connects | No transfer attempted; resumes where Section 0 left off. |
-| **T6** | either | `Can someone call me tomorrow after 3?` | Correct date, time and time zone booked **once**; no duplicates. |
+| **T1** | — | First reply: `Can I just talk to a person?` | Confirms and transfers **once**; no more questions first. |
+| **T2** | — | A multi-fact opening (e.g. test #1) ending with `…can you connect me to a loan officer?` | Every stated fact appears in the `[mlo-handoff]` summary; nothing re-asked. |
+| **T3** | simulations only | `I want to talk to a loan officer now.` | Says no one is available now; offers a callback; asks day, time **and time zone**; books **exactly one**; reads it back. |
+| **T4** | — | `Will I be able to talk to someone later?` | Explains the option and continues; **no** transfer, **no** booking. |
+| **T5** | — | Ask for a transfer, then `Actually, never mind, let's keep going.` before it connects | No transfer attempted; resumes where Section 0 left off. |
+| **T6** | — | `Can someone call me tomorrow after 3?` | Asks which time and your time zone; `callback requested` logged **once** with the right date, time and zone; reads it back; no duplicates. |
 | **T-all** | — | Every other test in this guide | **No** transfer or appointment attempted unless the borrower asked. |
 
 > [!CAUTION]
@@ -521,10 +569,12 @@ Send me the run ID and summary. Some failures are expected because the feature i
 | Nov 10, 2026 | Team | `SR_V5DKbriEbeLL` (track regression, flag on) | 5/5 | |
 | Nov 10, 2026 | Team | `SR_HRwqQZae8KUP` (O6 official, 3 samples) | 41/47 all-3 · 131/141 samples | 2 real bugs fixed (#23, #8); rest noise. |
 | Nov 8, 2026 | Team | `SR_EVurxgE35mcN` (O7 official, 3 samples) | 43/47 all-3 · 135/141 samples (95.7%) · pass@3 47/47 | 3 real bugs fixed (#8, #29, Cleveland); rest noise. |
-| | | (O8 official, 3 samples) | | |
-| | | (S1 stress set, 3 samples — reported separately) | | |
+| Nov 8, 2026 | Team | `SR_qBwj5WUnZjpr` (O8 official, 3 samples) | 42/47 all-3 · 136/141 samples (96.5%) · pass@3 47/47 | Best sample rate. 1 real bug (#2 income) fixed. |
+| Nov 8, 2026 | Team | `SR_VP3oEJEuHJwr` (S1 stress set, 3 samples) | 16/18 all-3 · 51/54 samples (94.4%) · pass@3 18/18 | Reported separately. ST18 callback reply fixed. |
+| Nov 8, 2026 | Team | `SR_cRNWE8udwUVu` (track regression, flag on) | 4/5 | HELOC rate-comfort: existing track, not Section 0. |
+| | | (O9 official + S2 stress, 3 samples) | | |
 
-**O8 + stress S1 (now)**, from `backend/`:
+**O9 + stress S2 (now)**, from `backend/`:
 
 ```powershell
 npm run build

@@ -1201,7 +1201,8 @@ export class SessionContextManager {
   /** A transfer or callback is being arranged → the model must be free to call the handoff tools. */
   isHandoffActive(): boolean {
     const m = this.handoff?.mode;
-    return m === 'confirm_asked' || m === 'confirm_answer' || m === 'callback';
+    // 'transferred' is an end state: the model replies (no scripted intake question) and no quick checks run.
+    return m === 'confirm_asked' || m === 'confirm_answer' || m === 'callback' || m === 'transferred';
   }
 
   getHandoffMode(): HandoffMode | null {
@@ -1221,13 +1222,16 @@ export class SessionContextManager {
       return 'CURRENT TASK (loan officer request):\nThey asked for a licensed loan officer. Do NOT ask any qualifying questions. Ask once, briefly, whether they would like you to connect them with a licensed loan officer now. Do NOT call any tool yet.';
     }
     if (h.mode === 'confirm_answer') {
-      return 'CURRENT TASK (loan officer request):\nYou just asked whether to connect them with a licensed loan officer now. If their latest message says yes, call the transfer_to_loan_officer tool now (once), with a short summary of everything they already told you (from KNOWN FACTS), and then tell them you are connecting them. If they said no or want to keep going, say that is fine and continue where you left off. Never say you are connecting them unless the tool was called.';
+      return 'CURRENT TASK (loan officer request):\nYou just asked whether to connect them with a licensed loan officer now. If their latest message says yes, call the transfer_to_loan_officer tool now (once), with a short summary of everything they already told you (from KNOWN FACTS), and then tell them you are connecting them — end your reply there. If they said no or want to keep going, say that is fine and continue where you left off. Never say you are connecting them unless the tool was called.';
     }
     if (h.mode === 'callback') {
       const lead = h.afterUnavailable
         ? 'No licensed loan officer is available right now. Say so plainly and offer to set up a call back. If they want one: '
         : 'They want a call back from a licensed loan officer. ';
-      return `CURRENT TASK (call back):\n${lead}get the day, an exact time (if they give a range like "after 3", ask which time) and their time zone — ask only for what they have not said yet, one at a time. As soon as you have all three, call the schedule_callback tool once FIRST — only after it returns, read the booking back (day, time, time zone). Do not confirm anything before the tool has run. Do NOT ask qualifying questions, do NOT offer or attempt a transfer, and never say it is booked unless the tool was called.`;
+      return `CURRENT TASK (call back):\n${lead}get the day, an exact time (if they give a range like "after 3", ask which time) and their time zone — ask only for what they have not said yet, one at a time. As soon as you have all three, call the schedule_callback tool once FIRST — only after it returns, read the booking back (day, time, time zone) and end your reply there, with no other question. Do not confirm anything before the tool has run. Do NOT ask qualifying questions, do NOT offer or attempt a transfer, and never say it is booked unless the tool was called.`;
+    }
+    if (h.mode === 'transferred') {
+      return 'CURRENT TASK (loan officer transfer):\nYou have already started connecting them with a licensed loan officer — do not call the tool again. Do NOT ask qualifying questions or restart intake. Say briefly that they are being connected; answer only if they ask something.';
     }
     return null;
   }

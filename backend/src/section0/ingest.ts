@@ -74,14 +74,18 @@ function normalizeIncomeList(value: unknown, existing: IncomeComponent[] | undef
     const type = ((detailOnly && waiting) ? waiting.type : typeof it.type === 'string' ? it.type : 'other') as IncomeType;
     // "about 36 hours" answering a weekly-hours question may arrive without the amount → reuse the stated rate.
     let amount: unknown = it.amount;
+    let reusedFrequency: IncomeComponent['frequency'] | undefined;
     if ((amount === undefined || amount === null) && existing) {
-      amount = existing.find((c) => c.type === type)?.amount;
+      const prior = existing.find((c) => c.type === type);
+      amount = prior?.amount;
+      // The reused amount keeps its own frequency: "52" an hour must not become 52,000 a year (#2, O8).
+      reusedFrequency = prior?.frequency ?? undefined;
     }
     const hours = parseAmount(it.hours_per_week);
     const r = normalizeIncome({
       type,
       amount,
-      frequency: (typeof it.frequency === 'string' ? it.frequency : null) as IncomeComponent['frequency'],
+      frequency: (typeof it.frequency === 'string' ? it.frequency : reusedFrequency ?? null) as IncomeComponent['frequency'],
       hours_per_week: hours ?? existing?.find((c) => c.type === type)?.hours_per_week ?? null,
       ...(typeof it.counted === 'boolean' ? { counted: it.counted } : {}),
       ...(typeof it.variable === 'boolean' ? { variable: it.variable } : {}),

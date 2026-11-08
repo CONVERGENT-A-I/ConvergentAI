@@ -683,6 +683,29 @@ async function turn(cm: SessionContextManager, e: UniversalExtraction) {
   assert(cm3.getFactLedger().size() === 0, 'S0-20: null / malformed / old-format snapshots are safe');
 }
 
+{
+  // #2 (O8): "52 an hour" labelled salary + frequency hourly, then "36 hours a week" → 97,344, never 52,000
+  const L = new FactLedger({ log: () => {} });
+  ingestExtraction(ex({ facts: [{ key: 'income.borrower', value: [{ type: 'salary', amount: 52, frequency: 'hourly' }], raw: '' }, { key: 'income.co_borrower', value: [{ type: 'salary', amount: 48000, frequency: 'yearly' }], raw: '' }] }), L, 1, '0');
+  ingestExtraction(ex({ facts: [{ key: 'income.borrower', value: [{ type: 'hourly', hours_per_week: 36 }], raw: '' }] }), L, 2, '1');
+  const b = L.value<any[]>('income.borrower')!;
+  assert(b.length === 1 && b[0].annual === 97344, `#2: hours complete the hourly rate (got ${JSON.stringify(b)})`);
+  ingestExtraction(ex({ facts: [{ key: 'income.borrower', value: [{ type: 'salary', hours_per_week: 36 }], raw: '' }] }), L, 3, '2');
+  assert(L.value<any[]>('income.borrower')![0].annual === 97344, '#2: a repeated hours detail keeps the hourly rate');
+}
+
+{
+  // ST14 / ST18 (stress S1): after a transfer starts, no intake reopens; a booking reply ends with the read-back
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'refinance', intent: 'requests_callback' }));
+  assert(/end your reply there, with no other question/.test(cm.getDynamicContext()), 'callback: the read-back ends the reply');
+  const cm2 = newManager();
+  await turn(cm2, ex({ goal: 'refinance' }));
+  cm2.onHandoffResult('transferred');
+  await turn(cm2, ex({ intent: 'states_goal_or_facts' }));
+  assert(cm2.isHandoffActive() && /already started connecting them/.test(cm2.getDynamicContext()), 'transferred: end state, no intake questions');
+}
+
 // ── 13. No switch at the closing offer ──
 {
   const cm = newManager();
