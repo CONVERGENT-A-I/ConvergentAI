@@ -23,7 +23,8 @@ export function privacyScript(channel: 'voice' | 'text', continueWith: string): 
   return `${core} You can read how your information is handled under ConvergentAI's privacy policy: ${PRIVACY_POLICY_URL}. You can also submit a request about your information there.`;
 }
 
-export interface ComplianceNote { id: string; text: string }
+/** takesTurn: the note asks the borrower something, so it IS this turn's task (other questions wait a turn). */
+export interface ComplianceNote { id: string; text: string; takesTurn?: boolean }
 
 const STATE_CODES: Record<string, string> = {
   alabama: 'AL', alaska: 'AK', arizona: 'AZ', arkansas: 'AR', california: 'CA', colorado: 'CO', connecticut: 'CT', delaware: 'DE',
@@ -71,7 +72,7 @@ export interface NotesInput {
 export function complianceNotes(input: NotesInput): ComplianceNote[] {
   const { flags, ledger, shown } = input;
   const out: ComplianceNote[] = [];
-  const add = (id: string, text: string) => { if (!shown.includes(id) && !out.some((n) => n.id === id)) out.push({ id, text }); };
+  const add = (id: string, text: string, takesTurn = false) => { if (!shown.includes(id) && !out.some((n) => n.id === id)) out.push(takesTurn ? { id, text, takesTurn } : { id, text }); };
   const has = (f: ComplianceFlag) => flags.includes(f);
 
   if (input.safetyHit && (input.safetyHit.ssn || input.safetyHit.address)) {
@@ -86,7 +87,7 @@ export function complianceNotes(input: NotesInput): ComplianceNote[] {
     add('privacy', `PRIVACY QUESTION — answer first with this approved wording, word for word, then continue:\n"${privacyScript(input.channel, input.continueWith)}"`);
   }
   if (has('approval_guarantee_or_preapproval_letter')) {
-    add('preapproval', 'Do NOT confirm or imply any pre-approval, approval or amount you did not issue. In this reply, ask what the letter or offer is about (you may ask it together with your next question).');
+    add('preapproval', 'Do NOT confirm or imply any pre-approval, approval or amount you did not issue, and say you cannot verify a letter you did not send. Ask what the letter or offer is about.', true);
   }
   if (has('protected_class_topic')) {
     add('protected_class', 'Explain that loan programs are never based on race, ethnicity, national origin, religion, sex, age, marital or familial status, and do not ask about or repeat any of these. You may mention programs that depend on things like first-time-buyer status, income or location.');

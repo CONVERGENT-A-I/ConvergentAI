@@ -29,7 +29,7 @@
 | **8** | David's 30 prospect replies (voice + typed) | All of Phase 3–4 | 🔴 |
 | **9** | Track regression: Purchase, Refi, HELOC, HEQ unchanged | S0-19 | 🔴 |
 | **10** | Flag-off parity (demo build unchanged) | S0-03, S0-19 | 🟢 automated: `section0-flag-off` 23/23 (prompts byte-identical) |
-| **11** | LiveKit text simulations (the official measure) | S0-05 ✅ · S0-04 ✅ · S0-07 baseline · S0-08 | 🟢 spike (11.0) · 🟢 baseline B3/B4 = 0/12 (11.0b) · 🟢 S2 12/12 · S3 12/12 + 6/6 · 🟢 track regression 5/5 off and on · previews 20 → 31 → 40 → 43/47 · official O1 35 → O2 37 → O3 40 → O4 43/47 all-3 (95.7% of samples) → fix cycle 8 → **O5 next (11.1)** |
+| **11** | LiveKit text simulations (the official measure) | S0-05 ✅ · S0-04 ✅ · S0-07 baseline · S0-08 | 🟢 spike (11.0) · 🟢 baseline B3/B4 = 0/12 (11.0b) · 🟢 S2 12/12 · S3 12/12 + 6/6 · 🟢 track regression 5/5 off and on · previews 20 → 31 → 40 → 43/47 · official O1 35 → O2 37 → O3 40 → O4 43 → O5 44/47 all-3 (95.0% of samples) → fix cycle 9 → **O6 next (11.1)** |
 
 Status: 🔴 not run · 🟡 partial / failing · 🟢 passing
 
@@ -517,9 +517,11 @@ Send me the run ID and summary. Some failures are expected because the feature i
 | Nov 9, 2026 | Team | `SR_Sr3mFjQubPRo` (track regression, flag on) | 4/5 | HELOC rate-comfort question: the demo build skips it too (pre-existing, not Section 0). |
 | Nov 10, 2026 | Team | `SR_LCyQgCuQsVWQ` (O3 official, 3 samples) | 40/47 all-3 · 133/141 samples | pass@3 47/47. Fix cycle 7 applied. |
 | Nov 10, 2026 | Team | `SR_n2d4reMwx7bt` (O4 official, 3 samples) | 43/47 all-3 · 135/141 samples | Best run. Fix cycle 8 applied. |
-| | | (O5 official, 3 samples) | | |
+| Nov 10, 2026 | Team | `SR_TtfqwBCeGHj7` (O5 official, 3 samples) | 44/47 all-3 · 134/141 samples | Fix cycle 9 applied. |
+| Nov 10, 2026 | Team | `SR_V5DKbriEbeLL` (track regression, flag on) | 5/5 | |
+| | | (O6 official, 3 samples) | | |
 
-**O5 (now)**, the same command, plus the track regression line this time (the greeting changed), from `backend/`:
+**O6 (now)**, the same command (the track regression line is optional), from `backend/`:
 
 ```powershell
 npm run build

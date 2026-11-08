@@ -92,8 +92,12 @@ function normalizeIncomeList(value: unknown, existing: IncomeComponent[] | undef
   return clarify ? { list, clarify } : { list };
 }
 
+/** Facts whose value is a list — the model sometimes sends a single item; store it as a one-item list. */
+const LIST_KEYS = new Set<FactKey>(['credit.events', 'debt.items', 'funds.sources']);
+
 function normalizeFact(f: ExtractedFact, ledger: FactLedger, batchPrice: number | null): { value: unknown; clarify?: Clarify | string } | null {
-  const { key, value } = f;
+  const { key } = f;
+  const value = LIST_KEYS.has(key) && f.value !== null && typeof f.value === 'object' && !Array.isArray(f.value) ? [f.value] : f.value;
 
   if (key === 'income.borrower' || key === 'income.co_borrower') {
     const existing = ledger.get(key)?.value as IncomeComponent[] | undefined;

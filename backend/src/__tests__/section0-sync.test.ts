@@ -600,6 +600,36 @@ async function turn(cm: SessionContextManager, e: UniversalExtraction) {
   assert(/recorded for quality and compliance/.test(g) && !/How would you like to get started\?/.test(g), 'greeting (flag on, no cards yet) ends after the recording notice');
 }
 
+{
+  // #12 (O5): the model sent ONE credit event as an object (not a list) → the follow-up check crashed the turn
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', facts: [{ key: 'credit.events', value: { type: 'bankruptcy', when: 'two years ago' }, raw: '' }] }));
+  assert(Array.isArray(cm.getFactLedger().value('credit.events')), '#12: a single credit event is stored as a list');
+  for (const f of [{ key: 'borrower.first_name', value: 'Jesse' }, { key: 'occupancy', value: 'primary' }, { key: 'borrower.existing_member', value: false }, { key: 'timeline', value: 'six months' }, { key: 'co_borrower.present', value: false }] as const) {
+    await turn(cm, ex({ facts: [{ key: f.key as any, value: f.value, raw: '' }] }));
+  }
+  assert(cm.getActiveStage() === '2' && /discharged/.test(cm.getDynamicContext()), '#12: Stage 2 hand-over works and asks the discharge date (no crash)');
+}
+{
+  // #24 (O5): "120 instead of 85" → later "85 it is" with a different label must not double the income
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', flags: ['inflate_income_request'], facts: [{ key: 'income.borrower', value: [{ type: 'other', amount: 85000, frequency: 'yearly' }], raw: '' }] }));
+  await turn(cm, ex({ facts: [{ key: 'income.borrower', value: [{ type: 'salary', amount: 85000, frequency: 'yearly' }], raw: '85 it is' }] }));
+  assert(cm.getProfile().gross_annual_income === 85000, '#24: same income relabelled, not added twice', cm.getProfile().gross_annual_income);
+  const two = newManager();
+  await turn(two, ex({ goal: 'purchase', facts: [{ key: 'income.borrower', value: [{ type: 'salary', amount: 60000, frequency: 'yearly' }, { type: 'commission', amount: 40000, frequency: 'yearly' }], raw: '' }] }));
+  assert(two.getProfile().gross_annual_income === 100000, 'two real income sources still add up');
+}
+{
+  // #23 (O5): the pre-approval letter question TAKES the turn — the first-name question waits one turn
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', flags: ['approval_guarantee_or_preapproval_letter'], facts: [{ key: 'income.borrower', value: [{ type: 'social_security', amount: 1700, frequency: 'monthly' }], raw: '' }] }));
+  const ctx = cm.getDynamicContext();
+  assert(/CURRENT TASK:[^\n]*\n[^\n]*Ask what the letter or offer is about\. Ask only this/.test(ctx), '#23: the letter question is the task this turn');
+  await quietlyAsync(() => cm.onAgentTurn('I can’t verify a letter we didn’t send — what is the letter about?'));
+  assert(!/what the letter or offer is about/.test(cm.getDynamicContext()) && cm.getPendingField() === 'borrower_name', '#23: next turn → back to the first name');
+}
+
 // ── 13. No switch at the closing offer ──
 {
   const cm = newManager();

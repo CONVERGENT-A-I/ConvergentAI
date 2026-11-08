@@ -211,7 +211,11 @@ const allIncome = (l: FactLedger) => [...(l.value<IncomeComponent[]>('income.bor
 const FOLLOWUPS: Followup[] = [
   {
     id: 'credit_event_timing',
-    needed: (l) => (l.value<Array<{ type: string }>>('credit.events') ?? []).some((e) => ['bankruptcy', 'foreclosure', 'short_sale'].includes(e.type)),
+    needed: (l) => {
+      const ev = l.value<unknown>('credit.events');
+      const list = (Array.isArray(ev) ? ev : ev ? [ev] : []) as Array<{ type?: string }>;
+      return list.some((e) => !!e && ['bankruptcy', 'foreclosure', 'short_sale'].includes(String(e.type)));
+    },
     ask: 'Ask, without judgment, when the bankruptcy, foreclosure or short sale they mentioned was discharged or completed (month and year is enough). If they are not sure, that is fine — move on.',
   },
   {

@@ -157,7 +157,7 @@ function createVerbatimStream(text: string): ReadableStream<string> {
     .replace(/\s*—\s*/g, ', ')
     .replace(/\s+,/g, ',')
     .trim();
-  return new ReadableStream({
+  const stream = new ReadableStream({
     start(controller) {
       if (sanitized.length > 0) {
         controller.enqueue(sanitized);
@@ -165,6 +165,9 @@ function createVerbatimStream(text: string): ReadableStream<string> {
       controller.close();
     },
   });
+  // An empty verbatim reply is a deliberate silence (noise, filler) — never an error to retry.
+  if (sanitized.length === 0) (stream as any).__intentionalSilence = true;
+  return stream;
 }
 
 class AilanaVoiceAgent extends voice.Agent {
@@ -210,6 +213,7 @@ class AilanaVoiceAgent extends voice.Agent {
    */
   private logIfEmpty(stream: any, retry: (() => any) | null = null): any {
     if (!stream || typeof stream.pipeThrough !== 'function') return stream;
+    if ((stream as any).__intentionalSilence) return stream; // e.g. background noise: staying silent is the answer
     let chars = 0;
     let toolCalls = 0;
     const stage = this.contextManager.getActiveStage();

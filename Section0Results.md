@@ -28,6 +28,8 @@
 | **TR-on2** | Nov 9, 2026 | `SR_Sr3mFjQubPRo` | fix cycle 5 (flag on) | Track regression (5) | **4 / 5** | — | — | HELOC: the judge wanted a separate "comfortable with a variable rate?" question. The **demo build skips it too** (flag off, same transcript point); the earlier flag-on pass only happened because the simulated borrower volunteered it. Pre-existing HELOC-track behaviour, not caused by Section 0. |
 | **O3** | Nov 10, 2026 | `SR_LCyQgCuQsVWQ` | fix cycle 6 | **Official**: full set (47), 3 samples | **40 / 47 scenarios (85%)** · 133/141 samples (94.3%) | **47/47** | 40/47 | Best run so far. T6, #18, #21, #24, #12 now 3/3. 8 failed samples; fix cycle 7 → **O4**. |
 | **O4** | Nov 10, 2026 | `SR_n2d4reMwx7bt` | fix cycle 7 | **Official**: full set (47), 3 samples | **43 / 47 scenarios (91.5%)** · 135/141 samples (**95.7%**) | **47/47** | 43/47 | Best run. #9, #30, #3, #26, #23 now 3/3. Misses: #11 ×2, #29 ×2, #12, #19. Fix cycle 8 → **O5**. |
+| **O5** | Nov 10, 2026 | `SR_TtfqwBCeGHj7` | fix cycle 8 | **Official**: full set (47), 3 samples | **44 / 47 scenarios (93.6%)** · 134/141 samples (95.0%) | 46/47 | 44/47 | Best all-3 so far; #11, #29, #19 now 3/3. Misses: #23 0/3, #24 1/3, #12 1/3. Fix cycle 9 → **O6**. |
+| **TR-on3** | Nov 10, 2026 | `SR_V5DKbriEbeLL` | fix cycle 8 (flag on) | Track regression (5) | **5 / 5** | — | — | Tracks fine with the new greeting. |
 
 ---
 
@@ -102,6 +104,19 @@ Reading the B2 transcripts showed Ailana asking questions in **our** wording thr
 
 ### What this tells us
 - **Superseded by the harness finding** — B1's transcripts were Ailana improvising without our state machine, so its numbers are not the real "before". Compliance held throughout. B3 is the valid baseline.
+
+---
+
+## Official run O5: 44/47 all-3 (Nov 10) and fix cycle 9
+
+| Failed samples | Cause | Fix (cycle 9) |
+| :--- | :--- | :--- |
+| #12 ×2 | **A crash, not an empty model reply.** The model sometimes sends one credit event as an object instead of a list, and the bankruptcy follow-up check (`.some()`) threw at the Stage 1 → 2 hand-over, giving "agent produced no response items". This also explains #12's misses in O2 and O4, and it would have crashed real conversations | List-type facts (`credit.events`, `debt.items`, `funds.sources`) are always stored as lists; the follow-up check is defensive too. Reproduced and verified |
+| #24 ×2 | Data check: income $170,000 instead of $85,000. "120 instead of 85" (stored as type *other*) and "85 it is" (type *salary*) counted as two incomes | An income whose type wasn't said, with the same amount as a known one, is the same income |
+| #23 ×3 | The track is set at once, so the scripted first-name task won over the "ask what the letter is about" note | A compliance note that **asks** something takes the turn as the task; the name question waits one turn. The note also says Ailana can't verify a letter she didn't send |
+| — | Safety: the cycle-8 empty-reply retry would also have fired on **deliberate** silences (background noise in voice) | Deliberate silences are marked and never retried |
+
+**Tests:** sync 119. `npm test` 26/26; flag-off parity 23/23.
 
 ---
 
@@ -315,7 +330,7 @@ Two notes from the judge, neither of which failed a test:
 
 ## Next run
 
-**Run O5**: official, 3 samples (Test Guide 11.1). Exit bar: ≥ 95% (45/47 all-3) on two consecutive official runs, zero compliance failures; track regression matching the demo build.
+**Run O6**: official, 3 samples (Test Guide 11.1). Exit bar: ≥ 95% (45/47 all-3) on two consecutive official runs, zero compliance failures; track regression matching the demo build (5/5 ✅).
 
 
 Previous instruction kept for reference — **B3 — re-run the same baseline with the simulation-harness fix** (Section 0 still off):

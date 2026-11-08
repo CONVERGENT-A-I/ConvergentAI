@@ -55,7 +55,12 @@ function sameValue(a: unknown, b: unknown): boolean {
 function mergeIncome(oldList: IncomeComponent[], newList: IncomeComponent[]): IncomeComponent[] {
   const merged = [...oldList];
   for (const comp of newList) {
-    const i = merged.findIndex((c) => c.type === comp.type);
+    let i = merged.findIndex((c) => c.type === comp.type);
+    if (i < 0) {
+      // "other" means the type wasn't said: same amount → the same income, now (or still) labelled.
+      i = merged.findIndex((c) => (c.type === 'other' || comp.type === 'other') && c.amount === comp.amount);
+      if (i >= 0 && comp.type === 'other') { merged[i] = { ...comp, ...merged[i] }; continue; }
+    }
     if (i >= 0) merged[i] = { ...merged[i], ...comp };
     else merged.push(comp);
   }

@@ -1186,6 +1186,12 @@ export class SessionContextManager {
     return this.activeStage !== '0' && this.nextQuickCheck() !== null;
   }
 
+  /** A compliance note that asks the borrower something takes the turn (the next question waits one turn). */
+  private noteTaskText(): string | null {
+    const n = this.pendingNotes.find((x) => x.takesTurn);
+    return n ? `CURRENT TASK:\n${n.text} Ask only this — the other questions can wait until next turn.` : null;
+  }
+
   /** A compliance note is waiting for this reply — scripted fast paths must not skip it. */
   hasPendingComplianceNotes(): boolean {
     return this.pendingNotes.length > 0;
@@ -2576,7 +2582,7 @@ export class SessionContextManager {
     this.turnLog.push({ role: 'assistant', text: trimmed, timestamp: Date.now() });
     this.profile.bridge_to_say = null;
     this.trackSwitchNotice = null; // acknowledged (S0-18)
-    if (this.activeStage !== '0' && !(this.currentPendingField === 'section0_followup' && this.activeFollowup)) { const qc = this.nextQuickCheck(); if (qc) this.quickChecksAsked.push(qc.key); }
+    if (this.activeStage !== '0' && !this.pendingNotes.some((n) => n.takesTurn) && !(this.currentPendingField === 'section0_followup' && this.activeFollowup)) { const qc = this.nextQuickCheck(); if (qc) this.quickChecksAsked.push(qc.key); }
     for (const n of this.pendingNotes) if (!this.notesShown.includes(n.id)) this.notesShown.push(n.id);
     this.pendingNotes = [];
     this.lastProcessedInput = null;
@@ -3816,8 +3822,10 @@ export class SessionContextManager {
           + (this.pendingNotes.length
             ? `\nCOMPLIANCE (this reply) — handle this FIRST, then the current task:\n${this.pendingNotes.map((n) => `- ${n.text}`).join('\n')}`
             : ''),
-        ...(this.activeStage === '0' ? { section0Task: this.handoffTaskText() ?? section0TaskText(this.section0Decision, this.ledger) } : {}),
-        ...((this.activeStage !== '0' && this.handoffTaskText()) ? { taskOverride: this.handoffTaskText()! } : taskOverride ? { taskOverride } : {}),
+        ...(this.activeStage === '0' ? { section0Task: this.handoffTaskText() ?? this.noteTaskText() ?? section0TaskText(this.section0Decision, this.ledger) } : {}),
+        ...((this.activeStage !== '0' && (this.handoffTaskText() ?? this.noteTaskText()))
+          ? { taskOverride: (this.handoffTaskText() ?? this.noteTaskText())! }
+          : taskOverride ? { taskOverride } : {}),
       };
       return buildDynamicContext(this.profile, this.currentPendingField, this.activeStage, this.lowConfidence, extras);
     }
