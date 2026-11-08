@@ -27,6 +27,7 @@
 | **O2** | Nov 9, 2026 | `SR_m4ym622Jzg7T` | fix cycle 5 | **Official**: full set (47), 3 samples | **37 / 47 scenarios (79%)** · 129/141 samples (91.5%) | **47/47** | 37/47 | +2 scenarios. A12, A11, A6, #30, #26 now 3/3. 12 failed samples triaged; fix cycle 6 → **O3**. |
 | **TR-on2** | Nov 9, 2026 | `SR_Sr3mFjQubPRo` | fix cycle 5 (flag on) | Track regression (5) | **4 / 5** | — | — | HELOC: the judge wanted a separate "comfortable with a variable rate?" question. The **demo build skips it too** (flag off, same transcript point); the earlier flag-on pass only happened because the simulated borrower volunteered it. Pre-existing HELOC-track behaviour, not caused by Section 0. |
 | **O3** | Nov 10, 2026 | `SR_LCyQgCuQsVWQ` | fix cycle 6 | **Official**: full set (47), 3 samples | **40 / 47 scenarios (85%)** · 133/141 samples (94.3%) | **47/47** | 40/47 | Best run so far. T6, #18, #21, #24, #12 now 3/3. 8 failed samples; fix cycle 7 → **O4**. |
+| **O4** | Nov 10, 2026 | `SR_n2d4reMwx7bt` | fix cycle 7 | **Official**: full set (47), 3 samples | **43 / 47 scenarios (91.5%)** · 135/141 samples (**95.7%**) | **47/47** | 43/47 | Best run. #9, #30, #3, #26, #23 now 3/3. Misses: #11 ×2, #29 ×2, #12, #19. Fix cycle 8 → **O5**. |
 
 ---
 
@@ -101,6 +102,21 @@ Reading the B2 transcripts showed Ailana asking questions in **our** wording thr
 
 ### What this tells us
 - **Superseded by the harness finding** — B1's transcripts were Ailana improvising without our state machine, so its numbers are not the real "before". Compliance held throughout. B3 is the valid baseline.
+
+---
+
+## Official run O4: 43/47 all-3, 95.7% of samples (Nov 10) and fix cycle 8
+
+| Failed samples | Cause | Fix (cycle 8) |
+| :--- | :--- | :--- |
+| #11 ×2 | **The simulated borrower never said the scripted opening** (address + SSN). It answered the greeting's closing question instead: "How would you like to get started?" → "Text chat works for me…". In the spec, that question is answered by tapping a channel card, which our UI doesn't have yet (S0-25). Only #11 was affected (3 samples in O3 + O4) | Flag on, no cards on screen: the greeting ends after the recording notice. The full greeting returns when the cards ship |
+| #29 ×2 | Behind on payments, accepted the loan officer / HUD counselor "later", and Ailana kept running the refinance intake | **Hardship pause:** a stated delinquency gets the hardship response (empathy, no promise, loan officer + HUD-approved counselor) and then no intake questions, like the construction case. The general hardship flag alone (e.g. a divorce) still only adds the compliance note |
+| #12 | Empty model reply → "agent produced no response items" (2nd time across runs) | Flag on: an empty reply (no text, no tool call) gets **one automatic retry**, streamed; normal replies pass through untouched |
+| #19 | Model variance (keep-or-replace asked first) | Watch |
+
+**Tests:** router 67, sync 113. `npm test` 26/26; flag-off parity 23/23.
+
+**Next after O5:** S0-20, saving Ailana's memory to the database (a nullable `section0_state` JSON column on `applications` + migration). It's a separate commit because the migration must be applied to the database.
 
 ---
 
@@ -299,7 +315,7 @@ Two notes from the judge, neither of which failed a test:
 
 ## Next run
 
-**Run O4**: official, 3 samples (Test Guide 11.1). Exit bar: ≥ 95% (45/47 all-3) on two consecutive official runs, zero compliance failures; track regression matching the demo build.
+**Run O5**: official, 3 samples (Test Guide 11.1). Exit bar: ≥ 95% (45/47 all-3) on two consecutive official runs, zero compliance failures; track regression matching the demo build.
 
 
 Previous instruction kept for reference — **B3 — re-run the same baseline with the simulation-harness fix** (Section 0 still off):

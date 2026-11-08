@@ -18,6 +18,8 @@ export interface Section0State {
   unclearCount: number;          // unclear replies after the intent question
   trackSet: boolean;
   holdoutRouted: boolean;
+  /** Which holdout response was given (hardship keeps intake paused even when a goal was stated). */
+  holdoutKind?: 'construction' | 'reverse_mortgage' | 'hardship';
   transferPending: boolean;
 }
 
@@ -31,7 +33,7 @@ export type Section0Decision =
   | { kind: 'ask_intent'; answerQuestion: boolean }
   | { kind: 'offer_general_or_lo'; answerQuestion: boolean }
   | { kind: 'answer_only' }
-  | { kind: 'holdout'; holdout: 'construction' | 'reverse_mortgage' }
+  | { kind: 'holdout'; holdout: 'construction' | 'reverse_mortgage' | 'hardship' }
   /** After the holdout response: no more discovery questions, no repeated loan-officer offer. */
   | { kind: 'holdout_followup'; answerQuestion: boolean }
   | { kind: 'out_of_scope' }
@@ -55,6 +57,8 @@ export interface RouterInput {
   factsShared?: boolean;
   /** equity.paid_off — no mortgage on the home, so keep-or-replace does not apply. */
   paidOff?: boolean | null;
+  /** Behind on payments / hardship (compliance flag or stated delinquency). */
+  hardship?: boolean;
 }
 
 export interface RouterOutput {
@@ -111,7 +115,7 @@ export function routeSection0(input: RouterInput): RouterOutput {
   if (intent === 'asks_if_human') {
     return { decision: { kind: 'ai_disclosure' }, state };
   }
-  if (state.holdoutRouted && (intent === 'asks_about_human_later' || !input.goal || input.goal === 'construction' || input.goal === 'reverse_mortgage')) {
+  if (state.holdoutRouted && (state.holdoutKind === 'hardship' || intent === 'asks_about_human_later' || !input.goal || input.goal === 'construction' || input.goal === 'reverse_mortgage')) {
     // The holdout response was given once; later turns stay helpful without restarting intake.
     return { decision: { kind: 'holdout_followup', answerQuestion }, state };
   }
@@ -123,8 +127,12 @@ export function routeSection0(input: RouterInput): RouterOutput {
   const goal = input.goal && input.goal !== 'unclear' ? input.goal : null;
   const secondary = input.secondaryGoal && input.secondaryGoal !== 'unclear' ? input.secondaryGoal : null;
 
+  if (input.hardship && !state.holdoutRouted) {
+    // Behind on payments: empathy, no promise, loan officer + HUD-approved counselor — intake waits.
+    return { decision: { kind: 'holdout', holdout: 'hardship' }, state: { ...state, holdoutRouted: true, holdoutKind: 'hardship' } };
+  }
   if (goal === 'construction' || goal === 'reverse_mortgage') {
-    return { decision: { kind: 'holdout', holdout: goal }, state: { ...state, holdoutRouted: true } };
+    return { decision: { kind: 'holdout', holdout: goal }, state: { ...state, holdoutRouted: true, holdoutKind: goal } };
   }
   if (goal === 'out_of_scope') {
     return { decision: { kind: 'out_of_scope' }, state };

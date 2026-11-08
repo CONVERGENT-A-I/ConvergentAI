@@ -2,7 +2,7 @@
 
 **Project:** ConvergentAI · Ailana
 **Date:** November 5, 2026
-**Status:** 🟡 ~75% — Phases 0–2 ✅ · Phase 3 ✅ except the DB column (S0-20) · Phase 4: Section 0 behaviour built; channel cards / consent UI (S0-24 highlight, S0-25/26) left · Track regression matches the demo ✅ · Phase 5: official O1 35 → O2 37 → **O3 40/47 all-3 (94.3% of samples)** → fix cycle 7 → **O4 next** · Phase 6 (stress set S0-30, voice, sign-off) after ([Section0Results.md](Section0Results.md))
+**Status:** 🟡 ~80% — Phases 0–2 ✅ · Phase 3 ✅ except the DB column (S0-20, next) · Phase 4: Section 0 behaviour built; channel cards / consent UI (S0-24 highlight, S0-25/26) left · Track regression matches the demo ✅ · Phase 5: official O1 35 → O2 37 → O3 40 → **O4 43/47 all-3 (95.7% of samples)** → fix cycle 8 → **O5 next** · Phase 6 (stress set S0-30, voice, sign-off) after ([Section0Results.md](Section0Results.md))
 **Branch:** `dev` (team decision, Nov 5, 2026 — work directly on `dev` while the GitHub deploy actions are off; everything new stays behind `SECTION_0_ENABLED`, default off, so `dev` keeps behaving like the demo build. If the deploy actions are switched back on, re-check that the flag is off in the deployed env before pushing.)
 
 **Source documents (client: David Patten)**
@@ -42,6 +42,7 @@
 | Nov 9, 2026 | **Official O1 (35/47 all-3, 127/141 samples) + fix cycle 5** | O1 `SR_VsDhBkucqqk6`: pass@3 47/47, pass^3 35/47. Cycle 5: code-chosen quick checks (pending clarification asked first in Stages 1–2, once); co-borrower-only income question when own income is known; military question "you or your co-borrower"; router: a fact-sharing reply is not "unclear" (rephrased intent once), paid-off + cash → line or lump sum; callback read-back only after the tool runs; Layer 1: no restating known facts inside questions. `npm test` 26/26; flag-off parity 23/23. | **Yes** — O2 official + track regression flag on |
 | Nov 9, 2026 | **Official O2 (37/47 all-3, 129/141 samples) + fix cycle 6** | O2 `SR_m4ym622Jzg7T`; track regression flag on `SR_Sr3mFjQubPRo` 4/5 (the HELOC miss is pre-existing demo behaviour: no separate rate-comfort question, same with the flag off). Cycle 6: callback reschedule = same single booking, exact time before booking; "your co-borrower" in all three scripted military lines; model "uncertain" only for the opening; first-time buyer settles rent-or-own. `npm test` 26/26; flag-off parity 23/23. | **Yes** — O3 |
 | Nov 10, 2026 | **Official O3 (40/47 all-3, 133/141 samples) + fix cycle 7** | O3 `SR_LCyQgCuQsVWQ`. Cycle 7: schema hints (a job they will start = new job; the area is never the place they're leaving); `destinationArea()`: an area equal to the relocation origin isn't the destination (destination still asked, no footprint note); no prior-job follow-up after a stated job loss. `npm test` 26/26; flag-off parity 23/23. | **Yes** — O4 |
+| Nov 10, 2026 | **Official O4 (43/47 all-3, 135/141 samples) + fix cycle 8** | O4 `SR_n2d4reMwx7bt`. Cycle 8: greeting without the card question while no cards are on screen (the simulated borrower answered it instead of giving its opening; #11); hardship pause for a stated delinquency (router `holdoutKind: hardship`; #29); one automatic retry on an empty model reply (#12). `npm test` 26/26; flag-off parity 23/23. | **Yes** — O5 |
 
 ---
 

@@ -185,9 +185,16 @@ export const GREETING_TEXT = "Hi!, I'm Ailana, your AI mortgage assistant. Wheth
 /** Revised spec greeting (Section 0): ~50 words, spoken recording notice, no intent question (asked after the channel is chosen). */
 export const GREETING_TEXT_SECTION0 = "Hi! I'm Ailana, your AI mortgage assistant. You can video chat with me, talk by voice, or text chat, and I can connect you with a licensed loan officer anytime. Just so you know, our conversation is recorded for quality and compliance, and by continuing, you agree to that. How would you like to get started?";
 
+/**
+ * The Revised greeting's closing question ("How would you like to get started?") is answered by tapping a
+ * channel card (S0-25). Until the cards ship — and in simulations, which are already in text chat — the
+ * channel is already chosen, so the greeting ends after the recording notice.
+ */
+export const GREETING_TEXT_SECTION0_CHANNEL_CHOSEN = GREETING_TEXT_SECTION0.replace(/\s*How would you like to get started\?$/, '');
+
 /** The greeting to speak: the Revised one with SECTION_0_ENABLED, the demo one otherwise. */
 export function getGreetingText(): string {
-  return ailanaConfig.section0Enabled ? GREETING_TEXT_SECTION0 : GREETING_TEXT;
+  return ailanaConfig.section0Enabled ? GREETING_TEXT_SECTION0_CHANNEL_CHOSEN : GREETING_TEXT;
 }
 
 export const GREETING_USER_INPUT =

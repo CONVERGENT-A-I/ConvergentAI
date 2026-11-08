@@ -198,7 +198,9 @@ class AilanaVoiceAgent extends voice.Agent {
 
   override async llmNode(chatCtx: any, toolCtx: any, modelSettings: any): ReturnType<typeof voice.Agent.prototype.llmNode> {
     const out = await this.llmNodeInner(chatCtx, toolCtx, modelSettings);
-    return this.logIfEmpty(out) as any;
+    // Section 0: an empty model reply ("agent produced no response items") gets one retry.
+    const retry = ailanaConfig.section0Enabled ? () => super.llmNode(chatCtx, toolCtx, modelSettings) : null;
+    return this.logIfEmpty(out, retry) as any;
   }
 
   /**
@@ -206,20 +208,35 @@ class AilanaVoiceAgent extends voice.Agent {
    * ends without any text (shows up as "agent produced no response items" in
    * LiveKit Agent Simulations, or as Ailana going silent).
    */
-  private logIfEmpty(stream: any): any {
+  private logIfEmpty(stream: any, retry: (() => any) | null = null): any {
     if (!stream || typeof stream.pipeThrough !== 'function') return stream;
     let chars = 0;
+    let toolCalls = 0;
     const stage = this.contextManager.getActiveStage();
     const pending = this.contextManager.getPendingField();
     return stream.pipeThrough(new TransformStream({
       transform(chunk: any, controller) {
         const text = typeof chunk === 'string' ? chunk : (chunk?.delta?.content ?? '');
         if (text) chars += String(text).trim().length;
+        if (chunk?.delta?.toolCalls?.length) toolCalls += chunk.delta.toolCalls.length;
         controller.enqueue(chunk);
       },
-      flush() {
-        if (chars === 0) {
-          console.warn(`[agent-hook]: ⚠️ EMPTY REPLY produced (stage=${stage}, pendingField=${pending}).`);
+      async flush(controller) {
+        if (chars === 0 && toolCalls === 0) {
+          console.warn(`[agent-hook]: ⚠️ EMPTY REPLY produced (stage=${stage}, pendingField=${pending})${retry ? ' — retrying once' : ''}.`);
+          if (!retry) return;
+          try {
+            const second = await retry();
+            if (!second || typeof second.getReader !== 'function') return;
+            const reader = second.getReader();
+            for (;;) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              controller.enqueue(value);
+            }
+          } catch (err) {
+            console.warn('[agent-hook]: retry after empty reply failed:', err);
+          }
         }
       },
     }));

@@ -1084,6 +1084,7 @@ export class SessionContextManager {
       state: this.section0State,
       factsShared: ex.facts.length > 0,
       paidOff: this.ledger.value<boolean>('equity.paid_off') ?? null,
+      hardship: (this.ledger.value<number>('situation.delinquent_months') ?? 0) > 0, // behind on payments (a fact); the general hardship flag only adds the compliance note
     });
     this.section0State = out.state;
     this.section0Decision = out.decision;

@@ -158,6 +158,14 @@ assert(route(null, 'asks_if_human').decision.kind === 'ai_disclosure', '"Are you
   assert(a6.decision.kind === 'clarify' && (a6.decision as any).which === 'heloc_vs_heq', 'A6: paid off + needs money → line or lump sum', a6.decision);
 }
 
+{
+  const h = routeSection0({ goal: 'refinance', intent: 'states_goal_or_facts', state: afterIntentQ(), hardship: true });
+  assert(h.decision.kind === 'holdout' && (h.decision as any).holdout === 'hardship' && h.state.holdoutKind === 'hardship', 'delinquency + refinance → hardship response first (no track)');
+  const next = routeSection0({ goal: 'refinance', intent: 'states_goal_or_facts', state: h.state, hardship: true });
+  assert(next.decision.kind === 'holdout_followup', 'hardship: later turns stay paused even though a goal was stated');
+  assert(routeSection0({ goal: 'refinance', intent: 'requests_transfer_now', state: h.state }).decision.kind === 'transfer', 'hardship: a transfer request is still honoured');
+}
+
 // ── Track switching mid-flow (S0-18) ──
 {
   const sw = (goal: GoalClass | null, currentTrack: any, extra: Record<string, unknown> = {}) =>

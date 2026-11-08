@@ -311,6 +311,9 @@ export function section0TaskText(decision: Section0Decision | null, ledger: Fact
     case 'answer_only':
       return 'CURRENT TASK (Section 0):\nAnswer what they said helpfully and briefly. Do not ask the intent question again.';
     case 'holdout':
+      if (decision.holdout === 'hardship') {
+        return 'CURRENT TASK (Section 0):\nThey are behind on payments or in financial hardship. Respond with empathy. Do NOT promise or suggest a refinance or any outcome, and do NOT start intake questions. Offer to connect them with a licensed loan officer, and mention that a HUD-approved housing counselor can help at no cost (hud.gov, or 800-569-4287). Ask whether they would like to be connected now or later.';
+      }
       return decision.holdout === 'construction'
         ? 'CURRENT TASK (Section 0):\nConstruction / lot / draw financing is handled directly by a licensed loan officer. Briefly explain that and offer to connect them now or set up a callback. Do NOT start discovery questions.'
         : 'CURRENT TASK (Section 0):\nReverse mortgages (HECM) are handled by a licensed loan officer, and HUD requires counseling with an approved HECM counselor before applying. Briefly explain that and offer to connect them now or set up a callback. Do NOT start discovery questions.';

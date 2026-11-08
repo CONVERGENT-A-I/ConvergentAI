@@ -578,6 +578,28 @@ async function turn(cm: SessionContextManager, e: UniversalExtraction) {
   assert(!/what they did for work before/.test(cm.getDynamicContext()), '#29: no "what did you do before" after a stated job loss');
 }
 
+{
+  // #29 (O4): behind on payments → hardship response (loan officer + HUD counselor), intake paused, facts kept
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'refinance', flags: ['hardship_or_delinquency'], facts: [
+    { key: 'situation.delinquent_months', value: 3, raw: '' }, { key: 'refi.balance', value: 160, raw: '' }, { key: 'refi.value', value: 290, raw: '' },
+  ] }));
+  assert(cm.getActiveStage() === '0' && /HUD-approved housing counselor/.test(cm.getDynamicContext()) && /do NOT start intake questions/.test(cm.getDynamicContext()), '#29: hardship response, no intake');
+  assert(cm.getFactLedger().value('refi.balance') === 160000, '#29: stated facts still kept');
+  await turn(cm, ex({ goal: 'refinance', intent: 'asks_about_human_later' }));
+  assert(cm.getActiveStage() === '0' && /Do NOT ask discovery questions/.test(cm.getDynamicContext()), '#29: "later, not now" → still no intake questions');
+  // a hardship FLAG alone (e.g. a divorce) does not pause intake — only a stated delinquency does
+  const div = newManager();
+  await turn(div, ex({ goal: 'refinance', flags: ['hardship_or_delinquency'], facts: [{ key: 'situation.divorce_buyout', value: true, raw: '' }] }));
+  assert(div.getActiveStage() === '1', '#16: divorce refinance continues normally');
+}
+{
+  // #11 (O4): no channel cards on screen → the greeting does not end with the card question
+  const { getGreetingText } = await import('../prompts/ailana-system.js');
+  const g = getGreetingText();
+  assert(/recorded for quality and compliance/.test(g) && !/How would you like to get started\?/.test(g), 'greeting (flag on, no cards yet) ends after the recording notice');
+}
+
 // ── 13. No switch at the closing offer ──
 {
   const cm = newManager();
