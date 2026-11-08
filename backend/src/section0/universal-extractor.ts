@@ -64,7 +64,7 @@ FACT KEYS (use only these; omit anything not stated):
 - housing.current: rent | own | own_selling | own_keeping · housing.properties_owned (number) · housing.retained_home ({balance, plan: rent|sell|keep, expected_rent})
 - purchase.price (number as said) · purchase.down_payment ({amount} or {percent}) · purchase.zero_down_goal (bool)
 - property.type: single_family | condo | townhome | multi_family | manufactured | cabin | other · property.units (number) · property.projected_rent (number per month) · property.rental_plan (bool: they plan to rent this home out, fully or part of the time)
-- location.area: {city, state, zip, area} of the home they want to buy or own — NEVER a street address. state = two-letter code; fill it whenever the city makes the state clear
+- location.area: {city, state, zip, area} of the home they want to buy or own — NEVER a street address. state = two-letter code ONLY if they said the state or the city is a major city that exists in just one state; otherwise null. Never guess a state from a landmark, campus, base or area name
 - military.status: active | veteran | retired | reserve_guard | surviving_spouse | none · military.years
 - refi.balance · refi.value · refi.current_rate · refi.loan_type: conventional|fha|va|usda|unknown · refi.purchase_year · refi.cash_out_amount · refi.cash_out_use · refi.keep_first (bool: false = they said they want to refinance / replace the current mortgage; true = keep it)
 - equity.paid_off (bool) · equity.amount · equity.use · equity.fixed_preference (bool: true = lump sum / fixed payment, false = line of credit)
@@ -109,7 +109,7 @@ RULES
 5. Use the assistant's last question to understand short answers ("yes", "about 36", "the second one").
 6. NEVER output a Social Security number, a street address, account numbers, race, ethnicity, national origin, religion, age or familial status — not as a key, not inside any value, not in a raw quote. A city, state or zip is fine.
 7. If the borrower asks to state a number different from the truth, output only the true number and add the flag inflate_income_request.
-8. If the borrower's words fit two different values of one fact (for example two possible occupancy types), give the most likely value and add "uncertain": true.
+8. If the borrower's words fit two different CHOICES for occupancy, property type, current housing or loan type, give the most likely one and add "uncertain": true. Never mark numbers (amounts, scores) uncertain — two scores for two people are two facts.
 9. Output valid JSON only — no prose, no code fences.`;
 }
 

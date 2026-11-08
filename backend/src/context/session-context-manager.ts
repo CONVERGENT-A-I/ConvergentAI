@@ -1169,6 +1169,11 @@ export class SessionContextManager {
     this.mloAvailable = fn;
   }
 
+  /** A compliance note is waiting for this reply — scripted fast paths must not skip it. */
+  hasPendingComplianceNotes(): boolean {
+    return this.pendingNotes.length > 0;
+  }
+
   /** A transfer or callback is being arranged → the model must be free to call the handoff tools. */
   isHandoffActive(): boolean {
     const m = this.handoff?.mode;

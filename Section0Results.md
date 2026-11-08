@@ -20,6 +20,9 @@
 | **P1** | Nov 7, 2026 | `SR_JZpTbodioxrV` | S3 build | **Full set `section0.yaml` (47), 1 sample — preview, not counted** | **20 / 47 (43%)** | — | — | First look at the full set. Failures are triaged into 9 causes below; fix cycle 1 applied Nov 8 → run **P2**. Export: `docs/section0/runs/preview1.json`. |
 | **P2** | Nov 8, 2026 | `SR_X8rcV2B7QjJJ` | fix cycle 1 | Full set (47), 1 sample, preview | **31 / 47 (66%)** | — | — | +11 from P1. 13 scenarios now pass that failed before. 16 failures triaged below; fix cycle 2 applied the same day → **P3**. Export: `docs/section0/runs/preview2.json`. |
 | **P3** | Nov 8, 2026 | `SR_nn7BEtsZyFKx` | fix cycle 2 | Full set (47), 1 sample, preview | **40 / 47 (85%)** | — | — | +9. Transfers and callbacks now real (T1, T3, T5, T6 pass); TRID gate passes (#11, A9). 7 failures triaged below; fix cycle 3 applied → **P4** + track regression. Export: `docs/section0/runs/preview3.json`. |
+| **TR-off** | Nov 9, 2026 | `SR_XCDnNrbKhpa2` | demo build (flag off) | Track regression (5) | **5 / 5** | — | — | Purchase, Refinance R&T + cash-out, HELOC and HEL all reach the closing offer. |
+| **TR-on** | Nov 9, 2026 | `SR_wj9YTY7ob8QG` | fix cycle 3 (flag on) | Track regression (5) | **5 / 5** | — | — | ✅ **Section 0 does not disturb the tracks (A14).** |
+| **P4** | Nov 9, 2026 | `SR_K4f43aVfYTgH` | fix cycle 3 | Full set (47), 1 sample, preview | **43 / 47 (91.5%)** | — | — | +3. 4 failures triaged below; fix cycle 4 applied → **first official run** next. |
 
 ---
 
@@ -94,6 +97,26 @@ Reading the B2 transcripts showed Ailana asking questions in **our** wording thr
 
 ### What this tells us
 - **Superseded by the harness finding** — B1's transcripts were Ailana improvising without our state machine, so its numbers are not the real "before". Compliance held throughout. B3 is the valid baseline.
+
+---
+
+## Preview P4: 43/47 (91.5%) and the track regression (Nov 9)
+
+**Track regression:** 5/5 with the flag off and 5/5 with the flag on. Every track runs its full question list to the closing offer with Section 0 switched on.
+
+| Failure | Cause | Fix (cycle 4) |
+| :--- | :--- | :--- |
+| #30 | Credit 700 and 745 re-asked. Replaying the real transcript showed the model had marked the two scores `uncertain`, under my cycle-1 rule meant for occupancy. They waited for a check nobody asked, then Stage 2 asked credit again | **Principle:** numbers are checked by code. The model's "uncertain" marker now counts only for choice-type facts (occupancy, property type, housing, loan type). The replay now keeps credit settled (700, confirmed) |
+| #23 | The pre-approval note was in context, but the first-name question is a **scripted fast path** that never reads notes | While a compliance note is pending, the reply goes through the model (same as during a handoff) |
+| #3 | The footprint note fired on a guessed state ("Fort Campbell" → Kentucky), and its "offer that connection" was read as a transfer attempt | The extractor fills a state only when it was said or the city exists in just one state (never from a base, campus or landmark). The note now points to a loan officer without offering a connection |
+| #18 | The simulated borrower left "mine's 800" out of the scripted opening, so asking the parent's score was legitimate | Not a code issue (simulated-user variance). The judge also flagged a co-borrower military question. Watching in the official runs |
+
+**Judge notes for David (not failures):**
+- The judge objects to the privacy answer pointing to *ConvergentAI's* policy (a vendor policy). That is David's approved wording, so we keep it until he says otherwise.
+- The Refinance fee wording appeared again (both flag on and off).
+- In the existing tracks: one "the right choice for your goals" product recommendation (Home equity), and employer-name refusals not acknowledged. Both are in the demo tracks, outside Section 0.
+
+**Tests:** sync 99. `npm test` 26/26; flag-off parity 23/23.
 
 ---
 
@@ -219,7 +242,7 @@ Two notes from the judge, neither of which failed a test:
 
 ## Next run
 
-**Run P4** (1-sample preview) and the **track regression** with the flag off and on (Test Guide 11.1). If P4 is at or near 95%, run the first **official** 3-sample run.
+**Run O1**, the first **official** run: `section0.yaml`, 3 samples, pass-rate 1.0 (Test Guide 11.1). Exit bar: ≥ 95% on two consecutive official runs, zero compliance failures, track regression ≥ baseline (5/5 ✅).
 
 
 Previous instruction kept for reference — **B3 — re-run the same baseline with the simulation-harness fix** (Section 0 still off):

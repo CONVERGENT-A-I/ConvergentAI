@@ -35,6 +35,9 @@ const PLAIN_NUMBER_KEYS = new Set<FactKey>([
   'refi.purchase_year', 'refi.current_rate', 'situation.delinquent_months',
 ]);
 
+/** Choice-type facts the model may mark as ambiguous. Numbers are never "uncertain" — code checks them. */
+const CHOICE_KEYS = new Set<FactKey>(['occupancy', 'property.type', 'housing.current', 'employment.type', 'co_borrower.role', 'refi.loan_type']);
+
 const BOOL_KEYS = new Set<FactKey>([
   'borrower.first_time_buyer', 'borrower.existing_member', 'co_borrower.present', 'purchase.zero_down_goal',
   'refi.keep_first', 'equity.paid_off', 'equity.fixed_preference', 'situation.divorce_buyout', 'property.rental_plan',
@@ -178,7 +181,7 @@ export function ingestExtraction(ex: UniversalExtraction, ledger: FactLedger, tu
     if (!n) continue;
     if (f.key === 'purchase.price' && typeof n.value === 'number') batchPrice = n.value;
     // The borrower's words point two ways (e.g. "vacation home we'd also rent out") → confirm, never guess.
-    if (!n.clarify && f.uncertain) n.clarify = 'uncertain';
+    if (!n.clarify && f.uncertain && CHOICE_KEYS.has(f.key)) n.clarify = 'uncertain';
     const status = n.clarify ? 'needs_clarification' : 'stated';
     // A message that touches a protected class (ethnicity, religion, ...) keeps no quotes at all —
     // only the structured values, which never carry those characteristics (ECOA / Reg B).

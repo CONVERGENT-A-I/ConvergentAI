@@ -114,7 +114,7 @@ export function complianceNotes(input: NotesInput): ComplianceNote[] {
   const state = stateCode(area?.state) ?? stateCode(reloc?.to?.split(',').pop());
   if ((state && !input.licensedStates.includes(state)) || has('out_of_footprint_location')) {
     const name = state ? CODE_TO_NAME[state] : 'that state';
-    add('footprint', `The home is in ${name}. Say that a licensed loan officer will need to confirm the lender serves ${name} before going further, and offer that connection — do not promise anything about it.`);
+    add('footprint', `The home is in ${name}. Say that a licensed loan officer will need to confirm the lender serves ${name}, and that they can reach one whenever they like. Do not start or offer a transfer, and do not promise anything about it.`);
   }
   return out;
 }

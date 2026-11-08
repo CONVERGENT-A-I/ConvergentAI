@@ -486,6 +486,29 @@ async function turn(cm: SessionContextManager, e: UniversalExtraction) {
   assert(/tied to what they told you/.test(ctx) && !/ask exactly: "Great\. What brings you here today/.test(ctx), '#19: asks what they want to do with what they described');
 }
 
+{
+  // #30 (P4): the model marked two scores "uncertain" — numbers are never left waiting on the model's doubt
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', facts: [
+    { key: 'co_borrower.present', value: true, raw: '' },
+    { key: 'credit.borrower', value: '700', raw: '', uncertain: true },
+    { key: 'credit.co_borrower', value: '745', raw: '', uncertain: true },
+  ] }));
+  assert(cm.getFactLedger().get('credit.borrower')?.status === 'stated' && cm.getProfile().credit_range_confirmed === true, '#30: two scores stay settled — credit never re-asked');
+  // ...while a choice-type fact can still be flagged for one check
+  const occ = newManager();
+  await turn(occ, ex({ goal: 'purchase', facts: [{ key: 'occupancy', value: 'second_home', raw: '', uncertain: true }] }));
+  assert(occ.getFactLedger().get('occupancy')?.status === 'needs_clarification', 'choice-type fact (occupancy) can still get one quick check');
+}
+{
+  // #23 (P4): a pending compliance note is visible to the agent so scripted fast paths step aside
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', flags: ['approval_guarantee_or_preapproval_letter'] }));
+  assert(cm.hasPendingComplianceNotes(), '#23: compliance note pending → the reply goes through the model');
+  await quietlyAsync(() => cm.onAgentTurn('Before anything else, what is the letter about?'));
+  assert(!cm.hasPendingComplianceNotes(), 'cleared once Ailana has replied');
+}
+
 // ── 13. No switch at the closing offer ──
 {
   const cm = newManager();
