@@ -645,6 +645,44 @@ async function turn(cm: SessionContextManager, e: UniversalExtraction) {
   assert(/Ask what the letter or offer is about/.test(cm.getDynamicContext()), '#23: letter question from the fact, even without the flag');
 }
 
+{
+  // #8 (O7): a home being built + borrowing against the current home = construction, not a HELOC / intent question
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'unclear', facts: [{ key: 'situation.building_home', value: true, raw: '' }, { key: 'refi.value', value: 380, raw: '' }] }));
+  assert(cm.getFactLedger().value('goal.primary') === 'construction' && /Construction \/ lot \/ draw/.test(cm.getDynamicContext()), '#8: building a home → construction response on the first turn');
+  const cm2 = newManager();
+  await turn(cm2, ex({ goal: 'equity_unclear', facts: [{ key: 'situation.building_home', value: true, raw: '' }] }));
+  assert(cm2.getFactLedger().value('goal.primary') === 'construction', '#8: equity for the build is still construction');
+  const cm3 = newManager();
+  await turn(cm3, ex({ goal: 'purchase', facts: [{ key: 'situation.building_home', value: true, raw: '' }] }));
+  assert(cm3.getFactLedger().value('goal.primary') === 'purchase', '#8: a clear other goal is kept');
+}
+{
+  // #17 (O7): a city name shared with a town in the lender's state is the local one — no guessed Ohio, no footprint note
+  const L = new FactLedger({ log: () => {} });
+  ingestExtraction(ex({ facts: [{ key: 'location.area', value: { city: 'Cleveland', state: 'OH', in_lender_state: true }, raw: '' }] }), L, 1, '0');
+  const a = L.value<Record<string, unknown>>('location.area')!;
+  assert(a.state === 'TN' && !('in_lender_state' in a), '#17: Cleveland (also a Tennessee town) → TN, helper flag not stored');
+  const L2 = new FactLedger({ log: () => {} });
+  ingestExtraction(ex({ facts: [{ key: 'location.area', value: { city: 'Phoenix', state: 'AZ', in_lender_state: false }, raw: '' }] }), L2, 1, '0');
+  assert(L2.value<Record<string, unknown>>('location.area')!.state === 'AZ', '#26: Phoenix stays Arizona');
+}
+
+{
+  // S0-20 (DB resume): one JSON value round-trips the memory and the once-per-session bookkeeping
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', facts: [{ key: 'purchase.price', value: 300000, raw: '300' }] }));
+  (cm as any).notesShown = ['privacy']; (cm as any).quickChecksAsked = ['occupancy:uncertain'];
+  const saved = JSON.parse(JSON.stringify(cm.getSection0Snapshot())); // what the DB column would hold
+  const cm2 = newManager();
+  quietly(() => cm2.restoreSection0Snapshot(saved, 'database'));
+  assert(cm2.getFactLedger().value('purchase.price') === 300000 && cm2.getFactLedger().value('goal.primary') === 'purchase', 'S0-20: facts restored from the saved JSON');
+  assert((cm2 as any).notesShown.includes('privacy') && (cm2 as any).quickChecksAsked.includes('occupancy:uncertain'), 'S0-20: a resumed conversation never repeats a note or quick check');
+  const cm3 = newManager();
+  quietly(() => { cm3.restoreSection0Snapshot(null); cm3.restoreSection0Snapshot('garbage'); cm3.restoreSection0Snapshot({ ledger: { v: 1, entries: [] } }); });
+  assert(cm3.getFactLedger().size() === 0, 'S0-20: null / malformed / old-format snapshots are safe');
+}
+
 // ── 13. No switch at the closing offer ──
 {
   const cm = newManager();

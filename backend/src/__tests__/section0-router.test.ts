@@ -164,6 +164,11 @@ assert(route(null, 'asks_if_human').decision.kind === 'ai_disclosure', '"Are you
   const next = routeSection0({ goal: 'refinance', intent: 'states_goal_or_facts', state: h.state, hardship: true });
   assert(next.decision.kind === 'holdout_followup', 'hardship: later turns stay paused even though a goal was stated');
   assert(routeSection0({ goal: 'refinance', intent: 'requests_transfer_now', state: h.state }).decision.kind === 'transfer', 'hardship: a transfer request is still honoured');
+  // #29 (O7): "not right now" to the loan-officer offer (read as cancels_transfer) keeps the pause — no goal re-ask
+  const later = routeSection0({ goal: 'refinance', intent: 'cancels_transfer', state: h.state, hardship: true });
+  assert(later.decision.kind === 'holdout_followup', 'hardship: declining the offer for now stays paused (no intake restart)');
+  const c = routeSection0({ goal: 'construction', intent: 'states_goal_or_facts', state: afterIntentQ() });
+  assert(routeSection0({ goal: 'construction', intent: 'cancels_transfer', state: c.state }).decision.kind === 'holdout_followup', 'construction: declining the offer for now stays paused');
 }
 
 // ── Track switching mid-flow (S0-18) ──

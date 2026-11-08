@@ -12,6 +12,7 @@ import {
   parseAmount, type AmountKind, type Clarify,
 } from './normalize.js';
 import { applySafetyNet } from './safety-net.js';
+import { lenderStates } from './compliance-notes.js';
 import type { ExtractedFact, UniversalExtraction } from './universal-extractor.js';
 
 export interface IngestResult {
@@ -42,6 +43,7 @@ const BOOL_KEYS = new Set<FactKey>([
   'borrower.first_time_buyer', 'borrower.existing_member', 'co_borrower.present', 'purchase.zero_down_goal',
   'refi.keep_first', 'equity.paid_off', 'equity.fixed_preference', 'situation.divorce_buyout', 'property.rental_plan',
   'situation.inherited_home', 'situation.job_loss', 'situation.preapproval_letter', 'situation.competitor_offer',
+  'situation.building_home',
 ]);
 
 /** Process the price first so a percentage down payment can be converted in the same turn. */
@@ -161,6 +163,15 @@ function normalizeFact(f: ExtractedFact, ledger: FactLedger, batchPrice: number 
     const loc = typeof value === 'string' ? { area: value } : value;
     // Belt and braces: a location must never carry a street address.
     if (applySafetyNet(JSON.stringify(loc)).address) return null;
+    // A city name shared with a town in the lender's state (Cleveland: TN and OH) is read as the local one —
+    // never a guessed out-of-state location (which would trigger the footprint note). The model answers the
+    // narrow question (does such a town exist there?); code picks the state.
+    if (loc && typeof loc === 'object') {
+      const { in_lender_state: inLender, ...rest } = loc as Record<string, unknown>;
+      const states = lenderStates();
+      if (inLender === true && !states.includes(String(rest.state ?? '').toUpperCase())) rest.state = states.length === 1 ? states[0] : null;
+      return { value: rest };
+    }
     return { value: loc };
   }
 
@@ -202,6 +213,14 @@ export function ingestExtraction(ex: UniversalExtraction, ledger: FactLedger, tu
 
   for (const k of ex.declined) {
     if (!ledger.isSettled(k)) ledger.markDeclined(k, turn, stage);
+  }
+
+  // Two independent signals for a build (the model sometimes gives only one): a home being built, with no
+  // other clear goal, is construction financing — even when they plan to borrow against their current home.
+  const BUILD_GOALS = [undefined, 'unclear', 'equity_unclear', 'heloc', 'home_equity_loan', 'cash_out_unclear'];
+  if (stage === '0' && ledger.value('situation.building_home') === true && BUILD_GOALS.includes(ledger.value<string>('goal.primary'))) {
+    ledger.upsert({ key: 'goal.primary', value: 'construction', raw: '' }, turn, stage);
+    result.changed.push('goal.primary');
   }
 
   // Derived: a debt total from itemised debts when no total was stated.

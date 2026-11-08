@@ -47,6 +47,11 @@ export function stateCode(s: unknown): string | null {
   return STATE_CODES[t] ?? null;
 }
 
+/** Full names of the lender's licensed states, e.g. ["Tennessee"]. */
+export function lenderStateNames(): string[] {
+  return lenderStates().map((c) => CODE_TO_NAME[c] ?? c);
+}
+
 /** States the lender is licensed in (decision D3). Env `LENDER_LICENSED_STATES`, e.g. "TN,GA". */
 export function lenderStates(): string[] {
   return (process.env.LENDER_LICENSED_STATES ?? 'TN').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);

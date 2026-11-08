@@ -22,6 +22,7 @@ import { applyContactUpdates } from './utils/profile-sync.js';
 import * as openai from '@livekit/agents-plugin-openai';
 import * as silero from '@livekit/agents-plugin-silero';
 import { ailanaConfig } from './config/ailana-config.js';
+import { applySafetyNet } from './section0/safety-net.js';
 import { SessionContextManager } from './context/session-context-manager.js';
 import { LatencyTracker, ts } from './metrics/latency-tracker.js';
 import {
@@ -1156,7 +1157,11 @@ class AilanaVoiceAgent extends voice.Agent {
 
   override async onUserTurnCompleted(chatCtx: any, userMessage: any): Promise<void> {
     const _perfEouEnd = performance.now();
-    console.log(`[agent-hook]: onUserTurnCompleted hook triggered with message: "${userMessage?.textContent}"`);
+    // Section 0 safety net (S0-21): an SSN or street address never reaches the logs, the saved transcript or the
+    // chat history the model sees. Only the context manager gets the raw text: it redacts it first and raises the TRID gate.
+    const rawUserText: string | undefined = userMessage?.textContent;
+    const safeUserText = ailanaConfig.section0Enabled && rawUserText ? applySafetyNet(rawUserText).text : rawUserText;
+    console.log(`[agent-hook]: onUserTurnCompleted hook triggered with message: "${safeUserText}"`);
 
     this.contextManager.setLowConfidenceFlag(false);
 
@@ -1171,9 +1176,10 @@ class AilanaVoiceAgent extends voice.Agent {
       const isBoundary = this.contextManager.isStageBoundaryField(activeField);
       const isDeterministic = this.contextManager.isDeterministicField(activeField);
 
-      await this.contextManager.saveVoiceConversationTurn('user', userMessage.textContent);
+      await this.contextManager.saveVoiceConversationTurn('user', safeUserText ?? userMessage.textContent);
 
-      const currentTurnNumber = this.contextManager.triggerBackgroundExtraction(userMessage.textContent);
+      const currentTurnNumber = this.contextManager.triggerBackgroundExtraction(rawUserText ?? userMessage.textContent);
+      if (safeUserText !== rawUserText && safeUserText) userMessage.content = [safeUserText]; // the chat-history copy
 
       const text = userMessage.textContent.trim();
       const isQuestionOrHesitation =

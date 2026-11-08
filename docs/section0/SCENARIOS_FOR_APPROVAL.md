@@ -111,3 +111,8 @@ Not in this file:
 - **Privacy wording received.** Ailana now says it word for word: voice puts the link on screen and never reads the URL; text includes the link and the request line.
 - **Generalization:** the goal is for Section 0 to handle phrasings far beyond these 30 without developers supplying them. That's how it's built: a fixed set of facts and intents, with code making every decision. It will be measured with a separate stress set of varied phrasings.
 - **Still open:** the borrower's name in the closing offer (item 3) and the Refinance fee wording (item 4).
+
+## New items for David (after O7, Nov 8, 2026)
+
+5. **#18 opening line (parent co-signing).** In 4 failed samples across O6 and O7, the simulated borrower left "mine's 800" out of its scripted opening. Ailana then correctly asked for the parent's score, and the judge failed her, because the judge reads the script rather than what was said. Could the opening be shortened, or the parent's score moved to a later fact? We have not changed the approved file.
+6. **Stress set (S0-30).** 18 scenarios with varied wording are in `backend/scenarios/section0_stress.yaml`: numbers in words, typos, fillers, facts buried in a story, indirect goals, and unusual ways to ask for a person. They are reported separately and never count toward the 95% target. Please let us know if you'd like other kinds of phrasing added.

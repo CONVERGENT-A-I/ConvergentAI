@@ -1,0 +1,467 @@
+# Section 0 — STRESS SET (S0-30): varied phrasings. Reported SEPARATELY from the approved set.
+# Not approved by David and never part of the exit bar. Purpose: show whether Section 0 generalises to
+# wording no approved scenario uses (numbers in words, slang, typos, fillers, hedging, facts buried in a
+# story, indirect goals, odd ways of asking for a person). A large gap between this set and section0.yaml
+# would mean the fixes fit the approved wording rather than the meaning (overfitting).
+#
+# Rule (CLAUDE.md): failures here are fixed only GENERICALLY (schema / code), never with prompt rules for
+# a specific phrasing. Real transcripts handled poorly go to scenarios_proposed.yaml for David.
+# userdata.expected_facts is checked at the end of every run, as in the approved set.
+# Run with SECTION_0_ENABLED=true. All people and numbers are invented.
+id: SCNG_section0_stress
+name: Section 0 stress set (varied phrasings) — reported separately
+scenarios:
+
+  - id: SCN_s0_st01_words
+    label: "ST1 — numbers in words (purchase)"
+    instructions: |
+      PERSONA: Avery Lane, a renter who wants to buy a home to live in (invented person).
+      OPENING LINE: "Hi there. So I'm hoping to buy a place to live in. I earn eighty-four thousand a year, my monthly debts come to about twelve hundred, and my credit score is seven ten."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Avery · never worked with this lender · hoping to buy within three months
+      - applying alone · thirty thousand saved · currently rent · no real estate agent yet
+      - looking around 350,000, a single-family home in Chattanooga, TN 37421
+      - no military service · salaried at the same employer for 6 years
+      HOW TO ANSWER: one short, natural answer per turn. If Ailana asks for something you already said,
+      answer again briefly with the same numbers — do not argue. If asked anything not listed, say you're not sure.
+      STOP: after 8 of your replies, or as soon as Ailana offers a choice between a credit review and a summary,
+      or the conversation is handed to a loan officer — whichever comes first.
+    agent_expectations: >
+      Treats the goal as a home purchase for a primary residence without a separate confirmation turn.
+      Never asks again for the income, the monthly debts or the credit score. Does not quote a rate or
+      payment and does not promise approval.
+    tags: { feature: section0_stress, test_set_id: "ST1" }
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+      expected_facts:
+        track: TT-PUR
+        values: { occupancy: primary }
+        numbers: { debt.monthly_total: 1200 }
+        credit: 710
+        income_total_annual: 84000
+
+  - id: SCN_s0_st02_typos
+    label: "ST2 — texting style with typos and abbreviations"
+    instructions: |
+      PERSONA: Jesse Park, a renter buying a first home (invented person). You type fast and casually.
+      OPENING LINE: "hey looking 2 buy my 1st place in chattanooga, i make 75k/yr, debts arnd 500/mo, credit 690ish"
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Jesse · never worked with this lender · within six months
+      - applying alone · 15,000 saved · currently rent · no agent yet · it'll be your home
+      - looking around 260,000, zip 37415 · no military · salaried, 3 years at the same job
+      HOW TO ANSWER: short, casual answers in the same texting style. If asked something you already said,
+      answer again briefly with the same numbers. If asked anything not listed, say "not sure".
+      STOP: after 8 of your replies, or as soon as Ailana offers a choice between a credit review and a summary,
+      or the conversation is handed to a loan officer.
+    agent_expectations: >
+      Understands the casual message: a first home purchase, $75,000 a year, about $500 a month in debts,
+      credit around 690, in Chattanooga. Never asks again for any of these. Does not quote a rate or payment
+      and does not promise approval.
+    tags: { feature: section0_stress, test_set_id: "ST2" }
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+      expected_facts:
+        track: TT-PUR
+        numbers: { debt.monthly_total: 500 }
+        credit: 690
+        income_total_annual: 75000
+
+  - id: SCN_s0_st03_fillers
+    label: "ST3 — spoken fillers and restarts (voice-like)"
+    instructions: |
+      PERSONA: Morgan Diaz, buying a home with a partner (invented person). You speak like someone thinking out loud.
+      OPENING LINE: "Um, okay, so, uh, my partner and I, we wanna, like, buy a house? I make, um, sixty-two thousand, and she makes, uh, fifty-five. And we've got, like, twenty grand saved up, I think."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Morgan · never worked with this lender · within a year · it'll be your home
+      - your partner is applying with you · monthly debts together: about 700 · credit: you 705, she 730
+      - currently rent · no agent yet · looking around 300,000 in Hixson, TN
+      - no military · both salaried, 4 years each at the same job
+      HOW TO ANSWER: short answers with a filler word or two. If asked something you already said, answer
+      again briefly with the same numbers. If asked anything not listed, say you're not sure.
+      STOP: after 8 of your replies, or as soon as Ailana offers a choice between a credit review and a summary,
+      or the conversation is handed to a loan officer.
+    agent_expectations: >
+      Captures a purchase with a co-borrower, $62,000 and $55,000 incomes and about $20,000 saved. Never asks
+      again for either income, the savings or whether someone is applying with them. Does not quote a rate
+      or payment and does not promise approval.
+    tags: { feature: section0_stress, test_set_id: "ST3" }
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+      expected_facts:
+        track: TT-PUR
+        values: { co_borrower.present: true }
+        numbers: { funds.total: 20000 }
+        income_total_annual: 117000
+
+  - id: SCN_s0_st04_story
+    label: "ST4 — facts buried in a story"
+    instructions: |
+      PERSONA: Quinn Foster, a teacher who wants to stop renting (invented person).
+      OPENING LINE: "Long story, but my landlord is selling the place I rent, so I figured it's finally time to buy something of my own. I've taught at the same school for nine years, I'm at 58,000 now, and the only thing I owe on is my car, 380 a month."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Quinn · never worked with this lender · within four months · it'll be your home
+      - applying alone · credit about 725 · 18,000 saved · no agent yet
+      - looking around 240,000 in Red Bank, TN · no military
+      HOW TO ANSWER: one short, natural answer per turn. If asked something you already said, answer again
+      briefly with the same numbers. If asked anything not listed, say you're not sure.
+      STOP: after 8 of your replies, or as soon as Ailana offers a choice between a credit review and a summary,
+      or the conversation is handed to a loan officer.
+    agent_expectations: >
+      Understands the goal is to buy a home to live in. Never asks again for the $58,000 income, the $380
+      monthly car payment, whether they rent, or how long they have been at their job. Does not quote a rate
+      or payment and does not promise approval.
+    tags: { feature: section0_stress, test_set_id: "ST4" }
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+      expected_facts:
+        track: TT-PUR
+        numbers: { debt.monthly_total: 380 }
+        income_total_annual: 58000
+
+  - id: SCN_s0_st05_monthly
+    label: "ST5 — income stated per month"
+    instructions: |
+      PERSONA: Reese Coleman, a renter buying a home (invented person).
+      OPENING LINE: "I want to buy a house. I bring in about 6,500 a month before taxes, my credit is around 740, and I've got 25,000 for a down payment."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Reese · never worked with this lender · within three months · it'll be your home
+      - applying alone · monthly debts about 300 · currently rent · no agent yet
+      - looking around 320,000 in Ooltewah, TN · no military · salaried, 5 years at the same job
+      HOW TO ANSWER: one short, natural answer per turn. If asked something you already said, answer again
+      briefly with the same numbers. If asked anything not listed, say you're not sure.
+      STOP: after 8 of your replies, or as soon as Ailana offers a choice between a credit review and a summary,
+      or the conversation is handed to a loan officer.
+    agent_expectations: >
+      Treats $6,500 a month as the gross monthly income (about $78,000 a year) without asking again. Never
+      asks again for the credit score or the down payment savings. Does not quote a rate or payment and does
+      not promise approval.
+    tags: { feature: section0_stress, test_set_id: "ST5" }
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+      expected_facts:
+        track: TT-PUR
+        credit: 740
+        income_total_annual: 78000
+
+  - id: SCN_s0_st06_biweekly_percent
+    label: "ST6 — bi-weekly pay and a percent down payment"
+    instructions: |
+      PERSONA: Drew Harper, buying a home (invented person).
+      OPENING LINE: "Looking at a 300 thousand dollar house and planning to put 10 percent down. I get paid 2,800 every two weeks."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Drew · never worked with this lender · within two months · it'll be your home
+      - applying alone · monthly debts about 450 · credit about 700 · currently rent · no agent yet
+      - the house is in East Brainerd, TN · no military · salaried, 2 years at the same job
+      HOW TO ANSWER: one short, natural answer per turn. If asked something you already said, answer again
+      briefly with the same numbers. If asked anything not listed, say you're not sure.
+      STOP: after 8 of your replies, or as soon as Ailana offers a choice between a credit review and a summary,
+      or the conversation is handed to a loan officer.
+    agent_expectations: >
+      Captures a $300,000 price, a 10% ($30,000) down payment and pay of $2,800 every two weeks. Never asks
+      again for the price, the down payment or the income. Does not quote a rate or payment and does not
+      promise approval.
+    tags: { feature: section0_stress, test_set_id: "ST6" }
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+      expected_facts:
+        track: TT-PUR
+        numbers: { purchase.price: 300000 }
+        income_total_annual: 72800
+
+  - id: SCN_s0_st07_indirect_refi
+    label: "ST7 — indirect refinance ('the payment is killing us')"
+    instructions: |
+      PERSONA: Casey Nguyen, a homeowner (invented person).
+      OPENING LINE: "Our mortgage payment is killing us and I keep hearing we could get it lower. We owe about 260 on the house and it's probably worth 410 now. Household income is around 120."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Casey · never worked with this lender · it's your primary residence, single-family, Chattanooga, TN
+      - a conventional loan · bought it in 2021 · not taking any cash out · applying with your spouse
+      - plan to stay at least 10 years · would roll closing costs in · monthly debts about 600 · credit about 750
+      - no military · both salaried
+      HOW TO ANSWER: one short, natural answer per turn. If asked something you already said, answer again
+      briefly with the same numbers. If asked anything not listed, say you're not sure.
+      STOP: after 10 of your replies, or as soon as Ailana offers a choice between a credit review and a summary,
+      or the conversation is handed to a loan officer.
+    agent_expectations: >
+      Understands they want to refinance to lower the payment, without asking whether they want to buy,
+      refinance or use equity. Never asks again for the $260,000 balance, the $410,000 value or the $120,000
+      income. Does not quote a rate or payment, does not promise savings and does not promise approval.
+    tags: { feature: section0_stress, test_set_id: "ST7" }
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+      expected_facts:
+        track: TT-REF
+        numbers: { refi.balance: 260000, refi.value: 410000 }
+
+  - id: SCN_s0_st08_indirect_heloc
+    label: "ST8 — indirect HELOC ('tap the house, keep my mortgage')"
+    instructions: |
+      PERSONA: Rowan Price, a homeowner planning a remodel (invented person).
+      OPENING LINE: "We want to redo the kitchen and I'd like to tap into the house for it, but I don't want to touch my mortgage, it's at a great rate. Probably need around 50 grand, maybe pulled out a bit at a time as the work goes."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Rowan · never worked with this lender · primary residence, single-family, Signal Mountain, TN
+      - home worth about 450,000 · you owe about 200,000 · income 110,000 · monthly debts about 400
+      - credit about 780 · applying alone · no military · salaried, 7 years
+      HOW TO ANSWER: one short, natural answer per turn. If asked something you already said, answer again
+      briefly with the same numbers. If asked anything not listed, say you're not sure.
+      STOP: after 10 of your replies, or as soon as Ailana offers a choice between a credit review and a summary,
+      or the conversation is handed to a loan officer.
+    agent_expectations: >
+      Understands they want to borrow against the home while keeping the current mortgage, drawing money as
+      needed (a line of credit), about $50,000, for a kitchen remodel. Does not suggest refinancing the
+      current mortgage. Never asks again for the amount or whether they want to keep the mortgage. Does not
+      quote a rate or payment and does not promise approval.
+    tags: { feature: section0_stress, test_set_id: "ST8" }
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+      expected_facts:
+        track: TT-HEL
+        numbers: { equity.amount: 50000 }
+
+  - id: SCN_s0_st09_question_first
+    label: "ST9 — asks a question first, facts after"
+    instructions: |
+      PERSONA: Sam Ortiz, a renter thinking about buying (invented person).
+      OPENING LINE: "What credit score do you need to buy a house? Mine's 660. I make about 58 a year and I've got a 350 car note."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Sam · never worked with this lender · within six months · it'll be your home
+      - applying alone · 8,000 saved · currently rent · no agent yet
+      - looking around 200,000 in Chattanooga, TN · no military · salaried, 3 years
+      HOW TO ANSWER: one short, natural answer per turn. If asked something you already said, answer again
+      briefly with the same numbers. If asked anything not listed, say you're not sure.
+      STOP: after 8 of your replies, or as soon as Ailana offers a choice between a credit review and a summary,
+      or the conversation is handed to a loan officer.
+    agent_expectations: >
+      Answers the credit question in general terms (no promise that a 660 qualifies, no rate), then continues
+      as a home purchase. Never asks again for the 660 score, the $58,000 income or the $350 car payment.
+    tags: { feature: section0_stress, test_set_id: "ST9" }
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+      expected_facts:
+        track: TT-PUR
+        numbers: { debt.monthly_total: 350 }
+        credit: 660
+        income_total_annual: 58000
+
+  - id: SCN_s0_st10_two_corrections
+    label: "ST10 — corrects itself twice"
+    instructions: |
+      PERSONA: Blake Turner, buying a home (invented person).
+      OPENING LINE: "I want to buy, I make 90 — no wait, 95 since my raise — and my debts are like 800 a month."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Blake · never worked with this lender · within three months · it'll be your home
+      - after Ailana's FIRST question (answer it first), add: "Oh, and my debts are actually 600, I paid off a card."
+      - applying alone · credit about 715 · 22,000 saved · currently rent · no agent yet
+      - looking around 330,000 in Collegedale, TN · no military · salaried, 4 years
+      HOW TO ANSWER: one short, natural answer per turn. If asked something you already said, answer again
+      briefly with the latest numbers. If asked anything not listed, say you're not sure.
+      STOP: after 8 of your replies, or as soon as Ailana offers a choice between a credit review and a summary,
+      or the conversation is handed to a loan officer.
+    agent_expectations: >
+      Uses the corrected values: $95,000 income and $600 monthly debts. Never treats $90,000 or $800 as
+      current. Never asks again for the income or the debts. Does not quote a rate or payment and does not
+      promise approval.
+    tags: { feature: section0_stress, test_set_id: "ST10" }
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+      expected_facts:
+        track: TT-PUR
+        numbers: { debt.monthly_total: 600 }
+        not_numbers: { debt.monthly_total: 800 }
+        income_total_annual: 95000
+
+  - id: SCN_s0_st11_veteran_words
+    label: "ST11 — military service said indirectly"
+    instructions: |
+      PERSONA: Kendall Brooks, a veteran buying a home (invented person).
+      OPENING LINE: "I did six years in the Marines and got out in 2019. Now I'm looking to buy near Cleveland, Tennessee. I make 70 and my credit's about 700."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Kendall · never worked with this lender · within four months · it'll be your home
+      - applying alone · monthly debts about 400 · 10,000 saved · currently rent · no agent yet
+      - looking around 280,000 · salaried, 3 years at the same job
+      HOW TO ANSWER: one short, natural answer per turn. If asked something you already said, answer again
+      briefly with the same numbers. If asked anything not listed, say you're not sure.
+      STOP: after 8 of your replies, or as soon as Ailana offers a choice between a credit review and a summary,
+      or the conversation is handed to a loan officer.
+    agent_expectations: >
+      Understands the caller is a veteran and never asks again whether they served. Never asks again for the
+      area, the $70,000 income or the 700 score. Does not raise any service-area concern about Cleveland,
+      Tennessee. Does not quote a rate or payment and does not promise approval.
+    tags: { feature: section0_stress, test_set_id: "ST11" }
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+      expected_facts:
+        track: TT-PUR
+        values: { military.status: veteran }
+        credit: 700
+        income_total_annual: 70000
+
+  - id: SCN_s0_st12_hedging
+    label: "ST12 — hedged, approximate answers"
+    instructions: |
+      PERSONA: Riley Shaw, buying a home (invented person). You are unsure of exact numbers.
+      OPENING LINE: "I think I'd like to buy something. I'm not totally sure, but I probably make somewhere around 65 thousand, and I think my credit is in the low 700s."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Riley · never worked with this lender · no rush, maybe within a year · it'll be your home
+      - applying alone · monthly debts "maybe 300?" · around 12,000 saved · currently rent · no agent yet
+      - looking around 230,000 in Chattanooga, TN · no military · salaried, 2 years
+      HOW TO ANSWER: short, hedged answers ("maybe", "I think"). If asked something you already said, answer
+      again briefly with the same numbers. If asked anything not listed, say you're not sure.
+      STOP: after 8 of your replies, or as soon as Ailana offers a choice between a credit review and a summary,
+      or the conversation is handed to a loan officer.
+    agent_expectations: >
+      Accepts approximate answers without pushing for exact numbers. Treats the goal as a purchase. Never asks
+      again for the income or the credit range. Does not quote a rate or payment and does not promise approval.
+    tags: { feature: section0_stress, test_set_id: "ST12" }
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+      expected_facts:
+        track: TT-PUR
+        income_total_annual: 65000
+
+  - id: SCN_s0_st13_decline_then_give
+    label: "ST13 — declines income, gives it later"
+    instructions: |
+      PERSONA: Parker Hayes, buying a home (invented person).
+      OPENING LINE: "I'm interested in buying a home. I'd rather not get into my income yet, but my credit is about 760 and I have 40,000 saved."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Parker · never worked with this lender · within six months · it'll be your home
+      - the FIRST time Ailana asks about income, say: "Fine — it's 105,000 a year."
+      - applying alone · monthly debts about 500 · currently rent · no agent yet
+      - looking around 400,000 in Lookout Mountain, TN · no military · salaried, 6 years
+      HOW TO ANSWER: one short, natural answer per turn. If asked something you already said, answer again
+      briefly with the same numbers. If asked anything not listed, say you're not sure.
+      STOP: after 8 of your replies, or as soon as Ailana offers a choice between a credit review and a summary,
+      or the conversation is handed to a loan officer.
+    agent_expectations: >
+      Respects the wish not to share income at first without pressure, and does not ask for it again in the
+      very next turn. Once the caller gives $105,000, uses it and never asks again. Never asks again for the
+      760 score or the $40,000 savings. Does not quote a rate or payment and does not promise approval.
+    tags: { feature: section0_stress, test_set_id: "ST13" }
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+      expected_facts:
+        track: TT-PUR
+        numbers: { funds.total: 40000 }
+        credit: 760
+
+  - id: SCN_s0_st14_human_odd
+    label: "ST14 — asks for a person in an unusual way"
+    instructions: |
+      PERSONA: Emerson Reid, a homeowner (invented person).
+      OPENING LINE: "Look, I've done this before. Can I get an actual human being to look at my refinance? I owe 180 on a 340 house."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Emerson · if Ailana offers to connect you now, say yes
+      - you want to be connected now, not later
+      HOW TO ANSWER: one short, natural answer per turn. If asked anything not listed, say you'd rather talk
+      to the person.
+      STOP: as soon as the conversation is handed to a loan officer, or after 5 of your replies.
+    agent_expectations: >
+      Recognises a request to talk to a person now and connects the caller to a licensed loan officer
+      without first running intake questions. Does not ask again for the balance or the value.
+    tags: { feature: section0_stress, test_set_id: "ST14" }
+    userdata:
+      mlo_available: true
+      expect_transfer: true
+      expect_booking: false
+      expected_facts:
+        numbers: { refi.balance: 180000, refi.value: 340000 }
+
+  - id: SCN_s0_st15_offtopic_back
+    label: "ST15 — off-topic aside, then back to buying"
+    instructions: |
+      PERSONA: Hayden Cruz, buying a home (invented person).
+      OPENING LINE: "Before anything — is it supposed to rain all weekend there? Anyway, I want to buy a townhouse. I make 72,000 and my debts are 250 a month."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Hayden · never worked with this lender · within three months · it'll be your home
+      - applying alone · credit about 735 · 20,000 saved · currently rent · no agent yet
+      - looking around 260,000 in Chattanooga, TN · no military · salaried, 3 years
+      HOW TO ANSWER: one short, natural answer per turn. If asked something you already said, answer again
+      briefly with the same numbers. If asked anything not listed, say you're not sure.
+      STOP: after 8 of your replies, or as soon as Ailana offers a choice between a credit review and a summary,
+      or the conversation is handed to a loan officer.
+    agent_expectations: >
+      Handles the weather aside in one line at most, then continues with the home purchase. Never asks again
+      for the townhouse type, the $72,000 income or the $250 debts. Does not quote a rate or payment and does
+      not promise approval.
+    tags: { feature: section0_stress, test_set_id: "ST15" }
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+      expected_facts:
+        track: TT-PUR
+        values: { property.type: townhome }
+        numbers: { debt.monthly_total: 250 }
+        income_total_annual: 72000
+
+  - id: SCN_s0_st16_hardship_words
+    label: "ST16 — hardship said without the word 'behind'"
+    instructions: |
+      PERSONA: Jamie Ford, a homeowner in trouble (invented person).
+      OPENING LINE: "I haven't been able to make my house payment since August and the bank keeps calling. Is there any way to refinance? I owe 140 and it's worth around 250."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Jamie · if offered a loan officer now, say you'll think about it later
+      HOW TO ANSWER: one short, natural answer per turn. If asked anything not listed, say you're not sure.
+      STOP: after 4 of your replies, or as soon as the conversation is handed to a loan officer.
+    agent_expectations: >
+      Responds with empathy, does not promise or suggest that a refinance will work, offers a licensed loan
+      officer and mentions a HUD-approved housing counselor. Does not start intake questions and does not
+      ask again what the caller wants to do. Does not quote a rate or payment.
+    tags: { feature: section0_stress, test_set_id: "ST16" }
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+      expected_facts:
+        numbers: { refi.balance: 140000, refi.value: 250000 }
+
+  - id: SCN_s0_st17_build_words
+    label: "ST17 — construction said indirectly"
+    instructions: |
+      PERSONA: Logan West, building a home (invented person).
+      OPENING LINE: "We bought a lot in Ooltewah and the builder is ready to start framing, but we need money to pay him as he goes. We still have our current place, worth about 300, owe 90."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Logan · if offered a loan officer now, say you'll reach out later
+      HOW TO ANSWER: one short, natural answer per turn. If asked anything not listed, say you're not sure.
+      STOP: after 4 of your replies, or as soon as the conversation is handed to a loan officer.
+    agent_expectations: >
+      Recognises construction financing right away and explains that a licensed loan officer handles it,
+      offering to connect now or later. Does not run the standard purchase, refinance or equity questions.
+      If the caller defers, closes politely without discovery questions.
+    tags: { feature: section0_stress, test_set_id: "ST17" }
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+      expected_facts:
+        track: null
+
+  - id: SCN_s0_st18_callback_words
+    label: "ST18 — callback asked in everyday words"
+    instructions: |
+      PERSONA: Charlie Moss, a buyer (invented person).
+      OPENING LINE: "I'm at work right now. Could somebody just ring me back Thursday morning, like around 10? Eastern time. I'm looking to buy."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Charlie · the time you want is Thursday at 10 AM Eastern
+      HOW TO ANSWER: one short, natural answer per turn. If asked anything not listed, say you're not sure.
+      STOP: as soon as Ailana confirms the callback is booked, or after 5 of your replies.
+    agent_expectations: >
+      Books a callback for Thursday around 10 AM Eastern using the scheduling tool and confirms only what the
+      tool returned. Does not start intake questions before handling the callback. Does not ask again for the
+      day, time or time zone.
+    tags: { feature: section0_stress, test_set_id: "ST18" }
+    userdata:
+      mlo_available: true
+      expect_transfer: false
+      expect_booking: true

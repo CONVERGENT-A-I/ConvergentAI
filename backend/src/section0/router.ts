@@ -109,7 +109,8 @@ export function routeSection0(input: RouterInput): RouterOutput {
     // Back to Ailana: if the goal was already stated ("refinance… actually, transfer me"), start that track.
     state = { ...state, transferPending: false };
     const resumed = routeSection0({ ...input, intent: 'states_goal_or_facts', state });
-    if (resumed.decision.kind === 'set_track') return resumed;
+    // A holdout (hardship, construction, reverse) stays paused: no intake restart, no re-asked goal.
+    if (resumed.decision.kind === 'set_track' || resumed.decision.kind === 'holdout_followup') return resumed;
     return { decision: { kind: 'resume' }, state };
   }
   if (intent === 'asks_if_human') {

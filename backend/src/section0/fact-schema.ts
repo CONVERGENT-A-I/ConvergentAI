@@ -80,6 +80,7 @@ export const FACT_KEYS = [
   'situation.job_loss',            // boolean
   'situation.preapproval_letter',  // boolean — mentions a pre-approval letter Ailana did not issue
   'situation.competitor_offer',    // boolean — mentions another lender's offer (rate itself NOT stored)
+  'situation.building_home',       // boolean — a home is being built for them (construction underway or planned)
 ] as const;
 
 export type FactKey = (typeof FACT_KEYS)[number];

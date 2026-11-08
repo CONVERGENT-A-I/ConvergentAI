@@ -29,7 +29,7 @@
 | **8** | David's 30 prospect replies (voice + typed) | All of Phase 3–4 | 🔴 |
 | **9** | Track regression: Purchase, Refi, HELOC, HEQ unchanged | S0-19 | 🔴 |
 | **10** | Flag-off parity (demo build unchanged) | S0-03, S0-19 | 🟢 automated: `section0-flag-off` 23/23 (prompts byte-identical) |
-| **11** | LiveKit text simulations (the official measure) | S0-05 ✅ · S0-04 ✅ · S0-07 baseline · S0-08 | 🟢 spike (11.0) · 🟢 baseline B3/B4 = 0/12 (11.0b) · 🟢 S2 12/12 · S3 12/12 + 6/6 · 🟢 track regression 5/5 off and on · previews 20 → 31 → 40 → 43/47 · official O1 35 → O2 37 → O3 40 → O4 43 → O5 44 → O6 41/47 all-3 (run-to-run noise ±3) → fix cycle 10 → **O7 next (11.1)** |
+| **11** | LiveKit text simulations (the official measure) | S0-05 ✅ · S0-04 ✅ · S0-07 baseline · S0-08 | 🟢 spike (11.0) · 🟢 baseline B3/B4 = 0/12 (11.0b) · 🟢 S2 12/12 · S3 12/12 + 6/6 · 🟢 track regression 5/5 off and on · previews 20 → 31 → 40 → 43/47 · official O1 35 → O2 37 → O3 40 → O4 43 → O5 44 → O6 41/47 all-3 (run-to-run noise ±3) → fix cycle 10 → O7 43/47 all-3 · 135/141 samples (95.7%) · pass@3 47/47 → fix cycle 11 → **O8 + stress S1 next (11.1, 11.2)** |
 
 Status: 🔴 not run · 🟡 partial / failing · 🟢 passing
 
@@ -520,17 +520,22 @@ Send me the run ID and summary. Some failures are expected because the feature i
 | Nov 10, 2026 | Team | `SR_TtfqwBCeGHj7` (O5 official, 3 samples) | 44/47 all-3 · 134/141 samples | Fix cycle 9 applied. |
 | Nov 10, 2026 | Team | `SR_V5DKbriEbeLL` (track regression, flag on) | 5/5 | |
 | Nov 10, 2026 | Team | `SR_HRwqQZae8KUP` (O6 official, 3 samples) | 41/47 all-3 · 131/141 samples | 2 real bugs fixed (#23, #8); rest noise. |
-| | | (O7 official, 3 samples) | | |
+| Nov 8, 2026 | Team | `SR_EVurxgE35mcN` (O7 official, 3 samples) | 43/47 all-3 · 135/141 samples (95.7%) · pass@3 47/47 | 3 real bugs fixed (#8, #29, Cleveland); rest noise. |
+| | | (O8 official, 3 samples) | | |
+| | | (S1 stress set, 3 samples — reported separately) | | |
 
-**O7 (now)**, the same command, from `backend/`:
+**O8 + stress S1 (now)**, from `backend/`:
 
 ```powershell
 npm run build
 $env:SECTION_0_ENABLED = "true"
 lk agent simulate text --scenarios scenarios/section0.yaml --samples 3 --pass-rate 1.0 dist/agent.js
+lk agent simulate text --scenarios scenarios/section0_stress.yaml --samples 3 dist/agent.js
 lk agent simulate text --scenarios scenarios/tracks_regression.yaml --samples 1 dist/agent.js
 Remove-Item Env:SECTION_0_ENABLED
 ```
+
+The stress set (11.2) is **reported separately** and never counts toward the exit bar: it measures how well Section 0 generalises to phrasings no approved scenario uses.
 
 Exit bar for Section 0: ≥ 95% (at least 45 of 47 scenarios passing all 3 samples) on **two consecutive** official runs, zero compliance failures, and the track regression 5/5.
 
@@ -560,6 +565,38 @@ lk agent simulate export <run-id> > ../docs/section0/runs/<name>.json
 - In simulations, LemonSlice, the database, CRS, SIP, calendar and email are **mocked** — a simulation must never ring a real MLO or book a real appointment.
 - A scenario can fail even when the conversation sounds fine: the end-of-run check compares the Fact Ledger to the expected facts.
 - **Never edit `scenarios/section0.yaml`** to make a test pass. New ideas go in `scenarios_proposed.yaml` for David.
+
+### 11.2 Stress set (S0-30): varied phrasings, reported separately
+
+`scenarios/section0_stress.yaml` has 18 scenarios. They cover the same kinds of facts as the approved set, in wording no approved scenario uses:
+
+| Kind of phrasing | Scenarios |
+| :--- | :--- |
+| Numbers in words | ST1 |
+| Texting style and typos | ST2 |
+| Spoken fillers | ST3 |
+| Facts buried in a story | ST4 |
+| Monthly or bi-weekly pay, percent down payment | ST5, ST6 |
+| Indirect refinance, HELOC, hardship and construction | ST7, ST8, ST16, ST17 |
+| Question first | ST9 |
+| Two self-corrections | ST10 |
+| Military service said indirectly | ST11 |
+| Hedged answers | ST12 |
+| Declines income, then gives it | ST13 |
+| Unusual ways to ask for a person or a callback | ST14, ST18 |
+| Off-topic aside | ST15 |
+
+```powershell
+npm run build
+$env:SECTION_0_ENABLED = "true"
+lk agent simulate text --scenarios scenarios/section0_stress.yaml --samples 3 dist/agent.js
+Remove-Item Env:SECTION_0_ENABLED
+lk agent simulate export <run-id> > ../docs/section0/runs/stress1.json
+```
+
+- **Reported separately.** These results never count toward the exit bar. They show whether Section 0 works on new wording.
+- A big gap between this set and `section0.yaml` would mean the fixes fit the approved wording, not the meaning (overfitting).
+- **Fix rule:** a failure here is fixed only generically, in the schema or in code, never with a prompt rule for that phrasing. Good examples become proposals in `scenarios_proposed.yaml` for David.
 
 ---
 

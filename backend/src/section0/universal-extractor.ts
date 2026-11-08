@@ -8,6 +8,7 @@
  * profile numbers is the normaliser's job (ingest.ts), in code.
  */
 import { inference, llm } from '@livekit/agents';
+import { lenderStateNames } from './compliance-notes.js';
 import {
   COMPLIANCE_FLAGS, FACT_KEYS, GOAL_CLASSES, INTENTS,
   isFactKey, isForbiddenKey,
@@ -42,7 +43,7 @@ export interface ExtractorInput {
 
 // ── Prompt (schema only — no test phrasings) ─────────────────────────────────
 
-const FACT_GUIDE = `
+const factGuide = () => `
 FACT KEYS (use only these; omit anything not stated):
 - goal.primary, goal.secondary: one of ${GOAL_CLASSES.join(' | ')}
 - goal.refi_purpose: lower_payment | remove_co_borrower | shorten_term | cash_out | other
@@ -64,11 +65,11 @@ FACT KEYS (use only these; omit anything not stated):
 - housing.current: rent | own | own_selling | own_keeping · housing.properties_owned (number) · housing.retained_home ({balance, plan: rent|sell|keep, expected_rent})
 - purchase.price (number as said) · purchase.down_payment ({amount} or {percent}) · purchase.zero_down_goal (bool)
 - property.type: single_family | condo | townhome | multi_family | manufactured | cabin | other · property.units (number) · property.projected_rent (number per month) · property.rental_plan (bool: they plan to rent this home out, fully or part of the time)
-- location.area: {city, state, zip, area} of the home they want to buy or own — NEVER the place they are moving away from, NEVER a street address. state = two-letter code ONLY if they said the state or the city is a major city that exists in just one state; otherwise null. Never guess a state from a landmark, campus, base or area name
+- location.area: {city, state, zip, area, in_lender_state} of the home they want to buy or own — NEVER the place they are moving away from, NEVER a street address. state = two-letter code ONLY if they said the state or a ZIP, or the city exists in just one US state; otherwise null. in_lender_state = true when they did NOT say the state or a ZIP and a city or town with that name exists in ${lenderStateNames().join(' or ')}, else false. Never guess a state from a landmark, campus, base or area name
 - military.status: active | veteran | retired | reserve_guard | surviving_spouse | none · military.years
 - refi.balance · refi.value · refi.current_rate · refi.loan_type: conventional|fha|va|usda|unknown · refi.purchase_year · refi.cash_out_amount · refi.cash_out_use · refi.keep_first (bool: false = they said they want to refinance / replace the current mortgage; true = keep it)
 - equity.paid_off (bool) · equity.amount · equity.use · equity.fixed_preference (bool: true = lump sum / fixed payment, false = line of credit)
-- situation.relocation ({from, to, when}) · situation.divorce_buyout · situation.inherited_home · situation.delinquent_months · situation.job_loss · situation.preapproval_letter · situation.competitor_offer (bools / number)`;
+- situation.relocation ({from, to, when}) · situation.divorce_buyout · situation.inherited_home · situation.delinquent_months · situation.job_loss · situation.preapproval_letter · situation.competitor_offer · situation.building_home (a home is being built for them) (bools / number)`;
 
 function buildSystemPrompt(): string {
   return `You translate a mortgage borrower's latest message into structured data. You never reply to the borrower.
@@ -84,7 +85,7 @@ GOALS (what the borrower wants): ${GOAL_CLASSES.join(' | ')}.
 - purchase = buy a home. refinance = replace the current mortgage. refinance_rate_term / refinance_cash_out only when the borrower said they want to refinance or replace the mortgage AND the purpose is clear.
 - heloc = line of credit on the home. home_equity_loan = lump sum / fixed payment against the home.
 - equity_unclear = wants to use home equity, type not clear. cash_out_unclear = wants cash out of the home but did NOT say whether to refinance (replace) or keep the current mortgage.
-- construction = building / lot / construction draws. reverse_mortgage = reverse mortgage / HECM.
+- construction = building a home / lot / construction draws — also when they plan to pay for the build with their current home's equity. reverse_mortgage = reverse mortgage / HECM.
 - out_of_scope = not a home loan (car, personal, business loan). unclear = no goal can be told.
 - The goal can be plain from their situation (e.g. moving to a new city while keeping or selling their home = purchase).
 - Two DIFFERENT goals named (even if they haven't chosen which comes first) = primary + secondary — never unclear.
@@ -100,7 +101,7 @@ INTENT (exactly one): ${INTENTS.join(' | ')}.
 
 COMPLIANCE FLAGS (any that apply): ${COMPLIANCE_FLAGS.join(' | ')}.
 - approval_guarantee_or_preapproval_letter = they mention a pre-approval, approval, letter or offer they received (from anyone), or ask for a guarantee. Also set situation.preapproval_letter = true.
-${FACT_GUIDE}
+${factGuide()}
 
 RULES
 1. Extract ONLY what the borrower actually said in this message. Never guess, infer or fill defaults.

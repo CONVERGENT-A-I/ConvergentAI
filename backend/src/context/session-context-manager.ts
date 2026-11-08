@@ -27,6 +27,13 @@ import { complianceNotes, lenderStates, type ComplianceNote } from '../section0/
 
 type HandoffMode = 'confirm_asked' | 'confirm_answer' | 'callback' | 'transferred' | 'booked';
 
+/** Section 0 memory as one JSON value: sent to the frontend (statedFacts) and saved in applications.section0_state. */
+export interface Section0Snapshot {
+  ledger: SerializedLedger;
+  state: Section0State;
+  session?: { notesShown: string[]; quickChecksAsked: string[]; trackSwitches: number };
+}
+
 export type TurnLogEntry = {
   role: 'user' | 'assistant';
   text: string;
@@ -693,13 +700,7 @@ export class SessionContextManager {
 
   hydrateFromSnapshot(stage: string, profile: any): void {
     this.activeStage = stage as any;
-    if (ailanaConfig.section0Enabled && profile?.statedFacts) {
-      // Section 0 memory travels with the frontend snapshot (statedFacts = { ledger, state }).
-      this.ledger = FactLedger.hydrate(profile.statedFacts.ledger);
-      if (profile.statedFacts.state) this.section0State = { ...initialSection0State(), ...profile.statedFacts.state };
-      this.ledgerSynced = {};
-      console.log(`[section0] ♻️ restored Fact Ledger from snapshot (${this.ledger.size()} facts)`);
-    }
+    if (profile?.statedFacts) this.restoreSection0Snapshot(profile.statedFacts, 'frontend snapshot');
     if (profile) {
       const { statedFacts: _ignored, ...rest } = profile;
       profile = rest;
@@ -1363,9 +1364,33 @@ export class SessionContextManager {
   }
 
   /** Serializable Section 0 state — sent to the frontend with every stage update and restored on reconnect. */
-  getSection0Snapshot(): { ledger: SerializedLedger; state: Section0State } | null {
+  getSection0Snapshot(): Section0Snapshot | null {
     if (!ailanaConfig.section0Enabled) return null;
-    return { ledger: this.ledger.serialize(), state: this.section0State };
+    return {
+      ledger: this.ledger.serialize(),
+      state: this.section0State,
+      // Once-per-session bookkeeping, so a resumed conversation never repeats a note or a quick check.
+      session: { notesShown: [...this.notesShown], quickChecksAsked: [...this.quickChecksAsked], trackSwitches: this.trackSwitches },
+    };
+  }
+
+  /**
+   * Restore Section 0 memory from a snapshot (the frontend copy on reconnect, or the database
+   * `section0_state` column on resume). Safe with null / malformed input and with older snapshots
+   * that have no `session` part. Does nothing with the flag off.
+   */
+  restoreSection0Snapshot(snap: unknown, source = 'snapshot'): void {
+    if (!ailanaConfig.section0Enabled || !snap || typeof snap !== 'object') return;
+    const s = snap as Partial<Section0Snapshot>;
+    this.ledger = FactLedger.hydrate(s.ledger);
+    if (s.state && typeof s.state === 'object') this.section0State = { ...initialSection0State(), ...s.state };
+    if (s.session && typeof s.session === 'object') {
+      if (Array.isArray(s.session.notesShown)) this.notesShown = s.session.notesShown.filter((x) => typeof x === 'string');
+      if (Array.isArray(s.session.quickChecksAsked)) this.quickChecksAsked = s.session.quickChecksAsked.filter((x) => typeof x === 'string');
+      if (typeof s.session.trackSwitches === 'number') this.trackSwitches = s.session.trackSwitches;
+    }
+    this.ledgerSynced = {};
+    console.log(`[section0] ♻️ restored Fact Ledger from ${source} (${this.ledger.size()} facts)`);
   }
 
   getFactLedger(): FactLedger {

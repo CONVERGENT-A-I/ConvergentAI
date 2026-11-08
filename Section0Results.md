@@ -31,6 +31,7 @@
 | **O5** | Nov 10, 2026 | `SR_TtfqwBCeGHj7` | fix cycle 8 | **Official**: full set (47), 3 samples | **44 / 47 scenarios (93.6%)** · 134/141 samples (95.0%) | 46/47 | 44/47 | Best all-3 so far; #11, #29, #19 now 3/3. Misses: #23 0/3, #24 1/3, #12 1/3. Fix cycle 9 → **O6**. |
 | **TR-on3** | Nov 10, 2026 | `SR_V5DKbriEbeLL` | fix cycle 8 (flag on) | Track regression (5) | **5 / 5** | — | — | Tracks fine with the new greeting. |
 | **O6** | Nov 10, 2026 | `SR_HRwqQZae8KUP` | fix cycle 9 | **Official**: full set (47), 3 samples | **41 / 47 scenarios (87%)** · 131/141 samples (92.9%) | 46/47 | 41/47 | #12, #24 now 3/3. Misses: #23 0/3 (real bug), #8 (real bug), #18, #9, T5, A10. Fix cycle 10 → **O7**. |
+| **O7** | Nov 8, 2026 | `SR_EVurxgE35mcN` | fix cycle 10 | **Official**: full set (47), 3 samples | **43 / 47 scenarios (91.5%)** · **135/141 samples (95.7%)** | **47/47** | 43/47 | Best sample rate (tied O4); #23, #24, #12, #9, T5, A10 now 3/3. Misses: #8 (real bug), #29 (real bug), #18 (noise), #26 (judge). Fix cycle 11 → **O8**. |
 
 ---
 
@@ -105,6 +106,34 @@ Reading the B2 transcripts showed Ailana asking questions in **our** wording thr
 
 ### What this tells us
 - **Superseded by the harness finding** — B1's transcripts were Ailana improvising without our state machine, so its numbers are not the real "before". Compliance held throughout. B3 is the valid baseline.
+
+---
+
+## Official run O7: 43/47 all-3, 135/141 samples (95.7%) and fix cycle 11
+
+Every scenario passed at least once (pass@3 47/47). Both cycle-10 fixes held: #23 3/3 and #8's "vague reply" case. The 6 failed samples:
+
+| Failure | Real bug? | Cause | Fix (cycle 11) |
+| :--- | :--- | :--- | :--- |
+| #8 ×2 | **Yes** | "We're building out in Soddy-Daisy … need 90,000 for the next draw" → the extractor sometimes did not set the goal to *construction* (it saw the home equity), so Ailana asked the 3-option question, then started the HELOC questions | New fact `situation.building_home`; **two independent signals**: a home being built, with no other clear goal (or only an equity goal), is construction in code. Schema: construction also when the build is paid with the current home's equity. Live check: 6/6 → construction |
+| #29 ×1 | **Yes** | After the hardship response, "not right now" was read as *cancel the transfer*, which resumed intake, so Ailana asked the goal again | Declining the loan-officer offer during a hardship / construction / reverse-mortgage response keeps the pause (no intake restart, no re-asked goal) |
+| #18 ×2 | No | The simulated borrower again left "mine's 800" out of its scripted opening (the judge reads the script, not the transcript). Same as O6 | Proposed to David: shorten #18's opening line |
+| #26 ×1 | No | "Will this new home **in Phoenix** be your primary residence?" — the judge counted naming the city as asking for it again | — (Layer-1 rule already says not to restate facts in questions; model variance) |
+
+**From the judge's summary (passed scenarios):**
+
+| Note | Real? | Action |
+| :--- | :--- | :--- |
+| "Cleveland" read as Ohio → unneeded service-area note (#17, 2 samples) | **Yes** | The extractor guessed the state. It now also answers a narrow question (does a town of that name exist in the lender's state?) and code keeps the local reading; an unsaid, ambiguous state stays empty, so no footprint note. Live check: Cleveland 3/3 no Ohio; Phoenix 3/3 still Arizona; Ooltewah / Soddy-Daisy still TN |
+| SSN / address: "generic refusal" instead of separate explanations (A9, #11) | No | That reply is David's approved short TRID gate, verbatim |
+| Privacy answer pointed to the privacy policy / opt-out (#28) | No | That is David's approved privacy script, verbatim |
+| Conventional-refinance benefits stated without qualification | Not Section 0 | Existing Refinance track wording; listed for David |
+
+**Also in cycle 11 (S0-21):** with the flag on, a voice message holding an SSN or a street address is now redacted in every copy: the log line, the saved transcript row and the chat history the model sees. Previously only the context manager's copy was redacted. The raw text goes only to the context manager, which redacts it first and raises the TRID gate.
+
+**S0-20 handed over:** the database part goes to MuhammadH ([Section0_DatabasePlan_MuhammadH.md](Section0_DatabasePlan_MuhammadH.md)). The agent side is ready: `getSection0Snapshot()` / `restoreSection0Snapshot()` now carry the memory **and** the once-per-session bookkeeping as one JSON value.
+
+**Tests:** router 69, sync 130. `npm test` 26/26; flag-off parity 23/23.
 
 ---
 
@@ -348,7 +377,7 @@ Two notes from the judge, neither of which failed a test:
 
 ## Next run
 
-**Run O7**: official, 3 samples (Test Guide 11.1). Exit bar: ≥ 95% (45/47 all-3) on two consecutive official runs, zero compliance failures; track regression matching the demo build (5/5 ✅).
+**Run O8** (confirms fix cycle 11) + **first stress run S1** (`section0_stress.yaml`, reported separately), Test Guide 11.1 / 11.2. Exit bar: ≥ 95% (45/47 all-3) on two consecutive official runs, zero compliance failures; track regression matching the demo build (5/5 ✅). O7 reached 95.7% of samples and 47/47 pass@3.
 
 
 Previous instruction kept for reference — **B3 — re-run the same baseline with the simulation-harness fix** (Section 0 still off):
