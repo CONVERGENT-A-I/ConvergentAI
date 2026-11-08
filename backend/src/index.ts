@@ -9,19 +9,57 @@ import express, { type Request, type Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { AccessToken } from 'livekit-server-sdk';
+import loanOfficerRoutes from './routes/loan-officer.js';
+import schedulingRoutes from './routes/scheduling.js';
+import { isEslConfigured } from './services/freeswitch-esl.js';
+import { isGoogleCalendarConfigured } from './services/google-calendar.js';
+import { allowRequest, requestKey, safeErrorMessage, safeTelemetryDetails } from './utils/security.js';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const IDENTIFIER_PATTERN = /^[A-Za-z0-9_-]{3,80}$/;
 
 // Middleware
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
+app.use((_req, res, next) => {
+  res.set({
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'camera=(), microphone=(self), geolocation=()',
+    'Cache-Control': 'no-store',
+  });
+  next();
+});
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '32kb', strict: true }));
+
+// --- Loan Officer Call Bridge: zip routing + SIP dialing + pre-call alerts ---
+app.use('/api', loanOfficerRoutes);
+app.use('/api', schedulingRoutes);
+
+// Service status (does not clash with the plain /health check below)
+app.get('/api/health', (_req: Request, res: Response) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    services: {
+      livekit: !!process.env.LIVEKIT_API_KEY,
+      fspbx: !!process.env.FSPBX_DB_HOST,
+      ringotel: Boolean(process.env.RINGOTEL_API_URL && process.env.RINGOTEL_AUTH_TOKEN && process.env.RINGOTEL_ORG_ID),
+      freeswitchEsl: isEslConfigured(),
+      googleCalendar: isGoogleCalendarConfigured(),
+    },
+  });
+});
+// -------------------------------------------------------------------------
 
 // Routes
 app.get('/api/test', (req: Request, res: Response) => {
@@ -36,10 +74,15 @@ app.get('/api/test', (req: Request, res: Response) => {
 // LiveKit Token Generation Endpoint
 app.post('/api/get-token', async (req: Request, res: Response) => {
   try {
-    const { roomName, participantName, metadata } = req.body;
+    if (!allowRequest(requestKey(req, 'livekit-token'), 12)) {
+      res.status(429).json({ error: 'Too many token requests' });
+      return;
+    }
+    const { roomName, participantName } = req.body;
 
-    if (!roomName || !participantName) {
-      res.status(400).json({ error: 'roomName and participantName are required' });
+    if (typeof roomName !== 'string' || typeof participantName !== 'string' ||
+        !IDENTIFIER_PATTERN.test(roomName) || !IDENTIFIER_PATTERN.test(participantName)) {
+      res.status(400).json({ error: 'Invalid room or participant name' });
       return;
     }
 
@@ -54,7 +97,7 @@ app.post('/api/get-token', async (req: Request, res: Response) => {
 
     const at = new AccessToken(apiKey, apiSecret, {
       identity: participantName,
-      metadata: typeof metadata === 'string' ? metadata : JSON.stringify(metadata || {}),
+      ttl: process.env.LIVEKIT_TOKEN_TTL || '10m',
     });
 
     at.addGrant({
@@ -71,7 +114,7 @@ app.post('/api/get-token', async (req: Request, res: Response) => {
       serverUrl: wsUrl,
     });
   } catch (error) {
-    console.error('Error generating LiveKit token:', error);
+    console.error('Error generating LiveKit token:', safeErrorMessage(error));
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -80,8 +123,14 @@ app.post('/api/get-token', async (req: Request, res: Response) => {
 // Legacy telemetry endpoint — kept for any remaining frontend instrumentation
 app.post('/api/log-telemetry', (req: Request, res: Response) => {
   try {
+    if (!allowRequest(requestKey(req, 'telemetry'), 60)) {
+      res.status(429).json({ error: 'Too many telemetry requests' });
+      return;
+    }
     const { event, durationMs, details } = req.body;
-    console.log(`[client-telemetry] event=${event} duration=${durationMs}ms details=${JSON.stringify(details || {})}`);
+    const safeEvent = typeof event === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(event) ? event : 'invalid_event';
+    const safeDuration = Number.isFinite(Number(durationMs)) ? Math.max(0, Math.min(Number(durationMs), 600_000)) : 0;
+    console.log(`[client-telemetry] event=${safeEvent} duration=${safeDuration}ms details=${JSON.stringify(safeTelemetryDetails(details))}`);
     res.json({ status: 'success' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to write telemetry' });
@@ -137,9 +186,9 @@ app.listen(PORT, async () => {
     const agentProcess = fork(agentFilePath, ['dev'], forkOptions);
 
     agentProcess.on('error', (err) => {
-      console.error(`[server]: Failed to start Agent Worker:`, err);
+      console.error(`[server]: Failed to start Agent Worker:`, safeErrorMessage(err));
     });
   } catch (error) {
-    console.error(`[server]: Agent Worker initialization error:`, error);
+    console.error(`[server]: Agent Worker initialization error:`, safeErrorMessage(error));
   }
 });

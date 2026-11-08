@@ -37,12 +37,14 @@ import { SuggestedCommands } from "./suggested-commands";
 import { ContextualHelp } from "./contextual-help";
 import { ActivityTracker } from "./activity-tracker";
 import { MloDetector } from "./mlo-detector";
+import { MloFailureListener } from "./mlo-failure-listener";
+import { GoogleCalendarScheduler } from "./google-calendar-scheduler";
 import { AgentReadinessCheck } from "./agent-readiness-check";
 import { AvatarStatusListener, type AvatarStatus } from "./avatar-status-listener";
 import { ChannelStartTrigger } from "./channel-start-trigger";
 import { ChatTranscriptRecorder } from "./chat-transcript-recorder";
 import { MediaGuard } from "./media-guard";
-import { LoanOfficerLiveUI, LoanOfficerQueueUI } from "./loan-officer-queue";
+import { LoanOfficerLiveUI, LoanOfficerQueueUI, parseLoanOfficerQueueDisplay } from "./loan-officer-queue";
 import { NetworkQualityBanner } from "./network-quality-banner";
 import { NetworkStrengthBars } from "./network-strength-bars";
 import { LogoLoader } from "./logo-loader";
@@ -177,6 +179,25 @@ export default function FloatingCTA() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showLoanOfficerComingSoon, setShowLoanOfficerComingSoon] =
     useState(false);
+
+  // --- Loan Officer zip routing + early-alert ---
+  const [loanOfficerZip, setLoanOfficerZip] = useState<string>("");
+  const [loanOfficerCity, setLoanOfficerCity] = useState<string>("");
+  const [zipDetecting, setZipDetecting] = useState(false);
+  const [zipAutoFailed, setZipAutoFailed] = useState(false);
+  const [zipError, setZipError] = useState<string | null>(null);
+  const [zipChecking, setZipChecking] = useState(false);
+  const [zipStatus, setZipStatus] = useState<{ ok: boolean; state: string | null; count: number; location: string | null } | null>(null);
+  const [mloUnsupported, setMloUnsupported] = useState(false);
+  const [showCalendarScheduler, setShowCalendarScheduler] = useState(false);
+  const [scheduleQueue, setScheduleQueue] = useState<{ queueName: string | null; queueNumber: string | null } | null>(null);
+  const [showScheduleNotice, setShowScheduleNotice] = useState(false);
+  const [mloAvailabilityChecking, setMloAvailabilityChecking] = useState(false);
+  const [conversationalScheduling, setConversationalScheduling] = useState(false);
+
+  const autoDetectedZipRef = useRef<string>("");
+  const lastManualZipAlertRef = useRef<string>("");
+  const zipWasManuallyEditedRef = useRef<boolean>(false);
   const introVideoRef = useRef<HTMLVideoElement>(null);
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -243,6 +264,11 @@ export default function FloatingCTA() {
   const [mloParticipantName, setMloParticipantName] = useState<string | null>(null);
   const [mloCallSeconds, setMloCallSeconds] = useState(0);
   const hasMloJoinedRef = useRef(false);
+  const unavailableQueueDisplay = parseLoanOfficerQueueDisplay(
+    scheduleQueue?.queueNumber
+      ? `${scheduleQueue.queueName || "Assigned Loan Officer Queue"} (${scheduleQueue.queueNumber})`
+      : scheduleQueue?.queueName || null,
+  );
 
   useEffect(() => {
     if (mloParticipantJoined) {
@@ -263,6 +289,180 @@ export default function FloatingCTA() {
     if (name) {
       setMloParticipantName(name);
     }
+  }, []);
+
+  // SIP transfer couldn't be routed (zip not served / no agent) — surface a
+  // clear error instead of leaving the caller stuck on the queue screen.
+  const handleMloFailure = useCallback((reason: string) => {
+    console.warn(`[ui-loan-officer]: MLO transfer failed (${reason}).`);
+    setMloParticipantJoined(false);
+    hasMloJoinedRef.current = false;
+    const isSchedulingRecovery =
+      reason === "no_agent_available" ||
+      reason === "queue_timeout" ||
+      reason === "transfer_failed";
+    if (isSchedulingRecovery) {
+      // Backend restored the same avatar and started voice-first scheduling.
+      // This is an expected business flow, not an avatar/provider failure.
+      setMloUnsupported(false);
+      setConversationalScheduling(true);
+      setPendingMode("video");
+      setFlowPhase("live");
+      flowPhaseRef.current = "live";
+      setIsOpen(true);
+      setShowEndCallConfirm(false);
+      setIsFallbackMode(false);
+      setAvatarFallbackReason(null);
+      setConnectionStatus(
+        reason === "no_agent_available"
+          ? "No Loan Officer is currently available. Ailana can schedule a callback now."
+          : "No Loan Officer answered. Ailana can schedule a callback now."
+      );
+      setTimeout(() => setConnectionStatus(""), 6000);
+      return;
+    } else {
+      setPendingMode("loan-officer");
+      setMloUnsupported(true);
+    }
+    setConnectionStatus(
+      reason === "unsupported_area"
+        ? "We don't currently have a Loan Officer available for your area. Please try again shortly."
+        : reason === "sip_forbidden"
+          ? "The Loan Officer phone system rejected the call. The avatar session has ended."
+          : "We couldn't connect you with a Loan Officer. The avatar session has ended."
+    );
+    setTimeout(() => setConnectionStatus(""), 7000);
+  }, []);
+
+  const detectZip = async (): Promise<string> => {
+    zipWasManuallyEditedRef.current = false;
+    setZipDetecting(true);
+    setZipAutoFailed(false);
+    setZipError(null);
+    setLoanOfficerZip("");
+    setLoanOfficerCity("");
+    let gotZip = false;
+    let chosenZip = "";
+
+    const setCityLabel = (city: string, state: string) => {
+      const label = city ? (state ? `${city}, ${state}` : city) : state || "";
+      if (label) setLoanOfficerCity(label);
+    };
+    const setZipIfValid = (zipRaw: string) => {
+      const zip = String(zipRaw || "").replace(/\D/g, "").slice(0, 5);
+      if (/^\d{5}$/.test(zip)) {
+        setLoanOfficerZip(zip);
+        gotZip = true;
+        return true;
+      }
+      return false;
+    };
+
+    const fetchJson = async (url: string, ms: number, opts?: RequestInit) => {
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), ms);
+      try {
+        const r = await fetch(url, { ...(opts || {}), signal: ctrl.signal });
+        clearTimeout(to);
+        return await r.json();
+      } catch {
+        clearTimeout(to);
+        return null;
+      }
+    };
+
+    const backendUrl =
+      process.env.NEXT_PUBLIC_BACKEND_URL ||
+      (process.env.NODE_ENV === "development"
+        ? "http://localhost:3001"
+        : "https://lab-be.convergentai.tech");
+
+    const ipProviders: Array<() => Promise<{ zip: string; city: string; state: string } | null>> = [
+      async () => {
+        const d = await fetchJson(`${backendUrl}/api/detect-zip`, 6000);
+        return d?.ok ? { zip: d.zip, city: d.city || "", state: d.region || "" } : null;
+      },
+      async () => {
+        const d = await fetchJson("https://ipwho.is/", 6000);
+        return d && d.success !== false
+          ? { zip: d.postal || "", city: d.city || "", state: d.region || "" }
+          : null;
+      },
+    ];
+
+    try {
+      let chosen: { zip: string; city: string; state: string } | null = null;
+      try {
+        chosen = await Promise.any(
+          ipProviders.map(async (fn) => {
+            const result = await fn();
+            const zip = String(result?.zip || "").replace(/\D/g, "").slice(0, 5);
+            if (!result || !/^\d{5}$/.test(zip)) throw new Error("no_valid_zip");
+            return { ...result, zip };
+          })
+        );
+      } catch {
+        chosen = null;
+      }
+      if (chosen) setCityLabel(chosen.city, chosen.state);
+      if (chosen) {
+        setZipIfValid(chosen.zip);
+        chosenZip = String(chosen.zip || "").replace(/\D/g, "").slice(0, 5);
+        autoDetectedZipRef.current = chosenZip;
+      }
+      if (!gotZip) setZipAutoFailed(true);
+    } finally {
+      setZipDetecting(false);
+    }
+    return chosenZip;
+  };
+
+  const fireEarlyQueueAlert = async (zipArg?: string): Promise<boolean> => {
+    try {
+      const zip = (zipArg ?? loanOfficerZip ?? "").replace(/\D/g, "").slice(0, 5);
+      if (!/^\d{5}$/.test(zip)) return false;
+      const backendUrl =
+        process.env.NEXT_PUBLIC_BACKEND_URL ||
+        (process.env.NODE_ENV === "development"
+          ? "http://localhost:3001"
+          : "https://lab-be.convergentai.tech");
+      const response = await fetch(`${backendUrl}/api/early-alert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ zip: zip || "" }),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  };
+
+  const fireManualZipAlert = async (zip: string): Promise<boolean> => {
+    try {
+      const backendUrl =
+        process.env.NEXT_PUBLIC_BACKEND_URL ||
+        (process.env.NODE_ENV === "development"
+          ? "http://localhost:3001"
+          : "https://lab-be.convergentai.tech");
+      const response = await fetch(`${backendUrl}/api/early-alert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ zip, alertType: "manual_zip_change" }),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  };
+
+  // Auto-detect property zip on initial mount and send early alert
+  useEffect(() => {
+    void (async () => {
+      const detected = await detectZip();
+      if (detected) {
+        void fireEarlyQueueAlert(detected);
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -407,7 +607,41 @@ export default function FloatingCTA() {
   };
 
 
-  const confirmLoanOfficerTransfer = () => {
+  const confirmLoanOfficerTransfer = async () => {
+    const zip = (loanOfficerZip || "").trim();
+    if (!/^\d{5}$/.test(zip)) {
+      setZipError("Please enter a valid 5-digit zip code.");
+      return;
+    }
+    if (!zipStatus?.ok) {
+      setZipError("We don't serve this area yet.");
+      return;
+    }
+    setMloAvailabilityChecking(true);
+    try {
+      const backendUrl =
+        process.env.NEXT_PUBLIC_BACKEND_URL ||
+        (process.env.NODE_ENV === "development"
+          ? "http://localhost:3001"
+          : "https://lab-be.convergentai.tech");
+      const response = await fetch(
+        `${backendUrl}/api/mlo-availability?zip=${encodeURIComponent(zip)}`,
+        { cache: "no-store" },
+      );
+      const availability = await response.json().catch(() => ({}));
+      if (!response.ok || !availability.available) {
+        setScheduleQueue({
+          queueName: typeof availability.queueName === "string" ? availability.queueName : null,
+          queueNumber: availability.queueNumber ? String(availability.queueNumber) : null,
+        });
+        // Continue into the existing room. The backend performs the
+        // authoritative ESL check and starts conversational scheduling.
+      }
+    } catch {
+      // A browser-side precheck failure must not bypass backend ESL handling.
+    } finally {
+      setMloAvailabilityChecking(false);
+    }
     const mode = "loan-officer";
     setIsOpen(true);
     setPendingMode(mode);
@@ -1072,6 +1306,55 @@ export default function FloatingCTA() {
                     </div>
                   </div>
                 )}
+                <GoogleCalendarScheduler
+                  open={showCalendarScheduler}
+                  zipCode={loanOfficerZip}
+                  roomName={roomName}
+                  initialName={String(borrowerProfile?.legal_name || borrowerProfile?.borrower_name || "")}
+                  initialEmail={String(borrowerProfile?.contact_email || "")}
+                  initialPhone={String(borrowerProfile?.contact_mobile || "")}
+                  queueName={scheduleQueue?.queueName || undefined}
+                  queueNumber={scheduleQueue?.queueNumber || undefined}
+                  onClose={() => setShowCalendarScheduler(false)}
+                />
+                {showScheduleNotice && (
+                  <div className="absolute inset-0 z-[255] flex items-center justify-center bg-black/75 backdrop-blur-md p-4">
+                    <motion.div
+                      initial={{ scale: 0.95, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      className="w-full max-w-lg rounded-3xl border border-amber-400/20 bg-[#0A0D18]/95 p-6 shadow-[0_20px_60px_rgba(245,158,11,0.12)]"
+                    >
+                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/10 ring-1 ring-amber-400/25">
+                        <Clock className="h-7 w-7 text-amber-300" />
+                      </div>
+                      <h3 className="mt-5 text-center text-xl font-bold text-white">Live Loan Officer Unavailable</h3>
+                      <p className="mt-3 text-center text-sm leading-relaxed text-gray-300">
+                        The <span className="font-semibold text-white">{unavailableQueueDisplay.queueName}</span>
+                        {unavailableQueueDisplay.queueNumber && <> queue (<span className="font-mono text-white">{unavailableQueueDisplay.queueNumber}</span>)</>} currently has no available Loan Officers.
+                      </p>
+                      <p className="mt-2 text-center text-sm leading-relaxed text-gray-400">
+                        We can open the meeting scheduler so you can choose a convenient date and time to discuss your mortgage needs with a licensed Loan Officer.
+                      </p>
+                      <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-center">
+                        <button
+                          onClick={() => setShowScheduleNotice(false)}
+                          className="rounded-xl border border-white/15 px-5 py-2.5 text-sm font-semibold text-gray-300 hover:bg-white/5"
+                        >
+                          Stay with Ailana
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowScheduleNotice(false);
+                            setShowCalendarScheduler(true);
+                          }}
+                          className="rounded-xl bg-gradient-to-r from-[#00b4d8] to-[#0757ad] px-5 py-2.5 text-sm font-bold text-white"
+                        >
+                          Choose a Meeting Time
+                        </button>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
 
                 <div className="absolute inset-0 flex flex-col overflow-hidden z-0">
                   {/* ── Top Header ── */}
@@ -1624,12 +1907,18 @@ export default function FloatingCTA() {
                                 onTranscriptUpdate={handleTranscriptUpdate}
                               />
                               <MloDetector onMloStatusChange={handleMloStatusChange} />
-                              <MediaGuard mode={pendingMode} />
+                              <MloFailureListener onFailure={handleMloFailure} />
+                              <MediaGuard
+                                mode={pendingMode}
+                                loanOfficerConnected={mloParticipantJoined}
+                                conversationalScheduling={conversationalScheduling}
+                              />
                               <ActivityTracker />
                               <NetworkQualityBanner />
                               <ChannelStartTrigger
                                 isLivePhase={flowPhase === "live"}
                                 mode={pendingMode}
+                                zip={loanOfficerZip}
                                 restoreSnapshot={activeRestoreSnapshot}
                                 onRestoreSent={() => {
                                   console.log("[session-restore]: ✅ SYSTEM_RESTORE_STATE sent. Clearing active snapshot.");
@@ -1703,12 +1992,12 @@ export default function FloatingCTA() {
                                     )}
 
                                     {/* Contextual help overlay */}
-                                    {isLkConnected && isAgentReady && (
+                                    {isLkConnected && isAgentReady && pendingMode !== "loan-officer" && (
                                       <ContextualHelp />
                                     )}
 
                                     {/* Suggested commands cycling text */}
-                                    {isLkConnected && isAgentReady && (
+                                    {isLkConnected && isAgentReady && pendingMode !== "loan-officer" && (
                                       <SuggestedCommands />
                                     )}
 
@@ -1739,7 +2028,7 @@ export default function FloatingCTA() {
                                     </div>
 
                                     {/* Real-time transcript subtitles */}
-                                    {isLkConnected && isAgentReady && (
+                                    {isLkConnected && isAgentReady && pendingMode !== "loan-officer" && (
                                       <TranscriptOverlay />
                                     )}
 

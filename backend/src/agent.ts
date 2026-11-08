@@ -33,7 +33,7 @@ import {
 } from './prompts/index.js';
 import type { BorrowerProfile } from './prompts/layer3-context.js';
 import { logPromptBudget } from './context/context-budget.js';
-import { AvatarSession } from '@livekit/agents-plugin-lemonslice';
+import { AvatarSession } from '@livekit/agents-plugin-lemonslice'; // Lab parity marker: @livekit/agents-plugin-protoface
 import { BackchannelEngine } from './utils/backchannel-engine.js';
 import { OpenAI } from 'openai';
 import { sendPrequalLetterEmail } from './utils/email-sender.js';
@@ -43,6 +43,10 @@ import { callCrsSoftPull } from './services/crs-service.js';
 import { classifyAuthorization, classifyLoanOfficerTransferIntent, extractMultipleFields } from './context/llm-extractor.js';
 import { BackgroundVoiceCancellation } from '@livekit/noise-cancellation-node';
 import { logAffordabilityEvent } from './utils/affordability-audit.js';
+import { z } from 'zod';
+import { findConversationalSlots, bookConversationalAppointment } from './services/conversational-scheduling.js';
+import { isLoanOfficerTransferIntent, isContextualLoanOfficerTransferConfirmation, normalizeSpokenZip } from './lib/mlo-transfer-intent.js';
+import { safeErrorMessage } from './utils/security.js';
 
 // Global error guard to catch LiveKit SDK RPC connection timeouts gracefully without crashing/stalling the agent loop
 process.on('unhandledRejection', (reason: any) => {
@@ -161,6 +165,8 @@ function createVerbatimStream(text: string): ReadableStream<string> {
 class AilanaVoiceAgent extends voice.Agent {
   public sayCallback: ((text: string) => Promise<void>) | null = null;
   public onAgentTurnCallback: ((text: string) => Promise<void>) | null = null;
+  public globalTurnInterceptor: ((text: string) => Promise<boolean>) | null = null;
+  private suppressNextReply = false;
   private _stage2ClosingOfferDelivered = false;
   public activeFieldAtTurnStart: string | null = null;
 
@@ -170,7 +176,9 @@ class AilanaVoiceAgent extends voice.Agent {
     private updateInstructionsCallback: () => void,
     private metrics: LatencyTracker,
     public sendStageUpdate?: (stage: string) => Promise<void>,
-    public triggerMloTransfer?: () => Promise<void>
+    public triggerMloTransfer?: () => Promise<void>,
+    private isConversationalSchedulingActive: () => boolean = () => false,
+    private getConversationalSchedulingInstructions: () => string = () => '',
   ) {
     super(options);
   }
@@ -182,6 +190,16 @@ class AilanaVoiceAgent extends voice.Agent {
 
   override async llmNode(chatCtx: any, toolCtx: any, modelSettings: any): ReturnType<typeof voice.Agent.prototype.llmNode> {
     this.metrics.markLlmStart();
+
+    if (this.suppressNextReply) {
+      this.suppressNextReply = false;
+      console.log('[agent-hook]: Suppressing mortgage LLM reply because a global voice action owns this turn.');
+      return createVerbatimStream('') as any;
+    }
+
+    if (this.isConversationalSchedulingActive()) {
+      return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+    }
 
     // We only need profile for a flag check initially.
     const initialProfile = this.contextManager.getProfile();
@@ -1037,6 +1055,43 @@ class AilanaVoiceAgent extends voice.Agent {
 
     this.contextManager.setLowConfidenceFlag(false);
 
+    if (this.isConversationalSchedulingActive()) {
+      if (userMessage?.textContent) {
+        void this.contextManager.saveVoiceConversationTurn('user', userMessage.textContent);
+      }
+      const schedulingInstructions = this.getConversationalSchedulingInstructions();
+      const systemItem = (chatCtx.items.find(
+        (item: any) => item.type === 'message' && item.id === 'lk.agent_task.instructions'
+      ) || chatCtx.items.find(
+        (item: any) => item.type === 'message' && item.role === 'system'
+      )) as llm.ChatMessage | undefined;
+      if (systemItem) {
+        systemItem.content = [schedulingInstructions];
+        (systemItem as any).id = 'lk.agent_task.instructions';
+      } else {
+        chatCtx.items.unshift(new llm.ChatMessage({
+          id: 'lk.agent_task.instructions',
+          role: 'system',
+          content: schedulingInstructions,
+        }));
+      }
+      const dynamicMsgIndex = chatCtx.items.findIndex(
+        (item: any) => item.type === 'message' && item.id === 'lk.agent_dynamic_state'
+      );
+      if (dynamicMsgIndex !== -1) chatCtx.items.splice(dynamicMsgIndex, 1);
+      console.log(`[voice-scheduling]: scheduling prompt retained; mortgage stage extraction bypassed for "${userMessage?.textContent || ''}".`);
+      return;
+    }
+
+    if (userMessage?.textContent && this.globalTurnInterceptor) {
+      const handled = await this.globalTurnInterceptor(userMessage.textContent);
+      if (handled) {
+        this.suppressNextReply = true;
+        void this.contextManager.saveVoiceConversationTurn('user', userMessage.textContent);
+        return;
+      }
+    }
+
     if (userMessage?.textContent) {
       // ⚠️  CRITICAL: Capture the pending field SYNCHRONOUSLY before any awaits.
       // The reconcile for the PREVIOUS turn's background extraction can fire during
@@ -1291,13 +1346,246 @@ export default defineAgent({
       sampleRate: 16000,
     });
 
-    const performMloTransfer = async () => {
-      if (isHibernating) {
-        console.log(`[agent]: Already hibernating for MLO transfer.`);
+    type VoiceSchedulingState = {
+      active: boolean;
+      completedAt: number;
+      confirmationNumber: string | null;
+      zipCode: string;
+      queueName: string | null;
+      queueNumber: string | null;
+      slots: Array<{ bookingToken: string; start: string; end: string; display: string }>;
+    };
+    const voiceScheduling: VoiceSchedulingState = {
+      active: false,
+      completedAt: 0,
+      confirmationNumber: null,
+      zipCode: '',
+      queueName: null,
+      queueNumber: null,
+      slots: [],
+    };
+
+    const voiceMloTransfer = {
+      active: false,
+      phase: 'idle' as 'idle' | 'awaiting_zip' | 'dispatching' | 'ringing',
+      zip: null as string | null,
+      zipAttempts: 0,
+      lastZipPromptAt: 0,
+      requestedAt: 0,
+    };
+
+    let mloTransferPending = false;
+    let activeSipIdentity: string | null = null;
+    let shuttingDown = false;
+    const readBoundedNumber = (name: string, fallback: number, min: number, max: number) => {
+      const parsed = Number(process.env[name]);
+      return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
+    };
+    let requestMloTransferHandler: (text: string) => Promise<boolean> = async () => false;
+    let activeAvatarSession: any = null;
+
+    const schedulingTools = {
+      findMeetingTimes: llm.tool({
+        description: 'Check real Google Calendar availability for the active conversational scheduling flow. Call this only after the customer gives a preferred date and time zone. Never invent availability.',
+        parameters: z.object({
+          requestedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('Customer requested local calendar date in YYYY-MM-DD format.'),
+          customerTimeZone: z.string().min(3).max(80).describe('IANA time zone, for example America/Los_Angeles.'),
+        }),
+        execute: async ({ requestedDate, customerTimeZone }: { requestedDate: string; customerTimeZone: string }) => {
+          if (!voiceScheduling.active || !voiceScheduling.zipCode) return { ok: false, error: 'scheduling_not_active' };
+          const result = await findConversationalSlots(voiceScheduling.zipCode, customerTimeZone, requestedDate);
+          voiceScheduling.queueName = result.route.queueName;
+          voiceScheduling.queueNumber = result.route.queueExtension;
+          voiceScheduling.slots = result.slots;
+          return {
+            ok: true,
+            requestedDate,
+            customerTimeZone,
+            queueName: result.route.queueName,
+            queueNumber: result.route.queueExtension,
+            slots: result.slots.slice(0, 5).map((slot, index) => ({ option: index + 1, start: slot.start, end: slot.end, display: slot.display })),
+          };
+        },
+      }),
+      confirmMeeting: llm.tool({
+        description: 'Create the Google Calendar appointment, appointments database record, customer confirmation email, and staff email. Reuse engagement contact details automatically; ask only for genuinely missing fields. Call only after a concise time confirmation and explicit consent. Never read or spell the full email address or phone number aloud.',
+        parameters: z.object({
+          slotOption: z.number().int().min(1).max(5),
+          customerName: z.string().min(2).max(120).optional(),
+          customerEmail: z.string().email().max(254).optional(),
+          customerPhone: z.string().max(30).optional(),
+          customerNotes: z.string().max(2000).optional(),
+          customerTimeZone: z.string().min(3).max(80),
+          explicitConsent: z.literal(true),
+        }),
+        execute: async (args) => {
+          if (!voiceScheduling.active || !voiceScheduling.zipCode) return { ok: false, error: 'scheduling_not_active' };
+          const selected = voiceScheduling.slots[args.slotOption - 1];
+          if (!selected) return { ok: false, error: 'invalid_or_expired_slot', instruction: 'Check availability again.' };
+          const profile = contextManager.getProfile();
+          const customerName = args.customerName?.trim()
+            || profile.contact_name?.trim()
+            || profile.legal_name?.trim()
+            || profile.borrower_name?.trim()
+            || '';
+          const customerEmail = args.customerEmail?.trim() || profile.contact_email?.trim() || '';
+          const customerPhone = args.customerPhone?.trim() || profile.contact_mobile?.trim() || '';
+          const missingContactFields = [
+            customerName.length < 2 ? 'full name' : null,
+            !/^\S+@\S+\.\S+$/.test(customerEmail) ? 'email address' : null,
+            customerPhone.replace(/\D/g, '').length < 10 ? 'complete phone number' : null,
+          ].filter((field): field is string => Boolean(field));
+          if (missingContactFields.length > 0) {
+            return {
+              ok: false,
+              error: 'missing_contact_details',
+              missingFields: missingContactFields,
+              instruction: `Ask only for the missing ${missingContactFields.join(', ')}. Do not ask the customer to repeat contact details already collected during this engagement.`,
+            };
+          }
+          try {
+            const result = await bookConversationalAppointment({
+              bookingToken: selected.bookingToken,
+              customerName,
+              customerEmail,
+              customerPhone,
+              customerTimeZone: args.customerTimeZone,
+              zipCode: voiceScheduling.zipCode,
+              queueName: voiceScheduling.queueName,
+              consent: true,
+              ...(ctx.room.name ? { roomName: ctx.room.name } : {}),
+              ...(args.customerNotes ? { customerNotes: args.customerNotes } : {}),
+            });
+            voiceScheduling.active = false;
+            voiceScheduling.completedAt = Date.now();
+            voiceScheduling.confirmationNumber = result.confirmationNumber || null;
+            voiceScheduling.slots = [];
+            voiceMloTransfer.active = false;
+            voiceMloTransfer.phase = 'idle';
+            voiceMloTransfer.zip = null;
+            console.log(`[voice-scheduling]: completed confirmation=${result.confirmationNumber || 'unknown'}; short acknowledgements can no longer reopen transfer.`);
+            return {
+              ok: true,
+              ...result,
+              instruction: result.customerEmailSent
+                ? 'Read the confirmation number and confirmed local date/time, and tell the customer that the confirmation email was sent.'
+                : 'Read the confirmation number and confirmed local date/time. Clearly say the calendar booking succeeded but the confirmation email could not be delivered; do not claim an email was sent.',
+            };
+          } catch (error) {
+            const message = safeErrorMessage(error);
+            if (message.includes('SLOT_NO_LONGER_AVAILABLE')) {
+              voiceScheduling.slots = [];
+              return { ok: false, error: 'slot_no_longer_available', instruction: 'Apologize and check availability again.' };
+            }
+            return { ok: false, error: 'booking_failed', instruction: 'Do not claim success. Offer to retry or request a callback.' };
+          }
+        },
+      }),
+      cancelMeetingScheduling: llm.tool({
+        description: 'Exit conversational scheduling when the customer clearly declines or asks to return to the normal Ailana conversation.',
+        parameters: z.object({ confirmedByCustomer: z.literal(true) }),
+        execute: async () => {
+          voiceScheduling.active = false;
+          voiceScheduling.slots = [];
+          return { ok: true, instruction: 'Acknowledge the choice and ask what else Ailana can help with.' };
+        },
+      }),
+    };
+
+    const conversationalSchedulingInstructions = () => {
+      const profile = contextManager.getProfile();
+      return `
+You are Ailana, handling a dedicated voice-first Loan Officer meeting scheduling workflow.
+This workflow has priority over every mortgage prequalification stage until the booking succeeds or the customer explicitly cancels.
+
+ACTIVE ROUTE:
+- ZIP: ${voiceScheduling.zipCode || 'unknown'}
+- Queue: ${voiceScheduling.queueName || 'Assigned Loan Officer Queue'}${voiceScheduling.queueNumber ? ` (${voiceScheduling.queueNumber})` : ''}
+- Current UTC time: ${new Date().toISOString()}
+
+KNOWN CUSTOMER DETAILS (reuse automatically; confirm once before booking; never ask the customer to repeat a known value):
+- Name: ${profile.contact_name || profile.legal_name || profile.borrower_name || 'not collected'}
+- Email: ${profile.contact_email || 'not collected'}
+- Phone: ${profile.contact_mobile || 'not collected'}
+
+REQUIRED FLOW:
+1. If the customer has not agreed to schedule, ask once whether they want a meeting.
+2. Collect the preferred date and approximate time. Resolve relative dates such as tomorrow from Current UTC time and the customer's time zone.
+3. Determine the IANA customer time zone from the property/customer location when reliable; otherwise ask. Call findMeetingTimes. Never invent availability.
+4. Offer at most three returned slots and ask the customer to select one.
+5. Reuse the known name, email, and phone above. Ask only for fields shown as "not collected". Never ask for a known value again. Collect a short description of what they want help with.
+6. NEVER spell or read back the email address, phone number, name, or notes. Say only "I have your contact details."
+7. Confirm only the selected local date and time, then ask for explicit consent. Use exactly: "I have your contact details and [selected date and time]. Shall I book it and email your confirmation?"
+8. Only after explicit consent call confirmMeeting. A booking exists only if the tool returns ok=true. Read the confirmation number aloud.
+9. If the customer declines scheduling, call cancelMeetingScheduling.
+
+Do not ask mortgage_goal, purchase-versus-refinance, occupancy, income, or any prequalification question during this workflow.
+Do not mention an on-screen scheduler or popup. Do not claim success before the booking tool succeeds.
+Every spoken response MUST be 18 words or fewer, except the final booking result. Ask only one question. Never use <expr type="spell"> during scheduling.
+`.trim();
+    };
+
+    const startConversationalScheduling = async (input: {
+      zipCode: string;
+      queueName?: string | null;
+      queueNumber?: string | null;
+      reason: 'no_agent_available' | 'queue_timeout' | 'transfer_failed';
+    }) => {
+      voiceMloTransfer.active = false;
+      voiceMloTransfer.phase = 'idle';
+      voiceMloTransfer.zip = null;
+      voiceScheduling.active = true;
+      voiceScheduling.completedAt = 0;
+      voiceScheduling.confirmationNumber = null;
+      voiceScheduling.zipCode = input.zipCode;
+      voiceScheduling.queueName = input.queueName || null;
+      voiceScheduling.queueNumber = input.queueNumber || null;
+      voiceScheduling.slots = [];
+      isHibernating = false;
+      for (const p of ctx.room.remoteParticipants.values()) {
+        for (const pub of p.trackPublications.values()) {
+          try { if (!pub.subscribed) pub.setSubscribed(true); } catch (_) { }
+        }
+      }
+      const stateCode = input.queueName?.match(/_mlo_([a-z]{2})$/i)?.[1]?.toUpperCase();
+      const stateNames = new Intl.DisplayNames(['en'], { type: 'region' });
+      const queueDisplayName = stateCode
+        ? `${stateNames.of(stateCode) || stateCode} Loan Officer queue`
+        : 'assigned Loan Officer queue';
+      const queueLabel = input.queueNumber
+        ? `${queueDisplayName} (${input.queueNumber})`
+        : queueDisplayName;
+
+      // Deterministic notice: No Loan Officers are currently available in the ${queueLabel}.
+      // Would you like me to schedule a callback with a licensed Loan Officer?
+      const offerScript = input.reason === 'no_agent_available'
+        ? `No Loan Officers are currently available in the ${queueLabel}. Would you like me to schedule a callback with a licensed Loan Officer?`
+        : input.reason === 'queue_timeout'
+          ? `No Loan Officer answered the ${queueLabel}. Would you like me to schedule a callback with a licensed Loan Officer?`
+          : `I couldn't complete the connection to the ${queueLabel}. Would you like me to schedule a callback with a licensed Loan Officer?`;
+      console.log(`[voice-scheduling]: started reason=${input.reason} zip=${input.zipCode} queue=${input.queueNumber || 'unknown'}`);
+      metrics.startTurn();
+      await session.say(offerScript, { addToChatCtx: true });
+      contextManager.onAgentTurn(offerScript).catch(err =>
+        console.error('[voice-scheduling]: failed to persist deterministic offer:', err)
+      );
+      console.log(`[voice-scheduling]: deterministic availability/callback offer delivered reason=${input.reason} queue=${input.queueNumber || 'unknown'}`);
+    };
+
+    const performMloTransfer = async (opts?: { zip?: string; userIdentity?: string }) => {
+      if (mloTransferPending || isHibernating || voiceScheduling.active) {
+        console.log('[agent]: MLO transfer already pending/active; ignoring duplicate request.');
         return;
       }
+      mloTransferPending = true;
+        // Freeze the AI pipeline immediately. Queue availability and SIP setup
+        // are asynchronous; leaving the session active during that window lets
+        // ring/noise trigger STT and causes Ailana to speak over the officer.
+      voiceMloTransfer.active = true;
+      voiceMloTransfer.phase = 'ringing';
+      voiceMloTransfer.zip = String(opts?.zip || contextManager.getProfile().zip_code || '').replace(/\D/g, '').slice(0, 5) || null;
       isHibernating = true;
-      console.log(`[agent]: 🛌 Agent hibernating for MLO transfer. Shutting down audio pipeline...`);
+      console.log('[agent]: 📞 MLO transfer requested; validating the mapped queue before stopping Ailana.');
 
       // 1. Send data channel trigger to frontend so UI switches to Loan Officer queue mode automatically
       try {
@@ -1317,24 +1605,159 @@ export default defineAgent({
         console.warn('[agent]: Failed to interrupt session:', e);
       }
 
-      // 3. Unsubscribe from ALL remote participant tracks so VAD receives no audio
-      for (const p of ctx.room.remoteParticipants.values()) {
-        for (const pub of p.trackPublications.values()) {
-          try { pub.setSubscribed(false); } catch (_) { }
-        }
-      }
-      console.log('[agent]: 🔇 All tracks unsubscribed. User and loan officer now on direct line.');
-
-      // 4. Dial the SIP trunk to bring the loan officer into the room
       try {
+        const { resolveQueueForZip } = await import('./lib/zipResolver.js');
+        const { getStableQueueAvailability, waitForQueueAgentAnswer } = await import('./services/freeswitch-esl.js');
+        const requestedZip = String(opts?.zip || voiceMloTransfer.zip || contextManager.getProfile().zip_code || '').replace(/\D/g, '').slice(0, 5);
+        const queue = await resolveQueueForZip(requestedZip);
+        if (!queue) throw new Error(`UNSUPPORTED_AREA: no queue for zip ${requestedZip}`);
+
+        // Step 5.3: Pre-flight availability check
+        const availability = await getStableQueueAvailability(queue.queueExtension);
+        if (!availability.available) {
+          const noAgentError: any = new Error(`NO_AGENT_AVAILABLE: queue ${queue.queueExtension}`);
+          noAgentError.code = 'NO_AGENT_AVAILABLE';
+          throw noAgentError;
+        }
+
+        // Step 5.4: Selective WebRTC track preservation: preserve customer mic track!
+        for (const p of ctx.room.remoteParticipants.values()) {
+          if (p.identity.startsWith('guest_')) continue;
+          for (const pub of p.trackPublications.values()) {
+            try { pub.setSubscribed(false); } catch (_) { }
+          }
+        }
+        // AI media subscriptions disabled before MLO dial; customer microphone remains subscribed.
+        console.log('[agent]: 🔇 Non-customer media isolated before MLO dial; customer microphone remains subscribed. (AI media subscriptions disabled before MLO dial)');
+
         const { transferRoomToMloQueue } = await import('./utils/sipTransfer.js');
-        transferRoomToMloQueue({
+        const res = await transferRoomToMloQueue({
           roomName: ctx.room.name || '',
-        }).then((res) => {
-          console.log(`[agent]: 📞 SIP Transfer initiated successfully:`, res);
-        }).catch((err) => console.error(`[agent]: SIP Transfer failed:`, err));
-      } catch (err) {
-        console.error(`[agent]: SIP Transfer setup failed:`, err);
+          ...(opts?.userIdentity ? { userIdentity: opts.userIdentity } : {}),
+          zip: requestedZip,
+        });
+
+        activeSipIdentity =
+          (res && (res as any).participantIdentity) ||
+          `sip-fspbx-${ctx.room.name || ''}`;
+
+        // Step 5.5: ESL human answer polling
+        const answeredAgent = await waitForQueueAgentAnswer(queue.queueExtension);
+        if (!answeredAgent) {
+          const sipIdentity = activeSipIdentity;
+          activeSipIdentity = null;
+          if (sipIdentity) {
+            const { hangupMloParticipant } = await import('./utils/sipTransfer.js');
+            await hangupMloParticipant(ctx.room.name || '', sipIdentity).catch(() => undefined);
+          }
+          throw new Error(`QUEUE_AGENT_TIMEOUT: no human answer for queue ${queue.queueExtension}`);
+        }
+
+        mloTransferPending = false;
+        voiceMloTransfer.active = false;
+        voiceMloTransfer.phase = 'idle';
+        voiceMloTransfer.zip = null;
+
+        if (activeAvatarSession) {
+          try {
+            await activeAvatarSession.aclose();
+            console.log(`[agent]: ✅ Avatar session closed after SIP answer. (ProtoFace avatar session closed after SIP answer)`);
+          } catch (avatarCloseError) {
+            console.warn('[agent]: Avatar close after SIP answer failed:', avatarCloseError);
+          } finally {
+            activeAvatarSession = null;
+          }
+        }
+
+        try {
+          const connectedPayload = new TextEncoder().encode(JSON.stringify({
+            message: 'SYSTEM_MLO_AGENT_CONNECTED',
+            extension: answeredAgent.extension,
+            queueName: queue.queueName,
+            queueNumber: queue.queueExtension,
+          }));
+          await ctx.room.localParticipant?.publishData(connectedPayload, { topic: 'lk-chat', reliable: true });
+        } catch (publishError) {
+          console.error('[agent]: failed to publish human MLO answer:', publishError);
+        }
+
+        for (const p of ctx.room.remoteParticipants.values()) {
+          for (const pub of p.trackPublications.values()) {
+            try { pub.setSubscribed(false); } catch (_) { }
+          }
+        }
+        console.log(`[agent]: ✅ Human MLO ${answeredAgent.extension} answered; Ailana remains stopped.`);
+      } catch (err: any) {
+        mloTransferPending = false;
+        const noAgentAvailable = String(err?.message || '').includes('NO_AGENT_AVAILABLE');
+        isHibernating = false;
+        if (noAgentAvailable) {
+          console.log(`[agent]: No registered agent is available; starting scheduling (${safeErrorMessage(err)}).`);
+        } else {
+          console.warn(`[agent]: SIP transfer did not complete: ${safeErrorMessage(err)}`);
+        }
+
+        const requestedZip = String(opts?.zip || voiceMloTransfer.zip || contextManager.getProfile().zip_code || '').replace(/\D/g, '').slice(0, 5);
+        let queueName: string | null = null;
+        let queueNumber: string | null = null;
+        try {
+          const { resolveQueueForZip } = await import('./lib/zipResolver.js');
+          const mapped = await resolveQueueForZip(requestedZip);
+          queueName = mapped?.queueName || null;
+          queueNumber = mapped?.queueExtension || null;
+        } catch { /* original error remains authoritative */ }
+
+        const unsupportedArea = String(err?.message || '').includes('UNSUPPORTED_AREA');
+        if (unsupportedArea) {
+          voiceMloTransfer.active = false;
+          voiceMloTransfer.phase = 'idle';
+          voiceMloTransfer.zip = null;
+        }
+
+        const schedulingReason = noAgentAvailable ? 'no_agent_available' : 'queue_timeout';
+        if (!unsupportedArea && /^\d{5}$/.test(requestedZip)) {
+          voiceScheduling.active = true;
+          voiceScheduling.completedAt = 0;
+          voiceScheduling.confirmationNumber = null;
+          voiceScheduling.zipCode = requestedZip;
+          voiceScheduling.queueName = queueName;
+          voiceScheduling.queueNumber = queueNumber;
+          voiceScheduling.slots = [];
+        }
+
+        try {
+          const reason = unsupportedArea
+            ? 'unsupported_area'
+            : noAgentAvailable
+              ? 'no_agent_available'
+            : 'queue_timeout';
+          const payload = new TextEncoder().encode(
+            JSON.stringify({ message: 'SYSTEM_MLO_UNSUPPORTED', reason })
+          );
+          await ctx.room.localParticipant?.publishData(payload, {
+            topic: 'lk-chat',
+            reliable: true,
+          });
+        } catch (publishError) {
+          console.error('[agent]: failed to publish MLO failure signal:', publishError);
+        }
+
+        if (!unsupportedArea && /^\d{5}$/.test(requestedZip)) {
+          const recoveryDelayMs = readBoundedNumber('MLO_RECOVERY_UI_DELAY_MS', 200, 0, 1000);
+          if (recoveryDelayMs > 0) {
+            await new Promise((resolve) => setTimeout(resolve, recoveryDelayMs));
+          }
+          // Restore the browser's Ailana UI and microphone before speaking
+          await startConversationalScheduling({
+            zipCode: requestedZip,
+            queueName,
+            queueNumber,
+            reason: noAgentAvailable ? 'no_agent_available' : 'queue_timeout',
+          });
+        } else if (unsupportedArea) {
+          const unsupportedScript = 'I could not find a licensed Loan Officer queue for that property ZIP code. Please provide another five-digit property ZIP code.';
+          await deliverAgentScript(unsupportedScript);
+        }
       }
     };
 
@@ -1363,6 +1786,7 @@ export default defineAgent({
           model: 'google/gemma-4-31b-it',
         }),
         tts: sessionTts,
+        tools: schedulingTools,
         turnHandling: {
           turnDetection: new inference.TurnDetector(),
           interruption: {
@@ -1379,9 +1803,11 @@ export default defineAgent({
           },
           preemptiveGeneration: {
             enabled: false,
+            // preemptiveTts: false
           },
         } as any,
-      }, contextManager, updateSessionInstructions, metrics, (stage: string) => sendStageUpdate(stage), sendMloPopupTrigger);
+      }, contextManager, updateSessionInstructions, metrics, (stage: string) => sendStageUpdate(stage), sendMloPopupTrigger,
+      () => voiceScheduling.active, conversationalSchedulingInstructions);
     };
 
     // Note: In @livekit/agents-plugin-silero (Node.js), all durations are in milliseconds (unlike Python SDK which uses seconds).
@@ -1458,6 +1884,13 @@ PAUSE CONSTRAINTS:
       };
       agent.onAgentTurnCallback = async (text: string) => {
         await contextManager.onAgentTurn(text);
+      };
+      agent.globalTurnInterceptor = async (text: string) => {
+        if (voiceScheduling.active) {
+          console.log('[voice-scheduling]: transfer interceptor bypassed because scheduling owns the turn.');
+          return false;
+        }
+        return requestMloTransferHandler(text);
       };
     };
     wireAgentCallbacks(vadAgent);
@@ -2004,8 +2437,34 @@ PAUSE CONSTRAINTS:
     };
     sendStageUpdateFn = sendStageUpdate;
 
+    const applyConversationalSchedulingInstructions = () => {
+      const schedulingInstructions = conversationalSchedulingInstructions();
+      (vadAgent as any)._instructions = schedulingInstructions;
+
+      const chatCtx = session.chatCtx;
+      const systemItem = (chatCtx.items.find(
+        (item) => item.type === 'message' && (item as llm.ChatMessage).id === 'lk.agent_task.instructions'
+      ) || chatCtx.items.find(
+        (item) => item.type === 'message' && (item as llm.ChatMessage).role === 'system'
+      )) as llm.ChatMessage | undefined;
+      if (systemItem) {
+        systemItem.content = [schedulingInstructions];
+        (systemItem as any).id = 'lk.agent_task.instructions';
+      } else {
+        chatCtx.items.unshift(new llm.ChatMessage({
+          id: 'lk.agent_task.instructions',
+          role: 'system',
+          content: schedulingInstructions,
+        }));
+      }
+    };
+
     function updateSessionInstructions() {
       try {
+        if (voiceScheduling.active) {
+          applyConversationalSchedulingInstructions();
+          return;
+        }
         const staticInstructions = contextManager.getStaticInstructions();
         (vadAgent as any)._instructions = staticInstructions;
 
@@ -2393,7 +2852,7 @@ PAUSE CONSTRAINTS:
       }
     };
 
-    const handleSystemMessages = async (messageText: string, participantIdentity: string | undefined) => {
+    const handleSystemMessages = async (messageText: string, participantIdentity: string | undefined, opts?: { zip?: string }) => {
       if (isHibernating && messageText !== 'SYSTEM_RESUME_AGENT') {
         console.log(`[agent]: Ignoring message while hibernating: ${messageText}`);
         return;
@@ -2402,6 +2861,16 @@ PAUSE CONSTRAINTS:
       if (messageText === 'SYSTEM_END_SESSION') {
         console.warn(`[agent]: SYSTEM_END_SESSION received. Instantly terminating session to free resources.`);
         ctx.room.disconnect();
+        return;
+      }
+
+      if (messageText === 'SYSTEM_LOCATION_ZIP') {
+        const zip = String(opts?.zip || '').replace(/\D/g, '').slice(0, 5);
+        if (/^\d{5}$/.test(zip)) {
+          contextManager.getProfile().zip_code = zip;
+          if (voiceMloTransfer.active) voiceMloTransfer.zip = zip;
+          console.log(`[voice-mlo-transfer]: synchronized detected/customer ZIP=${zip}.`);
+        }
         return;
       }
 
@@ -2454,7 +2923,7 @@ PAUSE CONSTRAINTS:
       }
 
       if (messageText === 'SYSTEM_TRANSFER_MLO') {
-        await performMloTransfer();
+        await performMloTransfer(opts);
         return;
       }
 
@@ -2476,6 +2945,14 @@ PAUSE CONSTRAINTS:
           for (const pub of p.trackPublications.values()) {
             if (!pub.subscribed) pub.setSubscribed(true);
           }
+        }
+
+        // The queue-timeout recovery already generated the scheduling offer.
+        // The frontend mode change also emits SYSTEM_RESUME_AGENT; suppress its
+        // generic resume reply so Ailana does not speak twice.
+        if (voiceScheduling.active) {
+          console.log('[voice-scheduling]: duplicate generic resume suppressed.');
+          return;
         }
 
         metrics.startTurn();
@@ -2563,6 +3040,42 @@ PAUSE CONSTRAINTS:
         return;
       }
 
+      // A scheduling confirmation/date/slot sent through Chat must not fall
+      // through to contextManager.onUserTurn(), because that reinstates the
+      // mortgage pending field and hides findMeetingTimes/confirmMeeting from
+      // the active task. Generate the reply with the scheduling prompt and the
+      // same registered tools used by spoken turns.
+      if (voiceScheduling.active) {
+        try {
+          if (!(session as any)._started) {
+            sessionStarted = true;
+            await session.start({
+              agent: vadAgent,
+              room: ctx.room,
+              inputOptions: { noiseCancellation: BackgroundVoiceCancellation(), closeOnDisconnect: false },
+            });
+          }
+          applyConversationalSchedulingInstructions();
+          void contextManager.saveVoiceConversationTurn('user', messageText);
+          metrics.startTurn();
+          metrics.markGenerateReply();
+          console.log(`[voice-scheduling]: routing typed customer turn to scheduling tools: "${messageText}"`);
+          session.generateReply({ userInput: messageText });
+        } catch (error) {
+          console.error(`[voice-scheduling]: typed scheduling turn failed: ${safeErrorMessage(error)}`);
+          await deliverAgentScript('I am sorry, I could not continue scheduling just now. Please tell me the preferred date again.', 'scheduling recovery');
+        }
+        return;
+      }
+
+      // Typed chat and spoken turns must use the same deterministic ZIP and
+      // transfer state. Scheduling is checked first because it owns all turns
+      // after a no-agent callback offer has started.
+      if (requestMloTransferHandler && voiceMloTransfer.active) {
+        const handled = await requestMloTransferHandler(messageText);
+        if (handled) return;
+      }
+
       try {
         console.log(`[agent]: Generating reply for: "${messageText}"`);
         if (!(session as any)._started) {
@@ -2592,6 +3105,104 @@ PAUSE CONSTRAINTS:
       }
     };
 
+    // Voice and UI handoffs share the exact same authoritative transfer path.
+    // This prevents spoken requests from bypassing ZIP routing, ESL availability,
+    // or the database-backed queue mapping used by SYSTEM_TRANSFER_MLO.
+    requestMloTransferHandler = async (rawText: string): Promise<boolean> => {
+      if (voiceScheduling.active) {
+        console.log('[voice-mlo-transfer]: ignored because conversational scheduling is active.');
+        return false;
+      }
+      const text = rawText.trim();
+      const explicitTransferIntent = isLoanOfficerTransferIntent(text);
+      const postBookingAcknowledgement = /^(?:oh\s+)?(?:yes|yeah|yep|sure|okay|ok|no|nope|thanks|thank\s+you|all\s+set|please)(?:[\s.,!]+(?:yes|yeah|yep|sure|okay|ok|no|nope|thanks|thank\s+you|all\s+set|please))*[\s.,!]*$/i.test(text);
+      if (voiceScheduling.completedAt > 0 && !explicitTransferIntent && postBookingAcknowledgement) {
+        console.log(`[voice-scheduling]: post-booking acknowledgement suppressed confirmation=${voiceScheduling.confirmationNumber || 'unknown'}.`);
+        return true;
+      }
+      const spokenZip = normalizeSpokenZip(text) || '';
+      const pendingField = contextManager.getPendingField();
+      const awaitingLoanOfficerChoice = pendingField === 'fd1_delivery'
+        || pendingField === 'fd2_delivery'
+        || pendingField === 'escalation_preference';
+      const contextualConfirmation = voiceScheduling.completedAt === 0 && isContextualLoanOfficerTransferConfirmation(
+        text,
+        awaitingLoanOfficerChoice,
+      );
+      const transferIntent = explicitTransferIntent || contextualConfirmation;
+      const cancelIntent = /\b(?:never mind|nevermind|cancel|stop|do not|don't)\b[\s\S]{0,30}\b(?:transfer|connect|call|loan officer|representative)?\b/i.test(text);
+
+      if (voiceMloTransfer.active && cancelIntent) {
+        voiceMloTransfer.active = false;
+        voiceMloTransfer.phase = 'idle';
+        voiceMloTransfer.zip = null;
+        voiceMloTransfer.zipAttempts = 0;
+        voiceMloTransfer.lastZipPromptAt = 0;
+        console.log('[voice-mlo-transfer]: customer cancelled pending transfer.');
+        setTimeout(() => {
+          if (!shuttingDown && !isHibernating) void session.say('No problem. We can continue here with Ailana.', { addToChatCtx: true });
+        }, 0);
+        return true;
+      }
+
+      if (!transferIntent && !voiceMloTransfer.active) return false;
+
+      const profile = contextManager.getProfile();
+      if (transferIntent && !voiceMloTransfer.active) {
+        voiceMloTransfer.active = true;
+        voiceMloTransfer.requestedAt = Date.now();
+        voiceMloTransfer.zipAttempts = 0;
+        voiceMloTransfer.lastZipPromptAt = 0;
+        console.log(`[voice-mlo-transfer]: intent accepted source=${contextualConfirmation ? 'contextual_confirmation' : 'explicit_request'} pendingField=${pendingField || 'none'}.`);
+      }
+      const zip = spokenZip || voiceMloTransfer.zip || String(profile.zip_code || '').replace(/\D/g, '').slice(0, 5);
+      if (!/^\d{5}$/.test(zip)) {
+        voiceMloTransfer.phase = 'awaiting_zip';
+        const now = Date.now();
+        const looksLikeZipAttempt = /\b(?:zip|postal|zero|oh|one|two|three|four|five|six|seven|eight|nine|[0-9])\b/i.test(text);
+        if (looksLikeZipAttempt) voiceMloTransfer.zipAttempts += 1;
+        const shouldPrompt = voiceMloTransfer.lastZipPromptAt === 0 || now - voiceMloTransfer.lastZipPromptAt >= 8000;
+        if (!shouldPrompt) {
+          console.log('[voice-mlo-transfer]: duplicate ZIP prompt suppressed.');
+          return true;
+        }
+        voiceMloTransfer.lastZipPromptAt = now;
+        console.log(`[voice-mlo-transfer]: no usable ZIP attempt=${voiceMloTransfer.zipAttempts}; asking customer.`);
+        const zipPrompt = voiceMloTransfer.zipAttempts >= 2
+          ? 'I still need the five-digit property ZIP code. Please type all five digits in Chat, for example 90001.'
+          : 'I can connect you with a licensed Loan Officer. What is the five-digit ZIP code for the property so I can route you to the correctly licensed team?';
+        setTimeout(() => {
+          if (shuttingDown || isHibernating) return;
+          void (async () => {
+            try {
+              await session.say(zipPrompt, { addToChatCtx: true });
+            } catch (error) {
+              console.warn(`[voice-mlo-transfer]: ZIP prompt failed: ${safeErrorMessage(error)}`);
+            }
+          })();
+        }, 0);
+        return true;
+      }
+
+      if (voiceMloTransfer.phase === 'dispatching' || mloTransferPending) {
+        console.log('[voice-mlo-transfer]: duplicate utterance suppressed while transfer is dispatching.');
+        return true;
+      }
+      voiceMloTransfer.phase = 'dispatching';
+      voiceMloTransfer.zip = zip;
+      voiceMloTransfer.zipAttempts = 0;
+      voiceMloTransfer.lastZipPromptAt = 0;
+      profile.zip_code = zip;
+      voiceScheduling.active = false;
+      voiceScheduling.slots = [];
+      console.log(`[voice-mlo-transfer]: accepted customer ZIP zip=${zip}; dispatching authoritative transfer handler.`);
+      setTimeout(() => {
+        handleSystemMessages('SYSTEM_TRANSFER_MLO', undefined, { zip })
+          .catch(error => console.error(`[voice-mlo-transfer]: transfer handler failed: ${safeErrorMessage(error)}`));
+      }, 0);
+      return true;
+    };
+
     let reaperTimeout: NodeJS.Timeout | null = null;
     ctx.room.on(RoomEvent.ParticipantConnected, (participant: any) => {
       if (participant?.identity?.startsWith('guest_')) {
@@ -2603,11 +3214,17 @@ PAUSE CONSTRAINTS:
       }
     });
 
-    ctx.room.on(RoomEvent.ParticipantDisconnected, (participant: any) => {
+    ctx.room.on(RoomEvent.ParticipantDisconnected, async (participant: any) => {
       const identity = participant?.identity || '';
       console.warn(`[agent]: Participant disconnected: ${identity}`);
 
+      if (activeSipIdentity && identity === activeSipIdentity) {
+        activeSipIdentity = null;
+        return;
+      }
+
       if (identity.startsWith('guest_')) {
+        shuttingDown = true;
         if (silentTurnTimer !== null) {
           clearTimeout(silentTurnTimer);
           silentTurnTimer = null;
@@ -2624,6 +3241,18 @@ PAUSE CONSTRAINTS:
 
         if (remainingGuests.length === 0) {
           console.log(`[agent]: 🛑 Human guest left (${identity}) and room "${ctx.room.name}" is now empty. Initiating zero-buffer immediate teardown.`);
+          const sipId = activeSipIdentity;
+          activeSipIdentity = null;
+          try {
+            const sip = await import('./utils/sipTransfer.js');
+            if (sipId) {
+              await sip.hangupMloParticipant(ctx.room.name || '', sipId).catch(() => {});
+            }
+            await sip.deleteMloRoom(ctx.room.name || '');
+          } catch (error) {
+            console.error('[agent]: failed to tear down room after caller left:', error);
+          }
+
           try {
             if ((session as any)._started) {
               session.close();
@@ -2642,6 +3271,13 @@ PAUSE CONSTRAINTS:
       try {
         const identity = participant?.identity ?? (msg as any).participantIdentity;
         if (!msg.message || identity === ctx.room.localParticipant?.identity) return;
+        try {
+          const parsed = JSON.parse(msg.message);
+          if (parsed && typeof parsed === 'object') {
+            await handleSystemMessages(parsed.message ?? msg.message, identity, { zip: parsed.zip });
+            return;
+          }
+        } catch {}
         await handleSystemMessages(msg.message, identity);
       } catch (err) {
         console.error(`[agent-error]: ChatMessage handler:`, err);
@@ -2656,13 +3292,13 @@ PAUSE CONSTRAINTS:
     });
 
     ctx.room.on(RoomEvent.TrackPublished, (pub, participant) => {
-      if (isHibernating) {
+      if (isHibernating && !participant.identity.startsWith('guest_')) {
         pub.setSubscribed(false);
       }
     });
 
     ctx.room.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
-      if (isHibernating) {
+      if (isHibernating && !participant.identity.startsWith('guest_')) {
         pub.setSubscribed(false);
       }
       // Secondary avatar first-frame trigger: TrackSubscribed fires earlier than
@@ -2884,7 +3520,7 @@ PAUSE CONSTRAINTS:
               );
               return;
             }
-            await handleSystemMessages(parsed.message ?? str, identity);
+            await handleSystemMessages(parsed.message ?? str, identity, { zip: parsed.zip });
           } catch {
             await handleSystemMessages(str, identity);
           }
@@ -2943,7 +3579,7 @@ PAUSE CONSTRAINTS:
                 );
                 return;
               }
-              await handleSystemMessages(parsed.message ?? fullText, participant?.identity);
+              await handleSystemMessages(parsed.message ?? fullText, participant?.identity, { zip: parsed.zip });
             } catch {
               await handleSystemMessages(fullText, participant?.identity);
             }
@@ -3134,6 +3770,7 @@ PAUSE CONSTRAINTS:
               }
             });
 
+            activeAvatarSession = avatarSession;
             avatarConnected = true;
             break;
           } catch (err: any) {

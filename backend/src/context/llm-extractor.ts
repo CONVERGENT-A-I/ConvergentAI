@@ -10,9 +10,17 @@ import { inference, llm } from '@livekit/agents';
 // const EXTRACTION_MODEL = 'gpt-oss-120b';
 
 // ── LiveKit Inference Extractor LLM ──────────────────────────────────────
-const extractorLlm = new inference.LLM({
-  model: 'google/gemma-4-31b-it',
-});
+let extractorLlm: inference.LLM | null = null;
+
+function getExtractorLlm(): inference.LLM {
+  if (extractorLlm) return extractorLlm;
+
+  const client = new inference.LLM({
+    model: 'google/gemma-4-31b-it',
+  });
+  extractorLlm = client;
+  return client;
+}
 
 export interface ExtractionResult {
   value: string | number | null;
@@ -60,7 +68,7 @@ User input: "${userInput}"`;
     chatCtx.addMessage({ role: 'system', content: systemPrompt });
     chatCtx.addMessage({ role: 'user', content: userPrompt });
 
-    const stream = extractorLlm.chat({ chatCtx });
+    const stream = getExtractorLlm().chat({ chatCtx });
     const collected = await stream.collect();
     content = collected.text || null;
   } catch (error: any) {
@@ -292,7 +300,7 @@ User response: "${userInput}"`;
     chatCtx.addMessage({ role: 'system', content: systemPrompt });
     chatCtx.addMessage({ role: 'user', content: userPrompt });
 
-    const stream = extractorLlm.chat({ chatCtx });
+    const stream = getExtractorLlm().chat({ chatCtx });
     const collected = await stream.collect();
     const content = collected.text || null;
 
@@ -392,7 +400,7 @@ User response: "${userInput}"`;
     chatCtx.addMessage({ role: 'system', content: systemPrompt });
     chatCtx.addMessage({ role: 'user', content: userPrompt });
 
-    const stream = extractorLlm.chat({ chatCtx });
+    const stream = getExtractorLlm().chat({ chatCtx });
     const collected = await stream.collect();
     content = collected.text || null;
   } catch (error: any) {
@@ -489,7 +497,7 @@ User's response: "${userInput}"`;
     chatCtx.addMessage({ role: 'system', content: systemPrompt });
     chatCtx.addMessage({ role: 'user', content: userPrompt });
 
-    const stream = extractorLlm.chat({ chatCtx });
+    const stream = getExtractorLlm().chat({ chatCtx });
     const collected = await stream.collect();
     const content = collected.text || null;
 

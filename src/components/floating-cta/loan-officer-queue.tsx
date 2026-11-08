@@ -2,6 +2,37 @@ import React, { useMemo } from "react";
 import { motion } from "framer-motion";
 import { Headset, Loader2, Phone } from "lucide-react";
 
+export interface LoanOfficerQueueDisplay {
+  queueName: string;
+  queueNumber: string | null;
+}
+
+/** Split the SIP participant label `queue_name (7005)` into UI fields. */
+export function parseLoanOfficerQueueDisplay(
+  value: string | null
+): LoanOfficerQueueDisplay {
+  const cleaned = (value || "")
+    .replace(/^sip[_-]*/i, "")
+    .trim();
+  const match = cleaned.match(/^(.*?)\s*\((\d+)\)\s*$/);
+  const rawQueueName = (match?.[1] || cleaned || "Assigned Loan Officer Queue").trim();
+  const queueName = rawQueueName
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => {
+      const lower = part.toLowerCase();
+      if (lower === "communitymtg") return "Community MTG";
+      if (part.length <= 3) return part.toUpperCase();
+      return part.charAt(0).toUpperCase() + part.slice(1);
+    })
+    .join(" ");
+
+  return {
+    queueName,
+    queueNumber: match?.[2] || null,
+  };
+}
+
 export function LoanOfficerQueueUI() {
   const beams = useMemo(() => {
     return Array.from({ length: 5 }, (_, i) => ({
@@ -72,8 +103,8 @@ export function LoanOfficerLiveUI({ mloName, callSeconds }: LoanOfficerLiveUIPro
       .padStart(2, "0")}:${ss.toString().padStart(2, "0")}`;
   };
 
-  const displayName = mloName ? mloName.replace("sip_", "") : "Loan Officer";
-  const initials = displayName.substring(0, 2).toUpperCase();
+  const queue = parseLoanOfficerQueueDisplay(mloName);
+  const initials = queue.queueName.substring(0, 2).toUpperCase();
 
   const beams = useMemo(() => {
     return Array.from({ length: 12 }, (_, i) => ({
@@ -115,11 +146,16 @@ export function LoanOfficerLiveUI({ mloName, callSeconds }: LoanOfficerLiveUIPro
           </div>
           <div className="text-center">
             <h2 className="text-2xl font-bold text-white tracking-tight">
-              {displayName}
+              {queue.queueName}
             </h2>
             <p className="text-[#00b4d8]/80 text-sm font-medium mt-1">
-              Licensed Mortgage Loan Officer
+              Licensed Mortgage Loan Officer Queue
             </p>
+            {queue.queueNumber && (
+              <p className="text-white/60 text-xs font-mono mt-2">
+                Queue number: {queue.queueNumber}
+              </p>
+            )}
           </div>
         </div>
 

@@ -25,6 +25,9 @@ const testFiles = [
   'production-fixes.test.ts',
   'expressive-mode-e1-e2-e3.test.ts',
   'verbal-submit-flow.test.ts',
+  'mlo-transfer-intent.test.ts',
+  'contact-input.test.ts',
+  'security-hardening.test.ts',
 ];
 
 console.log('🚀 Running Complete ConvergentAI Multi-Track Test Suite...\n');
