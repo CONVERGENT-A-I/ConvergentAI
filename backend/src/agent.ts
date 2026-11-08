@@ -22,12 +22,14 @@ import { applyContactUpdates } from './utils/profile-sync.js';
 import * as openai from '@livekit/agents-plugin-openai';
 import * as silero from '@livekit/agents-plugin-silero';
 import { ailanaConfig } from './config/ailana-config.js';
+import { applySafetyNet } from './section0/safety-net.js';
 import { SessionContextManager } from './context/session-context-manager.js';
 import { LatencyTracker, ts } from './metrics/latency-tracker.js';
 import {
   buildBaseInstructions,
   buildVoiceInstructions,
   GREETING_TEXT,
+  getGreetingText,
   GREETING_USER_INPUT,
   RESUME_USER_INPUT,
 } from './prompts/index.js';
@@ -47,6 +49,14 @@ import { z } from 'zod';
 import { findConversationalSlots, bookConversationalAppointment } from './services/conversational-scheduling.js';
 import { isLoanOfficerTransferIntent, isContextualLoanOfficerTransferConfirmation, normalizeSpokenZip } from './lib/mlo-transfer-intent.js';
 import { safeErrorMessage } from './utils/security.js';
+import type { SimulationContext } from '@livekit/agents';
+import { activateSimulation, getSimRecords, getSimUserdata, recordSimTransfer, recordSimBooking, updateSimBooking, simMloAvailable } from './section0/sim-mocks.js';
+import { buildHandoffTools } from './section0/handoff-tools.js';
+import { checkExpectedFacts, type ExpectedFacts } from './section0/sim-checks.js';
+
+// Set only when this job runs under `lk agent simulate` — lets onSimulationEnd
+// inspect the final session state (Section 0 plan §7.3).
+let simContextManager: SessionContextManager | null = null;
 
 // Global error guard to catch LiveKit SDK RPC connection timeouts gracefully without crashing/stalling the agent loop
 process.on('unhandledRejection', (reason: any) => {
@@ -152,7 +162,7 @@ function createVerbatimStream(text: string): ReadableStream<string> {
     .replace(/\s*—\s*/g, ', ')
     .replace(/\s+,/g, ',')
     .trim();
-  return new ReadableStream({
+  const stream = new ReadableStream({
     start(controller) {
       if (sanitized.length > 0) {
         controller.enqueue(sanitized);
@@ -160,6 +170,9 @@ function createVerbatimStream(text: string): ReadableStream<string> {
       controller.close();
     },
   });
+  // An empty verbatim reply is a deliberate silence (noise, filler) — never an error to retry.
+  if (sanitized.length === 0) (stream as any).__intentionalSilence = true;
+  return stream;
 }
 
 class AilanaVoiceAgent extends voice.Agent {
@@ -169,6 +182,13 @@ class AilanaVoiceAgent extends voice.Agent {
   private suppressNextReply = false;
   private _stage2ClosingOfferDelivered = false;
   public activeFieldAtTurnStart: string | null = null;
+  /**
+   * True when the current user turn has already been processed (state updated +
+   * per-turn context applied) by onUserTurnCompleted (voice) or the typed-message
+   * handler. Turns that reach llmNode without it — e.g. LiveKit Agent Simulations,
+   * which call session.run({ userInput }) directly — are processed in llmNode.
+   */
+  public turnPrepared = false;
 
   constructor(
     options: voice.AgentOptions<any>,
@@ -189,6 +209,53 @@ class AilanaVoiceAgent extends voice.Agent {
   }
 
   override async llmNode(chatCtx: any, toolCtx: any, modelSettings: any): ReturnType<typeof voice.Agent.prototype.llmNode> {
+    const out = await this.llmNodeInner(chatCtx, toolCtx, modelSettings);
+    // Section 0: an empty model reply ("agent produced no response items") gets one retry.
+    const retry = ailanaConfig.section0Enabled ? () => super.llmNode(chatCtx, toolCtx, modelSettings) : null;
+    return this.logIfEmpty(out, retry) as any;
+  }
+
+  /**
+   * Diagnostic: pass the reply stream through unchanged, but log a warning if it
+   * ends without any text (shows up as "agent produced no response items" in
+   * LiveKit Agent Simulations, or as Ailana going silent).
+   */
+  private logIfEmpty(stream: any, retry: (() => any) | null = null): any {
+    if (!stream || typeof stream.pipeThrough !== 'function') return stream;
+    if ((stream as any).__intentionalSilence) return stream; // e.g. background noise: staying silent is the answer
+    let chars = 0;
+    let toolCalls = 0;
+    const stage = this.contextManager.getActiveStage();
+    const pending = this.contextManager.getPendingField();
+    return stream.pipeThrough(new TransformStream({
+      transform(chunk: any, controller) {
+        const text = typeof chunk === 'string' ? chunk : (chunk?.delta?.content ?? '');
+        if (text) chars += String(text).trim().length;
+        if (chunk?.delta?.toolCalls?.length) toolCalls += chunk.delta.toolCalls.length;
+        controller.enqueue(chunk);
+      },
+      async flush(controller) {
+        if (chars === 0 && toolCalls === 0) {
+          console.warn(`[agent-hook]: ⚠️ EMPTY REPLY produced (stage=${stage}, pendingField=${pending})${retry ? ' — retrying once' : ''}.`);
+          if (!retry) return;
+          try {
+            const second = await retry();
+            if (!second || typeof second.getReader !== 'function') return;
+            const reader = second.getReader();
+            for (;;) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              controller.enqueue(value);
+            }
+          } catch (err) {
+            console.warn('[agent-hook]: retry after empty reply failed:', err);
+          }
+        }
+      },
+    }));
+  }
+
+  private async llmNodeInner(chatCtx: any, toolCtx: any, modelSettings: any): Promise<any> {
     this.metrics.markLlmStart();
 
     if (this.suppressNextReply) {
@@ -198,6 +265,15 @@ class AilanaVoiceAgent extends voice.Agent {
     }
 
     if (this.isConversationalSchedulingActive()) {
+      return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+    }
+
+    // A tool just ran (e.g. transfer_to_loan_officer): this call is the model's follow-up reply to the
+    // tool result, not a new user turn — never process the user's message a second time.
+    const items = chatCtx?.items || [];
+    const lastItem = items[items.length - 1];
+    if (lastItem?.type === 'function_call_output' || lastItem?.type === 'function_call') {
+      this.turnPrepared = false;
       return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
     }
 
@@ -213,12 +289,13 @@ class AilanaVoiceAgent extends voice.Agent {
       : Array.isArray(lastUserMsg?.content)
         ? lastUserMsg.content.join(' ')
         : '';
-    const userAskedQuestion = isQuestionOrCorrection(lastUserText) || (initialProfile as any).last_extracted_offer_val === 'explain';
+    let userAskedQuestion = isQuestionOrCorrection(lastUserText) || (initialProfile as any).last_extracted_offer_val === 'explain';
 
     // ── Ignore Historical Messages ──
     // If the session was just restored, the last user message is from the past.
     // We should not trigger any active intents or transitions based on it.
     if (lastUserMsg && (lastUserMsg as any).isRestored) {
+      this.turnPrepared = false;
       console.log(`[agent-hook]: Skipping intent processing for restored historical message: "${lastUserText}"`);
       return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
     }
@@ -230,10 +307,12 @@ class AilanaVoiceAgent extends voice.Agent {
              t.includes('the borrower has returned') ||
              t.includes('please say exactly:') ||
              t.includes('the application has been submitted to underwriting') ||
-             t.includes('the eligibility review has returned with status');
+             t.includes('the eligibility review has returned with status') ||
+             t.includes('accidentally interrupted you with a noise');
     };
 
     if (isSystemInjectedPrompt(lastUserText)) {
+      this.turnPrepared = false;
       console.log(`[agent-hook]: Skipping intent processing for system-injected prompt: "${lastUserText}"`);
       return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
     }
@@ -242,8 +321,32 @@ class AilanaVoiceAgent extends voice.Agent {
     // If the VAD triggered on pure noise and the STT transcribed nothing, stay silent.
     // This prevents noise from triggering fallbacks (e.g. military_rural fallback).
     if (!lastUserText.trim()) {
+      this.turnPrepared = false;
       console.log('[agent-hook]: Ignored empty user turn (likely background noise). Staying silent.');
       return createVerbatimStream('') as any;
+    }
+
+    // ── Unprocessed user turn (e.g. LiveKit Agent Simulations) ──
+    // Voice turns are processed in onUserTurnCompleted and typed turns in the
+    // typed-message handler. A turn that arrives any other way — the simulator
+    // calls session.run({ userInput }) directly — would otherwise reach the LLM
+    // with no state update and no CURRENT TASK, so Ailana would improvise.
+    // Process it here, exactly like a typed turn, before any fast path reads state.
+    if (!this.turnPrepared) {
+      console.log(`[agent-hook]: User turn reached llmNode unprocessed (session.run / generateReply) — processing now: "${lastUserText.slice(0, 80)}"`);
+      this.activeFieldAtTurnStart = this.contextManager.getPendingField();
+      await this.contextManager.onUserTurn(lastUserText);
+      this.updateInstructionsCallback();
+      this.applyTurnContext(chatCtx);
+      userAskedQuestion = isQuestionOrCorrection(lastUserText) || (this.contextManager.getProfile() as any).last_extracted_offer_val === 'explain';
+    }
+    this.turnPrepared = false;
+
+    // Section 0 (S0-27/28): while a transfer or call back is being arranged, skip every scripted
+    // fast path so the model can call the handoff tools (code decided the handoff state).
+    if (ailanaConfig.section0Enabled && (this.contextManager.isHandoffActive() || this.contextManager.hasPendingComplianceNotes() || this.contextManager.hasQuickCheckDue())) {
+      console.log(`[section0] ${this.contextManager.isHandoffActive() ? `handoff in progress (${this.contextManager.getHandoffMode()})` : 'compliance note pending'} — reply by the model`);
+      return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
     }
 
     // ── 0ms Verbal Submit Fast-Path (Stage 2.5) ──
@@ -362,6 +465,16 @@ class AilanaVoiceAgent extends voice.Agent {
     const pending = this.contextManager.getPendingField();
     const profile = this.contextManager.getProfile();
 
+    // Section 0: the universal extractor understood a request for a loan officer (any phrasing,
+    // any stage) → use the existing transfer path (popup → SIP), exactly once.
+    if ((profile as any)._section0TransferRequested) {
+      delete (profile as any)._section0TransferRequested;
+      if (loIntent !== 'yes') {
+        console.log('[section0] transfer requested (extractor intent) → loan officer transfer path');
+        loIntent = 'yes';
+      }
+    }
+
     if (loIntent === 'yes') {
       console.log(`[agent-hook]: 📞 Loan Officer transfer confirmed — transferring via SYSTEM_TRIGGER_MLO_TRANSFER.`);
       profile.escalation_preference = 'live_transfer';
@@ -406,6 +519,14 @@ class AilanaVoiceAgent extends voice.Agent {
       /\b(build.*(?:shared|summary|stated|info|heloc|refinance|options)|what\s+i\s+shared|from\s+what\s+i\s+shared|use\s+what\s+i\s+shared|summary|explore|stated|second\s*(?:option|path|choice|one)|without|no\s+review|skip)\b/i.test(lastUserText);
     const isExplicitPathA = isAtClosingOffer &&
       !isExplicitPathB && /\b(soft\s*pull|credit\s*review|first(?:\s*option)?|most\s*complete|yes|sure|okay|go\s*ahead|proceed|run\s*it|run\s*the\s*review)\b/i.test(lastUserText);
+
+    // Section 0: a stated situation still needs one follow-up (e.g. rent on a home they're keeping)
+    // → ask it before the closing offer instead of firing the closing script at 0 ms.
+    if (isAnsweringJobTenure && !this._stage2ClosingOfferDelivered && this.contextManager.takeFollowupBeforeClosingOffer()) {
+      this.updateInstructionsCallback();
+      this.applyTurnContext(chatCtx);
+      return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
+    }
 
     if (isAtClosingOffer || isAnsweringJobTenure) {
       if (isAnsweringJobTenure) {
@@ -613,7 +734,7 @@ class AilanaVoiceAgent extends voice.Agent {
         this.contextManager.advanceWorkflow();
 
         const hasCoBorrower = profile.co_borrower === 'yes';
-        const coBorrowerPhrase = hasCoBorrower ? 'you or a co-borrower' : 'you';
+        const coBorrowerPhrase = hasCoBorrower ? (ailanaConfig.section0Enabled ? 'you or your co-borrower' : 'you or a co-borrower') : 'you';
         const scriptText = `Got it, thank you. Do ${coBorrowerPhrase} have any military service history — such as being on active duty, a veteran, or part of the Reserve or National Guard?`;
         return createVerbatimStream(scriptText) as any;
       }
@@ -640,12 +761,15 @@ class AilanaVoiceAgent extends voice.Agent {
         profile.military_rural_confirmed = true;
         this.contextManager.advanceWorkflow();
 
-        const scriptText = "Got it, thank you. Could you tell me a bit about your current job tenure and how you're paid — for example, whether you are salaried, hourly, or self-employed?";
+        // Section 0: ask only what's missing (how they're paid may already be known).
+        const scriptText = ailanaConfig.section0Enabled
+          ? `Got it, thank you. ${this.contextManager.getJobTenureQuestion()}`
+          : "Got it, thank you. Could you tell me a bit about your current job tenure and how you're paid — for example, whether you are salaried, hourly, or self-employed?";
         return createVerbatimStream(scriptText) as any;
       }
 
       const hasCoBorrower = profile.co_borrower === 'yes';
-      const coBorrowerPhrase = hasCoBorrower ? 'you or a co-borrower' : 'you';
+      const coBorrowerPhrase = hasCoBorrower ? (ailanaConfig.section0Enabled ? 'you or your co-borrower' : 'you or a co-borrower') : 'you';
       const scriptText = `Do ${coBorrowerPhrase} have any military service history — such as being on active duty, a veteran, or part of the Reserve or National Guard?`;
       console.log(`[agent-hook]: Delivering deterministic military_rural script (hasCoBorrower=${hasCoBorrower}) via ReadableStream!`);
       return createVerbatimStream(scriptText) as any;
@@ -1051,7 +1175,11 @@ class AilanaVoiceAgent extends voice.Agent {
 
   override async onUserTurnCompleted(chatCtx: any, userMessage: any): Promise<void> {
     const _perfEouEnd = performance.now();
-    console.log(`[agent-hook]: onUserTurnCompleted hook triggered with message: "${userMessage?.textContent}"`);
+    // Section 0 safety net (S0-21): an SSN or street address never reaches the logs, the saved transcript or the
+    // chat history the model sees. Only the context manager gets the raw text: it redacts it first and raises the TRID gate.
+    const rawUserText: string | undefined = userMessage?.textContent;
+    const safeUserText = ailanaConfig.section0Enabled && rawUserText ? applySafetyNet(rawUserText).text : rawUserText;
+    console.log(`[agent-hook]: onUserTurnCompleted hook triggered with message: "${safeUserText}"`);
 
     this.contextManager.setLowConfidenceFlag(false);
 
@@ -1103,9 +1231,10 @@ class AilanaVoiceAgent extends voice.Agent {
       const isBoundary = this.contextManager.isStageBoundaryField(activeField);
       const isDeterministic = this.contextManager.isDeterministicField(activeField);
 
-      await this.contextManager.saveVoiceConversationTurn('user', userMessage.textContent);
+      await this.contextManager.saveVoiceConversationTurn('user', safeUserText ?? userMessage.textContent);
 
-      const currentTurnNumber = this.contextManager.triggerBackgroundExtraction(userMessage.textContent);
+      const currentTurnNumber = this.contextManager.triggerBackgroundExtraction(rawUserText ?? userMessage.textContent);
+      if (safeUserText !== rawUserText && safeUserText) userMessage.content = [safeUserText]; // the chat-history copy
 
       const text = userMessage.textContent.trim();
       const isQuestionOrHesitation =
@@ -1144,8 +1273,17 @@ class AilanaVoiceAgent extends voice.Agent {
 
     // ── Instructions update ───────────────────────────────────────────
     this.updateInstructionsCallback();
+    this.applyTurnContext(chatCtx);
+    this.turnPrepared = true;
+  }
 
-    // Update local mutable chatCtx copy to align the LLM prompt for the current generation
+  /**
+   * Put the current static instructions (Layer 1 + 2) at the head of this
+   * generation's chat context and the per-turn dynamic context (Layer 3:
+   * profile, CURRENT TASK, bridges) at its tail. Shared by voice turns
+   * (onUserTurnCompleted) and turns processed in llmNode (simulations).
+   */
+  private applyTurnContext(chatCtx: any): void {
     const staticInstructions = this.contextManager.getStaticInstructions();
     const systemItem = (chatCtx.items.find(
       (item: any) => item.type === 'message' && item.id === 'lk.agent_task.instructions'
@@ -1204,6 +1342,13 @@ export default defineAgent({
   async entry(ctx: JobContext) {
     console.log(`[agent]: Receiving job for room: ${ctx.room.name}`);
 
+    // ── LiveKit Agent Simulation detection (Section 0 plan §7.3) ─────────────
+    // Must run before anything touches the database, CRS or SIP.
+    const simCtx = ctx.simulationContext();
+    if (simCtx) {
+      activateSimulation(simCtx);
+    }
+
     // ── STARTUP ENVIRONMENT DIAGNOSTICS ──────────────────────────────────────
     // Printed on every job start so GCP logs show exactly which secrets were
     // injected. Keys are shown as present/MISSING + last-4 chars only.
@@ -1231,6 +1376,10 @@ export default defineAgent({
       model: 'google/gemma-4-31b-it',
     });
     const contextManager = new SessionContextManager(summarizationLlm, metrics);
+    if (simCtx) {
+      simContextManager = contextManager;
+      contextManager.setChannel('text'); // simulations run in text mode
+    }
 
     // ── Pre-cache System Prompt ───────────────────────────────────────────────
     // Warm up the inference server cache so the first user turn TTFT is fast
@@ -1605,6 +1754,20 @@ Every spoken response MUST be 18 words or fewer, except the final booking result
         console.warn('[agent]: Failed to interrupt session:', e);
       }
 
+      // 3. Unsubscribe from ALL remote participant tracks so VAD receives no audio
+      for (const p of ctx.room.remoteParticipants.values()) {
+        for (const pub of p.trackPublications.values()) {
+          try { pub.setSubscribed(false); } catch (_) { }
+        }
+      }
+      console.log('[agent]: 🔇 All tracks unsubscribed. User and loan officer now on direct line.');
+
+      // 4. Dial the SIP trunk to bring the loan officer into the room
+      if (simCtx) {
+        // Simulations must never ring a real MLO — record the attempt instead.
+        recordSimTransfer(ctx.room.name || '', contextManager.getProfile());
+        return;
+      }
       try {
         const { resolveQueueForZip } = await import('./lib/zipResolver.js');
         const { getStableQueueAvailability, waitForQueueAgentAnswer } = await import('./services/freeswitch-esl.js');
@@ -1776,9 +1939,46 @@ Every spoken response MUST be 18 words or fewer, except the final booking result
       }
     };
 
+    // Section 0 (S0-27/28): transfer and callback are real tool calls. Code performs the action —
+    // production: the existing popup → SIP transfer path; simulation: mock records only.
+    contextManager.setMloAvailability(() => (simCtx ? simMloAvailable() : true));
+    const handoffTools = ailanaConfig.section0Enabled
+      ? buildHandoffTools({
+          transfer: async (summary) => {
+            const p = contextManager.getProfile();
+            p.escalation_preference = 'live_transfer';
+            (p as any).escalation_preference_confirmed = true;
+            contextManager.setActiveStage('5');
+            contextManager.setCurrentPendingField(null);
+            sendStageUpdate('5').catch((err) => console.warn(err));
+            if (simCtx) {
+              recordSimTransfer(ctx.room.name || '', { summary, profile: p, statedFacts: contextManager.getFactLedger().serialize() });
+              return;
+            }
+            (p as any).mlo_handoff_summary = summary; // travels with the profile to the loan officer
+            await sendMloPopupTrigger();
+          },
+          book: async (req) => {
+            (contextManager.getProfile() as any).callback_request = req;
+            if (simCtx) { recordSimBooking({ day: req.date ?? req.day, time: req.time, timeZone: req.timeZone }); return; }
+            // Google Calendar booking is decision D1 — until then the request travels with the profile to the loan officer.
+            console.log(`[section0] callback requested: ${JSON.stringify(req)}`);
+          },
+          reschedule: async (req) => {
+            (contextManager.getProfile() as any).callback_request = req;
+            if (simCtx) { updateSimBooking({ day: req.date ?? req.day, time: req.time, timeZone: req.timeZone }); return; }
+            console.log(`[section0] callback rescheduled: ${JSON.stringify(req)}`);
+          },
+          onResult: (r) => contextManager.onHandoffResult(r),
+          canTransfer: () => contextManager.getHandoffMode() === 'confirm_answer',
+          canBook: () => contextManager.getHandoffMode() === 'callback',
+        })
+      : undefined;
+
     const createVadAgent = (customVad: any) => {
       console.log('[agent]: Creating LiveKit Inference agent (Gemma 4 31B LLM + Cartesia Ink-2 STT + Cartesia Sonic-3.6 TTS + TurnDetector)...');
       return new AilanaVoiceAgent({
+        ...(handoffTools ? { tools: handoffTools } : {}),
         vad: customVad,
         instructions: contextManager.getStaticInstructions(),
         stt: sessionStt,
@@ -2427,6 +2627,8 @@ PAUSE CONSTRAINTS:
             otp_sent: !!(prof as any)._otpReadyToShow,
             // ── Flow state ──────────────────────────────────────────
             current_pending_field: contextManager.getPendingField(),
+            // ── Section 0 memory (SECTION_0_ENABLED) — saved in the frontend snapshot, restored on reconnect ──
+            ...(contextManager.getSection0Snapshot() ? { statedFacts: contextManager.getSection0Snapshot() } : {}),
           }
         }));
         await ctx.room.localParticipant?.publishData(payload, { reliable: true, topic: 'lk-chat' });
@@ -2963,11 +3165,13 @@ PAUSE CONSTRAINTS:
 
       if (messageText === 'SYSTEM_VOICE_MUTED') {
         voiceMuted = true;
+        contextManager.setChannel('text');
         console.log(`[agent]: Avatar voice disabled — text-only replies.`);
         return;
       }
       if (messageText === 'SYSTEM_VOICE_UNMUTED') {
         voiceMuted = false;
+        contextManager.setChannel('voice');
         console.log(`[agent]: Avatar voice enabled — resuming voice replies.`);
         return;
       }
@@ -2975,6 +3179,7 @@ PAUSE CONSTRAINTS:
       if (messageText.startsWith('SYSTEM_CHANNEL_START')) {
         const targetMode = messageText.split(':')[1] || 'video';
         console.log(`[agent]: Channel started (${targetMode}).`);
+        contextManager.setChannel(targetMode === 'video' || targetMode === 'voice' ? 'voice' : 'text');
 
         if (targetMode === 'video' || targetMode === 'voice') {
           if (voiceMuted) {
@@ -3010,7 +3215,7 @@ PAUSE CONSTRAINTS:
         }
 
         pendingGreeting = false;
-        const greetingText = GREETING_TEXT;
+        const greetingText = getGreetingText();
 
         try {
           if (!(session as any)._started) {
@@ -3098,7 +3303,16 @@ PAUSE CONSTRAINTS:
           }
           await contextManager.onUserTurn(messageText);
           updateSessionInstructions();
-          session.generateReply({ userInput: messageText });
+          if (vadAgent) vadAgent.turnPrepared = true; // already processed — llmNode must not process it again
+          // generateReply() does NOT run onUserTurnCompleted, so the per-turn Layer 3
+          // context (CURRENT TASK, bridge phrases, profile) that spoken turns get was
+          // missing for typed turns — Ailana stalled after Stage 1 ("waiting for the
+          // system"). Pass it as this reply's instructions: the SDK appends it to the
+          // agent's static instructions for this generation only.
+          session.generateReply({
+            userInput: messageText,
+            instructions: contextManager.getDynamicContext(),
+          });
         }
       } catch (err) {
         console.warn(`[agent]: Could not generate reply:`, err);
@@ -3343,7 +3557,7 @@ PAUSE CONSTRAINTS:
         console.log(`[agent]: Sent SYSTEM_AGENT_READY signal.`);
 
         // If the channel start signal already arrived while we were waiting, say greeting now
-        const greetingText = GREETING_TEXT;
+        const greetingText = getGreetingText();
         if (pendingGreeting && !greetingGenerated) {
           greetingGenerated = true;
           pendingGreeting = false;
@@ -3601,7 +3815,28 @@ PAUSE CONSTRAINTS:
     const lsAgentId = ailanaConfig.lemonsliceAgentId;
     console.log(`[avatar][${ts()}] LemonSlice credentials check: API Key ${lsApiKey ? 'PRESENT (len=' + lsApiKey.length + ', ends with ' + lsApiKey.slice(-4) + ')' : 'MISSING'}, Agent ID: ${lsAgentId || 'MISSING'}`);
 
-    if (lsApiKey && lsAgentId) {
+    if (simCtx) {
+      // ── Simulation: no avatar, no frontend. Start the session and greet directly. ──
+      console.log(`[simulation] Skipping LemonSlice avatar; starting AgentSession directly and firing the greeting.`);
+      isAvatarInitDone = true;
+      resolveAvatarReady();
+      try {
+        sessionStarted = true;
+        await session.start({
+          agent: vadAgent,
+          room: ctx.room,
+          inputOptions: { closeOnDisconnect: false },
+        });
+        greetingGenerated = true;
+        metrics.startTurn();
+        metrics.markAgentSpeaking();
+        session.say(getGreetingText(), { addToChatCtx: true });
+        console.log(`[simulation] Session started and greeting fired.`);
+      } catch (err) {
+        console.error(`[simulation] Failed to start session:`, err);
+        sessionStarted = false;
+      }
+    } else if (lsApiKey && lsAgentId) {
       // Quick LemonSlice API reachability test (non-blocking)
       (async () => {
         const t0 = Date.now();
@@ -3884,6 +4119,52 @@ PAUSE CONSTRAINTS:
     console.log(
       `[agent]: Ready — model=${activeModelName}, prompt=${ailanaConfig.promptVersion}, compact@${ailanaConfig.compactEveryNTurns} turns / ${ailanaConfig.forceCompactInputTokens} tokens`,
     );
+  },
+
+  // ── LiveKit Agent Simulations: end-of-run check (Section 0 plan §7.3) ───────
+  // Runs only under `lk agent simulate`. The effective result is the AND of the
+  // simulator's verdict and our own checks; ctx.fail() can only veto a pass.
+  // Phase 0: log the final state and mock records. Phase 3 adds the Fact Ledger
+  // comparison against scenario userdata.expected_facts.
+  async onSimulationEnd(simCtx: SimulationContext) {
+    const records = getSimRecords();
+    const userdata = getSimUserdata();
+    let verdict = '';
+    try {
+      verdict = `${simCtx.simulatorVerdict.success ? 'PASS' : 'FAIL'} — ${simCtx.simulatorVerdict.reason}`;
+    } catch {
+      verdict = 'unavailable';
+    }
+    console.log(`[simulation] END — simulator verdict: ${verdict}`);
+    console.log(`[simulation] END — stage=${simContextManager?.getActiveStage() ?? 'n/a'} pendingField=${simContextManager?.getPendingField() ?? 'n/a'}`);
+    console.log(`[simulation] END — mock records: transfers=${records.transfers.length} bookings=${records.bookings.length} consents=${records.consents.length} crsPulls=${records.crsPulls}`);
+
+    // Every scenario: no transfer or appointment unless the scenario expects one.
+    const expectTransfer = userdata['expect_transfer'] === true;
+    const expectBooking = userdata['expect_booking'] === true;
+    if (!expectTransfer && records.transfers.length > 0) {
+      simCtx.fail(`Transfer attempted (${records.transfers.length}) but the scenario did not ask for one.`);
+    }
+    if (!expectBooking && records.bookings.length > 0) {
+      simCtx.fail(`Callback booked (${records.bookings.length}) but the scenario did not ask for one.`);
+    }
+    if (expectBooking && records.bookings.length > 1) {
+      simCtx.fail(`Duplicate callback bookings (${records.bookings.length}); exactly one expected.`);
+    }
+    if (expectTransfer && records.transfers.length !== 1) {
+      simCtx.fail(`Expected exactly one transfer attempt, got ${records.transfers.length}.`);
+    }
+    if (expectBooking && records.bookings.length === 0) {
+      simCtx.fail('Expected one callback booking, but none was made.');
+    }
+
+    // Section 0: what Ailana stored must match what the borrower said (not just sound right).
+    const expected = userdata['expected_facts'] as ExpectedFacts | undefined;
+    if (expected && simContextManager) {
+      const misses = checkExpectedFacts(expected, simContextManager.getFactLedger(), simContextManager.getProfile());
+      console.log(`[simulation] END — expected_facts: ${misses.length ? misses.join(' · ') : 'all match ✅'}`);
+      if (misses.length) simCtx.fail(`Stored facts do not match what the borrower said: ${misses.join('; ')}`);
+    }
   },
 });
 

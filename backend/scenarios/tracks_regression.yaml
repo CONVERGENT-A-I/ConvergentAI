@@ -1,0 +1,137 @@
+# S0-08c / A14 — track regression. Proves Section 0 does not disturb the existing tracks:
+# run it with SECTION_0_ENABLED off (demo baseline) and on — both must pass.
+# Each borrower states ONLY the goal, then answers the track's questions one at a time.
+# All people and numbers are invented.
+id: SCNG_tracks_regression
+name: Track regression (Purchase, Refinance R&T, Refinance cash-out, HELOC, Home equity loan)
+scenarios:
+  - id: SCN_track_purchase
+    label: "Track — Purchase, plain answers"
+    instructions: |
+      PERSONA: Jamie Lane, buying a first home (invented person).
+      OPENING LINE: "Hi, I'd like to buy a home."
+      FACTS (answer ONLY what Ailana asks, one short answer per turn; never volunteer extra):
+      - first name: Jamie · it will be your primary residence · never worked with this lender
+      - hoping to buy within four months · applying alone, no co-borrower
+      - income: salaried, 78,000 a year · monthly debts: 350 (car) · credit: about 720
+      - savings for down payment: 25,000 · you rent now · no real estate agent yet
+      - target price about 300,000 · single-family home · Chattanooga, TN 37421
+      - no military service · salaried at the same employer 5 years
+      HOW TO ANSWER: if asked something already answered, answer again briefly and the same way.
+      STOP: as soon as Ailana offers a choice between a credit review and a summary — do not choose.
+      Otherwise stop after 24 of your replies.
+    agent_expectations: >
+      Moves through the home purchase questions one at a time (name, occupancy, timeline, co-borrower,
+      income, debts, credit, savings, renting or owning, agent, price, property type and area, military
+      service, job) and reaches the choice between a soft credit review and a summary. Never asks the
+      same question twice. Does not quote a rate or payment and does not promise approval.
+    tags: { feature: track_regression, test_set_id: "A14-PUR" }
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+      expected_facts: { track: TT-PUR }
+
+  - id: SCN_track_refi_rt
+    label: "Track — Refinance rate/term, plain answers"
+    instructions: |
+      PERSONA: Casey Reid, refinancing to lower the payment (invented person).
+      OPENING LINE: "Hi, I'd like to refinance my mortgage."
+      FACTS (answer ONLY what Ailana asks, one short answer per turn; never volunteer extra):
+      - first name: Casey · primary residence · never worked with this lender · within two months
+      - applying alone · income: salaried, 92,000 a year · monthly debts: 400 · credit: about 740
+      - current loan: conventional · goal: lower the monthly payment (rate and term, no cash out)
+      - home worth about 410,000 · owe about 280,000 · current rate about 7 percent
+      - current payment about 2,100 a month · about 27 years left
+      - would roll closing costs into the loan · never refinanced this home · staying 10+ years
+      - single-family, Chattanooga, TN 37415 · no military service · salaried 7 years
+      HOW TO ANSWER: if asked something already answered, answer again briefly and the same way.
+      STOP: as soon as Ailana offers a choice between a credit review and a summary — do not choose.
+      Otherwise stop after 26 of your replies.
+    agent_expectations: >
+      Moves through the refinance questions one at a time (current loan, goal, value, balance, current
+      rate and payment, remaining term, closing costs, prior refinance, how long they'll stay, job, plus
+      income, debts and credit) and reaches the choice between a soft credit review and a summary. Never
+      asks the same question twice. Does not quote a new rate or promise savings or approval.
+    tags: { feature: track_regression, test_set_id: "A14-REF-RT" }
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+      expected_facts: { track: TT-REF }
+
+  - id: SCN_track_refi_co
+    label: "Track — Refinance cash-out, plain answers"
+    instructions: |
+      PERSONA: Morgan Price, refinancing to take cash out (invented person).
+      OPENING LINE: "I want to do a cash-out refinance."
+      FACTS (answer ONLY what Ailana asks, one short answer per turn; never volunteer extra):
+      - if asked whether to keep the current mortgage or replace it: replace it with one new loan
+      - first name: Morgan · primary residence · never worked with this lender · within three months
+      - applying alone · income: salaried, 105,000 a year · monthly debts: 600 · credit: about 730
+      - current loan: conventional · home worth about 450,000 · owe about 250,000
+      - current rate about 6.5 percent · current payment about 1,900 · about 25 years left
+      - want about 50,000 cash for a kitchen remodel · roll costs in · never refinanced · staying 10+ years
+      - single-family, Hixson, TN 37343 · no military service · salaried 9 years
+      HOW TO ANSWER: if asked something already answered, answer again briefly and the same way.
+      STOP: as soon as Ailana offers a choice between a credit review and a summary — do not choose.
+      Otherwise stop after 26 of your replies.
+    agent_expectations: >
+      Treats this as a cash-out refinance and moves through the refinance questions one at a time,
+      including the cash amount, and reaches the choice between a soft credit review and a summary.
+      Asks whether to keep or replace the current mortgage at most once. Never asks the same question
+      twice. Does not quote a rate or payment and does not promise approval.
+    tags: { feature: track_regression, test_set_id: "A14-REF-CO" }
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+      expected_facts: { track: TT-REF }
+
+  - id: SCN_track_heloc
+    label: "Track — HELOC, plain answers"
+    instructions: |
+      PERSONA: Riley Stone, wants a home equity line of credit (invented person).
+      OPENING LINE: "I'm interested in a home equity line of credit."
+      FACTS (answer ONLY what Ailana asks, one short answer per turn; never volunteer extra):
+      - first name: Riley · primary residence · never worked with this lender · within two months
+      - applying alone · income: salaried, 88,000 a year · monthly debts: 300 · credit: about 760
+      - home worth about 380,000 · owe about 150,000 on the first mortgage
+      - want a line of about 60,000 for home repairs and emergencies
+      - comfortable with a variable rate · never had a HELOC before · you understand the risks when told
+      - single-family, Signal Mountain, TN 37377 · no military service · salaried 6 years
+      HOW TO ANSWER: if asked something already answered, answer again briefly and the same way.
+      STOP: as soon as Ailana offers a choice between a credit review and a summary — do not choose.
+      Otherwise stop after 26 of your replies.
+    agent_expectations: >
+      Treats this as a home equity line of credit and moves through the HELOC questions one at a time
+      (value, balance, line amount, use, rate comfort, the variable-rate and repayment disclosure, plus
+      income, debts and credit) and reaches the choice between a soft credit review and a summary.
+      Never asks the same question twice. Does not quote a rate or payment and does not promise approval.
+    tags: { feature: track_regression, test_set_id: "A14-HEL" }
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+      expected_facts: { track: TT-HEL }
+
+  - id: SCN_track_heq
+    label: "Track — Home equity loan (fixed lump sum), plain answers"
+    instructions: |
+      PERSONA: Taylor Grant, wants a fixed home equity loan (invented person).
+      OPENING LINE: "I'd like a home equity loan — a lump sum with a fixed payment."
+      FACTS (answer ONLY what Ailana asks, one short answer per turn; never volunteer extra):
+      - first name: Taylor · primary residence · never worked with this lender · within a month
+      - applying alone · income: salaried, 97,000 a year · monthly debts: 450 · credit: about 750
+      - home worth about 400,000 · owe about 190,000 on the first mortgage
+      - want about 35,000 for a new roof · prefer a fixed rate and fixed payment · never had one before
+      - you understand the risks when told
+      - single-family, Ooltewah, TN 37363 · no military service · salaried 8 years
+      HOW TO ANSWER: if asked something already answered, answer again briefly and the same way.
+      STOP: as soon as Ailana offers a choice between a credit review and a summary — do not choose.
+      Otherwise stop after 26 of your replies.
+    agent_expectations: >
+      Treats this as a fixed home equity loan and moves through the home equity questions one at a time,
+      then reaches the choice between a soft credit review and a summary. Never asks the same question
+      twice. Does not quote a rate or payment and does not promise approval.
+    tags: { feature: track_regression, test_set_id: "A14-HEQ" }
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+      expected_facts: { track: TT-HEQ }

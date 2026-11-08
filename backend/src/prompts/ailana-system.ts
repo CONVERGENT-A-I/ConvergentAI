@@ -1,6 +1,8 @@
 import { buildStage1Instructions } from './stage1-greeting.js';
-import { buildLayer3TurnContext } from './layer3-context.js';
+import { buildStage0Instructions } from './stage0-opening.js';
+import { buildLayer3TurnContext, type Section0TurnExtras } from './layer3-context.js';
 import type { BorrowerProfile } from './layer3-context.js';
+import { ailanaConfig } from '../config/ailana-config.js';
 
 /**
  * Layer 1: Static System Prompt
@@ -62,7 +64,18 @@ AVATAR EXPRESSION GUIDANCE:
 - Reserve neutral or calm expressions for standard question-answer exchanges.
 - Use warm/happy expressions when acknowledging good news (e.g., strong savings, no debt, stable employment).
 - The borrower should never feel judged by Ailana's facial expression.
-`.trim();
+`.trim() + (ailanaConfig.section0Enabled ? `
+
+NO-REPEAT RULE (applies in every stage):
+- Never ask a question whose answer is already in KNOWN FACTS or the borrower profile — in any wording. Ask only for what is still missing.
+- Never announce that you are going to ask about something that is already known.
+- Never double-check or re-confirm a fact in KNOWN FACTS unless it is listed under NEEDS ONE QUICK CHECK.
+- Acknowledge what they share neutrally — never judge their numbers or plans (no "very manageable", "strong score", "that works well"); assessments come from the review or a licensed loan officer.
+- Never comment on or react to anyone's age.
+- Keep questions short; do not restate facts they already gave inside a question.
+
+NAME USE:
+- The system asks for the borrower's first name once. Scripted lines that contain the name (such as the closing offer and the mid-flow check-in) say it as written; do not add the name anywhere else.` : '');
 }
 
 import { buildStage2Instructions } from './stage2-prequalification.js';
@@ -78,6 +91,10 @@ import { buildStage5Instructions } from './stage5-escalation.js';
  * Layer 2 Stage selector
  */
 export function buildLayer2(stage: string = '1', profile: BorrowerProfile = {}): string {
+  if (stage === '0') {
+    // Section 0 (only reachable with SECTION_0_ENABLED) — stops loading once a track is set.
+    return buildStage0Instructions();
+  }
   if (stage === '1') {
     return buildStage1Instructions();
   }
@@ -131,9 +148,10 @@ export function buildDynamicContext(
   profile: BorrowerProfile,
   pendingField: string | null,
   stage: string = '1',
-  isLowConfidence: boolean = false
+  isLowConfidence: boolean = false,
+  section0?: Section0TurnExtras,
 ): string {
-  return buildLayer3TurnContext(profile, pendingField, stage, isLowConfidence);
+  return buildLayer3TurnContext(profile, pendingField, stage, isLowConfidence, section0);
 }
 
 /**
@@ -163,6 +181,21 @@ export function buildInteractiveInstructions(_conversationSummary?: string): str
 }
 
 export const GREETING_TEXT = "Hi!, I'm Ailana, your AI mortgage assistant. Whether you are purchasing a home, refinancing an existing mortgage, or exploring a home equity line of credit (HELOC), I’m here to make your journey clearer and smoother. You can connect with me via text chat or AI-voice, and I can bridge you directly to a licensed loan officer whenever you’re ready. To get started, what mortgage questions do you have for me today?";
+
+/** Revised spec greeting (Section 0): ~50 words, spoken recording notice, no intent question (asked after the channel is chosen). */
+export const GREETING_TEXT_SECTION0 = "Hi! I'm Ailana, your AI mortgage assistant. You can video chat with me, talk by voice, or text chat, and I can connect you with a licensed loan officer anytime. Just so you know, our conversation is recorded for quality and compliance, and by continuing, you agree to that. How would you like to get started?";
+
+/**
+ * The Revised greeting's closing question ("How would you like to get started?") is answered by tapping a
+ * channel card (S0-25). Until the cards ship — and in simulations, which are already in text chat — the
+ * channel is already chosen, so the greeting ends after the recording notice.
+ */
+export const GREETING_TEXT_SECTION0_CHANNEL_CHOSEN = GREETING_TEXT_SECTION0.replace(/\s*How would you like to get started\?$/, '');
+
+/** The greeting to speak: the Revised one with SECTION_0_ENABLED, the demo one otherwise. */
+export function getGreetingText(): string {
+  return ailanaConfig.section0Enabled ? GREETING_TEXT_SECTION0_CHANNEL_CHOSEN : GREETING_TEXT;
+}
 
 export const GREETING_USER_INPUT =
   `Please say exactly: "${GREETING_TEXT}" Do not add any other text.`;

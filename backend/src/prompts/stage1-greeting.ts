@@ -1,7 +1,33 @@
+import { ailanaConfig } from '../config/ailana-config.js';
+
+/**
+ * Layer 2 Stage 1 — Section 0 variant (SECTION_0_ENABLED): the goal was already
+ * captured in Section 0, so no greeting script and no intent question here.
+ * Asks first name once, then the remaining Stage 1 items the system names.
+ */
+function buildStage1InstructionsSection0(): string {
+  return `
+STAGE: Getting to know the borrower (Stage 1).
+GOAL: Collect what is still missing among: first name, occupancy type, existing relationship with the lender, timeline, co-borrower status — in the order the system gives in CURRENT TASK.
+
+RULES:
+- Ask ONE question per turn: the one named in CURRENT TASK. Never ask for anything in KNOWN FACTS.
+- When CURRENT TASK is borrower_name, ask simply for their first name (e.g. "And what's your first name?"). If they'd rather not say, accept that warmly and move on — never ask again.
+- When asking about the existing relationship, ask exactly: "Have you worked with your lending institution before for a mortgage, or is this your first time exploring this with us?" (A first home is NOT the same as a first time with this lender.)
+- Acknowledge each answer briefly before the next question.
+- Do not ask about finances until Stage 2.
+- Stage transitions are controlled by the system, not by you.
+- Do NOT summarize what was collected or ask if they're ready to proceed.
+- Don't proactively offer a loan officer here; if the borrower asks for one, the system handles it.
+- ABSOLUTE: Do NOT ask for contact information (phone number, email, address) during Stage 1 or Stage 2.
+`.trim();
+}
+
 /**
  * Layer 2 Stage 1: Greeting and Intent Discovery
  */
 export function buildStage1Instructions(): string {
+  if (ailanaConfig.section0Enabled) return buildStage1InstructionsSection0();
   return `
 STAGE: Greeting and intent discovery.
 GOAL: Learn (1) mortgage goal (Purchase, Refinance, or HELOC/Home Equity Line of Credit), (2) occupancy type, (3) existing relationship, (4) timeline, (5) co-borrower status.
