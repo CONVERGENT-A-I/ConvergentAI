@@ -10,7 +10,7 @@
 import type { GoalClass, Intent } from './fact-schema.js';
 
 export type Track = 'TT-PUR' | 'TT-REF' | 'TT-HEL' | 'TT-HEQ';
-export type ClarifyKind = 'cash_out_vs_equity' | 'heloc_vs_heq' | 'which_goal_first' | 'three_options';
+export type ClarifyKind = 'cash_out_vs_equity' | 'heloc_vs_heq' | 'which_goal_first' | 'three_options' | 'intent_rephrase';
 
 export interface Section0State {
   intentAsked: boolean;
@@ -51,6 +51,10 @@ export interface RouterInput {
   equityFixed?: boolean | null;
   intent: Intent;
   state: Section0State;
+  /** The borrower shared facts this turn (engaging, not unclear). */
+  factsShared?: boolean;
+  /** equity.paid_off — no mortgage on the home, so keep-or-replace does not apply. */
+  paidOff?: boolean | null;
 }
 
 export interface RouterOutput {
@@ -150,6 +154,7 @@ export function routeSection0(input: RouterInput): RouterOutput {
       case 'home_equity_loan':
         return setTrack(state, 'TT-HEQ', answerQuestion);
       case 'cash_out_unclear':
+        if (input.paidOff === true) return routeEquity(state, input.equityFixed ?? null, answerQuestion); // nothing to keep or replace
         if (input.refiKeepFirst === false) return setTrack(state, 'TT-REF', answerQuestion, 'cash_out');
         if (input.refiKeepFirst === true) return routeEquity(state, input.equityFixed ?? null, answerQuestion);
         return clarifyOnce(state, 'cash_out_vs_equity', answerQuestion);
@@ -169,6 +174,10 @@ export function routeSection0(input: RouterInput): RouterOutput {
   if (answerQuestion) {
     // A question while the goal is still open: answer it; don't push the intent question again.
     return { decision: { kind: 'answer_only' }, state };
+  }
+  if (input.factsShared && !state.clarifyAsked.includes('intent_rephrase')) {
+    // They are engaging (sharing information) but haven't said what they want: ask once more, in their terms.
+    return { decision: { kind: 'ask_intent', answerQuestion: false }, state: { ...state, clarifyAsked: [...state.clarifyAsked, 'intent_rephrase'] } };
   }
   if (state.unclearCount === 0) {
     const out = clarifyOnce(state, 'three_options', false);

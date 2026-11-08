@@ -23,6 +23,7 @@
 | **TR-off** | Nov 9, 2026 | `SR_XCDnNrbKhpa2` | demo build (flag off) | Track regression (5) | **5 / 5** | — | — | Purchase, Refinance R&T + cash-out, HELOC and HEL all reach the closing offer. |
 | **TR-on** | Nov 9, 2026 | `SR_wj9YTY7ob8QG` | fix cycle 3 (flag on) | Track regression (5) | **5 / 5** | — | — | ✅ **Section 0 does not disturb the tracks (A14).** |
 | **P4** | Nov 9, 2026 | `SR_K4f43aVfYTgH` | fix cycle 3 | Full set (47), 1 sample, preview | **43 / 47 (91.5%)** | — | — | +3. 4 failures triaged below; fix cycle 4 applied → **first official run** next. |
+| **O1** | Nov 9, 2026 | `SR_VsDhBkucqqk6` | fix cycle 4 | **Official**: full set (47), 3 samples, pass-rate 1.0 | **35 / 47 scenarios (74%)** · 127/141 samples (90%) | **47/47** | 35/47 | First official run. Every scenario passed at least once; 11 of the 12 misses failed only 1 of 3 samples, so the remaining work is consistency. Fix cycle 5 applied → **O2**. Export: `docs/section0/runs/official1.json`. |
 
 ---
 
@@ -97,6 +98,25 @@ Reading the B2 transcripts showed Ailana asking questions in **our** wording thr
 
 ### What this tells us
 - **Superseded by the harness finding** — B1's transcripts were Ailana improvising without our state machine, so its numbers are not the real "before". Compliance held throughout. B3 is the valid baseline.
+
+---
+
+## Official run O1: 35/47 all-3 (Nov 9) and fix cycle 5
+
+pass@3 47/47; pass^3 35/47; samples 127/141 (90%). The 14 failed samples:
+
+| Failed samples | Cause | Fix (cycle 5) |
+| :--- | :--- | :--- |
+| #18, #30 ×2 | The scripted military question says "you **or a** co-borrower" even when the co-borrower is known; the judge reads it as re-asking | Flag on: "you or **your** co-borrower" when one is known |
+| A12 ×2 | A stated fact waiting for a detail (weekly hours) was only a passive "quick check", so it was never asked within the first replies | **Quick checks are code-chosen**: in Stages 1–2 the first pending clarification is asked before anything else, once (never a loop) |
+| A11 | Borrower said "we" and "I make 68"; Stage 2 asked the *household* income again | When their own income is known, ask only the co-borrower's |
+| #24 | "Okay, 85 it is" shared a fact but no goal; the router counted it as "unclear" and jumped to "general questions or a loan officer?" | Router: a reply that shares facts isn't a failed attempt → ask once more what they want, in their terms |
+| A6 | "House is paid off, I need money" got the keep-or-replace-your-mortgage question | Router: paid-off home → line of credit or lump sum |
+| T6 | Read the booking back before calling the tool | Callback task: tool first, read back only after it returns |
+| #26 | "Will this new home **in Phoenix** be…" judged a re-ask | Layer 1: don't restate known facts inside questions |
+| #3, #9, #19, #23 (1 of 3 each) | Model variance: missed one expected question once | Watch in O2 |
+
+**Tests:** router 64, sync 103. `npm test` 26/26; flag-off parity 23/23.
 
 ---
 
@@ -242,7 +262,7 @@ Two notes from the judge, neither of which failed a test:
 
 ## Next run
 
-**Run O1**, the first **official** run: `section0.yaml`, 3 samples, pass-rate 1.0 (Test Guide 11.1). Exit bar: ≥ 95% on two consecutive official runs, zero compliance failures, track regression ≥ baseline (5/5 ✅).
+**Run O2**: official, 3 samples (Test Guide 11.1), plus the track regression with the flag on. Exit bar: ≥ 95% (45/47 all-3) on two consecutive official runs, zero compliance failures, track regression 5/5.
 
 
 Previous instruction kept for reference — **B3 — re-run the same baseline with the simulation-harness fix** (Section 0 still off):

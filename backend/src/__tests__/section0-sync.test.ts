@@ -509,6 +509,34 @@ async function turn(cm: SessionContextManager, e: UniversalExtraction) {
   assert(!cm.hasPendingComplianceNotes(), 'cleared once Ailana has replied');
 }
 
+{
+  // A12 (O1): a pending detail (weekly hours) is the FIRST thing asked once the track starts — asked once
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', facts: [{ key: 'income.borrower', value: [{ type: 'hourly', amount: 52 }], raw: '' }] }));
+  assert(cm.getActiveStage() === '1' && cm.hasQuickCheckDue() && /ONE quick check[^\n]*hours a week/.test(cm.getDynamicContext()), 'A12: weekly hours asked first (before the name)');
+  await quietlyAsync(() => cm.onAgentTurn('Before anything else — how many hours a week do you usually work?'));
+  assert(!cm.hasQuickCheckDue(), 'A12: asked once — never repeated, even if unanswered');
+}
+{
+  // A11 (O1): own income known, co-borrower's missing → ask ONLY the co-borrower's income
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', facts: [
+    { key: 'co_borrower.present', value: true, raw: 'we' },
+    { key: 'income.borrower', value: [{ type: 'salary', amount: 68 }], raw: 'I make 68' },
+    { key: 'debt.monthly_total', value: 300, raw: '' },
+  ] }));
+  cm.setActiveStage('2'); cm.setCurrentPendingField('gross_annual_income');
+  assert(/Ask ONLY roughly what their co-borrower earns/.test(cm.getDynamicContext()), 'A11: does not re-ask their own income');
+}
+{
+  // #18 / #30 (O1): co-borrower known → military question says "your co-borrower"
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', facts: [{ key: 'co_borrower.present', value: true, raw: '' }] }));
+  cm.setActiveStage('2'); cm.setCurrentPendingField('military_rural');
+  const ctx = cm.getDynamicContext();
+  assert(/do you or your co-borrower have any military service/.test(ctx) && !/you or a co-borrower/.test(ctx), '#18/#30: military question treats the co-borrower as known');
+}
+
 // ── 13. No switch at the closing offer ──
 {
   const cm = newManager();

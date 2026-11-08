@@ -132,6 +132,15 @@ const CLARIFY_TEXT: Record<string, string> = {
   uncertain: 'which one it is — what they said could mean either',
 };
 
+/** The first pending clarification not yet asked (stages ≥ 1 ask it before anything else, once). */
+export function nextQuickCheckFor(ledger: FactLedger, asked: string[]): { key: string; label: string; ask: string } | null {
+  for (const e of ledger.pendingClarifications()) {
+    if (asked.includes(e.key)) continue;
+    return { key: e.key, label: `${LABELS[e.key] ?? e.key} (${formatValue(e)})`, ask: `ask ${CLARIFY_TEXT[e.clarify ?? ''] ?? 'to confirm it'}` };
+  }
+  return null;
+}
+
 /** The KNOWN FACTS block for Layer 3. Empty string when nothing is known yet. */
 export function formatKnownFacts(ledger: FactLedger): string {
   const known = ledger.known();

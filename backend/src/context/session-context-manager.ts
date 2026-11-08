@@ -21,7 +21,7 @@ import { extractUniversal, type UniversalExtraction } from '../section0/universa
 import { ingestExtraction } from '../section0/ingest.js';
 import { routeSection0, initialSection0State, trackSwitchFor, type Section0Decision, type Section0State, type Track } from '../section0/router.js';
 import { syncLedgerToProfile, type SyncedMap } from '../section0/ledger-sync.js';
-import { formatKnownFacts, jobTenureQuestion, nextSituationalFollowup, section0TaskText } from '../section0/turn-context.js';
+import { formatKnownFacts, jobTenureQuestion, nextQuickCheckFor, nextSituationalFollowup, section0TaskText } from '../section0/turn-context.js';
 import { applySafetyNet } from '../section0/safety-net.js';
 import { complianceNotes, lenderStates, type ComplianceNote } from '../section0/compliance-notes.js';
 
@@ -86,6 +86,7 @@ export class SessionContextManager {
   private handoff: { mode: HandoffMode; turn: number; afterUnavailable: boolean } | null = null;
   private mloAvailable: () => boolean = () => true;
   private safetyHit: { ssn: boolean; address: boolean } | null = null; // this turn only
+  private quickChecksAsked: string[] = []; // pending clarifications already asked (each once)
 
   // Parallel asynchronous extraction state
   private nextExtractionTurn = 1;
@@ -156,6 +157,7 @@ export class SessionContextManager {
     cloned.pendingNotes = [...this.pendingNotes];
     cloned.handoff = this.handoff ? { ...this.handoff } : null;
     cloned.safetyHit = this.safetyHit;
+    cloned.quickChecksAsked = [...this.quickChecksAsked];
     cloned.mloAvailable = this.mloAvailable;
     return cloned;
   }
@@ -648,6 +650,7 @@ export class SessionContextManager {
       this.ledger.mergeFrom(clone.ledger);
       // A track switch in the background turn clears old-track sync marks — take the clone's map as is.
       for (const n of clone.pendingNotes) if (!this.pendingNotes.some((m) => m.id === n.id) && !this.notesShown.includes(n.id)) this.pendingNotes.push(n);
+      for (const k of clone.quickChecksAsked) if (!this.quickChecksAsked.includes(k)) this.quickChecksAsked.push(k);
       // A finished action (transferred / booked) recorded live always wins over the background copy.
       if (!(this.handoff && (this.handoff.mode === 'transferred' || this.handoff.mode === 'booked'))) this.handoff = clone.handoff;
       if (clone.trackSwitches > this.trackSwitches) {
@@ -1079,6 +1082,8 @@ export class SessionContextManager {
       equityFixed: this.ledger.value<boolean>('equity.fixed_preference') ?? null,
       intent: ex.intent,
       state: this.section0State,
+      factsShared: ex.facts.length > 0,
+      paidOff: this.ledger.value<boolean>('equity.paid_off') ?? null,
     });
     this.section0State = out.state;
     this.section0Decision = out.decision;
@@ -1169,6 +1174,17 @@ export class SessionContextManager {
     this.mloAvailable = fn;
   }
 
+  /** The pending clarification to ask now (stages ≥ 1), or null. Each is asked once — never a loop. */
+  private nextQuickCheck(): { key: string; label: string; ask: string } | null {
+    if (!ailanaConfig.section0Enabled || this.isHandoffActive()) return null;
+    return nextQuickCheckFor(this.ledger, this.quickChecksAsked);
+  }
+
+  /** A quick check is due this reply — scripted fast paths must not skip it. */
+  hasQuickCheckDue(): boolean {
+    return this.activeStage !== '0' && this.nextQuickCheck() !== null;
+  }
+
   /** A compliance note is waiting for this reply — scripted fast paths must not skip it. */
   hasPendingComplianceNotes(): boolean {
     return this.pendingNotes.length > 0;
@@ -1203,7 +1219,7 @@ export class SessionContextManager {
       const lead = h.afterUnavailable
         ? 'No licensed loan officer is available right now. Say so plainly and offer to set up a call back. If they want one: '
         : 'They want a call back from a licensed loan officer. ';
-      return `CURRENT TASK (call back):\n${lead}get the day, the time and their time zone — ask only for what they have not said yet, one at a time. As soon as you have all three, call the schedule_callback tool once, then read the booking back (day, time, time zone). Do NOT ask qualifying questions, do NOT offer or attempt a transfer, and never say it is booked unless the tool was called.`;
+      return `CURRENT TASK (call back):\n${lead}get the day, the time and their time zone — ask only for what they have not said yet, one at a time. As soon as you have all three, call the schedule_callback tool once FIRST — only after it returns, read the booking back (day, time, time zone). Do not confirm anything before the tool has run. Do NOT ask qualifying questions, do NOT offer or attempt a transfer, and never say it is booked unless the tool was called.`;
     }
     return null;
   }
@@ -2559,6 +2575,7 @@ export class SessionContextManager {
     this.turnLog.push({ role: 'assistant', text: trimmed, timestamp: Date.now() });
     this.profile.bridge_to_say = null;
     this.trackSwitchNotice = null; // acknowledged (S0-18)
+    if (this.activeStage !== '0' && !(this.currentPendingField === 'section0_followup' && this.activeFollowup)) { const qc = this.nextQuickCheck(); if (qc) this.quickChecksAsked.push(qc.key); }
     for (const n of this.pendingNotes) if (!this.notesShown.includes(n.id)) this.notesShown.push(n.id);
     this.pendingNotes = [];
     this.lastProcessedInput = null;
@@ -3774,10 +3791,21 @@ export class SessionContextManager {
     if (ailanaConfig.section0Enabled) {
       // Stages ≥ 1: a few questions are built from what's already known (code), overriding the generic task line.
       let taskOverride: string | undefined;
+      const quickCheck = this.activeStage !== '0' ? this.nextQuickCheck() : null;
+      const hasCo = this.ledger.value('co_borrower.present') === true || this.profile.co_borrower === 'yes';
       if (this.activeStage !== '0' && this.currentPendingField === 'section0_followup' && this.activeFollowup) {
         taskOverride = `CURRENT TASK:\n${this.activeFollowup.ask}\nAsk only this one thing. Do NOT ask for anything in KNOWN FACTS.`;
+      } else if (quickCheck) {
+        // A stated fact that needs one detail (e.g. weekly hours for hourly pay) is checked first, once.
+        taskOverride = `CURRENT TASK:\nBefore anything else, ask ONE quick check: ${quickCheck.label} — ${quickCheck.ask}. Ask only this; the other questions can wait.`;
       } else if (this.activeStage === '2' && this.currentPendingField === 'job_tenure_type') {
         taskOverride = `CURRENT TASK:\nCollect job_tenure_type\n\nAsk: "${this.getJobTenureQuestion()}"\nDO NOT ask for anything in KNOWN FACTS (how they are paid may already be known).`;
+      } else if (this.activeStage === '2' && this.currentPendingField === 'gross_annual_income' && hasCo
+        && (this.ledger.value<unknown[]>('income.borrower') ?? []).length && !(this.ledger.value<unknown[]>('income.co_borrower') ?? []).length) {
+        // Their own income is known; only the co-borrower's is missing.
+        taskOverride = 'CURRENT TASK:\nCollect gross_annual_income\n\nTheir own income is already known (see KNOWN FACTS). Ask ONLY roughly what their co-borrower earns per year. If there is no co-borrower after all, that is fine.';
+      } else if (this.activeStage === '2' && this.currentPendingField === 'military_rural' && hasCo) {
+        taskOverride = 'CURRENT TASK:\nCollect military_rural\n\nAsk EXACTLY this: "Now, do you or your co-borrower have any military service history — such as being on active duty, a veteran, or in the Reserve or National Guard?"\nDO NOT ASK FOR ANY OTHER FIELD.';
       }
       const extras = {
         knownFacts: formatKnownFacts(this.ledger)

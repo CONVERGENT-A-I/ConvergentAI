@@ -145,6 +145,19 @@ assert(route(null, 'asks_if_human').decision.kind === 'ai_disclosure', '"Are you
   assert(back2.decision.kind === 'resume', 'no goal yet → plain resume');
 }
 
+// ── O1 fixes ──
+{
+  // #24: after the intent question, a reply that shares facts (not a goal) is not "unclear"
+  const asked = route(null).state; // intent question asked
+  const r = routeSection0({ goal: null, intent: 'states_goal_or_facts', state: asked, factsShared: true });
+  assert(r.decision.kind === 'ask_intent' && r.state.unclearCount === asked.unclearCount, '#24: sharing facts → ask what they want once more (in their terms), not "general questions or a loan officer"', r.decision);
+  const again = routeSection0({ goal: null, intent: 'states_goal_or_facts', state: r.state, factsShared: true });
+  assert(again.decision.kind !== 'ask_intent', 'the rephrased intent question is asked only once (never loops)', again.decision);
+  // A6: paid-off home + wants money → line of credit or lump sum (keep-or-replace makes no sense)
+  const a6 = routeSection0({ goal: 'cash_out_unclear', intent: 'states_goal_or_facts', state: afterIntentQ(), paidOff: true });
+  assert(a6.decision.kind === 'clarify' && (a6.decision as any).which === 'heloc_vs_heq', 'A6: paid off + needs money → line or lump sum', a6.decision);
+}
+
 // ── Track switching mid-flow (S0-18) ──
 {
   const sw = (goal: GoalClass | null, currentTrack: any, extra: Record<string, unknown> = {}) =>

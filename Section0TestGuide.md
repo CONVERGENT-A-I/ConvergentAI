@@ -29,7 +29,7 @@
 | **8** | David's 30 prospect replies (voice + typed) | All of Phase 3–4 | 🔴 |
 | **9** | Track regression: Purchase, Refi, HELOC, HEQ unchanged | S0-19 | 🔴 |
 | **10** | Flag-off parity (demo build unchanged) | S0-03, S0-19 | 🟢 automated: `section0-flag-off` 23/23 (prompts byte-identical) |
-| **11** | LiveKit text simulations (the official measure) | S0-05 ✅ · S0-04 ✅ · S0-07 baseline · S0-08 | 🟢 spike (11.0) · 🟢 baseline B3/B4 = 0/12 (11.0b) · 🟢 S2 12/12 · S3 12/12 + 6/6 · 🟢 track regression 5/5 off and on · preview P1 20 → P2 31 → P3 40 → P4 43/47 → fix cycle 4 → **first official run O1 next (11.1)** |
+| **11** | LiveKit text simulations (the official measure) | S0-05 ✅ · S0-04 ✅ · S0-07 baseline · S0-08 | 🟢 spike (11.0) · 🟢 baseline B3/B4 = 0/12 (11.0b) · 🟢 S2 12/12 · S3 12/12 + 6/6 · 🟢 track regression 5/5 off and on · previews 20 → 31 → 40 → 43/47 · official O1 35/47 all-3 (90% of samples) → fix cycle 5 → **O2 next (11.1)** |
 
 Status: 🔴 not run · 🟡 partial / failing · 🟢 passing
 
@@ -512,18 +512,21 @@ Send me the run ID and summary. Some failures are expected because the feature i
 | Nov 9, 2026 | Team | `SR_XCDnNrbKhpa2` (track regression, flag off) | 5/5 | Demo baseline. |
 | Nov 9, 2026 | Team | `SR_wj9YTY7ob8QG` (track regression, flag on) | 5/5 | Section 0 does not disturb the tracks. |
 | Nov 9, 2026 | Team | `SR_K4f43aVfYTgH` (P4 preview) | 43/47 | Fix cycle 4 applied. |
-| | | (O1 official, 3 samples) | | |
+| Nov 9, 2026 | Team | `SR_VsDhBkucqqk6` (O1 official, 3 samples) | 35/47 all-3 · 127/141 samples | pass@3 47/47. Fix cycle 5 applied. |
+| | | (O2 official, 3 samples) | | |
+| | | (track regression, flag on, after cycle 5) | | |
 
-**O1, the first official run (now).** Each scenario runs 3 times and counts only if all 3 pass. From `backend/`:
+**O2, the second official run (now)**, plus the track regression with the flag on, from `backend/`:
 
 ```powershell
 npm run build
 $env:SECTION_0_ENABLED = "true"
 lk agent simulate text --scenarios scenarios/section0.yaml --samples 3 --pass-rate 1.0 dist/agent.js
+lk agent simulate text --scenarios scenarios/tracks_regression.yaml --samples 1 dist/agent.js
 Remove-Item Env:SECTION_0_ENABLED
 ```
 
-Exit bar for Section 0: ≥ 95% (at least 45 of 47 scenarios) on **two consecutive** official runs, zero compliance failures, and the track regression still 5/5.
+Exit bar for Section 0: ≥ 95% (at least 45 of 47 scenarios passing all 3 samples) on **two consecutive** official runs, zero compliance failures, and the track regression 5/5.
 
 **Official runs (after David approves):** the same command with `--samples 3 --pass-rate 1.0`. The first one is the Section 0 baseline.
 

@@ -304,7 +304,7 @@ class AilanaVoiceAgent extends voice.Agent {
 
     // Section 0 (S0-27/28): while a transfer or call back is being arranged, skip every scripted
     // fast path so the model can call the handoff tools (code decided the handoff state).
-    if (ailanaConfig.section0Enabled && (this.contextManager.isHandoffActive() || this.contextManager.hasPendingComplianceNotes())) {
+    if (ailanaConfig.section0Enabled && (this.contextManager.isHandoffActive() || this.contextManager.hasPendingComplianceNotes() || this.contextManager.hasQuickCheckDue())) {
       console.log(`[section0] ${this.contextManager.isHandoffActive() ? `handoff in progress (${this.contextManager.getHandoffMode()})` : 'compliance note pending'} — reply by the model`);
       return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
     }

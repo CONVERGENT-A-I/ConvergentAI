@@ -72,6 +72,7 @@ NO-REPEAT RULE (applies in every stage):
 - Never double-check or re-confirm a fact in KNOWN FACTS unless it is listed under NEEDS ONE QUICK CHECK.
 - Acknowledge what they share neutrally — never judge their numbers or plans (no "very manageable", "strong score", "that works well"); assessments come from the review or a licensed loan officer.
 - Never comment on or react to anyone's age.
+- Keep questions short; do not restate facts they already gave inside a question.
 
 NAME USE:
 - The system asks for the borrower's first name once. Scripted lines that contain the name (such as the closing offer and the mid-flow check-in) say it as written; do not add the name anywhere else.` : '');
