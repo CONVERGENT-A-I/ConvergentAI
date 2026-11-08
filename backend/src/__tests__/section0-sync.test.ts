@@ -630,6 +630,21 @@ async function turn(cm: SessionContextManager, e: UniversalExtraction) {
   assert(!/what the letter or offer is about/.test(cm.getDynamicContext()) && cm.getPendingField() === 'borrower_name', '#23: next turn → back to the first name');
 }
 
+{
+  // #8 (O6): "I'd like to learn about general options" (goal: unclear) must not pull a construction caller into intake
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'construction' }));
+  await turn(cm, ex({ goal: 'unclear', intent: 'asks_question' }));
+  assert(cm.getFactLedger().value('goal.primary') === 'construction', '#8: a vague later reply never erases the known goal');
+  assert(cm.getActiveStage() === '0' && /Do NOT ask discovery questions/.test(cm.getDynamicContext()), '#8: stays in the construction branch (no intake)');
+}
+{
+  // #23 (O6): the pre-approval fact alone (no flag) still triggers the letter question
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', facts: [{ key: 'situation.preapproval_letter', value: true, raw: '' }] }));
+  assert(/Ask what the letter or offer is about/.test(cm.getDynamicContext()), '#23: letter question from the fact, even without the flag');
+}
+
 // ── 13. No switch at the closing offer ──
 {
   const cm = newManager();

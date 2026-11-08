@@ -86,7 +86,8 @@ export function complianceNotes(input: NotesInput): ComplianceNote[] {
   if (has('privacy_question')) {
     add('privacy', `PRIVACY QUESTION — answer first with this approved wording, word for word, then continue:\n"${privacyScript(input.channel, input.continueWith)}"`);
   }
-  if (has('approval_guarantee_or_preapproval_letter')) {
+  // Two independent signals: the compliance flag, or the stated fact (the model sometimes gives only one).
+  if (has('approval_guarantee_or_preapproval_letter') || ledger.value('situation.preapproval_letter') === true) {
     add('preapproval', 'Do NOT confirm or imply any pre-approval, approval or amount you did not issue, and say you cannot verify a letter you did not send. Ask what the letter or offer is about.', true);
   }
   if (has('protected_class_topic')) {

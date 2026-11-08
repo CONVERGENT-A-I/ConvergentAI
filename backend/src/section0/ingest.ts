@@ -177,6 +177,11 @@ export function ingestExtraction(ex: UniversalExtraction, ledger: FactLedger, tu
     return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
   });
   if (ex.goal && !facts.some((f) => f.key === 'goal.primary')) facts.unshift({ key: 'goal.primary', value: ex.goal, raw: '' });
+  // A vague later reply ("unclear") never erases a goal that is already known (#8: construction kept).
+  const knownGoal = ledger.value<string>('goal.primary');
+  if (knownGoal && knownGoal !== 'unclear') {
+    for (let i = facts.length - 1; i >= 0; i--) if (facts[i]!.key === 'goal.primary' && facts[i]!.value === 'unclear') facts.splice(i, 1);
+  }
   if (ex.secondaryGoal && !facts.some((f) => f.key === 'goal.secondary')) facts.push({ key: 'goal.secondary', value: ex.secondaryGoal, raw: '' });
 
   let batchPrice: number | null = null;

@@ -99,6 +99,7 @@ INTENT (exactly one): ${INTENTS.join(' | ')}.
 - off_topic = not about home financing. asks_if_human = asks whether you are a person or AI. ends_conversation = they are wrapping up (done for now, thanks, goodbye).
 
 COMPLIANCE FLAGS (any that apply): ${COMPLIANCE_FLAGS.join(' | ')}.
+- approval_guarantee_or_preapproval_letter = they mention a pre-approval, approval, letter or offer they received (from anyone), or ask for a guarantee. Also set situation.preapproval_letter = true.
 ${FACT_GUIDE}
 
 RULES
