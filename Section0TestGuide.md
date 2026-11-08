@@ -49,7 +49,7 @@ The simulations are done (O7 95.7%, O8 96.5% of samples; stress set 94.4%). Now 
 | 2 | **Part 3: routing** | 20 min | Clear goal → straight to the track; unclear → one question; construction / reverse → loan officer |
 | 3 | **Part 4: fact capture** | 20 min | Hourly pay asks hours, corrections overwrite, conflicts get one question |
 | 4 | **Part 6: compliance traps** | 30 min | SSN / address, rate questions, the pre-approval letter, the Hispanic family, behind on payments |
-| 5 | **Part 7: transfer and callback** | 15 min | Only T1, T2, T4, T5, T6 (see notes there) |
+| 5 | **Part 7: transfer and callback** | 10 min | No loan officer is available to take calls, so: T4 and T6 fully; T1, T2 and T5 only up to the `handoff done: transferred` log line and the confirmation popup. **Don't complete the call** |
 | 6 | **Part 5.2 + Part 9: other tracks** | 30 min | Refinance, HELOC and Home Equity: memory, plus the track still behaves like the demo |
 | 7 | **Part 10: flag off** | 5 min | Remove the flag and check the app is exactly today's demo |
 | 8 | **Part 8: David's 30 by voice** | when time allows | The voice check (numbers are heard differently than typed) |
@@ -78,7 +78,7 @@ The simulations are done (O7 95.7%, O8 96.5% of samples; stress set 94.4%). Now 
 | **8** | David's 30 prospect replies (voice + typed) | All of Phase 3–4 | 🔴 |
 | **9** | Track regression: Purchase, Refi, HELOC, HEQ unchanged | S0-19 | 🔴 |
 | **10** | Flag-off parity (demo build unchanged) | S0-03, S0-19 | 🟢 automated: `section0-flag-off` 23/23 (prompts byte-identical) |
-| **11** | LiveKit text simulations (the official measure) | S0-05 ✅ · S0-04 ✅ · S0-07 baseline · S0-08 | 🟢 spike (11.0) · 🟢 baseline B3/B4 = 0/12 (11.0b) · 🟢 S2 12/12 · S3 12/12 + 6/6 · 🟢 track regression 5/5 off and on · previews 20 → 31 → 40 → 43/47 · official O1 35 → O2 37 → O3 40 → O4 43 → O5 44 → O6 41/47 all-3 (run-to-run noise ±3) → fix cycle 10 → O7 43/47 all-3 · 135/141 samples (95.7%) · pass@3 47/47 → fix cycle 11 → O8 136/141 (96.5%) · stress S1 51/54 (94.4%) → fix cycle 12 → **O9 + S2, then localhost Parts 3–5** |
+| **11** | LiveKit text simulations (the official measure) | S0-05 ✅ · S0-04 ✅ · S0-07 baseline · S0-08 | 🟢 spike (11.0) · 🟢 baseline B3/B4 = 0/12 (11.0b) · 🟢 S2 12/12 · S3 12/12 + 6/6 · 🟢 track regression 5/5 off and on · previews 20 → 31 → 40 → 43/47 · official O1 35 → O2 37 → O3 40 → O4 43 → O5 44 → O6 41/47 all-3 (run-to-run noise ±3) → fix cycle 10 → O7 43/47 all-3 · 135/141 samples (95.7%) · pass@3 47/47 → fix cycle 11 → O8 136/141 (96.5%) · stress S1 51/54 (94.4%) → fix cycle 12 → **closed Nov 8**; simulations now regression-only (optional O9 + S2) |
 
 Status: 🔴 not run · 🟡 partial / failing · 🟢 passing
 

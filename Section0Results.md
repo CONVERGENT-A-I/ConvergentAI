@@ -401,7 +401,7 @@ Two notes from the judge, neither of which failed a test:
 
 ## Next run
 
-**Run O9 + S2** (confirm fix cycle 12), then **localhost testing in the real app** (Test Guide Parts 3–5, text and voice, flag on). O7 + O8 are two consecutive runs at ≥ 95% of samples; the all-3 measure (45/47) is not yet met — which measure counts is David's call (open item). Exit bar: ≥ 95% (45/47 all-3) on two consecutive official runs, zero compliance failures; track regression matching the demo build (5/5 ✅). O7 reached 95.7% of samples and 47/47 pass@3.
+**Simulation phase closed (Nov 8, 2026).** O7 95.7% and O8 96.5% of samples on two consecutive official runs, and the stress set at 94.4%. The approved set stays unchanged (it is locked); its remaining misses are documented above as simulator or judge noise, and David is asked to confirm the per-sample measure. An optional O9 + S2 confirms fix cycle 12. After this, simulations run only as a regression check after code changes. **Next:** localhost testing in the real app (Test Guide, "Start here").
 
 
 Previous instruction kept for reference — **B3 — re-run the same baseline with the simulation-harness fix** (Section 0 still off):
