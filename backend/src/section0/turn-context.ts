@@ -199,6 +199,14 @@ export function jobTenureQuestion(ledger: FactLedger, hasCoBorrower: boolean): s
  * Stage 2 (code chooses when; "not sure" moves on). Conditions read only the fact ledger.
  */
 interface Followup { id: string; needed: (l: FactLedger) => boolean; ask: string }
+/** The area of the home they want — not the place they are leaving (relocation origin). */
+export function destinationArea(l: FactLedger): { city?: string; state?: string; zip?: string } | undefined {
+  const area = l.value<{ city?: string; state?: string; zip?: string }>('location.area');
+  const from = l.value<{ from?: string }>('situation.relocation')?.from;
+  const norm = (x?: string) => (x ?? '').toLowerCase().replace(/[^a-z]/g, '');
+  if (area && from && area.city && norm(from).startsWith(norm(area.city))) return undefined; // that's where they're leaving
+  return area;
+}
 const allIncome = (l: FactLedger) => [...(l.value<IncomeComponent[]>('income.borrower') ?? []), ...(l.value<IncomeComponent[]>('income.co_borrower') ?? [])];
 const FOLLOWUPS: Followup[] = [
   {
@@ -208,12 +216,12 @@ const FOLLOWUPS: Followup[] = [
   },
   {
     id: 'prior_employment',
-    needed: (l) => l.value('employment.new_job') !== undefined,
+    needed: (l) => l.value('employment.new_job') !== undefined && l.value('situation.job_loss') !== true, // a stated job loss already covers their previous work
     ask: 'Ask briefly what they did for work before and for how long, so the loan officer has their recent work history. Do not restate or ask again about the new job, and do not ask for an offer letter or any documents.',
   },
   {
     id: 'destination_area',
-    needed: (l) => l.value('situation.relocation') !== undefined && l.value('location.area') === undefined,
+    needed: (l) => l.value('situation.relocation') !== undefined && destinationArea(l) === undefined,
     ask: 'They are relocating. Ask which city or zip code they are moving to (where they want to buy). Never ask for a street address.',
   },
   {

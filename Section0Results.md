@@ -26,6 +26,7 @@
 | **O1** | Nov 9, 2026 | `SR_VsDhBkucqqk6` | fix cycle 4 | **Official**: full set (47), 3 samples, pass-rate 1.0 | **35 / 47 scenarios (74%)** · 127/141 samples (90%) | **47/47** | 35/47 | First official run. Every scenario passed at least once; 11 of the 12 misses failed only 1 of 3 samples, so the remaining work is consistency. Fix cycle 5 applied → **O2**. Export: `docs/section0/runs/official1.json`. |
 | **O2** | Nov 9, 2026 | `SR_m4ym622Jzg7T` | fix cycle 5 | **Official**: full set (47), 3 samples | **37 / 47 scenarios (79%)** · 129/141 samples (91.5%) | **47/47** | 37/47 | +2 scenarios. A12, A11, A6, #30, #26 now 3/3. 12 failed samples triaged; fix cycle 6 → **O3**. |
 | **TR-on2** | Nov 9, 2026 | `SR_Sr3mFjQubPRo` | fix cycle 5 (flag on) | Track regression (5) | **4 / 5** | — | — | HELOC: the judge wanted a separate "comfortable with a variable rate?" question. The **demo build skips it too** (flag off, same transcript point); the earlier flag-on pass only happened because the simulated borrower volunteered it. Pre-existing HELOC-track behaviour, not caused by Section 0. |
+| **O3** | Nov 10, 2026 | `SR_LCyQgCuQsVWQ` | fix cycle 6 | **Official**: full set (47), 3 samples | **40 / 47 scenarios (85%)** · 133/141 samples (94.3%) | **47/47** | 40/47 | Best run so far. T6, #18, #21, #24, #12 now 3/3. 8 failed samples; fix cycle 7 → **O4**. |
 
 ---
 
@@ -100,6 +101,22 @@ Reading the B2 transcripts showed Ailana asking questions in **our** wording thr
 
 ### What this tells us
 - **Superseded by the harness finding** — B1's transcripts were Ailana improvising without our state machine, so its numbers are not the real "before". Compliance held throughout. B3 is the valid baseline.
+
+---
+
+## Official run O3: 40/47 all-3, 94.3% of samples (Nov 10) and fix cycle 7
+
+| Failed samples | Cause (found by replay + live extractor) | Fix (cycle 7) |
+| :--- | :--- | :--- |
+| #9 ×2 | In that run the extractor recorded the move to Chattanooga but not the new job, so the prior-job follow-up never fired (ingest verified fine) | Schema: a job they will start counts as `employment.new_job`, also when it's the reason they're moving |
+| #30 | The model stored "Atlanta, GA" (where they're **leaving**) as the home's area → Ailana said "since you're looking in Georgia" and never asked the destination | Schema: the area is where they want to buy, never the place they're leaving. Code: an area equal to the relocation origin isn't the destination; the destination is still asked and no out-of-area note is given |
+| #29 | Asked "what did you do before" right after a stated job loss (3rd run) | No prior-job follow-up when a job loss was stated |
+| #11 | Price missing once (live extractor 3/3 correct) | Variance |
+| #3, #26, #23 (1 of 3 each) | Property type not reached in 8 replies; "new home in Phoenix" phrasing; letter question missed once | Variance; watch |
+
+**Not Section 0 (judge notes):** the Refinance fee script and HELOC 10/20-year terms (existing track wording), the affordability-summary step after the closing choice (Stage 2.5), and "great score" praise (the flag-on rule asks for neutral wording; some remains).
+
+**Tests:** sync 108. `npm test` 26/26; flag-off parity 23/23.
 
 ---
 
@@ -282,7 +299,7 @@ Two notes from the judge, neither of which failed a test:
 
 ## Next run
 
-**Run O3**: official, 3 samples (Test Guide 11.1). Exit bar: ≥ 95% (45/47 all-3) on two consecutive official runs, zero compliance failures; track regression matching the demo build.
+**Run O4**: official, 3 samples (Test Guide 11.1). Exit bar: ≥ 95% (45/47 all-3) on two consecutive official runs, zero compliance failures; track regression matching the demo build.
 
 
 Previous instruction kept for reference — **B3 — re-run the same baseline with the simulation-harness fix** (Section 0 still off):

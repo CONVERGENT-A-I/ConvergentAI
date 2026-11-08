@@ -56,7 +56,7 @@ FACT KEYS (use only these; omit anything not stated):
     frequency: hourly | weekly | biweekly | semimonthly | monthly | yearly | null if not said
     hours_per_week: number only if said; counted: true/false only if the borrower said whether to count it; history: past-year amounts if said
     combined: true when one amount is the total for all borrowers together (put it under income.borrower)
-- employment.type: w2_salary | w2_hourly | self_employed | gig_1099 | retired | commission | other · employment.occupation (text) · employment.tenure_years (number) · employment.new_job ({starts})
+- employment.type: w2_salary | w2_hourly | self_employed | gig_1099 | retired | commission | other · employment.occupation (text) · employment.tenure_years (number) · employment.new_job ({starts}: a job they will start or were just offered — also when it is the reason they are moving)
 - debt.monthly_total (number per month) · debt.items (array of {kind, monthly})
 - credit.borrower, credit.co_borrower: the score/range/tier as said (string)
 - credit.events: array of {type: bankruptcy | foreclosure | short_sale | late_payments | other, when}
@@ -64,7 +64,7 @@ FACT KEYS (use only these; omit anything not stated):
 - housing.current: rent | own | own_selling | own_keeping · housing.properties_owned (number) · housing.retained_home ({balance, plan: rent|sell|keep, expected_rent})
 - purchase.price (number as said) · purchase.down_payment ({amount} or {percent}) · purchase.zero_down_goal (bool)
 - property.type: single_family | condo | townhome | multi_family | manufactured | cabin | other · property.units (number) · property.projected_rent (number per month) · property.rental_plan (bool: they plan to rent this home out, fully or part of the time)
-- location.area: {city, state, zip, area} of the home they want to buy or own — NEVER a street address. state = two-letter code ONLY if they said the state or the city is a major city that exists in just one state; otherwise null. Never guess a state from a landmark, campus, base or area name
+- location.area: {city, state, zip, area} of the home they want to buy or own — NEVER the place they are moving away from, NEVER a street address. state = two-letter code ONLY if they said the state or the city is a major city that exists in just one state; otherwise null. Never guess a state from a landmark, campus, base or area name
 - military.status: active | veteran | retired | reserve_guard | surviving_spouse | none · military.years
 - refi.balance · refi.value · refi.current_rate · refi.loan_type: conventional|fha|va|usda|unknown · refi.purchase_year · refi.cash_out_amount · refi.cash_out_use · refi.keep_first (bool: false = they said they want to refinance / replace the current mortgage; true = keep it)
 - equity.paid_off (bool) · equity.amount · equity.use · equity.fixed_preference (bool: true = lump sum / fixed payment, false = line of credit)

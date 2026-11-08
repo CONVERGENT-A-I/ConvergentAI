@@ -8,6 +8,7 @@
 import type { ComplianceFlag, IncomeComponent } from './fact-schema.js';
 import type { FactLedger } from './fact-ledger.js';
 import { tridGateScript } from './safety-net.js';
+import { destinationArea } from './turn-context.js';
 
 export const PRIVACY_POLICY_URL = 'https://convergentai.tech/privacy';
 
@@ -109,7 +110,7 @@ export function complianceNotes(input: NotesInput): ComplianceNote[] {
   if (role === 'co_signer' || role === 'other_is_primary' || ledger.value('co_borrower.present') === true) {
     add('each_authorizes', 'Mention briefly that each borrower authorizes their own credit check and contact later in the process.');
   }
-  const area = ledger.value<{ state?: string; to?: string }>('location.area');
+  const area = destinationArea(ledger);
   const reloc = ledger.value<{ to?: string }>('situation.relocation');
   const state = stateCode(area?.state) ?? stateCode(reloc?.to?.split(',').pop());
   if ((state && !input.licensedStates.includes(state)) || has('out_of_footprint_location')) {

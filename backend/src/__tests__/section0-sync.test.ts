@@ -551,6 +551,33 @@ async function turn(cm: SessionContextManager, e: UniversalExtraction) {
   assert(cm.getFactLedger().get('occupancy')?.status === 'stated' && !cm.hasQuickCheckDue(), '#18: answered occupancy is settled — not re-asked');
 }
 
+{
+  // #30 (O3): the model put "Atlanta, GA" (where they're LEAVING) as the area → still ask the destination, no Georgia footprint note
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', facts: [
+    { key: 'situation.relocation', value: { from: 'Atlanta' }, raw: '' },
+    { key: 'location.area', value: { city: 'Atlanta', state: 'GA' }, raw: '' },
+  ] }));
+  assert(!/Georgia/.test(cm.getDynamicContext()), '#30: no out-of-area note for the place they are leaving');
+  for (const f of [{ key: 'borrower.first_name', value: 'Morgan' }, { key: 'occupancy', value: 'primary' }, { key: 'borrower.existing_member', value: false }, { key: 'timeline', value: 'three months' }, { key: 'co_borrower.present', value: true }] as const) {
+    await turn(cm, ex({ facts: [{ key: f.key as any, value: f.value, raw: '' }] }));
+  }
+  assert(/which city or zip code they are moving to/.test(cm.getDynamicContext()), '#30: destination still asked');
+}
+{
+  // #29 (O3): a stated job loss already covers previous work → no prior-employment follow-up
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'refinance', facts: [
+    { key: 'employment.new_job', value: { starts: 'Monday' }, raw: '' },
+    { key: 'situation.job_loss', value: true, raw: '' },
+    { key: 'refi.value', value: 290, raw: '' },
+  ] }));
+  for (const f of [{ key: 'borrower.first_name', value: 'Jessie' }, { key: 'occupancy', value: 'primary' }, { key: 'borrower.existing_member', value: false }, { key: 'timeline', value: 'soon' }, { key: 'co_borrower.present', value: false }] as const) {
+    await turn(cm, ex({ facts: [{ key: f.key as any, value: f.value, raw: '' }] }));
+  }
+  assert(!/what they did for work before/.test(cm.getDynamicContext()), '#29: no "what did you do before" after a stated job loss');
+}
+
 // ── 13. No switch at the closing offer ──
 {
   const cm = newManager();
