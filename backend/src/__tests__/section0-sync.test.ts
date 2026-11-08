@@ -537,6 +537,20 @@ async function turn(cm: SessionContextManager, e: UniversalExtraction) {
   assert(/do you or your co-borrower have any military service/.test(ctx) && !/you or a co-borrower/.test(ctx), '#18/#30: military question treats the co-borrower as known');
 }
 
+{
+  // #21 (O2): "I've never owned a home" answers rent-or-own
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase', facts: [{ key: 'borrower.first_time_buyer', value: true, raw: '' }] }));
+  assert(cm.getProfile().rent_own_confirmed === true, '#21: first-time buyer → never asked "rent or own?"');
+}
+{
+  // #18 (O2): a direct answer to the occupancy question is never turned into a "quick check"
+  const cm = newManager();
+  await turn(cm, ex({ goal: 'purchase' }));
+  await turn(cm, ex({ facts: [{ key: 'occupancy', value: 'primary', raw: 'only my son will live there', uncertain: true }] }));
+  assert(cm.getFactLedger().get('occupancy')?.status === 'stated' && !cm.hasQuickCheckDue(), '#18: answered occupancy is settled — not re-asked');
+}
+
 // ── 13. No switch at the closing offer ──
 {
   const cm = newManager();

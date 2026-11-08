@@ -1,3 +1,4 @@
+import { ailanaConfig } from '../config/ailana-config.js';
 export interface BorrowerProfile {
   current_pending_field?: string | null;
 
@@ -440,7 +441,7 @@ export function buildLayer3TurnContext(
       }
     } else if (pendingField === 'military_rural') {
       const hasCoBorrower = profile.co_borrower === 'yes';
-      const coBorrowerPhrase = hasCoBorrower ? 'you or a co-borrower' : 'you';
+      const coBorrowerPhrase = hasCoBorrower ? (ailanaConfig.section0Enabled ? 'you or your co-borrower' : 'you or a co-borrower') : 'you';
       taskLine = `CURRENT TASK:\nCollect military_rural\n\nAsk EXACTLY this: "Now, do ${coBorrowerPhrase} have any military service history — such as being on active duty, a veteran, or in the Reserve or National Guard?"\nDO NOT ASK FOR ANY OTHER FIELD.`;
     } else if (pendingField === 'fd1_delivery') {
       taskLine = `CURRENT TASK:\nDeliver the Automated Underwriting System (AUS) findings. The system has applied a current representative rate from our rate sheet and generated a conditional eligibility result along with an estimated payment range. Tell the borrower their formal eligibility review is complete.`;

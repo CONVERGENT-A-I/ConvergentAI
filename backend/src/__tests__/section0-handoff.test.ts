@@ -39,6 +39,7 @@ function toolsFor(cm: SessionContextManager, log: { transfers: number; bookings:
   const [transfer, book] = buildHandoffTools({
     transfer: async (s: string) => { log.transfers++; log.summary = s; },
     book: async (r) => { log.bookings.push(r); },
+    reschedule: async (r) => { log.bookings[log.bookings.length - 1] = r; },
     onResult: (r) => cm.onHandoffResult(r),
     canTransfer: () => cm.getHandoffMode() === 'confirm_answer',
     canBook: () => cm.getHandoffMode() === 'callback',
@@ -126,6 +127,11 @@ function toolsFor(cm: SessionContextManager, log: { transfers: number; bookings:
   await turn(cm, ex({}));
   const b = await t.book({ day: 'tomorrow', time: '3:30 PM', time_zone: 'Central' });
   assert(b.status === 'booked' && log.bookings.length === 1 && log.transfers === 0, 'T6: exactly one booking, no transfer');
+  // They change the time → the same booking moves (O2: "already booked" at 3:00 while they wanted 3:30)
+  const moved = await t.book({ day: 'tomorrow', time: '4:00 PM', time_zone: 'Central' });
+  assert(moved.status === 'rescheduled' && log.bookings.length === 1 && log.bookings[0]!.time === '4:00 PM', 'T6: a new time reschedules the one booking (never two)', moved);
+  const same = await t.book({ day: 'tomorrow', time: '4:00 PM', time_zone: 'Central' });
+  assert(same.status === 'already_booked' && log.bookings.length === 1, 'T6: the same time again → no duplicate');
 }
 
 // Declining the confirm → back to normal; the stale confirm never lingers

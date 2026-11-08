@@ -137,9 +137,10 @@ const WRITERS: Array<{ keys: FactKey[]; write: Writer }> = [
     },
   },
   {
-    keys: ['housing.current'],
+    keys: ['housing.current', 'borrower.first_time_buyer'],
     write: (l) => {
-      const v = l.value<string>('housing.current');
+      // A first-time buyer does not own a home now — never ask "rent or own?" after "I've never owned".
+      const v = l.value<string>('housing.current') ?? (l.value('borrower.first_time_buyer') === true ? 'rent' : undefined);
       const map: Record<string, BorrowerProfile['rent_own']> = { rent: 'rent', own: 'own', own_selling: 'own_selling', own_keeping: 'own' };
       const r = v ? map[v] : undefined;
       return r ? { rent_own: r, rent_own_confirmed: true } : null;

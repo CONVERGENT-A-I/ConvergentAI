@@ -1219,7 +1219,7 @@ export class SessionContextManager {
       const lead = h.afterUnavailable
         ? 'No licensed loan officer is available right now. Say so plainly and offer to set up a call back. If they want one: '
         : 'They want a call back from a licensed loan officer. ';
-      return `CURRENT TASK (call back):\n${lead}get the day, the time and their time zone — ask only for what they have not said yet, one at a time. As soon as you have all three, call the schedule_callback tool once FIRST — only after it returns, read the booking back (day, time, time zone). Do not confirm anything before the tool has run. Do NOT ask qualifying questions, do NOT offer or attempt a transfer, and never say it is booked unless the tool was called.`;
+      return `CURRENT TASK (call back):\n${lead}get the day, an exact time (if they give a range like "after 3", ask which time) and their time zone — ask only for what they have not said yet, one at a time. As soon as you have all three, call the schedule_callback tool once FIRST — only after it returns, read the booking back (day, time, time zone). Do not confirm anything before the tool has run. Do NOT ask qualifying questions, do NOT offer or attempt a transfer, and never say it is booked unless the tool was called.`;
     }
     return null;
   }

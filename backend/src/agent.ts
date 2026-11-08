@@ -45,7 +45,7 @@ import { classifyAuthorization, classifyLoanOfficerTransferIntent, extractMultip
 import { BackgroundVoiceCancellation } from '@livekit/noise-cancellation-node';
 import { logAffordabilityEvent } from './utils/affordability-audit.js';
 import type { SimulationContext } from '@livekit/agents';
-import { activateSimulation, getSimRecords, getSimUserdata, recordSimTransfer, recordSimBooking, simMloAvailable } from './section0/sim-mocks.js';
+import { activateSimulation, getSimRecords, getSimUserdata, recordSimTransfer, recordSimBooking, updateSimBooking, simMloAvailable } from './section0/sim-mocks.js';
 import { buildHandoffTools } from './section0/handoff-tools.js';
 import { checkExpectedFacts, type ExpectedFacts } from './section0/sim-checks.js';
 
@@ -694,7 +694,7 @@ class AilanaVoiceAgent extends voice.Agent {
         this.contextManager.advanceWorkflow();
 
         const hasCoBorrower = profile.co_borrower === 'yes';
-        const coBorrowerPhrase = hasCoBorrower ? 'you or a co-borrower' : 'you';
+        const coBorrowerPhrase = hasCoBorrower ? (ailanaConfig.section0Enabled ? 'you or your co-borrower' : 'you or a co-borrower') : 'you';
         const scriptText = `Got it, thank you. Do ${coBorrowerPhrase} have any military service history — such as being on active duty, a veteran, or part of the Reserve or National Guard?`;
         return createVerbatimStream(scriptText) as any;
       }
@@ -729,7 +729,7 @@ class AilanaVoiceAgent extends voice.Agent {
       }
 
       const hasCoBorrower = profile.co_borrower === 'yes';
-      const coBorrowerPhrase = hasCoBorrower ? 'you or a co-borrower' : 'you';
+      const coBorrowerPhrase = hasCoBorrower ? (ailanaConfig.section0Enabled ? 'you or your co-borrower' : 'you or a co-borrower') : 'you';
       const scriptText = `Do ${coBorrowerPhrase} have any military service history — such as being on active duty, a veteran, or part of the Reserve or National Guard?`;
       console.log(`[agent-hook]: Delivering deterministic military_rural script (hasCoBorrower=${hasCoBorrower}) via ReadableStream!`);
       return createVerbatimStream(scriptText) as any;
@@ -1504,6 +1504,11 @@ export default defineAgent({
             if (simCtx) { recordSimBooking({ day: req.date ?? req.day, time: req.time, timeZone: req.timeZone }); return; }
             // Google Calendar booking is decision D1 — until then the request travels with the profile to the loan officer.
             console.log(`[section0] callback requested: ${JSON.stringify(req)}`);
+          },
+          reschedule: async (req) => {
+            (contextManager.getProfile() as any).callback_request = req;
+            if (simCtx) { updateSimBooking({ day: req.date ?? req.day, time: req.time, timeZone: req.timeZone }); return; }
+            console.log(`[section0] callback rescheduled: ${JSON.stringify(req)}`);
           },
           onResult: (r) => contextManager.onHandoffResult(r),
           canTransfer: () => contextManager.getHandoffMode() === 'confirm_answer',

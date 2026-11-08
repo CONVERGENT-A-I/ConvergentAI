@@ -21,6 +21,8 @@ export interface HandoffDeps {
   transfer: (summary: string) => Promise<void>;
   /** Book the call back (production: stored for the loan officer until the calendar is wired — D1; simulation: mock record). */
   book: (req: CallbackRequest) => Promise<void>;
+  /** Change the one existing booking (still exactly one booking). */
+  reschedule: (req: CallbackRequest) => Promise<void>;
   /** Tell the session state what happened. */
   onResult: (result: 'transferred' | 'booked') => void;
   /** Code decides: is a transfer allowed right now (the borrower just confirmed)? */
@@ -76,14 +78,21 @@ export function buildHandoffTools(deps: HandoffDeps) {
   const schedule_callback = llm.tool({
     name: 'schedule_callback',
     description:
-      'Book a call back from a licensed loan officer. Call only when you know the day, the time and the borrower\'s time zone. Call it once, then read the booking back to the borrower.',
+      'Book a call back from a licensed loan officer, or change the time of the one already booked. Call only when you know the day, an exact time (not a range like "after 3") and the borrower\'s time zone. Then read the booking back exactly as the tool returns it.',
     parameters: z.object({
       day: z.string().describe('The day, as the borrower said it (e.g. "tomorrow", "Monday", "November 12")'),
       time: z.string().describe('The time, e.g. "3:30 PM"'),
       time_zone: z.string().describe('The borrower\'s time zone, e.g. "Central"'),
     }),
     execute: async ({ day, time, time_zone }) => {
-      if (booked) return { status: 'already_booked', booking: booked, say: 'A call back is already booked — read it back; do not book another.' };
+      if (booked) {
+        const same = booked.day === day && booked.time === time && booked.timeZone === time_zone;
+        if (same) return { status: 'already_booked', booking: booked, say: 'This call back is already booked — read it back; do not book another.' };
+        const updated: CallbackRequest = { day, time, timeZone: time_zone, date: resolveDay(day, deps.now?.() ?? new Date()) };
+        booked = updated;
+        await deps.reschedule(updated);
+        return { status: 'rescheduled', booking: updated, say: `The existing call back was moved. Read it back: ${day}${updated.date ? ` (${updated.date})` : ''} at ${time} ${time_zone} time.` };
+      }
       if (!deps.canBook()) return { status: 'not_now', say: 'Only book a call back when the borrower has asked for one.' };
       const req: CallbackRequest = { day, time, timeZone: time_zone, date: resolveDay(day, deps.now?.() ?? new Date()) };
       booked = req;

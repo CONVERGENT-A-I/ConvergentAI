@@ -96,6 +96,14 @@ export function recordSimBooking(booking: Omit<SimBooking, 'at'>): void {
   console.log(`[simulation] MOCK callback booking #${records.bookings.length}: ${JSON.stringify(booking)}`);
 }
 
+/** A changed call-back time updates the one booking — it never creates a second one. */
+export function updateSimBooking(booking: Omit<SimBooking, 'at'>): void {
+  const last = records.bookings[records.bookings.length - 1];
+  if (!last) { recordSimBooking(booking); return; }
+  Object.assign(last, booking, { at: new Date().toISOString() });
+  console.log(`[simulation] MOCK callback rescheduled: ${JSON.stringify(booking)}`);
+}
+
 export function recordSimConsent(type: SimConsentEvent['type'], channel: string): void {
   records.consents.push({ at: new Date().toISOString(), type, channel });
   console.log(`[simulation] MOCK consent: ${type} (${channel})`);

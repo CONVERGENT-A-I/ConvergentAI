@@ -181,7 +181,7 @@ export function ingestExtraction(ex: UniversalExtraction, ledger: FactLedger, tu
     if (!n) continue;
     if (f.key === 'purchase.price' && typeof n.value === 'number') batchPrice = n.value;
     // The borrower's words point two ways (e.g. "vacation home we'd also rent out") → confirm, never guess.
-    if (!n.clarify && f.uncertain && CHOICE_KEYS.has(f.key)) n.clarify = 'uncertain';
+    if (!n.clarify && f.uncertain && CHOICE_KEYS.has(f.key) && stage === '0') n.clarify = 'uncertain';
     const status = n.clarify ? 'needs_clarification' : 'stated';
     // A message that touches a protected class (ethnicity, religion, ...) keeps no quotes at all —
     // only the structured values, which never carry those characteristics (ECOA / Reg B).
