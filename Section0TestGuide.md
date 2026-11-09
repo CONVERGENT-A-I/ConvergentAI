@@ -602,6 +602,8 @@ Send me the run ID and summary. Some failures are expected because the feature i
 | Nov 8, 2026 | Team | `SR_qBwj5WUnZjpr` (O8 official, 3 samples) | 42/47 all-3 · 136/141 samples (96.5%) · pass@3 47/47 | Best sample rate. 1 real bug (#2 income) fixed. |
 | Nov 8, 2026 | Team | `SR_VP3oEJEuHJwr` (S1 stress set, 3 samples) | 16/18 all-3 · 51/54 samples (94.4%) · pass@3 18/18 | Reported separately. ST18 callback reply fixed. |
 | Nov 8, 2026 | Team | `SR_cRNWE8udwUVu` (track regression, flag on) | 4/5 | HELOC rate-comfort: existing track, not Section 0. |
+| Nov 9, 2026 | Sohail | **L1 localhost, voice** (first screen + purchase to Stage 3A) | 4 real issues | Duplicate greeting bubbles; voice replies before the Section 0 decision; late compliance note dropped; mic setting lost in the merge. All fixed (cycle 13). |
+| | | (L2 localhost, voice: re-test) | | |
 | | | (O9 official + S2 stress, 3 samples) | | |
 
 **O9 + stress S2 (now)**, from `backend/`:

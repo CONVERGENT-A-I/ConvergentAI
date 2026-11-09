@@ -90,6 +90,11 @@ export class SessionContextManager {
   private channel: 'voice' | 'text' = 'voice';
   private notesShown: string[] = [];          // compliance notes already given (each once per session)
   private pendingNotes: ComplianceNote[] = []; // compliance notes for the reply being generated
+  // What the last prompt actually contained: only these count as said when Ailana replies. A note or quick
+  // check that arrives after the prompt was built (voice turns reply before the background extraction ends)
+  // stays pending for the next reply instead of being dropped.
+  private promptedNoteIds: string[] = [];
+  private promptedQuickCheck: string | null = null;
   private handoff: { mode: HandoffMode; turn: number; afterUnavailable: boolean } | null = null;
   private mloAvailable: () => boolean = () => true;
   private safetyHit: { ssn: boolean; address: boolean } | null = null; // this turn only
@@ -553,7 +558,7 @@ export class SessionContextManager {
     return turnNumber;
   }
 
-  async waitForExtraction(turnNumber: number, maxWaitMs: number): Promise<boolean> {
+  async waitForExtraction(turnNumber: number, maxWaitMs: number, opts: { keepLateResult?: boolean } = {}): Promise<boolean> {
     const pending = this.pendingExtractions.get(turnNumber);
     if (!pending) return true;
     if (pending.status !== 'pending') return true;
@@ -568,7 +573,8 @@ export class SessionContextManager {
     const timeoutPromise = new Promise<boolean>((resolve) => {
       timeoutId = setTimeout(() => {
         console.warn(`[checkpoint] Turn ${turnNumber} extraction timed out after ${maxWaitMs}ms.`);
-        pending.status = 'timeout';
+        // Section 0 waits keep the late result (it is merged when it arrives); facts are never thrown away.
+        if (!opts.keepLateResult) pending.status = 'timeout';
         resolve(false);
       }, maxWaitMs);
     });
@@ -1099,6 +1105,33 @@ export class SessionContextManager {
     }
     this.updateHandoff(ex);
     this.queueComplianceNotes(ex);
+  }
+
+  /**
+   * Memory only, no decisions: a turn that another feature owns (the spoken loan-officer transfer
+   * interceptor, or conversational scheduling) still lands in the Fact Ledger, so nothing the borrower
+   * says is lost. It never routes, never starts a Section 0 handoff, and never queues notes or quick checks.
+   */
+  async rememberOnly(text: string): Promise<void> {
+    if (!ailanaConfig.section0Enabled) return;
+    const safe = applySafetyNet((text ?? '').trim()).text;
+    if (!safe) return;
+    try {
+      const ex = await extractUniversal({
+        text: safe,
+        lastAssistant: this.getLastAssistantUtterance(),
+        track: this.profile.transaction_type ?? null,
+        knownKeys: this.ledger.known().map((e) => e.key),
+      });
+      const r = ingestExtraction(ex, this.ledger, this.turnCount, this.activeStage);
+      if (r.changed.length) {
+        const written = this.syncLedger();
+        if (written.length && this.activeStage !== '0') this.advanceWorkflow();
+        console.log(`[section0] memory-only turn (owned by another feature) — stored: ${r.changed.join(', ')}`);
+      }
+    } catch (err) {
+      console.warn('[section0] memory-only extraction failed:', err);
+    }
   }
 
   /** Track chosen by the router: hand off to the existing Stage 1 / Stage 2 flow. */
@@ -2622,9 +2655,16 @@ export class SessionContextManager {
     this.turnLog.push({ role: 'assistant', text: trimmed, timestamp: Date.now() });
     this.profile.bridge_to_say = null;
     this.trackSwitchNotice = null; // acknowledged (S0-18)
-    if (this.activeStage !== '0' && !this.pendingNotes.some((n) => n.takesTurn) && !(this.currentPendingField === 'section0_followup' && this.activeFollowup)) { const qc = this.nextQuickCheck(); if (qc) this.quickChecksAsked.push(qc.key); }
-    for (const n of this.pendingNotes) if (!this.notesShown.includes(n.id)) this.notesShown.push(n.id);
-    this.pendingNotes = [];
+    if (ailanaConfig.section0Enabled) {
+      // Only what this reply's prompt contained counts as said; anything that arrived later waits for the next reply.
+      if (this.promptedQuickCheck && !this.quickChecksAsked.includes(this.promptedQuickCheck)) this.quickChecksAsked.push(this.promptedQuickCheck);
+      for (const id of this.promptedNoteIds) if (!this.notesShown.includes(id)) this.notesShown.push(id);
+      this.pendingNotes = this.pendingNotes.filter((n) => !this.promptedNoteIds.includes(n.id));
+      this.promptedNoteIds = [];
+      this.promptedQuickCheck = null;
+    } else {
+      this.pendingNotes = [];
+    }
     this.lastProcessedInput = null;
 
     // Section 0: a situational follow-up counts as asked once Ailana has spoken it (never asked twice).
@@ -3854,6 +3894,9 @@ export class SessionContextManager {
       } else if (this.activeStage === '2' && this.currentPendingField === 'military_rural' && hasCo) {
         taskOverride = 'CURRENT TASK:\nCollect military_rural\n\nAsk EXACTLY this: "Now, do you or your co-borrower have any military service history — such as being on active duty, a veteran, or in the Reserve or National Guard?"\nDO NOT ASK FOR ANY OTHER FIELD.';
       }
+      const handoffOrNoteTask = this.handoffTaskText() ?? this.noteTaskText();
+      this.promptedNoteIds = this.pendingNotes.map((n) => n.id);
+      this.promptedQuickCheck = quickCheck && !handoffOrNoteTask && taskOverride?.includes('ONE quick check') ? quickCheck.key : null;
       const extras = {
         knownFacts: formatKnownFacts(this.ledger)
           + (this.trackSwitchNotice

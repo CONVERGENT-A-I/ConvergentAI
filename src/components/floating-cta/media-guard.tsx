@@ -5,9 +5,14 @@ interface MediaGuardProps {
   mode: string;
   loanOfficerConnected?: boolean;
   conversationalScheduling?: boolean;
+  /**
+   * Section 0 (S0-25): the borrower just tapped the Voice or Video card, so the mic turns on with the tap.
+   * Unset (flag off) → the mic stays off until the mic button, exactly as before.
+   */
+  micOnAfterCard?: boolean;
 }
 
-export function MediaGuard({ mode, loanOfficerConnected = false, conversationalScheduling = false }: MediaGuardProps) {
+export function MediaGuard({ mode, loanOfficerConnected = false, conversationalScheduling = false, micOnAfterCard = false }: MediaGuardProps) {
   const room = useRoomContext();
 
   useEffect(() => {
@@ -53,19 +58,19 @@ export function MediaGuard({ mode, loanOfficerConnected = false, conversationalS
         try {
           await lp.setMicrophoneEnabled(micOnAfterCard);
         } catch (e) {
-          console.warn("[MediaGuard] Failed to disable microphone in voice mode:", e);
+          console.warn("[MediaGuard] Failed to set microphone in voice mode:", e);
         }
         try {
           await lp.setCameraEnabled(false);
         } catch (e) {
           console.warn("[MediaGuard] Failed to disable camera in voice mode:", e);
         }
-        console.log("[MediaGuard] 🔇 Mic & camera OFF (voice mode)");
+        console.log(micOnAfterCard ? "[MediaGuard] 🎤 Mic ON (Voice card tapped)" : "[MediaGuard] 🔇 Mic & camera OFF (voice mode)");
       } else if (mode === "video") {
         try {
-          await lp.setMicrophoneEnabled(conversationalScheduling);
+          await lp.setMicrophoneEnabled(conversationalScheduling || micOnAfterCard);
         } catch (e) {
-          console.warn("[MediaGuard] Failed to disable microphone in video mode:", e);
+          console.warn("[MediaGuard] Failed to set microphone in video mode:", e);
         }
         try {
           await lp.setCameraEnabled(false);
@@ -74,7 +79,9 @@ export function MediaGuard({ mode, loanOfficerConnected = false, conversationalS
         }
         console.log(conversationalScheduling
           ? "[MediaGuard] 🎤 Mic ON for conversational scheduling"
-          : "[MediaGuard] 🔇 Mic & camera OFF by default (waiting for user to enable)");
+          : micOnAfterCard
+            ? "[MediaGuard] 🎤 Mic ON (Video card tapped)"
+            : "[MediaGuard] 🔇 Mic & camera OFF by default (waiting for user to enable)");
       } else if (mode === "loan-officer") {
         // Keep the browser mic muted while the SIP leg is dialing. Enabling it
         // earlier lets ringing/noise reach the still-closing AI speech pipeline.
@@ -97,7 +104,7 @@ export function MediaGuard({ mode, loanOfficerConnected = false, conversationalS
     };
 
     syncMedia();
-  }, [mode, loanOfficerConnected, conversationalScheduling, room, room.state]);
+  }, [mode, loanOfficerConnected, conversationalScheduling, micOnAfterCard, room, room.state]);
 
   return null;
 }

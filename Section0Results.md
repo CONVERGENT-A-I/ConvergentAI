@@ -112,6 +112,59 @@ Reading the B2 transcripts showed Ailana asking questions in **our** wording thr
 
 ---
 
+## Integration with intelligent routing (Mohammad Shaheryar, `7422a2c`), Nov 9, 2026
+
+His work, merged in `e975288`:
+- spoken loan-officer transfer to the **licensed state queue for the property ZIP** (FreeSWITCH ESL availability check, human-answer polling);
+- when no one answers, **conversational Google Calendar booking** (`findMeetingTimes` / `confirmMeeting`, confirmation number, email notification);
+- IP ZIP detection, an early queue alert, a security hardening module, and 2 migrations.
+
+**How the two fit together:**
+
+| Moment | Who owns it | Section 0's part |
+| :--- | :--- | :--- |
+| Spoken "talk to a loan officer" | His interceptor (ZIP → queue → dial) | Facts in that message are now kept in memory (memory-only, no decisions) |
+| Typed request, or a request Section 0 detects | Section 0 confirms once → `transfer_to_loan_officer` → frontend loan-officer mode → **his** `SYSTEM_TRANSFER_MLO` handler | Hand-off summary and stated facts |
+| No loan officer answers | His conversational scheduling (real calendar) | Memory-only on every scheduling turn |
+| Borrower asks for a call back | Section 0 `schedule_callback` (logged only) | **Should move to his calendar booking** (open, see next steps) |
+
+**Fixed at the merge:**
+1. **Section 0's tools were silently removed.** `tools: schedulingTools` was set after the Section 0 tools and replaced them. Now both sets are registered; flag off = exactly his tools. Checked in the SDK: 5 tools load, his still run.
+2. **Unredacted transcript rows.** His scheduling and interceptor paths saved the raw message (an SSN would have been stored). They now save the redacted text.
+3. **Lost facts.** Turns his code owns never reached Section 0's memory; they now go into the ledger, with no Section 0 decisions.
+4. **Mic guard and the flag-off copy of the demo prompts** (cycle 13, above).
+
+**Checks:**
+- `npm test` 30/30, flag-off parity 23/23.
+- His `verify-v7*` scripts: 13 pass. The other 12 **fail identically on his own commit** (they look for lab files such as `backend.Dockerfile` and lab version numbers), so Section 0 did not cause them.
+
+---
+
+## First localhost test L1 (Nov 9, 2026, voice, flag on) and fix cycle 13
+
+The first real conversation in the app: the new first screen, then a purchase by voice through the summary and the upgrade.
+
+**What worked:**
+- Cards, consent line, Privacy link, "Other ways to reach us" and the footer all show.
+- The tap leads to the intent question once.
+- Income $94,000, credit 720 and debt $1,200 were never asked again. The panel shows $7,833/month and 720.
+- "I'm renting and want to sell" got one clarifying question, as designed.
+- No rate quotes and no approval promises.
+
+| Finding | Real? | Cause | Fix (cycle 13) |
+| :--- | :--- | :--- | :--- |
+| Greeting shown once in full, then again as 5 separate chat bubbles | **Yes** | The chat panel also shows each spoken phrase's subtitle; short phrases slipped past its duplicate check | With Section 0 on, a spoken phrase already contained in a recent Ailana message is hidden |
+| First reply asked "does that mean you're looking to buy a home?" although the extractor reads that opening as a purchase (4/4 live) | **Yes** | **Voice turns reply at once** and run the Section 0 extractor in the background (the fast path). Typed turns and simulations wait, so simulations could not see this | In stage 0, and on any turn with an SSN or street address, a voice turn now waits for the router's decision before replying (up to 8 s; a late result is still kept, never discarded) |
+| "California, Texas, 78902": no out-of-state note | **Yes** | Same cause: the note arrived after the reply was written and was then **cleared without being said** | Only notes and quick checks that were actually in the reply's prompt count as said; a late one is used in the next reply. Live check: TX + note 4/4 |
+| Video card tap did not turn the mic on; a Voice card tap would have failed | **Yes** (merge) | The merge with the conversational-scheduling branch left **two** MediaGuards and dropped the Section 0 mic setting from one | One MediaGuard with both settings (scheduling **or** a card tap turns the mic on) |
+| Flag-off check failed on the stage 5 prompt | Not Section 0 | Mohammad Shaheryar's conversational-scheduling text (`7422a2c`) changed the demo build | Demo-prompt copy regenerated from the current flag-off build; the only difference is that text |
+
+**Tests:** sync 136. `npm test` 30/30 (3 new suites from the merge); flag-off parity 23/23; frontend `tsc` clean.
+
+**Next:** L2, the same test again by voice (Test Guide Part 2 + Part 5.1), and one regression simulation run (O9 + tracks).
+
+---
+
 ## Official run O8 (136/141 = 96.5%), first stress run S1 (51/54 = 94.4%) and fix cycle 12
 
 **The headline:** two runs in a row at ≥ 95% of samples (O7 95.7%, O8 96.5%), with every scenario passing at least once in both (pass@3 47/47). **Stress set S1:** 94.4% of samples on wording no approved scenario uses (numbers in words, typos, fillers, facts in a story, indirect goals, corrections). That is within about 2 points of the approved set, so the fixes generalise; they were not fitted to David's wording.

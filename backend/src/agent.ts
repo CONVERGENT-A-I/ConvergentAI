@@ -1188,7 +1188,8 @@ class AilanaVoiceAgent extends voice.Agent {
 
     if (this.isConversationalSchedulingActive()) {
       if (userMessage?.textContent) {
-        void this.contextManager.saveVoiceConversationTurn('user', userMessage.textContent);
+        void this.contextManager.saveVoiceConversationTurn('user', safeUserText ?? userMessage.textContent);
+        void this.contextManager.rememberOnly(userMessage.textContent); // Section 0 memory (no decisions)
       }
       const schedulingInstructions = this.getConversationalSchedulingInstructions();
       const systemItem = (chatCtx.items.find(
@@ -1210,7 +1211,7 @@ class AilanaVoiceAgent extends voice.Agent {
         (item: any) => item.type === 'message' && item.id === 'lk.agent_dynamic_state'
       );
       if (dynamicMsgIndex !== -1) chatCtx.items.splice(dynamicMsgIndex, 1);
-      console.log(`[voice-scheduling]: scheduling prompt retained; mortgage stage extraction bypassed for "${userMessage?.textContent || ''}".`);
+      console.log(`[voice-scheduling]: scheduling prompt retained; mortgage stage extraction bypassed for "${safeUserText || ''}".`);
       return;
     }
 
@@ -1218,7 +1219,8 @@ class AilanaVoiceAgent extends voice.Agent {
       const handled = await this.globalTurnInterceptor(userMessage.textContent);
       if (handled) {
         this.suppressNextReply = true;
-        void this.contextManager.saveVoiceConversationTurn('user', userMessage.textContent);
+        void this.contextManager.saveVoiceConversationTurn('user', safeUserText ?? userMessage.textContent);
+        void this.contextManager.rememberOnly(userMessage.textContent); // Section 0 memory (no decisions)
         return;
       }
     }
@@ -1250,7 +1252,15 @@ class AilanaVoiceAgent extends voice.Agent {
         /\b(upgrade|verified\s*(?:mode|numbers|score|credit)|soft\s*(?:credit\s*)?(?:pull|review)|check\s*my\s*credit|run\s*(?:my\s*)?credit)\b/i.test(text)
       );
 
-      if (isQuestionOrHesitation) {
+      // Section 0: before a track is chosen (stage "0"), or when an SSN / street address was caught, code must
+      // decide before Ailana replies (route, holdout, TRID gate) — like typed turns and simulations. Voice turns
+      // otherwise reply at once and the router's decision would arrive a turn late.
+      const section0MustDecide = ailanaConfig.section0Enabled
+        && (this.contextManager.getActiveStage() === '0' || (!!rawUserText && safeUserText !== rawUserText));
+      if (section0MustDecide) {
+        const decided = await this.contextManager.waitForExtraction(currentTurnNumber, 8000, { keepLateResult: true });
+        console.log(`[section0] voice turn waited for the router (${decided ? 'decided' : 'still running — late result kept'}); stage is now ${this.contextManager.getActiveStage()}`);
+      } else if (isQuestionOrHesitation) {
         console.log(`[agent-hook]: Question/hesitation detected on field "${activeField}". Staying on current field to answer user question.`);
         // User asked a question — do NOT advance stage or inject fallback. Let LLM answer and re-prompt the pending field.
       } else if (isFastPathSubmitOrUpgrade) {
@@ -1981,7 +1991,6 @@ Every spoken response MUST be 18 words or fewer, except the final booking result
     const createVadAgent = (customVad: any) => {
       console.log('[agent]: Creating LiveKit Inference agent (Gemma 4 31B LLM + Cartesia Ink-2 STT + Cartesia Sonic-3.6 TTS + TurnDetector)...');
       return new AilanaVoiceAgent({
-        ...(handoffTools ? { tools: handoffTools } : {}),
         vad: customVad,
         instructions: contextManager.getStaticInstructions(),
         stt: sessionStt,
@@ -1989,7 +1998,11 @@ Every spoken response MUST be 18 words or fewer, except the final booking result
           model: 'google/gemma-4-31b-it',
         }),
         tts: sessionTts,
-        tools: schedulingTools,
+        // Conversational scheduling tools always; Section 0's transfer / callback tools too when the flag is on.
+        // (A tools object needs anonymous tools, so with both sets the scheduling tools are named here.)
+        tools: handoffTools
+          ? [...handoffTools, ...Object.entries(schedulingTools).map(([name, t]) => ({ ...(t as any), id: name, name }))]
+          : schedulingTools,
         turnHandling: {
           turnDetection: new inference.TurnDetector(),
           interruption: {
@@ -3362,7 +3375,9 @@ PAUSE CONSTRAINTS:
             });
           }
           applyConversationalSchedulingInstructions();
-          void contextManager.saveVoiceConversationTurn('user', messageText);
+          const safeTyped = ailanaConfig.section0Enabled ? applySafetyNet(messageText).text : messageText;
+          void contextManager.saveVoiceConversationTurn('user', safeTyped);
+          void contextManager.rememberOnly(messageText); // Section 0 memory (no decisions)
           metrics.startTurn();
           metrics.markGenerateReply();
           console.log(`[voice-scheduling]: routing typed customer turn to scheduling tools: "${messageText}"`);
@@ -3379,7 +3394,10 @@ PAUSE CONSTRAINTS:
       // after a no-agent callback offer has started.
       if (requestMloTransferHandler && voiceMloTransfer.active) {
         const handled = await requestMloTransferHandler(messageText);
-        if (handled) return;
+        if (handled) {
+          void contextManager.rememberOnly(messageText); // Section 0 memory (no decisions)
+          return;
+        }
       }
 
       try {

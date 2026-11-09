@@ -51,6 +51,15 @@ File: `prisma/schema.prisma` (repo root), model `Application`, next to `fieldAtt
 - **Nullable, no default.** Existing rows stay valid, and the flag-off build never writes it.
 - No index is needed, because we never query inside it.
 
+> [!WARNING]
+> **Read this before Step 2 (added Nov 9, 2026).** Mohammad Shaheryar's merge (`7422a2c`, intelligent routing) added two migrations: `20260830113000_add_scheduler_appointments` and `20260830123000_add_booking_notification_audit`.
+> - They create an **`appointments`** table with raw SQL, but `prisma/schema.prisma` has **no `Appointment` model**.
+> - Their timestamps are **older** than the existing `20260906131626_add_refinance_heloc_fields`.
+>
+> So `prisma migrate dev` may report drift and offer to **reset the database**. **Never accept a reset.**
+>
+> **What to do:** agree with Mohammad first. Either add an `Appointment` model to `schema.prisma` that matches his SQL, or mark his migrations as applied (`prisma migrate resolve --applied …`) on databases that already have the table. Then create the Section 0 migration.
+
 ### Step 2: Migration and client
 
 From the repo root:

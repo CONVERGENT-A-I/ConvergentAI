@@ -505,8 +505,19 @@ async function turn(cm: SessionContextManager, e: UniversalExtraction) {
   const cm = newManager();
   await turn(cm, ex({ goal: 'purchase', flags: ['approval_guarantee_or_preapproval_letter'] }));
   assert(cm.hasPendingComplianceNotes(), '#23: compliance note pending → the reply goes through the model');
+  cm.getDynamicContext(); // the reply's prompt is built (it contains the note)
   await quietlyAsync(() => cm.onAgentTurn('Before anything else, what is the letter about?'));
   assert(!cm.hasPendingComplianceNotes(), 'cleared once Ailana has replied');
+  // Voice (Nov 9 localhost): a note that arrives AFTER the reply's prompt was built is kept for the next reply
+  const v = newManager();
+  await turn(v, ex({ goal: 'purchase' }));
+  v.getDynamicContext(); // prompt built before the background extraction finished
+  (v as any).pendingNotes.push({ id: 'footprint', text: 'The home is in Texas…' });
+  await quietlyAsync(() => v.onAgentTurn('Do you have any military service history?'));
+  assert(v.hasPendingComplianceNotes() && !(v as any).notesShown.includes('footprint'), 'late note is not dropped — it waits for the next reply');
+  v.getDynamicContext();
+  await quietlyAsync(() => v.onAgentTurn('A licensed loan officer will need to confirm the lender serves Texas.'));
+  assert(!v.hasPendingComplianceNotes() && (v as any).notesShown.includes('footprint'), 'then it is given once, and only once');
 }
 
 {

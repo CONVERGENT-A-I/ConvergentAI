@@ -1945,12 +1945,12 @@ export default function FloatingCTA() {
                                 onTranscriptUpdate={handleTranscriptUpdate}
                               />
                               <MloDetector onMloStatusChange={handleMloStatusChange} />
-                              <MediaGuard mode={pendingMode} micOnAfterCard={micOnAfterCard} />
                               <MloFailureListener onFailure={handleMloFailure} />
                               <MediaGuard
                                 mode={pendingMode}
                                 loanOfficerConnected={mloParticipantJoined}
                                 conversationalScheduling={conversationalScheduling}
+                                micOnAfterCard={micOnAfterCard}
                               />
                               <ActivityTracker />
                               <NetworkQualityBanner />
@@ -2105,6 +2105,7 @@ export default function FloatingCTA() {
                                     }}
                                   >
                                     <InRoomChatPanel
+                                      section0={!!section0Ui}
                                       isActive={pendingMode === "avatar-chat"}
                                       onTriggerLoanOfficer={() => handleAIAction("loan-officer")}
                                       initialTranscript={restoredTranscript.length > 0 ? restoredTranscript : undefined}
