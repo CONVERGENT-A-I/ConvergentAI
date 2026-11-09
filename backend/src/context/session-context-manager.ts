@@ -23,7 +23,8 @@ import { routeSection0, initialSection0State, trackSwitchFor, type Section0Decis
 import { syncLedgerToProfile, type SyncedMap } from '../section0/ledger-sync.js';
 import { formatKnownFacts, jobTenureQuestion, nextQuickCheckFor, nextSituationalFollowup, section0TaskText } from '../section0/turn-context.js';
 import { applySafetyNet } from '../section0/safety-net.js';
-import { complianceNotes, lenderStates, type ComplianceNote } from '../section0/compliance-notes.js';
+import { checkStateSaid } from '../section0/local-place.js';
+import { complianceNotes, lenderStates, lenderStateNames, type ComplianceNote } from '../section0/compliance-notes.js';
 
 type HandoffMode = 'confirm_asked' | 'confirm_answer' | 'callback' | 'transferred' | 'booked';
 
@@ -94,6 +95,8 @@ export class SessionContextManager {
   // check that arrives after the prompt was built (voice turns reply before the background extraction ends)
   // stays pending for the next reply instead of being dropped.
   private promptedNoteIds: string[] = [];
+  private lastSection0Text = ''; // the borrower's latest message (redacted), for the local-place check
+  private placeChecked = new Set<string>();
   private promptedQuickCheck: string | null = null;
   private handoff: { mode: HandoffMode; turn: number; afterUnavailable: boolean } | null = null;
   private mloAvailable: () => boolean = () => true;
@@ -967,6 +970,7 @@ export class SessionContextManager {
 
     if (ailanaConfig.section0Enabled) {
       // Section 0: one universal extraction per turn, started in parallel with the stage logic.
+      this.lastSection0Text = trimmed;
       const uniPromise = extractUniversal({
         text: trimmed,
         lastAssistant: this.getLastAssistantUtterance(),
@@ -1104,6 +1108,7 @@ export class SessionContextManager {
       this.syncLedger();
     }
     this.updateHandoff(ex);
+    await this.checkUnstatedState();
     this.queueComplianceNotes(ex);
   }
 
@@ -1132,6 +1137,32 @@ export class SessionContextManager {
     } catch (err) {
       console.warn('[section0] memory-only extraction failed:', err);
     }
+  }
+
+  /**
+   * A city named without its state (e.g. "Cleveland"): when the extractor's state is outside the lender's
+   * states, no ZIP was given and the borrower is not relocating, check whether they actually named the
+   * state. If not, the state is a guess → one quick check ("Cleveland, Tennessee, or Cleveland, Ohio?")
+   * before any out-of-area note. Never a guess (CLAUDE.md). Checked once per place.
+   */
+  private async checkUnstatedState(): Promise<void> {
+    if (!ailanaConfig.section0Enabled) return;
+    const entry = this.ledger.get('location.area');
+    const v = entry?.value as { city?: string; state?: string | null; zip?: string | null } | undefined;
+    if (!entry || entry.status === 'needs_clarification' || !v?.city || !v.state || v.zip) return;
+    if (this.ledger.value('situation.relocation') !== undefined) return; // moving away: the destination stands
+    if (lenderStates().includes(String(v.state).toUpperCase())) return;
+    const key = `${v.city}|${v.state}`.toLowerCase();
+    if (this.placeChecked.has(key)) return;
+    this.placeChecked.add(key);
+    const said = await checkStateSaid(this.lastSection0Text, v.city);
+    if (said !== false) return; // they named it (or the check could not run): keep it
+    this.ledger.upsert(
+      { key: 'location.area', value: { ...v, state: null, guessed_state: v.state }, raw: entry.raw, status: 'needs_clarification', clarify: 'state' },
+      this.turnCount, this.activeStage,
+    );
+    this.syncLedger();
+    console.log(`[section0] ${v.city}: state not said (guess ${v.state}, outside ${lenderStates().join('/')}) → one quick check, no out-of-area note yet`);
   }
 
   /** Track chosen by the router: hand off to the existing Stage 1 / Stage 2 flow. */
@@ -1169,6 +1200,7 @@ export class SessionContextManager {
       }
     }
     this.updateHandoff(ex);
+    await this.checkUnstatedState();
     this.queueComplianceNotes(ex);
   }
 

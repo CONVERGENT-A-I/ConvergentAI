@@ -174,7 +174,16 @@ function normalizeFact(f: ExtractedFact, ledger: FactLedger, batchPrice: number 
       const { in_lender_state: inLender, ...rest } = loc as Record<string, unknown>;
       const states = lenderStates();
       if (inLender === true && !states.includes(String(rest.state ?? '').toUpperCase())) rest.state = states.length === 1 ? states[0] : null;
-      return { value: rest };
+      // A reply that only adds the state or ZIP ("Tennessee") completes the place already known — never erases it.
+      // (read directly: a place waiting for its state check is hidden from ledger.value)
+      const prev = ledger.get('location.area')?.value as Record<string, unknown> | undefined;
+      const named = (x: unknown) => typeof x === 'string' && x.trim() !== '';
+      if (prev && !named(rest.city) && !named(rest.area) && (named(prev.city) || named(prev.area))) {
+        const detail = Object.fromEntries(Object.entries(rest).filter(([, x]) => x !== null && x !== undefined && x !== ''));
+        // A stated state or ZIP replaces an earlier guess (the ledger merges place details, so clear it explicitly).
+        return { value: { ...detail, ...(named(detail.state) || named(detail.zip) ? { guessed_state: undefined } : {}) } };
+      }
+      return { value: { ...rest, guessed_state: undefined } }; // a newly named place supersedes any guess
     }
     return { value: loc };
   }

@@ -100,7 +100,8 @@ function formatValue(e: FactEntry): string {
   if (e.key === 'location.area' && v && typeof v === 'object') {
     const l = v as Record<string, unknown>;
     const parts = [l.area, l.city, l.state, l.zip].filter((x) => typeof x === 'string' && x.trim()) as string[];
-    return [...new Set(parts)].join(', ');
+    const guess = typeof l.guessed_state === 'string' ? ` (state not said — likely ${l.guessed_state}, to confirm)` : '';
+    return [...new Set(parts)].join(', ') + guess;
   }
   if (e.key === 'debt.items' && Array.isArray(v)) {
     return v.map((d: any) => `${String(d.kind).replace(/_/g, ' ')} ${money(d.monthly)}/month`).join(', ');
@@ -130,6 +131,7 @@ const CLARIFY_TEXT: Record<string, string> = {
   magnitude: 'the exact amount (the number heard was unclear)',
   conflict: 'which number is right — two stated figures do not fit together',
   uncertain: 'which one it is — what they said could mean either',
+  state: "to confirm the state, once and briefly — they named the city but not the state, and a city name can exist in more than one state. Confirm the likely one (e.g. \"Just to confirm, is that Atlanta, Georgia?\"); if they say no, ask which state. Do not assume",
 };
 
 /** The first pending clarification not yet asked (stages ≥ 1 ask it before anything else, once). */

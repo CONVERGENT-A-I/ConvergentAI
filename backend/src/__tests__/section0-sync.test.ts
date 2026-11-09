@@ -717,6 +717,23 @@ async function turn(cm: SessionContextManager, e: UniversalExtraction) {
   assert(cm2.isHandoffActive() && /already started connecting them/.test(cm2.getDynamicContext()), 'transferred: end state, no intake questions');
 }
 
+{
+  // O9 (#17): a city named without its state → one confirmation, never a guessed out-of-area state
+  const { parseStateSaid } = await import('../section0/local-place.js');
+  assert(parseStateSaid('```json\n{"state_said": false}\n```') === false &&parseStateSaid('{"state_said": true}') === true && parseStateSaid('nope') === null, 'state-said answer parsed (fences ok, junk → null)');
+  const L = new FactLedger({ log: () => {} });
+  L.upsert({ key: 'location.area', value: { city: 'Cleveland', state: null, guessed_state: 'OH' }, raw: 'in Cleveland', status: 'needs_clarification', clarify: 'state' }, 1, '1');
+  const { complianceNotes } = await import('../section0/compliance-notes.js');
+  const notes = complianceNotes({ flags: [], ledger: L, shown: [], channel: 'voice', continueWith: 'x', licensedStates: ['TN'], safetyHit: null, turn: 1, intent: 'states_goal_or_facts' } as any);
+  assert(!notes.some((n: any) => n.id === 'footprint'), 'no out-of-area note while the state is unconfirmed');
+  const { nextQuickCheckFor } = await import('../section0/turn-context.js');
+  const qc = nextQuickCheckFor(L, []);
+  assert(!!qc && /likely OH, to confirm/.test(qc.label) && /Just to confirm/.test(qc.ask), 'one quick check confirms the likely state', qc);
+  ingestExtraction(ex({ facts: [{ key: 'location.area', value: { city: null, state: 'TN', zip: null }, raw: 'Tennessee' }] }), L, 2, '1');
+  const a = L.get('location.area')!;
+  assert(a.status !== 'needs_clarification' && (a.value as any).city === 'Cleveland' && (a.value as any).state === 'TN' && (a.value as any).guessed_state === undefined, '"Tennessee" completes the place: Cleveland, TN (city kept, guess dropped)', a.value);
+}
+
 // ── 13. No switch at the closing offer ──
 {
   const cm = newManager();

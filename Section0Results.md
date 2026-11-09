@@ -112,6 +112,22 @@ Reading the B2 transcripts showed Ailana asking questions in **our** wording thr
 
 ---
 
+## Official run O9 after the merge: 46/47 all-3, 140/141 samples (99.3%), the best run (Nov 9, 2026)
+
+`SR_SXXunmmTELsV`: pass@3 47/47, all-3 46/47. **This meets the exit bar (≥ 45/47).** Track regression `SR_9XyeHMeA2Mx8`: 4/5. The HELOC miss is the same existing-track rate-comfort question as before; the demo build skips it too.
+
+| Finding | Real? | Fix (cycle 14) |
+| :--- | :--- | :--- |
+| #29 ×1: wishing luck with "the new job on Monday" counted as re-asking | No (judge) | — |
+| #17: "Since you're looking in **Ohio**…" in 2 of 3 Cleveland conversations (the earlier fix was not enough) | **Yes** | Asking the model which place is meant proved unreliable both ways: it invented a Tennessee Atlanta and Phoenix, and denied Cleveland, TN. Now code follows the rule "confirm, never guess". If the borrower did not name the state or a ZIP (a narrow model check), the guessed state is outside the lender's states and they are not relocating, Ailana asks once to confirm ("Just to confirm, is that Atlanta, Georgia?") and the out-of-area note waits. A reply with only the state completes the stored place. Live: Cleveland never Ohio; "Cleveland, Ohio" → Ohio note; Phoenix (relocating) → Arizona; Atlanta → asks → Georgia; Dalton, Georgia → Georgia |
+| Judge notes: Refinance "no upfront government fees" wording; the short TRID gate; "manageable" / "strong position" acknowledgments in the track scripts | Not Section 0 | Items for David (existing track scripts / approved gate) |
+
+**Tests:** sync 140. `npm test` 30/30; flag-off parity 23/23.
+
+**Simulation work done.** Next: localhost testing (Test Guide "Start here").
+
+---
+
 ## Integration with intelligent routing (Mohammad Shaheryar, `7422a2c`), Nov 9, 2026
 
 His work, merged in `e975288`:
