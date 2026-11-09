@@ -35,6 +35,7 @@ const testFiles = [
   'section0-sim-checks.test.ts',
   'section0-compliance.test.ts',
   'section0-handoff.test.ts',
+  'section0-first-screen.test.ts',
   'section0-flag-off.test.ts',
 ];
 

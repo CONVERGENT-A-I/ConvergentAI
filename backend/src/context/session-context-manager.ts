@@ -1367,6 +1367,17 @@ export class SessionContextManager {
     return jobTenureQuestion(this.ledger, this.profile.co_borrower === 'yes');
   }
 
+  /** The intent question was asked by code right after the channel card tap (S0-25): it counts as asked once. */
+  markIntentAsked(): void {
+    if (!ailanaConfig.section0Enabled || this.section0State.intentAsked) return;
+    this.section0State = {
+      ...this.section0State,
+      intentAsked: true,
+      clarifyAsked: [...this.section0State.clarifyAsked, 'three_options'],
+      unclearCount: 1,
+    };
+  }
+
   /** Serializable Section 0 state — sent to the frontend with every stage update and restored on reconnect. */
   getSection0Snapshot(): Section0Snapshot | null {
     if (!ailanaConfig.section0Enabled) return null;

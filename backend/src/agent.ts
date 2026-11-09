@@ -23,12 +23,15 @@ import * as openai from '@livekit/agents-plugin-openai';
 import * as silero from '@livekit/agents-plugin-silero';
 import { ailanaConfig } from './config/ailana-config.js';
 import { applySafetyNet } from './section0/safety-net.js';
+import { INTENT_QUESTION } from './section0/turn-context.js';
 import { SessionContextManager } from './context/session-context-manager.js';
 import { LatencyTracker, ts } from './metrics/latency-tracker.js';
 import {
   buildBaseInstructions,
   buildVoiceInstructions,
   GREETING_TEXT,
+  GREETING_TEXT_SECTION0,
+  GREETING_SEGMENTS_SECTION0,
   getGreetingText,
   GREETING_USER_INPUT,
   RESUME_USER_INPUT,
@@ -1587,6 +1590,9 @@ export default defineAgent({
     let sessionStarted = false;
     let pendingGreeting = false;
     let isRestoredSession = false;
+    // Section 0 first screen (S0-24/25): the card-screen greeting's phrases, and whether a card was tapped.
+    let greetingPhrases: Array<ReturnType<typeof session.say>> = [];
+    let channelChosen = false;
 
     const expressiveConfig = ailanaConfig.expressiveMode
       ? {
@@ -2687,6 +2693,101 @@ PAUSE CONSTRAINTS:
         voiceMuted = false;
         contextManager.setChannel('voice');
         console.log(`[agent]: Avatar voice enabled — resuming voice replies.`);
+        return;
+      }
+
+      // ── Section 0 first screen (S0-24/25/26): greeting over the channel cards, mic off until a card tap ──
+      if (ailanaConfig.section0Enabled && messageText === 'SYSTEM_GREETING_START') {
+        const sendReady = async () => {
+          try {
+            const readyPayload = new TextEncoder().encode(JSON.stringify({ message: 'SYSTEM_AGENT_READY' }));
+            await ctx.room.localParticipant?.publishData(readyPayload, { reliable: true, topic: 'lk-chat' });
+          } catch (e) {
+            console.warn('[agent]: Failed to send SYSTEM_AGENT_READY:', e);
+          }
+        };
+        if (greetingGenerated) {
+          // Duplicate / retry of the start signal: the greeting already played or is playing.
+          if (!isAvatarInitDone) await avatarReadyPromise;
+          await sendReady();
+          return;
+        }
+        greetingGenerated = true;
+        if (!isAvatarInitDone) {
+          console.log('[agent]: SYSTEM_GREETING_START before avatar ready. Waiting for avatar initialization...');
+          await avatarReadyPromise;
+        }
+        try {
+          if (!(session as any)._started) {
+            sessionStarted = true;
+            await session.start({
+              agent: vadAgent,
+              room: ctx.room,
+              inputOptions: { noiseCancellation: BackgroundVoiceCancellation(), closeOnDisconnect: false },
+            });
+            console.log('[agent]: Session started on SYSTEM_GREETING_START (card screen, mic off).');
+          }
+          await sendReady();
+          const publishCard = (card: string | null) => {
+            const payload = new TextEncoder().encode(JSON.stringify({ message: 'SYSTEM_CARD_HIGHLIGHT', card }));
+            ctx.room.localParticipant?.publishData(payload, { reliable: true, topic: 'lk-chat' }).catch(() => {});
+          };
+          metrics.startTurn();
+          metrics.markAgentSpeaking();
+          // Each phrase is queued as its own speech; the card it names lights up when that phrase starts
+          // playing (the previous phrase's playout finished) — timed to speech, not a timer.
+          greetingPhrases = [];
+          let previous: (typeof greetingPhrases)[number] | null = null;
+          for (const seg of GREETING_SEGMENTS_SECTION0) {
+            const handle = session.say(seg.text, { addToChatCtx: false, allowInterruptions: true });
+            greetingPhrases.push(handle);
+            const startsAt = previous ? previous.waitForPlayout() : Promise.resolve();
+            startsAt.then(() => { if (!channelChosen && !handle.interrupted) publishCard(seg.card); }).catch(() => {});
+            previous = handle;
+          }
+          previous?.waitForPlayout().then(() => publishCard(null)).catch(() => {});
+          // The greeting is recorded once, as one message (chat panel, transcript, model history).
+          contextManager.onAgentTurn(GREETING_TEXT_SECTION0).catch((err) => console.error('[agent-error]: Failed to save greeting turn:', err));
+          ctx.room.localParticipant?.sendText(GREETING_TEXT_SECTION0, { topic: 'lk.chat' }).catch(() => {});
+          try {
+            const history = vadAgent.chatCtx.copy();
+            history.addMessage({ role: 'assistant', content: GREETING_TEXT_SECTION0 });
+            await vadAgent.updateChatCtx(history);
+          } catch (e) {
+            console.warn('[agent]: Could not add the greeting to the chat history:', e);
+          }
+          console.log('[section0] card-screen greeting fired (cards light up phrase by phrase).');
+        } catch (err) {
+          console.error('[agent]: Failed to start session on SYSTEM_GREETING_START:', err);
+          greetingGenerated = false;
+          sessionStarted = false;
+        }
+        return;
+      }
+
+      if (ailanaConfig.section0Enabled && messageText.startsWith('SYSTEM_CHANNEL_CHOSEN')) {
+        // The borrower tapped a channel card: that tap is the AI-engagement and recording consent (logged by
+        // POST /api/consent from the frontend). Stop the rest of the greeting, set the channel, and ask the
+        // intent question once — except for "Talk to a loan officer", which goes straight to the transfer.
+        const chosen = messageText.split(':')[1] || 'video';
+        if (channelChosen) return;
+        channelChosen = true;
+        console.log(`[section0] channel card tapped: ${chosen}`);
+        for (const h of greetingPhrases) {
+          try { if (!h.done()) h.interrupt(); } catch { /* already finished */ }
+        }
+        greetingPhrases = [];
+        try {
+          const payload = new TextEncoder().encode(JSON.stringify({ message: 'SYSTEM_CARD_HIGHLIGHT', card: null }));
+          await ctx.room.localParticipant?.publishData(payload, { reliable: true, topic: 'lk-chat' });
+        } catch { /* best effort */ }
+        if (chosen === 'loan-officer') return; // the frontend sends SYSTEM_TRANSFER_MLO next
+        contextManager.setChannel(chosen === 'video' || chosen === 'voice' ? 'voice' : 'text');
+        if (chosen === 'video' || chosen === 'voice') voiceMuted = false;
+        contextManager.markIntentAsked();
+        metrics.startTurn();
+        metrics.markAgentSpeaking();
+        session.say(INTENT_QUESTION, { addToChatCtx: true });
         return;
       }
 

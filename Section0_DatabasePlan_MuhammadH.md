@@ -148,6 +148,32 @@ When done, please update:
 - the S0-20 row in [Section0_GenericImplementationPlan.md](Section0_GenericImplementationPlan.md) (status → ✅ with the migration name);
 - a short note in [Section0TestGuide.md](Section0TestGuide.md) with the test results above.
 
-## 6. Questions
+## 7. Step 8 (added Nov 9, 2026): consent rows for the new first screen (S0-26)
+
+The new first screen is built. A tap on a channel card (Video chat, Voice, Text chat or Talk to a loan officer) is the borrower's consent to two things: talking with an AI, and recording. David approved the wording on Nov 9.
+
+**What is already done (agent side):**
+- The frontend calls `POST /api/consent` (`backend/src/index.ts`) with the room name and channel.
+- `backend/src/services/consent-service.ts` always writes two `[consent]` log lines (`ai_engagement`, `recording`) with room, channel, lender, disclosure version and time.
+- It also **tries** to write two rows to the `consents` table. Each row has:
+  - `applicationId` (looked up from the room);
+  - `consentType` set to `AI_ENGAGEMENT` or `RECORDING`;
+  - `status` set to `ACCEPTED`;
+  - the disclosure text;
+  - `presentedAt` / `respondedAt`;
+  - IP address and user agent;
+  - `metadata`: channel, lender, disclosure version, and the spoken and on-screen text.
+
+**What is needed from you:**
+1. Add `AI_ENGAGEMENT` and `RECORDING` to the `ConsentType` enum in `prisma/schema.prisma`. Then run a migration (`npx prisma migrate dev --name add_channel_consent_types`) and `npx prisma generate`. Until then, the row write fails safely and logs `[consent] database write skipped`.
+2. Check the room → application lookup at the moment of the tap. The tap happens a few seconds after the session starts, so the application row should already exist. If it doesn't, the service logs `no application row for this room yet`. In that case please suggest the best fix (for example, create the application row first, or keep the consent and attach it later).
+3. **Retention period for consent records:** David hasn't set it yet (open question). Please don't add automatic deletion until he does.
+
+**Test:**
+- Tap a card on localhost with a database.
+- Expect two rows in `consents` for that application, with the right channel in `metadata`.
+- With `SECTION_0_ENABLED` off, the endpoint returns 404 and no rows are written.
+
+## 8. Questions
 
 Ask Sohail. Anything that touches how Ailana talks or routes (the agent flow) stays on the agent side; this task is only the column, the migration, saving and loading.

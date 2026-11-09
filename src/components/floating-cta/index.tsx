@@ -30,6 +30,7 @@ import "@livekit/components-styles";
 import { FlowPhase, PendingMode } from "./types";
 import { ActionButton } from "./action-button";
 import { ComplianceGate } from "./compliance-gate";
+import { ChannelCards, Section0Footer, type Section0Lender } from "./channel-cards";
 import { RoomControls } from "./room-controls";
 import { InRoomChatPanel } from "./in-room-chat-panel";
 import { TranscriptOverlay } from "./transcript-overlay";
@@ -80,6 +81,15 @@ export default function FloatingCTA() {
   const [isLkConnected, setIsLkConnected] = useState(false);
   const [isAgentReady, setIsAgentReady] = useState(false);
   const [pendingMode, setPendingMode] = useState<PendingMode>("video");
+  // Section 0 first screen (S0-24/25/26) — set only when the backend runs with SECTION_0_ENABLED (from /api/get-token).
+  const [section0Ui, setSection0Ui] = useState<{ lender: Section0Lender | null } | null>(null);
+  const [awaitingChannel, setAwaitingChannel] = useState(false); // channel cards showing, mic off
+  const [micOnAfterCard, setMicOnAfterCard] = useState(false); // Voice / Video card tapped → mic on
+  const freshStartRef = useRef(false); // a brand-new conversation (Ailana button / Start fresh), not a restore
+  const awaitingChannelRef = useRef(false);
+  useEffect(() => {
+    awaitingChannelRef.current = awaitingChannel;
+  }, [awaitingChannel]);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [roomName, setRoomName] = useState<string>("");
   const [isVideoReady, setIsVideoReady] = useState(false);
@@ -378,6 +388,15 @@ export default function FloatingCTA() {
       }
 
       tokenFetchedAtRef.current = Date.now();
+      // Section 0: only a brand-new conversation shows the channel cards (never a restore or a retry).
+      if (data.section0?.enabled) {
+        setSection0Ui({ lender: data.section0.lender ?? null });
+        setAwaitingChannel(freshStartRef.current && activeMode !== "loan-officer");
+      } else {
+        setSection0Ui(null);
+        setAwaitingChannel(false);
+      }
+      freshStartRef.current = false;
       setToken(data.token);
       setLkUrl(data.serverUrl);
 
@@ -551,6 +570,8 @@ export default function FloatingCTA() {
   ) => {
     const rn = roomName;
     if (!rn) return; // Don't save until we have a room
+    // Section 0: nothing to resume before a channel card is tapped (no consent yet) — a refresh starts over.
+    if (awaitingChannelRef.current && !overrides.mode) return;
     const snap: AilanaSessionSnapshot = {
       sessionId: rn,
       roomName: rn,
@@ -655,6 +676,8 @@ export default function FloatingCTA() {
     setMloCallSeconds(0);
     hasMloJoinedRef.current = false;
     setPanelClosedByUser(false);
+    setAwaitingChannel(false);
+    setMicOnAfterCard(false);
     // Bump key so LiveKitRoom remounts fresh on next open
     setSessionKey((k) => k + 1);
   };
@@ -680,7 +703,10 @@ export default function FloatingCTA() {
     setIsOtpModalOpen(false);
     setIsContactConfirmVisible(false);
     setPanelClosedByUser(false);
-    restartSession();
+    // Section 0: "Start fresh" is a new conversation → channel cards again (video stage behind them).
+    freshStartRef.current = true;
+    setMicOnAfterCard(false);
+    restartSession(section0Ui ? "video" : undefined);
   };
 
   // Full restart: tear down the broken connection and establish a fresh one.
@@ -743,6 +769,18 @@ export default function FloatingCTA() {
       // (the LiveKitRoom connects but no backend agent is running for it).
     }
   }, [isOpen]);
+
+  // Section 0 (S0-25): a channel card was tapped (consent already announced by the cards).
+  const handleChannelChosen = (mode: PendingMode) => {
+    setAwaitingChannel(false);
+    if (mode === "loan-officer") {
+      handleAIAction("loan-officer");
+      return;
+    }
+    if (mode === "video" || mode === "voice") setMicOnAfterCard(true);
+    setPendingMode(mode);
+    saveSessionSnapshot({ mode });
+  };
 
   const handleTranscriptUpdate = useCallback((entries: ChatEntry[]) => {
     chatTranscriptRef.current = entries;
@@ -1093,7 +1131,7 @@ export default function FloatingCTA() {
                     </div>
 
                     {/* Center: Mode Switcher + Separate Affordability Circle (live phase only) */}
-                    {flowPhase === "live" && isLkConnected && isAgentReady && (
+                    {flowPhase === "live" && isLkConnected && isAgentReady && !awaitingChannel && (
                       <div className="flex-1 flex items-center justify-center gap-2 sm:gap-3 min-w-0">
                         {/* 4 Mode Switcher Pill */}
                         <div className="flex items-center bg-white/5 rounded-full p-0.5 sm:p-1 border border-white/10 shadow-sm backdrop-blur-md">
@@ -1404,7 +1442,7 @@ export default function FloatingCTA() {
                             <LiveKitRoom
                               key={`${sessionKey}-${roomName}`}
                               video={false}
-                              audio={{
+                              audio={awaitingChannel ? false : {
                                 // noiseSuppression is handled server-side by LiveKit BVC (BackgroundVoiceCancellation)
                                 // wired into every session.start() call in agent.ts.
                                 // Keeping it on client-side simultaneously causes double-processing artifacts.
@@ -1624,12 +1662,13 @@ export default function FloatingCTA() {
                                 onTranscriptUpdate={handleTranscriptUpdate}
                               />
                               <MloDetector onMloStatusChange={handleMloStatusChange} />
-                              <MediaGuard mode={pendingMode} />
+                              <MediaGuard mode={pendingMode} micOnAfterCard={micOnAfterCard} />
                               <ActivityTracker />
                               <NetworkQualityBanner />
                               <ChannelStartTrigger
                                 isLivePhase={flowPhase === "live"}
                                 mode={pendingMode}
+                                awaitingChannel={awaitingChannel}
                                 restoreSnapshot={activeRestoreSnapshot}
                                 onRestoreSent={() => {
                                   console.log("[session-restore]: ✅ SYSTEM_RESTORE_STATE sent. Clearing active snapshot.");
@@ -1703,12 +1742,12 @@ export default function FloatingCTA() {
                                     )}
 
                                     {/* Contextual help overlay */}
-                                    {isLkConnected && isAgentReady && (
+                                    {isLkConnected && isAgentReady && !awaitingChannel && (
                                       <ContextualHelp />
                                     )}
 
                                     {/* Suggested commands cycling text */}
-                                    {isLkConnected && isAgentReady && (
+                                    {isLkConnected && isAgentReady && !awaitingChannel && (
                                       <SuggestedCommands />
                                     )}
 
@@ -1743,13 +1782,25 @@ export default function FloatingCTA() {
                                       <TranscriptOverlay />
                                     )}
 
-                                    {/* Custom Controls */}
-                                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-50">
-                                      <RoomControls
-                                        onEnd={requestEndCall}
-                                        mode={pendingMode}
-                                      />
-                                    </div>
+                                    {/* Section 0 first screen: channel cards + consent line (mic off until a tap) */}
+                                    <AnimatePresence>
+                                      {awaitingChannel && isLkConnected && isAgentReady && (
+                                        <ChannelCards
+                                          lender={section0Ui?.lender ?? null}
+                                          onChosen={handleChannelChosen}
+                                        />
+                                      )}
+                                    </AnimatePresence>
+
+                                    {/* Custom Controls (hidden on the card screen — the mic must stay off until a tap) */}
+                                    {!awaitingChannel && (
+                                      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-50">
+                                        <RoomControls
+                                          onEnd={requestEndCall}
+                                          mode={pendingMode}
+                                        />
+                                      </div>
+                                    )}
                                   </div>
 
                                   {/* Right: Chat Panel — always mounted so useChat() & transcripts survive channel switches.
@@ -1776,7 +1827,10 @@ export default function FloatingCTA() {
                                   </div>
                                 </div>
 
-                                {/* Trust Footer */}
+                                {/* Trust Footer — Section 0 footer with the flag on, the demo footer otherwise */}
+                                {section0Ui ? (
+                                  <Section0Footer lender={section0Ui.lender} showOtherWays={!awaitingChannel} />
+                                ) : (
                                 <div className="shrink-0 px-3 py-1.5 md:py-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[9px] sm:text-[10px] md:text-xs text-gray-400 bg-[#07090f] border-t border-white/15">
                                   <span className="flex items-center gap-1">
                                     <Lock className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-emerald-400" />
@@ -1794,6 +1848,7 @@ export default function FloatingCTA() {
                                     AI-Powered. Human-Focused. 24/7.
                                   </span>
                                 </div>
+                                )}
                               </div>
 
                               <RoomAudioRenderer />
@@ -2300,6 +2355,7 @@ export default function FloatingCTA() {
             setFlowPhase("connecting");
             flowPhaseRef.current = "connecting";
             setPendingMode("video");
+            freshStartRef.current = true;
             fetchToken("video");
           }
         }}

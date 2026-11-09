@@ -3,9 +3,14 @@ import { useRoomContext } from "@livekit/components-react";
 
 interface MediaGuardProps {
   mode: string;
+  /**
+   * Section 0 (S0-25): the borrower just tapped the Voice or Video card, so the mic turns on with the tap.
+   * Unset (flag off) → the mic stays off until the mic button, exactly as today.
+   */
+  micOnAfterCard?: boolean;
 }
 
-export function MediaGuard({ mode }: MediaGuardProps) {
+export function MediaGuard({ mode, micOnAfterCard = false }: MediaGuardProps) {
   const room = useRoomContext();
 
   useEffect(() => {
@@ -33,7 +38,7 @@ export function MediaGuard({ mode }: MediaGuardProps) {
         console.log("[MediaGuard] 🔇 Mic & camera OFF");
       } else if (mode === "voice") {
         try {
-          await lp.setMicrophoneEnabled(false);
+          await lp.setMicrophoneEnabled(micOnAfterCard);
         } catch (e) {
           console.warn("[MediaGuard] Failed to disable microphone in voice mode:", e);
         }
@@ -45,7 +50,7 @@ export function MediaGuard({ mode }: MediaGuardProps) {
         console.log("[MediaGuard] 🔇 Mic & camera OFF (voice mode)");
       } else if (mode === "video") {
         try {
-          await lp.setMicrophoneEnabled(false);
+          await lp.setMicrophoneEnabled(micOnAfterCard);
         } catch (e) {
           console.warn("[MediaGuard] Failed to disable microphone in video mode:", e);
         }
@@ -74,7 +79,7 @@ export function MediaGuard({ mode }: MediaGuardProps) {
     };
 
     syncMedia();
-  }, [mode, room, room.state]);
+  }, [mode, room, room.state, micOnAfterCard]);
 
   return null;
 }

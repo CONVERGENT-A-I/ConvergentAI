@@ -197,6 +197,23 @@ export function getGreetingText(): string {
   return ailanaConfig.section0Enabled ? GREETING_TEXT_SECTION0_CHANNEL_CHOSEN : GREETING_TEXT;
 }
 
+/** The channel card a greeting phrase names; the frontend lights it while that phrase plays (S0-24). */
+export type GreetingCard = 'video' | 'voice' | 'text' | 'loan-officer' | null;
+
+/**
+ * The card-screen greeting (S0-24/25), split into phrases so each card lights up as Ailana names it —
+ * timed to speech (each phrase's playout), never to a timer. Joined with spaces, the phrases are
+ * GREETING_TEXT_SECTION0 word for word (unit-tested).
+ */
+export const GREETING_SEGMENTS_SECTION0: ReadonlyArray<{ text: string; card: GreetingCard }> = [
+  { text: "Hi! I'm Ailana, your AI mortgage assistant.", card: null },
+  { text: 'You can video chat with me,', card: 'video' },
+  { text: 'talk by voice,', card: 'voice' },
+  { text: 'or text chat,', card: 'text' },
+  { text: 'and I can connect you with a licensed loan officer anytime.', card: 'loan-officer' },
+  { text: 'Just so you know, our conversation is recorded for quality and compliance, and by continuing, you agree to that. How would you like to get started?', card: null },
+];
+
 export const GREETING_USER_INPUT =
   `Please say exactly: "${GREETING_TEXT}" Do not add any other text.`;
 

@@ -69,6 +69,22 @@ app.post('/api/get-token', async (req: Request, res: Response) => {
     res.json({
       token,
       serverUrl: wsUrl,
+      // Section 0 first screen (S0-25): only sent with the flag on, so the flag-off app is unchanged.
+      // Lender details are runtime settings in backend/.env (no frontend rebuild needed).
+      ...(process.env.SECTION_0_ENABLED === 'true'
+        ? {
+            section0: {
+              enabled: true,
+              lender: {
+                name: process.env.LENDER_NAME || null,
+                nmls: process.env.LENDER_NMLS || null,
+                phone: process.env.LENDER_PHONE || null,
+                branchUrl: process.env.LENDER_BRANCH_URL || null,
+                hours: process.env.LENDER_HOURS || null,
+              },
+            },
+          }
+        : {}),
     });
   } catch (error) {
     console.error('Error generating LiveKit token:', error);
@@ -76,6 +92,32 @@ app.post('/api/get-token', async (req: Request, res: Response) => {
   }
 });
 
+
+// Section 0 (S0-26): a channel-card tap = AI-engagement + recording consent. Logged always; stored when the DB is ready.
+app.post('/api/consent', async (req: Request, res: Response) => {
+  if (process.env.SECTION_0_ENABLED !== 'true') {
+    res.status(404).json({ error: 'not enabled' });
+    return;
+  }
+  try {
+    const { recordChannelConsents } = await import('./services/consent-service.js');
+    const { roomName, channel } = req.body ?? {};
+    const result = await recordChannelConsents({
+      roomName: String(roomName ?? ''),
+      channel: String(channel ?? ''),
+      ipAddress: (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown',
+      userAgent: req.get('user-agent') ?? undefined,
+    });
+    if (!result.ok) {
+      res.status(400).json(result);
+      return;
+    }
+    res.json(result);
+  } catch (err) {
+    console.error('[consent] failed:', err);
+    res.status(500).json({ error: 'Failed to record consent' });
+  }
+});
 
 // Legacy telemetry endpoint — kept for any remaining frontend instrumentation
 app.post('/api/log-telemetry', (req: Request, res: Response) => {

@@ -8,6 +8,8 @@ export {
   buildLayer1,
   buildLayer2,
   GREETING_TEXT,
+  GREETING_TEXT_SECTION0,
+  GREETING_SEGMENTS_SECTION0,
   getGreetingText,
   GREETING_USER_INPUT,
   RESUME_USER_INPUT,

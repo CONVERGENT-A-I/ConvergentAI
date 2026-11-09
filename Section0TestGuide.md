@@ -45,6 +45,7 @@ The simulations are done (O7 95.7%, O8 96.5% of samples; stress set 94.4%). Now 
 
 | # | Part | Time | Why |
 | :---: | :--- | :---: | :--- |
+| 0 | **Part 2: first screen** (cards, highlights, mic off, consent, footer) | 15 min | New: built Nov 9 after David's confirmation |
 | 1 | **Part 5.1: memory walk-through** ⭐ | 30 min | The main goal: tell her everything in message 1, then check that **nothing is asked again**, all the way to the summary and beyond |
 | 2 | **Part 3: routing** | 20 min | Clear goal → straight to the track; unclear → one question; construction / reverse → loan officer |
 | 3 | **Part 4: fact capture** | 20 min | Hourly pay asks hours, corrections overwrite, conflicts get one question |
@@ -55,7 +56,6 @@ The simulations are done (O7 95.7%, O8 96.5% of samples; stress set 94.4%). Now 
 | 8 | **Part 8: David's 30 by voice** | when time allows | The voice check (numbers are heard differently than typed) |
 
 **Skip for now:**
-- **Part 2** (cards, card highlights, consent rows): not built yet (S0-24/25/26).
 - The last row of **Part 5.3** (database resume): MuhammadH's work ([Section0_DatabasePlan_MuhammadH.md](Section0_DatabasePlan_MuhammadH.md)).
 - **T3** in Part 7: "no loan officer available" can only be tested in simulations; the real app always treats a loan officer as available.
 
@@ -69,7 +69,7 @@ The simulations are done (O7 95.7%, O8 96.5% of samples; stress set 94.4%). Now 
 | :---: | :--- | :--- | :---: |
 | **0** | Localhost setup + flag on/off | S0-03 ✅ built | 🟢 0.6 passed (Nov 5) |
 | **1** | Code checks + unit tests | S0-09 … S0-21 | 🟢 all 6 files ready & passing (Nov 6) |
-| **2** | Opening: greeting, card highlights, mic off, consent | S0-24 … S0-26 | 🔴 |
+| **2** | Opening: greeting, card highlights, mic off, consent | S0-24 … S0-26 | 🟡 built Nov 9, ready to test (consent DB rows need MuhammadH's enum migration) |
 | **3** | Routing: clear / unclear / clarify / two goals / holdouts / out of scope | S0-15 … S0-18 | 🟡 testable with the flag on (incl. track switching R-8) |
 | **4** | Fact capture: multi-fact, corrections, ambiguity | S0-11 … S0-13 | 🟡 testable with the flag on |
 | **5** | **Memory across the whole flow** (no re-asking anywhere) | S0-13, S0-14, S0-20 | 🟡 testable with the flag on (DB resume not built yet) |
@@ -203,25 +203,55 @@ What each unit test file must prove:
 
 ## Part 2 — Opening: greeting, cards, mic, consent (A1)
 
+Built Nov 9, 2026 (S0-24/25/26) as David confirmed on Nov 9:
+- The cards **replace** the terms box.
+- The on-screen line is approved as written.
+- The spoken "by continuing, you agree to that" is enough for voice-only callers.
+- The footer is enough for the Equal Housing statement.
+
+**Setup:** in `backend/.env` add the lender details (they show on screen; until set, an orange "[… to be added]" shows instead):
+
+```
+LENDER_NAME=...          # e.g. the lender's display name
+LENDER_NMLS=...          # NMLS number for the footer
+LENDER_PHONE=...         # "Other ways to reach us"
+LENDER_BRANCH_URL=...    # branch locator link
+LENDER_HOURS=...         # e.g. Mon–Fri 9am–6pm ET
+```
+
+Restart the backend (the frontend needs no rebuild; it reads these through `/api/get-token`).
+
 **Steps**
 
 1. Click the Ailana button. **Do not tap a card yet.**
 2. Watch and listen to the greeting.
-3. Tap **Voice only**.
+3. Tap **Voice**.
 
 **Pass when**
 
+- [ ] Ailana appears with four cards underneath: **Video chat · Voice · Text chat · Talk to a loan officer**. No mode bar at the top, no mic button, no hint text.
 - [ ] Greeting is word-for-word: *"Hi! I'm Ailana, your AI mortgage assistant. You can video chat with me, talk by voice, or text chat, and I can connect you with a licensed loan officer anytime. Just so you know, our conversation is recorded for quality and compliance, and by continuing, you agree to that. How would you like to get started?"*
-- [ ] Each card lights up **as she says it** (video → voice → text → loan officer), and the highlight clears after.
-- [ ] Under the cards: the AI / recording consent line + Privacy policy link. Footer: *"Equal Housing Lender · AI-assisted process · NMLS #…"*. "Other ways to reach us" link present.
-- [ ] **Before the tap:** the browser mic indicator is off; backend shows no user audio track.
-- [ ] **On the tap:** backend prints two `[consent]` lines (`ai_engagement`, `recording`) with session ID, channel, disclosure version. With a database, two rows appear in the `Consent` table (pgAdmin).
-- [ ] Mic turns on (voice/video). Text chat card → typing mode, no mic.
-- [ ] Ailana then asks once: *"Great. What brings you here today: buying a home, refinancing, or using your home's equity?"*
+- [ ] Each card lights up **as she says it** (video → voice → text → loan officer), and the highlight clears after. The browser console shows `SYSTEM_CARD_HIGHLIGHT` messages; the backend log shows `[section0] card-screen greeting fired`.
+- [ ] Under the cards: the consent line *"Ailana is an AI assistant, not a person. By choosing an option, you agree to talk with Ailana and that this conversation, including video, voice and chat, is recorded for quality and compliance."* + **Privacy policy** link + **Other ways to reach us** (phone, branch locator, hours, Request a call back).
+- [ ] Footer: *"Equal Housing Lender · AI-assisted process · NMLS #…"*. The old "Your information is secure and never shared" footer is gone (flag on only).
+- [ ] **Before the tap:** the browser mic indicator is off.
+- [ ] **On the tap:**
+  - The backend prints `[section0] channel card tapped: voice` and two `[consent]` lines (`ai_engagement`, `recording`) with room, channel and disclosure version.
+  - With a database and MuhammadH's enum migration, two rows appear in the `consents` table.
+- [ ] **Voice / Video card:** the mic turns on with the tap. **Text chat card:** chat panel opens, no mic.
+- [ ] Right after the tap, Ailana asks once: *"Great. What brings you here today: buying a home, refinancing, or using your home's equity?"* If you then say only "I'm not sure", she does **not** repeat that same question.
+- [ ] Tapping a card **while she is still greeting** stops the greeting and goes straight to the question.
+- [ ] **Talk to a loan officer card:** goes to the existing loan-officer transfer (no loan officer is available, so stop at the popup).
+- [ ] **Refresh on the card screen** → the cards show again (no "Continue session"; nothing was consented yet). **Refresh after a tap** → "Continue session" works and the cards do **not** show again.
 
-**Fail signs:** cards light on a timer out of sync with speech · mic live before the tap · no consent rows · old greeting ("…purchasing a home, refinancing… HELOC…").
+**Fail signs:**
+- Cards light on a timer, out of sync with speech.
+- Mic live before the tap.
+- No `[consent]` lines.
+- The old greeting ("…purchasing a home, refinancing… HELOC…").
+- The intent question asked twice in a row.
 
-Repeat with each card: **Video**, **Text chat**, **Talk to a loan officer** (the last one goes straight to the transfer flow — Part 7).
+Repeat with each card: **Video**, **Text chat**, **Talk to a loan officer**. Then **flag off** (Part 10): no cards, old greeting, old footer, everything as today.
 
 ---
 

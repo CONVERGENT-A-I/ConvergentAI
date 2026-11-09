@@ -14,6 +14,11 @@ interface ChannelStartTriggerProps {
   mode: string;
   restoreSnapshot?: AilanaSessionSnapshot | null;
   onRestoreSent?: () => void;
+  /**
+   * Section 0 first screen (S0-25): no channel chosen yet. Ask the agent for the card-screen greeting
+   * (SYSTEM_GREETING_START) instead of starting a channel. Unset (flag off) → today's behaviour.
+   */
+  awaitingChannel?: boolean;
 }
 
 export function ChannelStartTrigger({
@@ -21,6 +26,7 @@ export function ChannelStartTrigger({
   mode,
   restoreSnapshot,
   onRestoreSent,
+  awaitingChannel = false,
 }: ChannelStartTriggerProps) {
   const { send } = useChat();
   const room = useRoomContext();
@@ -29,6 +35,31 @@ export function ChannelStartTrigger({
   const lastTriggeredMode = useRef<string | null>(null);
 
   useEffect(() => {
+    if (isLivePhase && room.state === "connected" && agentReady && awaitingChannel && !restoreSnapshot) {
+      if (lastTriggeredMode.current === null) {
+        // The card tap will not change the mode for "Video chat", so remember it as already started.
+        lastTriggeredMode.current = mode;
+        const encoder = new TextEncoder();
+        const sendGreetingStart = async (attempt: number) => {
+          if (room.state !== "connected") return;
+          try {
+            console.log(`[ui]: 👋 Card screen. Sending SYSTEM_GREETING_START (attempt ${attempt})...`);
+            await room.localParticipant.publishData(
+              encoder.encode(JSON.stringify({ message: "SYSTEM_GREETING_START" })),
+              { topic: "lk-chat", reliable: true }
+            );
+          } catch (e) {
+            console.warn(`[ui]: Failed to send SYSTEM_GREETING_START (attempt ${attempt})`, e);
+          }
+        };
+        // The agent ignores duplicates; retries cover a worker that joins slightly late.
+        void sendGreetingStart(1);
+        setTimeout(() => void sendGreetingStart(2), 2000);
+        setTimeout(() => void sendGreetingStart(3), 4500);
+      }
+      return;
+    }
+
     if (
       isLivePhase &&
       room.state === "connected" &&
@@ -157,6 +188,7 @@ export function ChannelStartTrigger({
     room.name,
     restoreSnapshot,
     onRestoreSent,
+    awaitingChannel,
   ]);
 
   return null;
