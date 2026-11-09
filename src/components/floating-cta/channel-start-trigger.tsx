@@ -12,6 +12,7 @@ import { type AilanaSessionSnapshot } from "../../lib/session-storage";
 interface ChannelStartTriggerProps {
   isLivePhase: boolean;
   mode: string;
+  zip?: string | null;
   restoreSnapshot?: AilanaSessionSnapshot | null;
   onRestoreSent?: () => void;
   /**
@@ -24,6 +25,7 @@ interface ChannelStartTriggerProps {
 export function ChannelStartTrigger({
   isLivePhase,
   mode,
+  zip,
   restoreSnapshot,
   onRestoreSent,
   awaitingChannel = false,
@@ -33,6 +35,25 @@ export function ChannelStartTrigger({
   const participants = useRemoteParticipants();
   const agentReady = participants.length > 0;
   const lastTriggeredMode = useRef<string | null>(null);
+  const lastSyncedZip = useRef<string | null>(null);
+
+  // Keep the backend profile synchronized with an IP-detected or manually
+  // entered ZIP even when the user requests a Loan Officer by voice instead of
+  // opening the Loan Officer UI.
+  useEffect(() => {
+    const normalizedZip = String(zip || "").replace(/\D/g, "").slice(0, 5);
+    if (!isLivePhase || room.state !== "connected" || !agentReady) return;
+    if (!/^\d{5}$/.test(normalizedZip) || lastSyncedZip.current === normalizedZip) return;
+    lastSyncedZip.current = normalizedZip;
+    const payload = new TextEncoder().encode(
+      JSON.stringify({ message: "SYSTEM_LOCATION_ZIP", zip: normalizedZip })
+    );
+    room.localParticipant.publishData(payload, { topic: "lk-chat", reliable: true })
+      .catch((error) => {
+        lastSyncedZip.current = null;
+        console.warn("[ui-location]: Failed to synchronize ZIP with Ailana.", error);
+      });
+  }, [isLivePhase, room.state, room.localParticipant, agentReady, zip]);
 
   useEffect(() => {
     if (isLivePhase && room.state === "connected" && agentReady && awaitingChannel && !restoreSnapshot) {
@@ -90,7 +111,7 @@ export function ChannelStartTrigger({
               `[ui-loan-officer]: 📞 Local Participant Identity: ${room.localParticipant.identity}`
             );
             const transferPayload = encoder.encode(
-              JSON.stringify({ message: `SYSTEM_TRANSFER_MLO` })
+              JSON.stringify({ message: `SYSTEM_TRANSFER_MLO`, zip: zip || undefined })
             );
             await room.localParticipant.publishData(transferPayload, {
               topic: "lk-chat",
@@ -189,6 +210,7 @@ export function ChannelStartTrigger({
     restoreSnapshot,
     onRestoreSent,
     awaitingChannel,
+    zip,
   ]);
 
   return null;
