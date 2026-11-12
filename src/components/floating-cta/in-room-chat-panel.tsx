@@ -14,9 +14,14 @@ interface InRoomChatPanelProps {
   initialTranscript?: ChatEntry[];
   /** Fired whenever a new live message arrives so the parent can persist it */
   onNewMessage?: (entry: ChatEntry) => void;
+  /**
+   * Section 0: the card-screen greeting is spoken phrase by phrase (so each card lights as she names it) but
+   * shown as one chat message. Hide a spoken phrase's subtitle when it is already part of a recent agent message.
+   */
+  section0?: boolean;
 }
 
-export function InRoomChatPanel({ isActive, onTriggerLoanOfficer, initialTranscript, onNewMessage }: InRoomChatPanelProps) {
+export function InRoomChatPanel({ isActive, onTriggerLoanOfficer, initialTranscript, onNewMessage, section0 = false }: InRoomChatPanelProps) {
   const { chatMessages, send } = useChat();
   const room = useRoomContext();
   const [input, setInput] = useState("");
@@ -153,6 +158,7 @@ export function InRoomChatPanel({ isActive, onTriggerLoanOfficer, initialTranscr
     // Store stripped versions of every chat message text for fast lookup
     const seenStripped = new Set<string>();
     const seenIds = new Set<string>();
+    const agentChats: Array<{ text: string; ts: number }> = []; // Section 0: for the phrase-subtitle check
 
     // Seed seen sets with initialTranscript so live messages don't duplicate items already shown in restored history
     if (initialTranscript && initialTranscript.length > 0) {
@@ -181,6 +187,7 @@ export function InRoomChatPanel({ isActive, onTriggerLoanOfficer, initialTranscr
           return;
         }
         seenStripped.add(stripped);
+        if (isAgent) agentChats.push({ text: stripped, ts: msg.timestamp });
       }
 
       seenIds.add(msgId);
@@ -206,6 +213,14 @@ export function InRoomChatPanel({ isActive, onTriggerLoanOfficer, initialTranscr
         const stripped = normalizeForDedup(tr.text);
         // Exact match against seen agent messages
         if (seenStripped.has(stripped)) return;
+        // Section 0: a spoken phrase that is part of an agent message shown within the last minute
+        if (
+          section0 &&
+          stripped.length >= 6 &&
+          agentChats.some((c) => c.text.includes(stripped) && Math.abs(c.ts - tr.timestamp) < 60000)
+        ) {
+          return;
+        }
         // Prefix match: if first 60 stripped chars match any seen entry, skip
         const prefix = stripped.slice(0, 60);
         if (prefix.length >= 25) {
@@ -258,7 +273,7 @@ export function InRoomChatPanel({ isActive, onTriggerLoanOfficer, initialTranscr
     }
 
     return deduped;
-  }, [chatMessages, transcripts, initialTranscript]);
+  }, [chatMessages, transcripts, initialTranscript, section0]);
 
   // Track previous display message count to detect new arrivals and fire onNewMessage
   const prevMsgCountRef = useRef(initialTranscript ? initialTranscript.length : 0);

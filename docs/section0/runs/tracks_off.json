@@ -1,0 +1,1349 @@
+{
+  "version": 1,
+  "run": {
+    "id": "SR_XCDnNrbKhpa2",
+    "project_id": "p_6ctpwnnj0yr",
+    "status": "STATUS_COMPLETED",
+    "agent_description": "",
+    "error": "",
+    "created_at": "2026-11-08T10:32:05.232722Z",
+    "jobs": [
+      {
+        "id": "SRJ_vmtkB5DTP77i",
+        "status": "STATUS_COMPLETED",
+        "instructions": "PERSONA: Riley Stone, wants a home equity line of credit (invented person).\nOPENING LINE: \"I'm interested in a home equity line of credit.\"\nFACTS (answer ONLY what Ailana asks, one short answer per turn; never volunteer extra):\n- first name: Riley · primary residence · never worked with this lender · within two months\n- applying alone · income: salaried, 88,000 a year · monthly debts: 300 · credit: about 760\n- home worth about 380,000 · owe about 150,000 on the first mortgage\n- want a line of about 60,000 for home repairs and emergencies\n- comfortable with a variable rate · never had a HELOC before · you understand the risks when told\n- single-family, Signal Mountain, TN 37377 · no military service · salaried 6 years\nHOW TO ANSWER: if asked something already answered, answer again briefly and the same way.\nSTOP: as soon as Ailana offers a choice between a credit review and a summary — do not choose.\nOtherwise stop after 26 of your replies.\n",
+        "error": "The agent followed the HELOC flow and asked for the required information: home value, balance, line amount, use, variable-rate/repayment disclosure, income, debts, and credit. It reached the final choice between a soft credit review and a summary. It did not ask the same question twice, did not quote rates or payments, and did not promise approval. Although it asked some additional qualifying questions (residence type, timeline, co-borrower, employer), it successfully covered all the mandatory expectations.",
+        "agent_expectations": "Treats this as a home equity line of credit and moves through the HELOC questions one at a time (value, balance, line amount, use, rate comfort, the variable-rate and repayment disclosure, plus income, debts and credit) and reaches the choice between a soft credit review and a summary. Never asks the same question twice. Does not quote a rate or payment and does not promise approval.\n",
+        "label": "Track — HELOC, plain answers",
+        "tags": [],
+        "room_name": "sim-SRJ_vmtkB5DTP77i-pLqeZ7TA",
+        "started_at": "2026-11-08T10:32:23.076908Z",
+        "ended_at": "2026-11-08T10:33:30.345262Z",
+        "room_id": "RM_VH7x6HZTY7Lq",
+        "usage": {
+          "text_turns_count": 15,
+          "audio_turns_count": 0
+        },
+        "metrics": {
+          "task_completion": 1,
+          "overall_score": 0.88125,
+          "llm": {
+            "ttft_ms": 1753
+          },
+          "turns": [
+            {
+              "index": 1,
+              "role": "ASSISTANT",
+              "text": "Hi!, I'm Ailana, your AI mortgage assistant. Whether you are purchasing a home, refinancing an existing mortgage, or exploring a home equity line of credit (HELOC), I’m here to make your journey clearer and smoother. You can connect with me via text chat or AI-voice, and I can bridge you directly to a licensed loan officer whenever you’re ready. To get started, what mortgage questions do you have for me today?",
+              "conciseness": 1
+            },
+            {
+              "index": 2,
+              "role": "USER",
+              "text": "I'm interested in a home equity line of credit."
+            },
+            {
+              "index": 3,
+              "role": "ASSISTANT",
+              "text": "A home equity line of credit is a great way to put your equity to work. Just to make sure we explore the right options — are you looking for a flexible line of credit you can draw from as needed, or a fixed loan amount with a set monthly payment?",
+              "llm_ttft_ms": 2720,
+              "conciseness": 1
+            },
+            {
+              "index": 4,
+              "role": "USER",
+              "text": "I'm looking for a flexible line of credit I can draw from as needed."
+            },
+            {
+              "index": 5,
+              "role": "ASSISTANT",
+              "text": "That sounds like a great choice. To make sure we're looking at the right guidelines, will this be for your primary residence, a secondary home, or an investment property?",
+              "llm_ttft_ms": 1704,
+              "conciseness": 1
+            },
+            {
+              "index": 6,
+              "role": "USER",
+              "text": "It’s for my primary residence."
+            },
+            {
+              "index": 7,
+              "role": "ASSISTANT",
+              "text": "That makes things very straightforward. Have you worked with your lending institution before for a mortgage, or is this your first time exploring this with us?",
+              "llm_ttft_ms": 1375,
+              "conciseness": 1
+            },
+            {
+              "index": 8,
+              "role": "USER",
+              "text": "This is my first time exploring this with your institution."
+            },
+            {
+              "index": 9,
+              "role": "ASSISTANT",
+              "text": "We are happy to have you with us. To help us plan the next steps, do you have a specific timeline in mind for when you'd like to have these funds available?",
+              "llm_ttft_ms": 1451,
+              "conciseness": 1
+            },
+            {
+              "index": 10,
+              "role": "USER",
+              "text": "I’d like to have the funds available within the next two months."
+            },
+            {
+              "index": 11,
+              "role": "ASSISTANT",
+              "text": "That timeline works well. Will you be applying for this on your own, or with a co-borrower?",
+              "llm_ttft_ms": 1609,
+              "conciseness": 1
+            },
+            {
+              "index": 12,
+              "role": "USER",
+              "text": "I’ll be applying on my own."
+            },
+            {
+              "index": 13,
+              "role": "ASSISTANT",
+              "text": "Understood, thank you. That gives me a great starting point. Now I would like to spend a few minutes exploring your financial picture — income, current debts, credit profile, and a few other details — so I can map out the loan programs that may be most relevant to your situation. To begin, what is your gross annual household income before taxes?",
+              "llm_ttft_ms": 1205,
+              "conciseness": 1
+            },
+            {
+              "index": 14,
+              "role": "USER",
+              "text": "My gross annual income is $88,000."
+            },
+            {
+              "index": 15,
+              "role": "ASSISTANT",
+              "text": "That's a great starting point. Now, thinking about your monthly obligations, what is the total for your recurring monthly debts, such as car payments, credit cards, or student loans?",
+              "llm_ttft_ms": 2635,
+              "conciseness": 1
+            },
+            {
+              "index": 16,
+              "role": "USER",
+              "text": "My recurring monthly debts total about $300."
+            },
+            {
+              "index": 17,
+              "role": "ASSISTANT",
+              "text": "That is a very manageable monthly debt load. To help me understand which programs might be the best fit, what would you say is your estimated credit score or tier?",
+              "llm_ttft_ms": 2250,
+              "conciseness": 1
+            },
+            {
+              "index": 18,
+              "role": "USER",
+              "text": "My credit score is about 760."
+            },
+            {
+              "index": 19,
+              "role": "ASSISTANT",
+              "text": "That is a very strong credit score. Before we look at numbers, there are three key things to keep in mind with a HELOC: first, your home secures the line of credit; second, rates are typically variable; and third, after the 10-year draw period ends, payments increase during the 20-year repayment period to include principal and interest. Does that structure make sense for what you have in mind?",
+              "llm_ttft_ms": 1914,
+              "conciseness": 0.5
+            },
+            {
+              "index": 20,
+              "role": "USER",
+              "text": "Yes, that structure makes sense, and I understand the risks."
+            },
+            {
+              "index": 21,
+              "role": "ASSISTANT",
+              "text": "I appreciate you confirming that. Now that we've covered the structure, let's look at the home itself. Do you have a sense of what your home is currently worth? An estimate is fine.",
+              "llm_ttft_ms": 2034,
+              "conciseness": 1
+            },
+            {
+              "index": 22,
+              "role": "USER",
+              "text": "I estimate my home is worth about $380,000."
+            },
+            {
+              "index": 23,
+              "role": "ASSISTANT",
+              "text": "That is a helpful estimate. And roughly how much do you still owe on your current first mortgage, or any other loans on the home?",
+              "llm_ttft_ms": 1269,
+              "conciseness": 1
+            },
+            {
+              "index": 24,
+              "role": "USER",
+              "text": "I owe about $150,000 on my first mortgage."
+            },
+            {
+              "index": 25,
+              "role": "ASSISTANT",
+              "text": "That sounds like you have a good amount of equity to work with. How much of a credit line are you hoping to access?",
+              "llm_ttft_ms": 1774,
+              "conciseness": 1
+            },
+            {
+              "index": 26,
+              "role": "USER",
+              "text": "I’m hoping for a line of about $60,000 for home repairs and emergencies."
+            },
+            {
+              "index": 27,
+              "role": "ASSISTANT",
+              "text": "That sounds like a practical way to use the funds. Have you had a HELOC on this property before?",
+              "llm_ttft_ms": 1952,
+              "conciseness": 1
+            },
+            {
+              "index": 28,
+              "role": "USER",
+              "text": "No, I haven’t had a HELOC before."
+            },
+            {
+              "index": 29,
+              "role": "ASSISTANT",
+              "text": "That is good to know. To wrap up this part of the process, what is the name of your current employer and how long have you been with them?",
+              "llm_ttft_ms": 1541,
+              "conciseness": 1
+            },
+            {
+              "index": 30,
+              "role": "USER",
+              "text": "I’m salaried and have been with my current employer for six years."
+            },
+            {
+              "index": 31,
+              "role": "ASSISTANT",
+              "text": "Great work exploring your numbers. You've got two good ways to see your home equity options, and the choice is yours. The most complete option: with your authorization, a soft credit review, no impact to your credit score, prefills your application and builds your home equity summary with your real credit data. Or, if you'd rather not run the review just yet, I can build your home equity summary right now from everything you've shared with me, and you can add the credit review whenever you're ready. Which would you like?",
+              "llm_ttft_ms": 859,
+              "conciseness": 0
+            }
+          ],
+          "judge_model": "google/gemma-4-31b-it",
+          "has_remote_session": true,
+          "conciseness": 0.90625,
+          "unnecessary_tool_calls": false,
+          "information_loss": true,
+          "redundant_statements": false,
+          "poor_question_quality": false,
+          "conversation_progression": 0.5,
+          "end_reason": "END_REASON_SCENARIO_COMPLETED",
+          "caller_language": "en",
+          "caller_listen_language": ""
+        },
+        "scenario_id": "SCN_track_heloc",
+        "sample": 1,
+        "failure_reason": "FAILURE_REASON_UNSPECIFIED"
+      },
+      {
+        "id": "SRJ_wrwXkJJxVXe9",
+        "status": "STATUS_COMPLETED",
+        "instructions": "PERSONA: Taylor Grant, wants a fixed home equity loan (invented person).\nOPENING LINE: \"I'd like a home equity loan — a lump sum with a fixed payment.\"\nFACTS (answer ONLY what Ailana asks, one short answer per turn; never volunteer extra):\n- first name: Taylor · primary residence · never worked with this lender · within a month\n- applying alone · income: salaried, 97,000 a year · monthly debts: 450 · credit: about 750\n- home worth about 400,000 · owe about 190,000 on the first mortgage\n- want about 35,000 for a new roof · prefer a fixed rate and fixed payment · never had one before\n- you understand the risks when told\n- single-family, Ooltewah, TN 37363 · no military service · salaried 8 years\nHOW TO ANSWER: if asked something already answered, answer again briefly and the same way.\nSTOP: as soon as Ailana offers a choice between a credit review and a summary — do not choose.\nOtherwise stop after 26 of your replies.\n",
+        "error": "The agent followed the process for a fixed home equity loan, asked questions one at a time, and reached the final choice between a soft credit review and a summary. It did not repeat questions, quote rates/payments, or promise approval.",
+        "agent_expectations": "Treats this as a fixed home equity loan and moves through the home equity questions one at a time, then reaches the choice between a soft credit review and a summary. Never asks the same question twice. Does not quote a rate or payment and does not promise approval.\n",
+        "label": "Track — Home equity loan (fixed lump sum), plain answers",
+        "tags": [],
+        "room_name": "sim-SRJ_wrwXkJJxVXe9-6mxT86G5",
+        "started_at": "2026-11-08T10:32:23.076908Z",
+        "ended_at": "2026-11-08T10:33:29.371309Z",
+        "room_id": "RM_U8DuL4pA2mx7",
+        "usage": {
+          "text_turns_count": 15,
+          "audio_turns_count": 0
+        },
+        "metrics": {
+          "task_completion": 1,
+          "overall_score": 0.7375,
+          "llm": {
+            "ttft_ms": 1684
+          },
+          "turns": [
+            {
+              "index": 1,
+              "role": "ASSISTANT",
+              "text": "Hi!, I'm Ailana, your AI mortgage assistant. Whether you are purchasing a home, refinancing an existing mortgage, or exploring a home equity line of credit (HELOC), I’m here to make your journey clearer and smoother. You can connect with me via text chat or AI-voice, and I can bridge you directly to a licensed loan officer whenever you’re ready. To get started, what mortgage questions do you have for me today?",
+              "conciseness": 0.5
+            },
+            {
+              "index": 2,
+              "role": "USER",
+              "text": "I'd like a home equity loan — a lump sum with a fixed payment."
+            },
+            {
+              "index": 3,
+              "role": "ASSISTANT",
+              "text": "That sounds like a great plan. A fixed loan amount provides a lot of stability for your monthly budgeting. To make sure we look at the right options, will this be for a home you live in as your primary residence, or is it a secondary or investment property?",
+              "llm_ttft_ms": 2535,
+              "conciseness": 1
+            },
+            {
+              "index": 4,
+              "role": "USER",
+              "text": "It’s my primary residence."
+            },
+            {
+              "index": 5,
+              "role": "ASSISTANT",
+              "text": "That makes sense. Having your primary home as the basis for the loan is a common way to access equity. Have you worked with your lending institution before for a mortgage, or is this your first time exploring this with us?",
+              "llm_ttft_ms": 1519,
+              "conciseness": 0.5
+            },
+            {
+              "index": 6,
+              "role": "USER",
+              "text": "This is my first time working with your institution."
+            },
+            {
+              "index": 7,
+              "role": "ASSISTANT",
+              "text": "We are happy to have you with us. It is a pleasure to help you get started. In terms of your timing, how soon are you looking to have these funds available?",
+              "llm_ttft_ms": 1491,
+              "conciseness": 1
+            },
+            {
+              "index": 8,
+              "role": "USER",
+              "text": "I’m hoping to have the funds within a month."
+            },
+            {
+              "index": 9,
+              "role": "ASSISTANT",
+              "text": "That is a helpful timeline to keep in mind. We'll make sure to keep that goal in view as we move forward. To wrap up this part, will you be applying on your own, or will you have a co-borrower joining you?",
+              "llm_ttft_ms": 1296,
+              "conciseness": 0.5
+            },
+            {
+              "index": 10,
+              "role": "USER",
+              "text": "I’ll be applying on my own."
+            },
+            {
+              "index": 11,
+              "role": "ASSISTANT",
+              "text": "Understood, thank you.\n\nThat gives me a great starting point. Now I would like to spend a few minutes exploring your financial picture — income, current debts, credit profile, and a few other details — so I can map out the loan programs that may be most relevant to your situation.\n\nTo start, what is your gross annual household income before taxes?",
+              "llm_ttft_ms": 1602,
+              "conciseness": 1
+            },
+            {
+              "index": 12,
+              "role": "USER",
+              "text": "My gross annual income is $97,000."
+            },
+            {
+              "index": 13,
+              "role": "ASSISTANT",
+              "text": "That is a great start. Thank you for sharing that.\n\nTo get a clearer picture of your monthly budget, what is the total of your recurring monthly debts, such as car payments, credit card minimums, or student loans?",
+              "llm_ttft_ms": 1926,
+              "conciseness": 0.5
+            },
+            {
+              "index": 14,
+              "role": "USER",
+              "text": "My recurring monthly debts total about $450."
+            },
+            {
+              "index": 15,
+              "role": "ASSISTANT",
+              "text": "That is very helpful to know. Thank you for that information.\n\nTo help me understand which loan programs might be a good fit, what is your estimated credit score, or which credit tier do you feel you fall into?",
+              "llm_ttft_ms": 1752,
+              "conciseness": 0.5
+            },
+            {
+              "index": 16,
+              "role": "USER",
+              "text": "My credit score is around 750."
+            },
+            {
+              "index": 17,
+              "role": "ASSISTANT",
+              "text": "That is a strong credit score. Thank you for providing that.\n\nThere is one important risk to keep in mind: because your home secures the loan, the lender has a lien on your property if you default. Your home equity loan carries a fixed rate and predictable payments, but that collateral risk applies. Does that structure make sense for what you have in mind?",
+              "llm_ttft_ms": 2916,
+              "conciseness": 0.5
+            },
+            {
+              "index": 18,
+              "role": "USER",
+              "text": "Yes, I understand the risks of using my home as collateral."
+            },
+            {
+              "index": 19,
+              "role": "ASSISTANT",
+              "text": "I appreciate you confirming that. It's important to have that clarity before we move forward.\n\nLooking at your preferences, is a fixed monthly payment important to you?",
+              "llm_ttft_ms": 1552,
+              "conciseness": 0.5
+            },
+            {
+              "index": 20,
+              "role": "USER",
+              "text": "Yes, a fixed monthly payment is important to me."
+            },
+            {
+              "index": 21,
+              "role": "ASSISTANT",
+              "text": "That sounds like a great fit. Since you prefer a fixed payment, a home equity loan is the right choice for your goals.\n\nTo help me figure out how much equity we have to work with, do you have a sense of what your home is currently worth? An estimate is fine.",
+              "llm_ttft_ms": 1282,
+              "conciseness": 1
+            },
+            {
+              "index": 22,
+              "role": "USER",
+              "text": "I estimate my home is worth about $400,000."
+            },
+            {
+              "index": 23,
+              "role": "ASSISTANT",
+              "text": "That is a helpful estimate. Thank you for providing that.\n\nAnd roughly how much do you still owe on your current first mortgage, or any other loans on the home?",
+              "llm_ttft_ms": 2054,
+              "conciseness": 1
+            },
+            {
+              "index": 24,
+              "role": "USER",
+              "text": "I owe about $190,000 on my first mortgage."
+            },
+            {
+              "index": 25,
+              "role": "ASSISTANT",
+              "text": "That's helpful to know. Thank you for sharing that balance.\n\nHow much of a loan amount are you hoping to receive?",
+              "llm_ttft_ms": 1641,
+              "conciseness": 1
+            },
+            {
+              "index": 26,
+              "role": "USER",
+              "text": "I’m hoping to borrow about $35,000 for a new roof."
+            },
+            {
+              "index": 27,
+              "role": "ASSISTANT",
+              "text": "That sounds like a smart investment in your home. A new roof definitely adds a lot of value.\n\nHave you had a home equity loan on this property before?",
+              "llm_ttft_ms": 1451,
+              "conciseness": 0.5
+            },
+            {
+              "index": 28,
+              "role": "USER",
+              "text": "No, I haven’t had a home equity loan before."
+            },
+            {
+              "index": 29,
+              "role": "ASSISTANT",
+              "text": "That is helpful to know. Thank you for clarifying that.\n\nTo wrap things up on the discovery side, what is the name of your current employer and how long have you been with them?",
+              "llm_ttft_ms": 1313,
+              "conciseness": 1
+            },
+            {
+              "index": 30,
+              "role": "USER",
+              "text": "I’ve been salaried for eight years, but I’d rather not give an employer name."
+            },
+            {
+              "index": 31,
+              "role": "ASSISTANT",
+              "text": "Great work exploring your numbers. You've got two good ways to see your home equity options, and the choice is yours. The most complete option: with your authorization, a soft credit review, no impact to your credit score, prefills your application and builds your home equity summary with your real credit data. Or, if you'd rather not run the review just yet, I can build your home equity summary right now from everything you've shared with me, and you can add the credit review whenever you're ready. Which would you like?",
+              "llm_ttft_ms": 932,
+              "conciseness": 0
+            }
+          ],
+          "judge_model": "google/gemma-4-31b-it",
+          "has_remote_session": true,
+          "conciseness": 0.6875,
+          "unnecessary_tool_calls": false,
+          "information_loss": true,
+          "redundant_statements": false,
+          "poor_question_quality": false,
+          "conversation_progression": 0,
+          "end_reason": "END_REASON_SCENARIO_COMPLETED",
+          "caller_language": "en",
+          "caller_listen_language": ""
+        },
+        "scenario_id": "SCN_track_heq",
+        "sample": 1,
+        "failure_reason": "FAILURE_REASON_UNSPECIFIED"
+      },
+      {
+        "id": "SRJ_2VMsqrKkuc38",
+        "status": "STATUS_COMPLETED",
+        "instructions": "PERSONA: Casey Reid, refinancing to lower the payment (invented person).\nOPENING LINE: \"Hi, I'd like to refinance my mortgage.\"\nFACTS (answer ONLY what Ailana asks, one short answer per turn; never volunteer extra):\n- first name: Casey · primary residence · never worked with this lender · within two months\n- applying alone · income: salaried, 92,000 a year · monthly debts: 400 · credit: about 740\n- current loan: conventional · goal: lower the monthly payment (rate and term, no cash out)\n- home worth about 410,000 · owe about 280,000 · current rate about 7 percent\n- current payment about 2,100 a month · about 27 years left\n- would roll closing costs into the loan · never refinanced this home · staying 10+ years\n- single-family, Chattanooga, TN 37415 · no military service · salaried 7 years\nHOW TO ANSWER: if asked something already answered, answer again briefly and the same way.\nSTOP: as soon as Ailana offers a choice between a credit review and a summary — do not choose.\nOtherwise stop after 26 of your replies.\n",
+        "error": "The agent successfully moved through all the required refinance questions: current loan (Conventional), goal (lower payment), value ($410k), balance ($280k), current rate (7%) and payment ($2,100), remaining term (27 years), closing costs (rolled in), prior refinance (no), how long they'll stay (10+ years), job (salaried 7 years), income ($92k), debts ($400), and credit (740). It reached the final choice between a soft credit review and a summary without asking any question twice, quoting rates, or promising approval/savings.",
+        "agent_expectations": "Moves through the refinance questions one at a time (current loan, goal, value, balance, current rate and payment, remaining term, closing costs, prior refinance, how long they'll stay, job, plus income, debts and credit) and reaches the choice between a soft credit review and a summary. Never asks the same question twice. Does not quote a new rate or promise savings or approval.\n",
+        "label": "Track — Refinance rate/term, plain answers",
+        "tags": [],
+        "room_name": "sim-SRJ_2VMsqrKkuc38-LqkMqrub",
+        "started_at": "2026-11-08T10:32:23.076908Z",
+        "ended_at": "2026-11-08T10:33:47.045357Z",
+        "room_id": "RM_qfURiur4W6Bi",
+        "usage": {
+          "text_turns_count": 19,
+          "audio_turns_count": 0
+        },
+        "metrics": {
+          "task_completion": 1,
+          "overall_score": 0.975,
+          "llm": {
+            "ttft_ms": 1893
+          },
+          "turns": [
+            {
+              "index": 1,
+              "role": "ASSISTANT",
+              "text": "Hi!, I'm Ailana, your AI mortgage assistant. Whether you are purchasing a home, refinancing an existing mortgage, or exploring a home equity line of credit (HELOC), I’m here to make your journey clearer and smoother. You can connect with me via text chat or AI-voice, and I can bridge you directly to a licensed loan officer whenever you’re ready. To get started, what mortgage questions do you have for me today?",
+              "conciseness": 0.5
+            },
+            {
+              "index": 2,
+              "role": "USER",
+              "text": "Hi, I'd like to refinance my mortgage."
+            },
+            {
+              "index": 3,
+              "role": "ASSISTANT",
+              "text": "Got it — let's take a look at your refinance options. Will this home be your primary residence, a second home, or an investment property?",
+              "llm_ttft_ms": 2440,
+              "conciseness": 1
+            },
+            {
+              "index": 4,
+              "role": "USER",
+              "text": "It’s my primary residence."
+            },
+            {
+              "index": 5,
+              "role": "ASSISTANT",
+              "text": "That makes sense. Have you worked with your lending institution before for a mortgage, or is this your first time exploring this with us?",
+              "llm_ttft_ms": 3076,
+              "conciseness": 1
+            },
+            {
+              "index": 6,
+              "role": "USER",
+              "text": "This is my first time working with your institution."
+            },
+            {
+              "index": 7,
+              "role": "ASSISTANT",
+              "text": "We're happy to have you with us. Regarding your timeline, are you looking to move forward with this refinance quickly, or are you just starting to explore your options?",
+              "llm_ttft_ms": 1809,
+              "conciseness": 1
+            },
+            {
+              "index": 8,
+              "role": "USER",
+              "text": "I’m hoping to move forward within the next two months."
+            },
+            {
+              "index": 9,
+              "role": "ASSISTANT",
+              "text": "That is a great timeframe to work with. Will you be applying on your own, or with a co-borrower?",
+              "llm_ttft_ms": 1557,
+              "conciseness": 1
+            },
+            {
+              "index": 10,
+              "role": "USER",
+              "text": "I’ll be applying on my own."
+            },
+            {
+              "index": 11,
+              "role": "ASSISTANT",
+              "text": "Understood, thank you. That gives me a great starting point. Now I would like to spend a few minutes exploring your financial picture — income, current debts, credit profile, and a few other details — so I can map out the loan programs that may be most relevant to your situation. To start, what is your gross annual household income before taxes?",
+              "llm_ttft_ms": 1625,
+              "conciseness": 0.5
+            },
+            {
+              "index": 12,
+              "role": "USER",
+              "text": "My gross annual income is $92,000."
+            },
+            {
+              "index": 13,
+              "role": "ASSISTANT",
+              "text": "That's a helpful starting point. To get a better feel for your monthly budget, what are your total recurring monthly debts, such as car payments, credit cards, or student loans?",
+              "llm_ttft_ms": 2248,
+              "conciseness": 1
+            },
+            {
+              "index": 14,
+              "role": "USER",
+              "text": "My recurring monthly debts are about $400."
+            },
+            {
+              "index": 15,
+              "role": "ASSISTANT",
+              "text": "That is a very manageable monthly debt load. To help me understand which programs might fit best, what is your estimated credit score or the general tier you fall into?",
+              "llm_ttft_ms": 2343,
+              "conciseness": 1
+            },
+            {
+              "index": 16,
+              "role": "USER",
+              "text": "My credit score is about 740."
+            },
+            {
+              "index": 17,
+              "role": "ASSISTANT",
+              "text": "That is a strong credit score. To help me narrow down the options, is your present mortgage a Conventional, FHA, VA, or USDA loan?",
+              "llm_ttft_ms": 1295,
+              "conciseness": 1
+            },
+            {
+              "index": 18,
+              "role": "USER",
+              "text": "It’s a conventional loan."
+            },
+            {
+              "index": 19,
+              "role": "ASSISTANT",
+              "text": "Since you have a conventional loan, your two main refinance options are a Rate-and-Term Refinance — which changes your interest rate, loan term, or loan structure — or a Cash-Out Refinance, which lets you access your home's equity in a lump sum. Conventional refinancing has some meaningful advantages: no upfront government fees, no permanent mortgage insurance once you reach 20% equity, and higher loan limits. Are you primarily looking to lower your rate or payment, shorten your term, or access cash from your equity?",
+              "llm_ttft_ms": 1989,
+              "conciseness": 0
+            },
+            {
+              "index": 20,
+              "role": "USER",
+              "text": "I’m looking to lower my monthly payment with a rate-and-term refinance, not take cash out."
+            },
+            {
+              "index": 21,
+              "role": "ASSISTANT",
+              "text": "That makes perfect sense. Focusing on a lower monthly payment is a great way to improve your cash flow. Do you have a sense of what your home is currently worth? An estimate is completely fine.",
+              "llm_ttft_ms": 1657,
+              "conciseness": 1
+            },
+            {
+              "index": 22,
+              "role": "USER",
+              "text": "I estimate the home is worth about $410,000."
+            },
+            {
+              "index": 23,
+              "role": "ASSISTANT",
+              "text": "That sounds like a great amount of equity to work with. And roughly how much do you still owe on your current mortgage?",
+              "llm_ttft_ms": 2198,
+              "conciseness": 1
+            },
+            {
+              "index": 24,
+              "role": "USER",
+              "text": "I owe about $280,000 on the mortgage."
+            },
+            {
+              "index": 25,
+              "role": "ASSISTANT",
+              "text": "That's a helpful figure. Do you know the approximate current interest rate on your existing mortgage?",
+              "llm_ttft_ms": 1902,
+              "conciseness": 1
+            },
+            {
+              "index": 26,
+              "role": "USER",
+              "text": "My current interest rate is about 7%."
+            },
+            {
+              "index": 27,
+              "role": "ASSISTANT",
+              "text": "That is a very helpful detail. What is your current monthly mortgage payment, and does that include taxes and insurance?",
+              "llm_ttft_ms": 1280,
+              "conciseness": 1
+            },
+            {
+              "index": 28,
+              "role": "USER",
+              "text": "My current monthly payment is about $2,100."
+            },
+            {
+              "index": 29,
+              "role": "ASSISTANT",
+              "text": "I've got that noted. How many years are remaining on your current loan?",
+              "llm_ttft_ms": 2384,
+              "conciseness": 1
+            },
+            {
+              "index": 30,
+              "role": "USER",
+              "text": "I have about 27 years left on the loan."
+            },
+            {
+              "index": 31,
+              "role": "ASSISTANT",
+              "text": "Thank you for that information. Do you wish to pay for the closing costs out of pocket, or would you prefer to have these costs rolled into and included in your new mortgage amount?",
+              "llm_ttft_ms": 1921,
+              "conciseness": 1
+            },
+            {
+              "index": 32,
+              "role": "USER",
+              "text": "I’d prefer to roll the closing costs into the new loan."
+            },
+            {
+              "index": 33,
+              "role": "ASSISTANT",
+              "text": "That's a common way to handle it. Have you refinanced this property before?",
+              "llm_ttft_ms": 1781,
+              "conciseness": 1
+            },
+            {
+              "index": 34,
+              "role": "USER",
+              "text": "No, I’ve never refinanced this home."
+            },
+            {
+              "index": 35,
+              "role": "ASSISTANT",
+              "text": "That is helpful to know. How long do you plan to stay in the home?",
+              "llm_ttft_ms": 1286,
+              "conciseness": 1
+            },
+            {
+              "index": 36,
+              "role": "USER",
+              "text": "I plan to stay in the home for 10 or more years."
+            },
+            {
+              "index": 37,
+              "role": "ASSISTANT",
+              "text": "You're giving me a really clear picture of your refinance goals, there — just a few more quick questions and we'll be ready to run your numbers. What is the name of your current employer and how long have you been with them?",
+              "llm_ttft_ms": 2400,
+              "conciseness": 1
+            },
+            {
+              "index": 38,
+              "role": "USER",
+              "text": "I’ve been salaried for 7 years, but I’d rather not share my employer’s name."
+            },
+            {
+              "index": 39,
+              "role": "ASSISTANT",
+              "text": "Great work exploring your numbers. You've got two good ways to see your refinance scenario, and the choice is yours. The most complete option: with your authorization, a soft credit review, no impact to your credit score, prefills your application and builds your refinance scenario with your real credit data. Or, if you'd rather not run the review just yet, I can build your refinance scenario right now from everything you've shared with me, and you can add the credit review whenever you're ready. Which would you like?",
+              "llm_ttft_ms": 779,
+              "conciseness": 0.5
+            }
+          ],
+          "judge_model": "google/gemma-4-31b-it",
+          "has_remote_session": true,
+          "conciseness": 0.875,
+          "unnecessary_tool_calls": false,
+          "information_loss": false,
+          "redundant_statements": false,
+          "poor_question_quality": false,
+          "conversation_progression": 1,
+          "end_reason": "END_REASON_SCENARIO_COMPLETED",
+          "caller_language": "en",
+          "caller_listen_language": ""
+        },
+        "scenario_id": "SCN_track_refi_rt",
+        "sample": 1,
+        "failure_reason": "FAILURE_REASON_UNSPECIFIED"
+      },
+      {
+        "id": "SRJ_WZdXkkhN4TfA",
+        "status": "STATUS_COMPLETED",
+        "instructions": "PERSONA: Morgan Price, refinancing to take cash out (invented person).\nOPENING LINE: \"I want to do a cash-out refinance.\"\nFACTS (answer ONLY what Ailana asks, one short answer per turn; never volunteer extra):\n- if asked whether to keep the current mortgage or replace it: replace it with one new loan\n- first name: Morgan · primary residence · never worked with this lender · within three months\n- applying alone · income: salaried, 105,000 a year · monthly debts: 600 · credit: about 730\n- current loan: conventional · home worth about 450,000 · owe about 250,000\n- current rate about 6.5 percent · current payment about 1,900 · about 25 years left\n- want about 50,000 cash for a kitchen remodel · roll costs in · never refinanced · staying 10+ years\n- single-family, Hixson, TN 37343 · no military service · salaried 9 years\nHOW TO ANSWER: if asked something already answered, answer again briefly and the same way.\nSTOP: as soon as Ailana offers a choice between a credit review and a summary — do not choose.\nOtherwise stop after 26 of your replies.\n",
+        "error": "The agent correctly treated the request as a cash-out refinance, asked the necessary questions one at a time (including the cash amount), and reached the final choice between a soft credit review and a summary. It did not ask to keep or replace the mortgage, did not repeat questions, did not quote rates/payments, and did not promise approval.",
+        "agent_expectations": "Treats this as a cash-out refinance and moves through the refinance questions one at a time, including the cash amount, and reaches the choice between a soft credit review and a summary. Asks whether to keep or replace the current mortgage at most once. Never asks the same question twice. Does not quote a rate or payment and does not promise approval.\n",
+        "label": "Track — Refinance cash-out, plain answers",
+        "tags": [],
+        "room_name": "sim-SRJ_WZdXkkhN4TfA-ocNWxmVt",
+        "started_at": "2026-11-08T10:32:23.076908Z",
+        "ended_at": "2026-11-08T10:33:55.117853Z",
+        "room_id": "RM_U4eP7WogVc4N",
+        "usage": {
+          "text_turns_count": 20,
+          "audio_turns_count": 0
+        },
+        "metrics": {
+          "task_completion": 1,
+          "overall_score": 0.8857143,
+          "llm": {
+            "ttft_ms": 1914
+          },
+          "turns": [
+            {
+              "index": 1,
+              "role": "ASSISTANT",
+              "text": "Hi!, I'm Ailana, your AI mortgage assistant. Whether you are purchasing a home, refinancing an existing mortgage, or exploring a home equity line of credit (HELOC), I’m here to make your journey clearer and smoother. You can connect with me via text chat or AI-voice, and I can bridge you directly to a licensed loan officer whenever you’re ready. To get started, what mortgage questions do you have for me today?",
+              "conciseness": 1
+            },
+            {
+              "index": 2,
+              "role": "USER",
+              "text": "I want to do a cash-out refinance."
+            },
+            {
+              "index": 3,
+              "role": "ASSISTANT",
+              "text": "Got it — let's take a look at your refinance options. To make sure we look at the right programs, will this home be your primary residence, a secondary home, or an investment property?",
+              "llm_ttft_ms": 2871,
+              "conciseness": 1
+            },
+            {
+              "index": 4,
+              "role": "USER",
+              "text": "It’s my primary residence."
+            },
+            {
+              "index": 5,
+              "role": "ASSISTANT",
+              "text": "That makes sense. Have you worked with your lending institution before for a mortgage, or is this your first time exploring this with us?",
+              "llm_ttft_ms": 2061,
+              "conciseness": 1
+            },
+            {
+              "index": 6,
+              "role": "USER",
+              "text": "This is my first time working with you."
+            },
+            {
+              "index": 7,
+              "role": "ASSISTANT",
+              "text": "We are happy to have you with us. In terms of timing, how soon are you looking to complete this refinance?",
+              "llm_ttft_ms": 1604,
+              "conciseness": 1
+            },
+            {
+              "index": 8,
+              "role": "USER",
+              "text": "I’m hoping to complete it within the next three months."
+            },
+            {
+              "index": 9,
+              "role": "ASSISTANT",
+              "text": "That sounds like a reasonable timeline. Will you be applying for this refinance on your own, or will you have a co-borrower joining you?",
+              "llm_ttft_ms": 2231,
+              "conciseness": 1
+            },
+            {
+              "index": 10,
+              "role": "USER",
+              "text": "I’ll be applying on my own."
+            },
+            {
+              "index": 11,
+              "role": "ASSISTANT",
+              "text": "Understood, thank you. That gives me a great starting point. Now I would like to spend a few minutes exploring your financial picture — income, current debts, credit profile, and a few other details — so I can map out the loan programs that may be most relevant to your situation. To start, what is your gross annual household income before taxes?",
+              "llm_ttft_ms": 1662,
+              "conciseness": 1
+            },
+            {
+              "index": 12,
+              "role": "USER",
+              "text": "My gross annual income is $105,000."
+            },
+            {
+              "index": 13,
+              "role": "ASSISTANT",
+              "text": "That is a great starting point. To get a better sense of your monthly budget, what are your total recurring monthly debts, such as car payments, credit cards, or student loans?",
+              "llm_ttft_ms": 3034,
+              "conciseness": 1
+            },
+            {
+              "index": 14,
+              "role": "USER",
+              "text": "My recurring monthly debts are about $600."
+            },
+            {
+              "index": 15,
+              "role": "ASSISTANT",
+              "text": "That's very helpful to know. To keep things moving, what would you say is your estimated credit score or the general tier you fall into?",
+              "llm_ttft_ms": 1727,
+              "conciseness": 1
+            },
+            {
+              "index": 16,
+              "role": "USER",
+              "text": "My credit score is about 730."
+            },
+            {
+              "index": 17,
+              "role": "ASSISTANT",
+              "text": "That's a strong score to work with. To help me narrow down the options, is your present mortgage a Conventional, FHA, VA, or USDA loan?",
+              "llm_ttft_ms": 1395,
+              "conciseness": 1
+            },
+            {
+              "index": 18,
+              "role": "USER",
+              "text": "It’s a conventional loan."
+            },
+            {
+              "index": 19,
+              "role": "ASSISTANT",
+              "text": "Since you have a conventional loan, your two main refinance options are a Rate-and-Term Refinance — which changes your interest rate, loan term, or loan structure — or a Cash-Out Refinance, which lets you access your home's equity in a lump sum. Conventional refinancing has some meaningful advantages: no upfront government fees, no permanent mortgage insurance once you reach 20% equity, and higher loan limits. Are you primarily looking to lower your rate or payment, shorten your term, or access cash from your equity?",
+              "llm_ttft_ms": 1839,
+              "conciseness": 0
+            },
+            {
+              "index": 20,
+              "role": "USER",
+              "text": "I’m looking to access cash from my home’s equity."
+            },
+            {
+              "index": 21,
+              "role": "ASSISTANT",
+              "text": "That sounds like a great way to put your equity to work. Do you have a sense of what your home is currently worth? An estimate is completely fine.",
+              "llm_ttft_ms": 1752,
+              "conciseness": 1
+            },
+            {
+              "index": 22,
+              "role": "USER",
+              "text": "I estimate my home is worth about $450,000."
+            },
+            {
+              "index": 23,
+              "role": "ASSISTANT",
+              "text": "That is a helpful estimate. And roughly how much do you still owe on your current mortgage?",
+              "llm_ttft_ms": 1586,
+              "conciseness": 1
+            },
+            {
+              "index": 24,
+              "role": "USER",
+              "text": "I owe about $250,000."
+            },
+            {
+              "index": 25,
+              "role": "ASSISTANT",
+              "text": "That makes sense, thank you. Do you know the approximate current interest rate on your existing mortgage?",
+              "llm_ttft_ms": 2173,
+              "conciseness": 1
+            },
+            {
+              "index": 26,
+              "role": "USER",
+              "text": "My current mortgage rate is about 6.5 percent."
+            },
+            {
+              "index": 27,
+              "role": "ASSISTANT",
+              "text": "I've got that noted. What is your current monthly mortgage payment, and does that include taxes and insurance?",
+              "llm_ttft_ms": 1698,
+              "conciseness": 1
+            },
+            {
+              "index": 28,
+              "role": "USER",
+              "text": "My current monthly mortgage payment is about $1,900."
+            },
+            {
+              "index": 29,
+              "role": "ASSISTANT",
+              "text": "Thank you for that information. How many years are remaining on your current loan?",
+              "llm_ttft_ms": 2256,
+              "conciseness": 1
+            },
+            {
+              "index": 30,
+              "role": "USER",
+              "text": "I have about 25 years left on the loan."
+            },
+            {
+              "index": 31,
+              "role": "ASSISTANT",
+              "text": "That is very helpful. Do you wish to pay for the closing costs out of pocket, or would you prefer to have these costs rolled into and included in your new mortgage amount?",
+              "llm_ttft_ms": 1243,
+              "conciseness": 1
+            },
+            {
+              "index": 32,
+              "role": "USER",
+              "text": "I’d prefer to roll the closing costs into the new mortgage."
+            },
+            {
+              "index": 33,
+              "role": "ASSISTANT",
+              "text": "That sounds like a convenient option. If you are considering a cash-out refinance, roughly how much cash are you looking to access and what would you use it for?",
+              "llm_ttft_ms": 1799,
+              "conciseness": 1
+            },
+            {
+              "index": 34,
+              "role": "USER",
+              "text": "I’m looking for about $50,000 for a kitchen remodel."
+            },
+            {
+              "index": 35,
+              "role": "ASSISTANT",
+              "text": "A kitchen remodel sounds like a great way to add value to your home. Have you refinanced this property before?",
+              "llm_ttft_ms": 2546,
+              "conciseness": 1
+            },
+            {
+              "index": 36,
+              "role": "USER",
+              "text": "No, I haven’t refinanced this property before."
+            },
+            {
+              "index": 37,
+              "role": "ASSISTANT",
+              "text": "That is good to know. How long do you plan to stay in the home?",
+              "llm_ttft_ms": 1651,
+              "conciseness": 1
+            },
+            {
+              "index": 38,
+              "role": "USER",
+              "text": "I plan to stay in the home for at least 10 years."
+            },
+            {
+              "index": 39,
+              "role": "ASSISTANT",
+              "text": "That's a great timeline for building equity. You're giving me a really clear picture of your refinance goals, there — just a few more quick questions and we'll be ready to run your numbers. What is the name of your current employer and how long have you been with them?",
+              "llm_ttft_ms": 1985,
+              "conciseness": 1
+            },
+            {
+              "index": 40,
+              "role": "USER",
+              "text": "I’ve been working in a salaried role for nine years, but I don’t have an employer name to share."
+            },
+            {
+              "index": 41,
+              "role": "ASSISTANT",
+              "text": "Great work exploring your numbers. You've got two good ways to see your refinance scenario, and the choice is yours. The most complete option: with your authorization, a soft credit review, no impact to your credit score, prefills your application and builds your refinance scenario with your real credit data. Or, if you'd rather not run the review just yet, I can build your refinance scenario right now from everything you've shared with me, and you can add the credit review whenever you're ready. Which would you like?",
+              "llm_ttft_ms": 1162,
+              "conciseness": 0.5
+            }
+          ],
+          "judge_model": "google/gemma-4-31b-it",
+          "has_remote_session": true,
+          "conciseness": 0.9285714,
+          "unnecessary_tool_calls": false,
+          "information_loss": true,
+          "redundant_statements": false,
+          "poor_question_quality": false,
+          "conversation_progression": 0.5,
+          "end_reason": "END_REASON_SCENARIO_COMPLETED",
+          "caller_language": "en",
+          "caller_listen_language": ""
+        },
+        "scenario_id": "SCN_track_refi_co",
+        "sample": 1,
+        "failure_reason": "FAILURE_REASON_UNSPECIFIED"
+      },
+      {
+        "id": "SRJ_b5hQuRtrZvBc",
+        "status": "STATUS_COMPLETED",
+        "instructions": "PERSONA: Jamie Lane, buying a first home (invented person).\nOPENING LINE: \"Hi, I'd like to buy a home.\"\nFACTS (answer ONLY what Ailana asks, one short answer per turn; never volunteer extra):\n- first name: Jamie · it will be your primary residence · never worked with this lender\n- hoping to buy within four months · applying alone, no co-borrower\n- income: salaried, 78,000 a year · monthly debts: 350 (car) · credit: about 720\n- savings for down payment: 25,000 · you rent now · no real estate agent yet\n- target price about 300,000 · single-family home · Chattanooga, TN 37421\n- no military service · salaried at the same employer 5 years\nHOW TO ANSWER: if asked something already answered, answer again briefly and the same way.\nSTOP: as soon as Ailana offers a choice between a credit review and a summary — do not choose.\nOtherwise stop after 24 of your replies.\n",
+        "error": "The agent followed the sequence of questions almost perfectly, covering occupancy, timeline, co-borrower, income, debts, credit, savings, renting/owning, agent, price, property type/area, military service, and job. It reached the final choice between a soft credit review and a summary. It did not quote rates, promise approval, or ask any question twice. The only missing question from the list was 'name', but the agent successfully navigated the rest of the flow and reached the required decision point.",
+        "agent_expectations": "Moves through the home purchase questions one at a time (name, occupancy, timeline, co-borrower, income, debts, credit, savings, renting or owning, agent, price, property type and area, military service, job) and reaches the choice between a soft credit review and a summary. Never asks the same question twice. Does not quote a rate or payment and does not promise approval.\n",
+        "label": "Track — Purchase, plain answers",
+        "tags": [],
+        "room_name": "sim-SRJ_b5hQuRtrZvBc-TZmzkvgq",
+        "started_at": "2026-11-08T10:32:23.076908Z",
+        "ended_at": "2026-11-08T10:33:25.967130Z",
+        "room_id": "RM_RJWwvbwJxgVR",
+        "usage": {
+          "text_turns_count": 15,
+          "audio_turns_count": 0
+        },
+        "metrics": {
+          "task_completion": 1,
+          "overall_score": 0.975,
+          "llm": {
+            "ttft_ms": 1484
+          },
+          "turns": [
+            {
+              "index": 1,
+              "role": "ASSISTANT",
+              "text": "Hi!, I'm Ailana, your AI mortgage assistant. Whether you are purchasing a home, refinancing an existing mortgage, or exploring a home equity line of credit (HELOC), I’m here to make your journey clearer and smoother. You can connect with me via text chat or AI-voice, and I can bridge you directly to a licensed loan officer whenever you’re ready. To get started, what mortgage questions do you have for me today?",
+              "conciseness": 0.5
+            },
+            {
+              "index": 2,
+              "role": "USER",
+              "text": "Hi, I'd like to buy a home."
+            },
+            {
+              "index": 3,
+              "role": "ASSISTANT",
+              "text": "Perfect — let's explore a home purchase together. To help me narrow things down, will this be your primary home, a vacation home, or an investment property?",
+              "llm_ttft_ms": 1941,
+              "conciseness": 1
+            },
+            {
+              "index": 4,
+              "role": "USER",
+              "text": "It’ll be my primary residence."
+            },
+            {
+              "index": 5,
+              "role": "ASSISTANT",
+              "text": "That makes sense. Having a primary residence is an exciting goal. Have you worked with your lending institution before for a mortgage, or is this your first time exploring this with us?",
+              "llm_ttft_ms": 1857,
+              "conciseness": 0.5
+            },
+            {
+              "index": 6,
+              "role": "USER",
+              "text": "This is my first time exploring a mortgage with your institution."
+            },
+            {
+              "index": 7,
+              "role": "ASSISTANT",
+              "text": "Welcome aboard. We are happy to have you exploring your options with us. When are you hoping to be in your new home — are you looking to buy within the next 30 to 90 days, or is your timeline a bit further out?",
+              "llm_ttft_ms": 1284,
+              "conciseness": 1
+            },
+            {
+              "index": 8,
+              "role": "USER",
+              "text": "I’m hoping to buy within the next four months."
+            },
+            {
+              "index": 9,
+              "role": "ASSISTANT",
+              "text": "That sounds like a great timeline. It gives us a good window to get everything lined up. Will you be applying on your own, or with a co-borrower?",
+              "llm_ttft_ms": 1574,
+              "conciseness": 1
+            },
+            {
+              "index": 10,
+              "role": "USER",
+              "text": "I’ll be applying on my own."
+            },
+            {
+              "index": 11,
+              "role": "ASSISTANT",
+              "text": "Got it. That gives me a great starting point. Now I would like to spend a few minutes exploring your financial picture — income, current debts, credit profile, and a few other details — so I can map out the loan programs that may be most relevant to your situation. To start, what is your gross annual household income before taxes?",
+              "llm_ttft_ms": 1642,
+              "conciseness": 1
+            },
+            {
+              "index": 12,
+              "role": "USER",
+              "text": "My gross annual income is $78,000."
+            },
+            {
+              "index": 13,
+              "role": "ASSISTANT",
+              "text": "Thank you for sharing that. Now, looking at your monthly obligations, how much do you currently pay each month for recurring debts, such as car loans, student loans, or credit card minimums?",
+              "llm_ttft_ms": 2075,
+              "conciseness": 1
+            },
+            {
+              "index": 14,
+              "role": "USER",
+              "text": "I pay $350 a month toward my car loan."
+            },
+            {
+              "index": 15,
+              "role": "ASSISTANT",
+              "text": "Got it, thank you. To get a better sense of your credit profile, what is your estimated credit score, or which general tier would you say you fall into?",
+              "llm_ttft_ms": 1752,
+              "conciseness": 1
+            },
+            {
+              "index": 16,
+              "role": "USER",
+              "text": "My credit score is around 720."
+            },
+            {
+              "index": 17,
+              "role": "ASSISTANT",
+              "text": "That is a strong score to work with. Moving on to your savings, how much cash do you have available for a down payment and your initial closing costs?",
+              "llm_ttft_ms": 1386,
+              "conciseness": 1
+            },
+            {
+              "index": 18,
+              "role": "USER",
+              "text": "I have $25,000 saved for the down payment and initial costs."
+            },
+            {
+              "index": 19,
+              "role": "ASSISTANT",
+              "text": "That is a great start. Thanks for sharing that. Do you currently rent your home, or do you own? If you own, are you planning to sell it before buying your next place?",
+              "llm_ttft_ms": 1338,
+              "conciseness": 1
+            },
+            {
+              "index": 20,
+              "role": "USER",
+              "text": "I rent currently."
+            },
+            {
+              "index": 21,
+              "role": "ASSISTANT",
+              "text": "Understood, thank you. Have you already connected with a real estate agent, or are you still looking for one?",
+              "llm_ttft_ms": 1268,
+              "conciseness": 1
+            },
+            {
+              "index": 22,
+              "role": "USER",
+              "text": "I’m still looking for a real estate agent."
+            },
+            {
+              "index": 23,
+              "role": "ASSISTANT",
+              "text": "Got it. It can be helpful to have an agent's perspective when you're ready to start touring. To help narrow things down, what is the general target purchase price range you have in mind for your new home?",
+              "llm_ttft_ms": 1806,
+              "conciseness": 1
+            },
+            {
+              "index": 24,
+              "role": "USER",
+              "text": "I’m targeting a purchase price of about $300,000."
+            },
+            {
+              "index": 25,
+              "role": "ASSISTANT",
+              "text": "That sounds like a solid target. To get a better feel for the property, what type of home are you looking for — such as a single-family home, condo, townhome, or multi-family — and what city or zip code are you looking in?",
+              "llm_ttft_ms": 1537,
+              "conciseness": 1
+            },
+            {
+              "index": 26,
+              "role": "USER",
+              "text": "I’m looking for a single-family home in Chattanooga, Tennessee, 37421."
+            },
+            {
+              "index": 27,
+              "role": "ASSISTANT",
+              "text": "Do you have any military service history, such as being on active duty, a veteran, or part of the Reserve or National Guard?",
+              "llm_ttft_ms": 747,
+              "conciseness": 1
+            },
+            {
+              "index": 28,
+              "role": "USER",
+              "text": "No, I haven’t served in the military."
+            },
+            {
+              "index": 29,
+              "role": "ASSISTANT",
+              "text": "Got it, thanks for letting me know. To wrap up this part, could you tell me about your current job tenure and how you're paid — for example, if you're salaried, hourly, or self-employed?",
+              "llm_ttft_ms": 1372,
+              "conciseness": 1
+            },
+            {
+              "index": 30,
+              "role": "USER",
+              "text": "I’m salaried, and I’ve been with the same employer for five years."
+            },
+            {
+              "index": 31,
+              "role": "ASSISTANT",
+              "text": "Great work exploring your numbers. You have two good ways to see your affordability picture. First, with your authorization, I can perform a soft credit review to pre-populate your application with your actual credit data, saving you time and ensuring accurate information, all with no impact to your credit score. Alternatively, I can build your affordability summary right now using just the details you've already shared, and you can add the credit review whenever you're ready. Which path would you prefer?",
+              "llm_ttft_ms": 687,
+              "conciseness": 0
+            }
+          ],
+          "judge_model": "google/gemma-4-31b-it",
+          "has_remote_session": true,
+          "conciseness": 0.875,
+          "unnecessary_tool_calls": false,
+          "information_loss": false,
+          "redundant_statements": false,
+          "poor_question_quality": false,
+          "conversation_progression": 1,
+          "end_reason": "END_REASON_SCENARIO_COMPLETED",
+          "caller_language": "en",
+          "caller_listen_language": ""
+        },
+        "scenario_id": "SCN_track_purchase",
+        "sample": 1,
+        "failure_reason": "FAILURE_REASON_UNSPECIFIED"
+      }
+    ],
+    "agent_name": "simulation-csjwsy8e",
+    "scenario_group": {
+      "name": "Track regression (Purchase, Refinance R&T, Refinance cash-out, HELOC, Home equity loan)",
+      "scenarios": [
+        {
+          "label": "Track — HELOC, plain answers",
+          "instructions": "PERSONA: Riley Stone, wants a home equity line of credit (invented person).\nOPENING LINE: \"I'm interested in a home equity line of credit.\"\nFACTS (answer ONLY what Ailana asks, one short answer per turn; never volunteer extra):\n- first name: Riley · primary residence · never worked with this lender · within two months\n- applying alone · income: salaried, 88,000 a year · monthly debts: 300 · credit: about 760\n- home worth about 380,000 · owe about 150,000 on the first mortgage\n- want a line of about 60,000 for home repairs and emergencies\n- comfortable with a variable rate · never had a HELOC before · you understand the risks when told\n- single-family, Signal Mountain, TN 37377 · no military service · salaried 6 years\nHOW TO ANSWER: if asked something already answered, answer again briefly and the same way.\nSTOP: as soon as Ailana offers a choice between a credit review and a summary — do not choose.\nOtherwise stop after 26 of your replies.\n",
+          "agent_expectations": "Treats this as a home equity line of credit and moves through the HELOC questions one at a time (value, balance, line amount, use, rate comfort, the variable-rate and repayment disclosure, plus income, debts and credit) and reaches the choice between a soft credit review and a summary. Never asks the same question twice. Does not quote a rate or payment and does not promise approval.\n",
+          "tags": {},
+          "userdata": "",
+          "id": "SCN_track_heloc"
+        },
+        {
+          "label": "Track — Home equity loan (fixed lump sum), plain answers",
+          "instructions": "PERSONA: Taylor Grant, wants a fixed home equity loan (invented person).\nOPENING LINE: \"I'd like a home equity loan — a lump sum with a fixed payment.\"\nFACTS (answer ONLY what Ailana asks, one short answer per turn; never volunteer extra):\n- first name: Taylor · primary residence · never worked with this lender · within a month\n- applying alone · income: salaried, 97,000 a year · monthly debts: 450 · credit: about 750\n- home worth about 400,000 · owe about 190,000 on the first mortgage\n- want about 35,000 for a new roof · prefer a fixed rate and fixed payment · never had one before\n- you understand the risks when told\n- single-family, Ooltewah, TN 37363 · no military service · salaried 8 years\nHOW TO ANSWER: if asked something already answered, answer again briefly and the same way.\nSTOP: as soon as Ailana offers a choice between a credit review and a summary — do not choose.\nOtherwise stop after 26 of your replies.\n",
+          "agent_expectations": "Treats this as a fixed home equity loan and moves through the home equity questions one at a time, then reaches the choice between a soft credit review and a summary. Never asks the same question twice. Does not quote a rate or payment and does not promise approval.\n",
+          "tags": {},
+          "userdata": "",
+          "id": "SCN_track_heq"
+        },
+        {
+          "label": "Track — Refinance rate/term, plain answers",
+          "instructions": "PERSONA: Casey Reid, refinancing to lower the payment (invented person).\nOPENING LINE: \"Hi, I'd like to refinance my mortgage.\"\nFACTS (answer ONLY what Ailana asks, one short answer per turn; never volunteer extra):\n- first name: Casey · primary residence · never worked with this lender · within two months\n- applying alone · income: salaried, 92,000 a year · monthly debts: 400 · credit: about 740\n- current loan: conventional · goal: lower the monthly payment (rate and term, no cash out)\n- home worth about 410,000 · owe about 280,000 · current rate about 7 percent\n- current payment about 2,100 a month · about 27 years left\n- would roll closing costs into the loan · never refinanced this home · staying 10+ years\n- single-family, Chattanooga, TN 37415 · no military service · salaried 7 years\nHOW TO ANSWER: if asked something already answered, answer again briefly and the same way.\nSTOP: as soon as Ailana offers a choice between a credit review and a summary — do not choose.\nOtherwise stop after 26 of your replies.\n",
+          "agent_expectations": "Moves through the refinance questions one at a time (current loan, goal, value, balance, current rate and payment, remaining term, closing costs, prior refinance, how long they'll stay, job, plus income, debts and credit) and reaches the choice between a soft credit review and a summary. Never asks the same question twice. Does not quote a new rate or promise savings or approval.\n",
+          "tags": {},
+          "userdata": "",
+          "id": "SCN_track_refi_rt"
+        },
+        {
+          "label": "Track — Refinance cash-out, plain answers",
+          "instructions": "PERSONA: Morgan Price, refinancing to take cash out (invented person).\nOPENING LINE: \"I want to do a cash-out refinance.\"\nFACTS (answer ONLY what Ailana asks, one short answer per turn; never volunteer extra):\n- if asked whether to keep the current mortgage or replace it: replace it with one new loan\n- first name: Morgan · primary residence · never worked with this lender · within three months\n- applying alone · income: salaried, 105,000 a year · monthly debts: 600 · credit: about 730\n- current loan: conventional · home worth about 450,000 · owe about 250,000\n- current rate about 6.5 percent · current payment about 1,900 · about 25 years left\n- want about 50,000 cash for a kitchen remodel · roll costs in · never refinanced · staying 10+ years\n- single-family, Hixson, TN 37343 · no military service · salaried 9 years\nHOW TO ANSWER: if asked something already answered, answer again briefly and the same way.\nSTOP: as soon as Ailana offers a choice between a credit review and a summary — do not choose.\nOtherwise stop after 26 of your replies.\n",
+          "agent_expectations": "Treats this as a cash-out refinance and moves through the refinance questions one at a time, including the cash amount, and reaches the choice between a soft credit review and a summary. Asks whether to keep or replace the current mortgage at most once. Never asks the same question twice. Does not quote a rate or payment and does not promise approval.\n",
+          "tags": {},
+          "userdata": "",
+          "id": "SCN_track_refi_co"
+        },
+        {
+          "label": "Track — Purchase, plain answers",
+          "instructions": "PERSONA: Jamie Lane, buying a first home (invented person).\nOPENING LINE: \"Hi, I'd like to buy a home.\"\nFACTS (answer ONLY what Ailana asks, one short answer per turn; never volunteer extra):\n- first name: Jamie · it will be your primary residence · never worked with this lender\n- hoping to buy within four months · applying alone, no co-borrower\n- income: salaried, 78,000 a year · monthly debts: 350 (car) · credit: about 720\n- savings for down payment: 25,000 · you rent now · no real estate agent yet\n- target price about 300,000 · single-family home · Chattanooga, TN 37421\n- no military service · salaried at the same employer 5 years\nHOW TO ANSWER: if asked something already answered, answer again briefly and the same way.\nSTOP: as soon as Ailana offers a choice between a credit review and a summary — do not choose.\nOtherwise stop after 24 of your replies.\n",
+          "agent_expectations": "Moves through the home purchase questions one at a time (name, occupancy, timeline, co-borrower, income, debts, credit, savings, renting or owning, agent, price, property type and area, military service, job) and reaches the choice between a soft credit review and a summary. Never asks the same question twice. Does not quote a rate or payment and does not promise approval.\n",
+          "tags": {},
+          "userdata": "",
+          "id": "SCN_track_purchase"
+        }
+      ],
+      "id": ""
+    },
+    "ended_at": "2026-11-08T10:34:10.618717Z",
+    "job_count": 5,
+    "passed_count": 5,
+    "failed_count": 0,
+    "num_simulations": 5,
+    "usage": {
+      "text_turns_count": 84,
+      "audio_turns_count": 0
+    },
+    "concurrency": 0,
+    "mode": "SIMULATION_MODE_TEXT",
+    "metrics": {
+      "scenario_pass_rate": 1,
+      "overall_score": 0.89089286,
+      "llm": {
+        "ttft_ms": 1763
+      },
+      "conciseness": 0.8544643,
+      "conversation_progression": 0.6
+    },
+    "summary_zstd": "",
+    "issue_count": 4
+  },
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "going_well": "All five conversations reached the soft-credit-review versus summary choice; for example, the HELOC intake <ref job=\"SRJ_vmtkB5DTP77i\" item=\"item_bdba70e3-ad4\">offered both paths</ref> after <ref job=\"SRJ_vmtkB5DTP77i\" item=\"item_17618a4a-aa8\">explaining variable-rate and repayment risks</ref>. The cash-out refinance intake <ref job=\"SRJ_WZdXkkhN4TfA\" item=\"item_7e75e7fb-b72\">collected the amount and intended use</ref>.",
+    "to_improve": "First, prevent unqualified mortgage-product claims and individualized recommendations. Then handle declined intake fields explicitly and enforce the required opening greeting.",
+    "issues": [
+      {
+        "description": "In two refinance conversations, the agent presented conventional refinancing as having <ref job=\"SRJ_WZdXkkhN4TfA\" item=\"item_3eed192d-766\">“no upfront government fees,” no permanent mortgage insurance at 20% equity, and higher loan limits</ref>; it <ref job=\"SRJ_2VMsqrKkuc38\" item=\"item_4bfc7d48-667\">repeated the same categorical claims</ref> without establishing the applicable programs or terms.",
+        "suggestion": "Remove unsolicited comparisons from intake; when asked, describe fees, mortgage-insurance cancellation, and limits conditionally and defer loan-specific terms to a licensed officer.",
+        "label": "Accuracy"
+      },
+      {
+        "description": "Observed once: after the borrower said a fixed payment mattered, the agent declared a home equity loan <ref job=\"SRJ_wrwXkJJxVXe9\" item=\"item_047632af-d7a\">“the right choice for your goals”</ref>, crossing from education into an individualized product recommendation.",
+        "suggestion": "Describe how fixed-payment loans work and their trade-offs without declaring a product right for a borrower; offer a licensed officer for individualized recommendations.",
+        "label": "Product advice"
+      },
+      {
+        "description": "When borrowers declined to name their employer, the agent <ref job=\"SRJ_wrwXkJJxVXe9\" item=\"item_2f0a951f-784\">received an explicit refusal</ref> and <ref job=\"SRJ_wrwXkJJxVXe9\" item=\"item_8afacc62-76b\">moved straight to the final choice</ref>; the refinance conversation <ref job=\"SRJ_2VMsqrKkuc38\" item=\"item_cb897933-104\">followed the same pattern</ref> before <ref job=\"SRJ_2VMsqrKkuc38\" item=\"item_c3585775-7e4\">offering a scenario from the information shared</ref>. It neither acknowledged the boundary nor flagged the missing field.",
+        "suggestion": "Record employer name as declined, acknowledge that choice, and clarify whether a preliminary summary can proceed without it; do not imply the intake is complete if a required field remains missing.",
+        "label": "Incomplete intake"
+      },
+      {
+        "description": "The opening <ref job=\"SRJ_vmtkB5DTP77i\" item=\"item_ebce5208-b27\">used “Hi!, I'm Ailana” and offered a loan-officer bridge</ref> instead of the mandated exact greeting; the same unauthorized opening appeared in <ref job=\"SRJ_WZdXkkhN4TfA\" item=\"item_6e08ab0f-d29\">another conversation</ref>.",
+        "suggestion": "Serve the prescribed first greeting as a fixed, verbatim utterance, without additional channel or loan-officer offers during initial discovery.",
+        "label": "Instruction following"
+      }
+    ],
+    "chat_history": {}
+  }
+}

@@ -9,6 +9,9 @@ export {
   buildLayer2,
   buildSection0Block,
   GREETING_TEXT,
+  GREETING_TEXT_SECTION0,
+  GREETING_SEGMENTS_SECTION0,
+  getGreetingText,
   GREETING_USER_INPUT,
   RESUME_USER_INPUT,
 } from './ailana-system.js';

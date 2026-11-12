@@ -31,7 +31,9 @@
     "express": "^5.2.1",
     "livekit-server-sdk": "^2.15.1",
     "nodemon": "^3.1.14",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "pg": "^8.11.3",
+    "googleapis": "^171.4.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
@@ -40,7 +42,8 @@
     "prisma": "^6.2.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "@types/pg": "^8.11.6"
   },
   "overrides": {
     "@livekit/agents": "$@livekit/agents"

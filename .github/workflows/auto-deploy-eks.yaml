@@ -147,7 +147,7 @@ jobs:
             if [[ "$component" == frontend ]]; then
               args+=(--build-arg "NEXT_PUBLIC_BACKEND_URL=$BACKEND_URL")
             fi
-            docker build --platform linux/amd64 "${args[@]}" -f "devops/docker/$STAGE/$component.Dockerfile" -t "$IMAGE_REPO:$tag" .
+            docker build --platform linux/amd64 "${args[@]}" -f "devops/aws-deploy/docker/$STAGE/$component.Dockerfile" -t "$IMAGE_REPO:$tag" .
             docker push "$IMAGE_REPO:$tag"
             echo "${component^^}_TAG=$tag" >> "$GITHUB_ENV"
           done

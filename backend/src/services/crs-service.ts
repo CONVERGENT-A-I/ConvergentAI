@@ -1,3 +1,5 @@
+import { isSimulationActive, recordSimCrsPull } from '../section0/sim-mocks.js';
+
 export interface CrsResult {
   creditScore: number | null;
   creditScoreModel: string;
@@ -77,6 +79,25 @@ export async function callCrsSoftPull(
   profile: any,
   identityKey: 'WILLIE' | 'BARBARA' = 'WILLIE'
 ): Promise<CrsResult | null> {
+  // Simulations must never call a real credit bureau (Section 0 plan §7.3).
+  if (isSimulationActive()) {
+    recordSimCrsPull();
+    const name = profile?.contact_name || profile?.borrower_name || profile?.legal_name || 'Sim Borrower';
+    return {
+      creditScore: 720,
+      creditScoreModel: 'VantageScore 4 (simulation mock)',
+      creditRange: '700-749',
+      creditRangeLabel: 'Good',
+      openAccounts: 3,
+      latePaymentsLast24Mo: 0,
+      derogAccountCount: 0,
+      employer: null,
+      legalName: name,
+      physicalAddress: null,
+      rawResponse: { mock: true },
+    };
+  }
+
   try {
     const baseUrl = process.env.CRS_BASE_URL;
     const clientId = process.env.CRS_CLIENT_ID;

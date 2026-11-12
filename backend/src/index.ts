@@ -9,19 +9,57 @@ import express, { type Request, type Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { AccessToken } from 'livekit-server-sdk';
+import loanOfficerRoutes from './routes/loan-officer.js';
+import schedulingRoutes from './routes/scheduling.js';
+import { isEslConfigured } from './services/freeswitch-esl.js';
+import { isGoogleCalendarConfigured } from './services/google-calendar.js';
+import { allowRequest, requestKey, safeErrorMessage, safeTelemetryDetails } from './utils/security.js';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const IDENTIFIER_PATTERN = /^[A-Za-z0-9_-]{3,80}$/;
 
 // Middleware
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
+app.use((_req, res, next) => {
+  res.set({
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'camera=(), microphone=(self), geolocation=()',
+    'Cache-Control': 'no-store',
+  });
+  next();
+});
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '32kb', strict: true }));
+
+// --- Loan Officer Call Bridge: zip routing + SIP dialing + pre-call alerts ---
+app.use('/api', loanOfficerRoutes);
+app.use('/api', schedulingRoutes);
+
+// Service status (does not clash with the plain /health check below)
+app.get('/api/health', (_req: Request, res: Response) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    services: {
+      livekit: !!process.env.LIVEKIT_API_KEY,
+      fspbx: !!process.env.FSPBX_DB_HOST,
+      ringotel: Boolean(process.env.RINGOTEL_API_URL && process.env.RINGOTEL_AUTH_TOKEN && process.env.RINGOTEL_ORG_ID),
+      freeswitchEsl: isEslConfigured(),
+      googleCalendar: isGoogleCalendarConfigured(),
+    },
+  });
+});
+// -------------------------------------------------------------------------
 
 // Routes
 app.get('/api/test', (req: Request, res: Response) => {
@@ -36,10 +74,15 @@ app.get('/api/test', (req: Request, res: Response) => {
 // LiveKit Token Generation Endpoint
 app.post('/api/get-token', async (req: Request, res: Response) => {
   try {
-    const { roomName, participantName, metadata } = req.body;
+    if (!allowRequest(requestKey(req, 'livekit-token'), 12)) {
+      res.status(429).json({ error: 'Too many token requests' });
+      return;
+    }
+    const { roomName, participantName } = req.body;
 
-    if (!roomName || !participantName) {
-      res.status(400).json({ error: 'roomName and participantName are required' });
+    if (typeof roomName !== 'string' || typeof participantName !== 'string' ||
+        !IDENTIFIER_PATTERN.test(roomName) || !IDENTIFIER_PATTERN.test(participantName)) {
+      res.status(400).json({ error: 'Invalid room or participant name' });
       return;
     }
 
@@ -54,7 +97,7 @@ app.post('/api/get-token', async (req: Request, res: Response) => {
 
     const at = new AccessToken(apiKey, apiSecret, {
       identity: participantName,
-      metadata: typeof metadata === 'string' ? metadata : JSON.stringify(metadata || {}),
+      ttl: process.env.LIVEKIT_TOKEN_TTL || '10m',
     });
 
     at.addGrant({
@@ -69,19 +112,67 @@ app.post('/api/get-token', async (req: Request, res: Response) => {
     res.json({
       token,
       serverUrl: wsUrl,
+      // Section 0 first screen (S0-25): only sent with the flag on, so the flag-off app is unchanged.
+      // Lender details are runtime settings in backend/.env (no frontend rebuild needed).
+      ...(process.env.SECTION_0_ENABLED === 'true'
+        ? {
+            section0: {
+              enabled: true,
+              lender: {
+                name: process.env.LENDER_NAME || null,
+                nmls: process.env.LENDER_NMLS || null,
+                phone: process.env.LENDER_PHONE || null,
+                branchUrl: process.env.LENDER_BRANCH_URL || null,
+                hours: process.env.LENDER_HOURS || null,
+              },
+            },
+          }
+        : {}),
     });
   } catch (error) {
-    console.error('Error generating LiveKit token:', error);
+    console.error('Error generating LiveKit token:', safeErrorMessage(error));
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 
+// Section 0 (S0-26): a channel-card tap = AI-engagement + recording consent. Logged always; stored when the DB is ready.
+app.post('/api/consent', async (req: Request, res: Response) => {
+  if (process.env.SECTION_0_ENABLED !== 'true') {
+    res.status(404).json({ error: 'not enabled' });
+    return;
+  }
+  try {
+    const { recordChannelConsents } = await import('./services/consent-service.js');
+    const { roomName, channel } = req.body ?? {};
+    const result = await recordChannelConsents({
+      roomName: String(roomName ?? ''),
+      channel: String(channel ?? ''),
+      ipAddress: (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown',
+      userAgent: req.get('user-agent') ?? undefined,
+    });
+    if (!result.ok) {
+      res.status(400).json(result);
+      return;
+    }
+    res.json(result);
+  } catch (err) {
+    console.error('[consent] failed:', err);
+    res.status(500).json({ error: 'Failed to record consent' });
+  }
+});
+
 // Legacy telemetry endpoint — kept for any remaining frontend instrumentation
 app.post('/api/log-telemetry', (req: Request, res: Response) => {
   try {
+    if (!allowRequest(requestKey(req, 'telemetry'), 60)) {
+      res.status(429).json({ error: 'Too many telemetry requests' });
+      return;
+    }
     const { event, durationMs, details } = req.body;
-    console.log(`[client-telemetry] event=${event} duration=${durationMs}ms details=${JSON.stringify(details || {})}`);
+    const safeEvent = typeof event === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(event) ? event : 'invalid_event';
+    const safeDuration = Number.isFinite(Number(durationMs)) ? Math.max(0, Math.min(Number(durationMs), 600_000)) : 0;
+    console.log(`[client-telemetry] event=${safeEvent} duration=${safeDuration}ms details=${JSON.stringify(safeTelemetryDetails(details))}`);
     res.json({ status: 'success' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to write telemetry' });
@@ -146,9 +237,9 @@ app.listen(PORT, async () => {
     process.on('exit', cleanup);
 
     agentProcess.on('error', (err) => {
-      console.error(`[server]: Failed to start Agent Worker:`, err);
+      console.error(`[server]: Failed to start Agent Worker:`, safeErrorMessage(err));
     });
   } catch (error) {
-    console.error(`[server]: Agent Worker initialization error:`, error);
+    console.error(`[server]: Agent Worker initialization error:`, safeErrorMessage(error));
   }
 });

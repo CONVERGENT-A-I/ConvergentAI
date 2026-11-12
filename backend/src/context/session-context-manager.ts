@@ -15,6 +15,25 @@ import { isDatabaseEnabled } from '../services/database.js';
 import { callCrsSoftPull } from '../services/crs-service.js';
 import { lookupZipData } from '../utils/zip-lookup.js';
 import { logAffordabilityEvent } from '../utils/affordability-audit.js';
+import { FactLedger, type SerializedLedger } from '../section0/fact-ledger.js';
+import type { FactKey, GoalClass } from '../section0/fact-schema.js';
+import { extractUniversal, type UniversalExtraction } from '../section0/universal-extractor.js';
+import { ingestExtraction } from '../section0/ingest.js';
+import { routeSection0, initialSection0State, trackSwitchFor, type Section0Decision, type Section0State, type Track } from '../section0/router.js';
+import { syncLedgerToProfile, type SyncedMap } from '../section0/ledger-sync.js';
+import { formatKnownFacts, jobTenureQuestion, nextQuickCheckFor, nextSituationalFollowup, section0TaskText } from '../section0/turn-context.js';
+import { applySafetyNet } from '../section0/safety-net.js';
+import { checkStateSaid } from '../section0/local-place.js';
+import { complianceNotes, lenderStates, lenderStateNames, type ComplianceNote } from '../section0/compliance-notes.js';
+
+type HandoffMode = 'confirm_asked' | 'confirm_answer' | 'callback' | 'transferred' | 'booked';
+
+/** Section 0 memory as one JSON value: sent to the frontend (statedFacts) and saved in applications.section0_state. */
+export interface Section0Snapshot {
+  ledger: SerializedLedger;
+  state: Section0State;
+  session?: { notesShown: string[]; quickChecksAsked: string[]; trackSwitches: number };
+}
 
 export type TurnLogEntry = {
   role: 'user' | 'assistant';
@@ -755,6 +774,30 @@ export class SessionContextManager {
   private fieldAttempts: Record<string, number> = {};
   private softPullExplanationCount = 0;
 
+  // Section 0 (SECTION_0_ENABLED): memory + routing state
+  private ledger = new FactLedger();
+  private ledgerSynced: SyncedMap = {};
+  private section0State: Section0State = initialSection0State();
+  private section0Decision: Section0Decision | null = null;
+  private followupsAsked: string[] = [];
+  private activeFollowup: { id: string; ask: string } | null = null;
+  private trackSwitchNotice: string | null = null; // one turn: acknowledge a goal change (S0-18)
+  private trackSwitches = 0;
+  private channel: 'voice' | 'text' = 'voice';
+  private notesShown: string[] = [];          // compliance notes already given (each once per session)
+  private pendingNotes: ComplianceNote[] = []; // compliance notes for the reply being generated
+  // What the last prompt actually contained: only these count as said when Ailana replies. A note or quick
+  // check that arrives after the prompt was built (voice turns reply before the background extraction ends)
+  // stays pending for the next reply instead of being dropped.
+  private promptedNoteIds: string[] = [];
+  private lastSection0Text = ''; // the borrower's latest message (redacted), for the local-place check
+  private placeChecked = new Set<string>();
+  private promptedQuickCheck: string | null = null;
+  private handoff: { mode: HandoffMode; turn: number; afterUnavailable: boolean } | null = null;
+  private mloAvailable: () => boolean = () => true;
+  private safetyHit: { ssn: boolean; address: boolean } | null = null; // this turn only
+  private quickChecksAsked: string[] = []; // pending clarifications already asked (each once)
+
   // Parallel asynchronous extraction state
   private nextExtractionTurn = 1;
   private lastAppliedTurn = 0;
@@ -784,6 +827,12 @@ export class SessionContextManager {
     private readonly metrics: LatencyTracker,
   ) {
     this.dbEnabled = isDatabaseEnabled();
+    if (ailanaConfig.section0Enabled) {
+      // Section 0 owns the opening; Stage 1 starts once a track is set.
+      this.activeStage = '0';
+      this.currentPendingField = 'section0';
+      console.log('[section0] ENABLED — session starts in Section 0 (stage "0")');
+    }
     if (this.dbEnabled) {
       console.log('[context-manager] Database persistence ENABLED');
     } else {
@@ -805,6 +854,21 @@ export class SessionContextManager {
     cloned.lastRotationAt = this.lastRotationAt;
     cloned.conversationSummary = this.conversationSummary;
     cloned.lastInputTokens = this.lastInputTokens;
+    cloned.ledger = this.ledger.clone();
+    cloned.ledgerSynced = { ...this.ledgerSynced };
+    cloned.section0State = JSON.parse(JSON.stringify(this.section0State));
+    cloned.section0Decision = this.section0Decision;
+    cloned.followupsAsked = [...this.followupsAsked];
+    cloned.activeFollowup = this.activeFollowup;
+    cloned.trackSwitchNotice = this.trackSwitchNotice;
+    cloned.trackSwitches = this.trackSwitches;
+    cloned.channel = this.channel;
+    cloned.notesShown = [...this.notesShown];
+    cloned.pendingNotes = [...this.pendingNotes];
+    cloned.handoff = this.handoff ? { ...this.handoff } : null;
+    cloned.safetyHit = this.safetyHit;
+    cloned.quickChecksAsked = [...this.quickChecksAsked];
+    cloned.mloAvailable = this.mloAvailable;
     return cloned;
   }
 
@@ -1192,7 +1256,7 @@ export class SessionContextManager {
     return turnNumber;
   }
 
-  async waitForExtraction(turnNumber: number, maxWaitMs: number): Promise<boolean> {
+  async waitForExtraction(turnNumber: number, maxWaitMs: number, opts: { keepLateResult?: boolean } = {}): Promise<boolean> {
     const pending = this.pendingExtractions.get(turnNumber);
     if (!pending) return true;
     if (pending.status !== 'pending') return true;
@@ -1207,7 +1271,8 @@ export class SessionContextManager {
     const timeoutPromise = new Promise<boolean>((resolve) => {
       timeoutId = setTimeout(() => {
         console.warn(`[checkpoint] Turn ${turnNumber} extraction timed out after ${maxWaitMs}ms.`);
-        pending.status = 'timeout';
+        // Section 0 waits keep the late result (it is merged when it arrives); facts are never thrown away.
+        if (!opts.keepLateResult) pending.status = 'timeout';
         resolve(false);
       }, maxWaitMs);
     });
@@ -1290,6 +1355,27 @@ export class SessionContextManager {
     for (const [field, attempts] of Object.entries(clone.fieldAttempts)) {
       this.fieldAttempts[field] = attempts;
     }
+
+    // Section 0: merge the background turn's memory and routing state.
+    if (ailanaConfig.section0Enabled) {
+      this.ledger.mergeFrom(clone.ledger);
+      // A track switch in the background turn clears old-track sync marks — take the clone's map as is.
+      for (const n of clone.pendingNotes) if (!this.pendingNotes.some((m) => m.id === n.id) && !this.notesShown.includes(n.id)) this.pendingNotes.push(n);
+      for (const k of clone.quickChecksAsked) if (!this.quickChecksAsked.includes(k)) this.quickChecksAsked.push(k);
+      // A finished action (transferred / booked) recorded live always wins over the background copy.
+      if (!(this.handoff && (this.handoff.mode === 'transferred' || this.handoff.mode === 'booked'))) this.handoff = clone.handoff;
+      if (clone.trackSwitches > this.trackSwitches) {
+        this.ledgerSynced = { ...clone.ledgerSynced };
+        this.trackSwitches = clone.trackSwitches;
+        this.trackSwitchNotice = clone.trackSwitchNotice;
+      } else {
+        Object.assign(this.ledgerSynced, clone.ledgerSynced);
+      }
+      this.section0State = clone.section0State;
+      this.section0Decision = clone.section0Decision;
+      this.activeFollowup = clone.activeFollowup;
+      for (const id of clone.followupsAsked) if (!this.followupsAsked.includes(id)) this.followupsAsked.push(id);
+    }
   }
 
 
@@ -1322,8 +1408,11 @@ export class SessionContextManager {
 
   hydrateFromSnapshot(stage: string, profile: any): void {
     this.activeStage = stage as any;
+    if (profile?.statedFacts) this.restoreSection0Snapshot(profile.statedFacts, 'frontend snapshot');
     if (profile) {
-      this.profile = { ...initBorrowerProfile(), ...this.profile, ...profile };
+      const { statedFacts: _ignored, ...rest } = profile;
+      profile = rest;
+      this.profile = { ...this.profile, ...profile };
 
       // Re-establish confirmation flags for any populated fields
       if (this.profile.mortgage_goal) this.profile.mortgage_goal_confirmed = true;
@@ -1425,7 +1514,10 @@ export class SessionContextManager {
       'declarations',
       'submit_confirmation',
       'military_rural',
-      'affordability_panel_active'
+      'affordability_panel_active',
+      // Section 0: the reply must wait for extraction + routing (the next step depends on it)
+      'section0',
+      'section0_followup',
     ]);
     return DETERMINISTIC_FIELDS.has(target);
   }
@@ -1464,6 +1556,10 @@ export class SessionContextManager {
       if (this.profile.timeline && !this.profile.heloc_timeline) {
         this.profile.heloc_timeline = this.profile.timeline;
         this.profile.heloc_timeline_confirmed = true;
+      }
+      if (ailanaConfig.section0Enabled) {
+        // No-repeat rule: start Stage 2 at the first field that is actually missing.
+        this.advanceWorkflow();
       }
       console.log(`[agent-hook][fallback] Optimistically advanced Stage 1 -> Stage 2 for field "co_borrower" (default="no"). LLM transitions immediately with bridge!`);
       return;
@@ -1521,7 +1617,7 @@ export class SessionContextManager {
     if (field === 'job_tenure_type') {
       this.profile.job_tenure_type = 'salaried'; // Default fallback value
       this.profile.job_tenure_type_confirmed = true;
-      this.currentPendingField = 'stage2_closing_offer';
+      this.currentPendingField = this.closingOfferOrFollowup();
       console.log(`[agent-hook][fallback] Optimistically advanced field "job_tenure_type" -> "stage2_closing_offer" (default="salaried").`);
       return;
     }
@@ -1540,7 +1636,14 @@ export class SessionContextManager {
     const preRedactionText = trimmed;
 
     // Redact SSNs from user input to comply with TRID logging requirements
-    trimmed = trimmed.replace(/\b\d{3}[- ]?\d{2}[- ]?\d{4}\b/g, '[REDACTED_SSN]');
+    if (ailanaConfig.section0Enabled) {
+      // Section 0 safety net: SSN (incl. spoken / cut-off digits) AND street addresses.
+      const sn = applySafetyNet(trimmed);
+      trimmed = sn.text;
+      this.safetyHit = sn.ssn || sn.address ? { ssn: sn.ssn, address: sn.address } : null;
+    } else {
+      trimmed = trimmed.replace(/\b\d{3}[- ]?\d{2}[- ]?\d{4}\b/g, '[REDACTED_SSN]');
+    }
 
     // Pre-clean STT currency artifacts for credit score if currentPendingField is credit_range or if user input contains e.g. "$710000" / "710000"
     if (this.currentPendingField === 'credit_range' || (!this.profile.credit_range_confirmed && this.activeStage === '2')) {
@@ -1567,74 +1670,31 @@ export class SessionContextManager {
     this.turnLog.push({ role: 'user', text: trimmed, timestamp: Date.now() });
     this.turnCount += 1;
 
-    if (this.profile.holdout_routed && this.activeStage === '5') {
-      console.log('[section0]: 🚧 Holdout handoff complete in Stage 5 — saving turn.');
-      await this.saveConversationTurn('user', trimmed);
-      await this.syncToDatabase();
+    if (ailanaConfig.section0Enabled) {
+      // Section 0: one universal extraction per turn, started in parallel with the stage logic.
+      this.lastSection0Text = trimmed;
+      const uniPromise = extractUniversal({
+        text: trimmed,
+        lastAssistant: this.getLastAssistantUtterance(),
+        track: this.profile.transaction_type ?? null,
+        knownKeys: this.ledger.known().map((e) => e.key),
+      });
+      if (this.activeStage === '0') {
+        await this.runSection0Turn(uniPromise);
+        await this.saveConversationTurn('user', trimmed);
+        await this.syncToDatabase();
+        return;
+      }
+      await this.runStageTurn(trimmed, _perfOnUserTurnStart);
+      await this.applyUniversalExtraction(uniPromise);
       return;
     }
 
-    // ── Section 0: First-turn signal extraction (T3), TRID gate (T4), Q9-MULTI (T5), Mixed Intent (T9) & Holdouts (T10) ───
-    // Runs ONCE on the very first user turn in Stage 1, BEFORE the LLM.
-    // Pure regex — <10ms. Sets signals_found[] and routes according to Section 0 precedence.
-    if (this.activeStage === '1' && this.turnCount === 1 && !this.profile.Q9_confirmed) {
-      const _tSection0 = performance.now();
-      this.extractOpeningSignals(preRedactionText, trimmed);
-      this.applyTridGate();
+    await this.runStageTurn(trimmed, _perfOnUserTurnStart);
+  }
 
-      // T10: Holdout check (TT-CON / TT-HECM)
-      const holdout = getHoldoutFormulation(this.profile.signals_found || []);
-      if (holdout && !this.profile.holdout_routed) {
-        this.applyHoldoutRouting();
-        console.log(`[section0]: 🚧 Holdout signal ${holdout.signal} detected on opening turn — routed to MLO. Stage 1 blocked.`);
-      } else {
-        const ttSignals = (this.profile.signals_found || []).filter(s => s.startsWith('TT-'));
-        if (ttSignals.length >= 2) {
-          console.log(`[section0]: 🔀 Mixed intent detected on opening turn: [${ttSignals.join(', ')}]. Awaiting borrower choice.`);
-        } else {
-          if ((this.profile.signals_found?.length ?? 0) >= 2 && !this.profile.Q9_MULTI_delivered) {
-            this.evaluateQ9Multi();
-          }
-          if (this.profile.signals_found?.includes('TT-HEL-AMBIG') && !this.profile.equity_disambig_delivered) {
-            this.profile.equity_disambig_delivered = true;
-            console.log(`[section0]: ⚖️ Equity disambiguation delivered on opening turn (signals_found includes TT-HEL-AMBIG).`);
-          }
-        }
-      }
-      console.log(`[perf] context-manager Section 0 extraction + TRID gate + Q9-MULTI/mixed/holdout: ${(performance.now() - _tSection0).toFixed(1)}ms`);
-      if (this.profile.holdout_routed) {
-        console.log(`[perf] context-manager onUserTurn TOTAL (holdout routed): ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
-        await this.saveConversationTurn('user', trimmed);
-        await this.syncToDatabase();
-        return;
-      }
-      if (!this.profile.Q9_confirmed) {
-        await this.saveConversationTurn('user', trimmed);
-        await this.syncToDatabase();
-        return;
-      }
-    } else if (this.activeStage === '1' && !this.profile.Q9_confirmed) {
-      if (this.profile.holdout_routed) {
-        console.log('[section0]: 🚧 Holdout active — maintaining Stage 1 block. Extracting holdout contact info.');
-        extractHoldoutContactInfo(trimmed, this.profile);
-        await this.saveConversationTurn('user', trimmed);
-        await this.syncToDatabase();
-        return;
-      }
-      // ── Section 0: Q9, Equity Disambiguation, Mixed Intent & Holdout routing resolution on turn 2+ (T6–T10) ────
-      this.evaluateQ9Routing(trimmed);
-      if (this.profile.holdout_routed) {
-        console.log(`[perf] context-manager onUserTurn TOTAL (holdout routed on turn 2+): ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
-        await this.saveConversationTurn('user', trimmed);
-        await this.syncToDatabase();
-        return;
-      }
-      // Section 0 routing handling for this turn complete; save turn and return to let LLM ask active pending question
-      await this.saveConversationTurn('user', trimmed);
-      await this.syncToDatabase();
-      return;
-    }
-
+  /** The existing per-stage turn logic (unchanged). */
+  private async runStageTurn(trimmed: string, _perfOnUserTurnStart: number): Promise<void> {
     // Handle Stage 2 pending confirmations local loop directly on this turn
     if (this.activeStage === '2' && this.profile.pending_confirm_field && this.profile.pending_confirm_value != null) {
       const _t = performance.now();
@@ -1721,6 +1781,406 @@ export class SessionContextManager {
     // Save user turn to database and sync profile state
     await this.saveConversationTurn('user', trimmed);
     await this.syncToDatabase();
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Section 0 (SECTION_0_ENABLED) — memory, routing, no-repeat sync
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /** Stage "0": extract → ledger → router (code decides) → maybe set the track. */
+  private async runSection0Turn(uniPromise: Promise<UniversalExtraction>): Promise<void> {
+    const ex = await uniPromise;
+    ingestExtraction(ex, this.ledger, this.turnCount, this.activeStage);
+
+    const out = routeSection0({
+      goal: this.ledger.value<GoalClass>('goal.primary') ?? ex.goal,
+      secondaryGoal: this.ledger.value<GoalClass>('goal.secondary') ?? ex.secondaryGoal,
+      refiKeepFirst: this.ledger.value<boolean>('refi.keep_first') ?? null,
+      equityFixed: this.ledger.value<boolean>('equity.fixed_preference') ?? null,
+      intent: ex.intent,
+      state: this.section0State,
+      factsShared: ex.facts.length > 0,
+      paidOff: this.ledger.value<boolean>('equity.paid_off') ?? null,
+      hardship: (this.ledger.value<number>('situation.delinquent_months') ?? 0) > 0, // behind on payments (a fact); the general hardship flag only adds the compliance note
+    });
+    this.section0State = out.state;
+    this.section0Decision = out.decision;
+    console.log(`[section0] decision=${out.decision.kind}${'track' in out.decision ? ':' + out.decision.track : ''}${'which' in out.decision ? ':' + out.decision.which : ''} intent=${ex.intent} goal=${this.ledger.value('goal.primary') ?? '-'}`);
+
+    if (out.decision.kind === 'set_track') {
+      this.setSection0Track(out.decision.track, out.decision.refinanceType);
+    } else {
+      // Facts still go into the profile so nothing is re-asked once the track starts.
+      this.syncLedger();
+    }
+    this.updateHandoff(ex);
+    await this.checkUnstatedState();
+    this.queueComplianceNotes(ex);
+  }
+
+  /**
+   * Memory only, no decisions: a turn that another feature owns (the spoken loan-officer transfer
+   * interceptor, or conversational scheduling) still lands in the Fact Ledger, so nothing the borrower
+   * says is lost. It never routes, never starts a Section 0 handoff, and never queues notes or quick checks.
+   */
+  async rememberOnly(text: string): Promise<void> {
+    if (!ailanaConfig.section0Enabled) return;
+    const safe = applySafetyNet((text ?? '').trim()).text;
+    if (!safe) return;
+    try {
+      const ex = await extractUniversal({
+        text: safe,
+        lastAssistant: this.getLastAssistantUtterance(),
+        track: this.profile.transaction_type ?? null,
+        knownKeys: this.ledger.known().map((e) => e.key),
+      });
+      const r = ingestExtraction(ex, this.ledger, this.turnCount, this.activeStage);
+      if (r.changed.length) {
+        const written = this.syncLedger();
+        if (written.length && this.activeStage !== '0') this.advanceWorkflow();
+        console.log(`[section0] memory-only turn (owned by another feature) — stored: ${r.changed.join(', ')}`);
+      }
+    } catch (err) {
+      console.warn('[section0] memory-only extraction failed:', err);
+    }
+  }
+
+  /**
+   * A city named without its state (e.g. "Cleveland"): when the extractor's state is outside the lender's
+   * states, no ZIP was given and the borrower is not relocating, check whether they actually named the
+   * state. If not, the state is a guess → one quick check ("Cleveland, Tennessee, or Cleveland, Ohio?")
+   * before any out-of-area note. Never a guess (CLAUDE.md). Checked once per place.
+   */
+  private async checkUnstatedState(): Promise<void> {
+    if (!ailanaConfig.section0Enabled) return;
+    const entry = this.ledger.get('location.area');
+    const v = entry?.value as { city?: string; state?: string | null; zip?: string | null } | undefined;
+    if (!entry || entry.status === 'needs_clarification' || !v?.city || !v.state || v.zip) return;
+    if (this.ledger.value('situation.relocation') !== undefined) return; // moving away: the destination stands
+    if (lenderStates().includes(String(v.state).toUpperCase())) return;
+    const key = `${v.city}|${v.state}`.toLowerCase();
+    if (this.placeChecked.has(key)) return;
+    this.placeChecked.add(key);
+    const said = await checkStateSaid(this.lastSection0Text, v.city);
+    if (said !== false) return; // they named it (or the check could not run): keep it
+    this.ledger.upsert(
+      { key: 'location.area', value: { ...v, state: null, guessed_state: v.state }, raw: entry.raw, status: 'needs_clarification', clarify: 'state' },
+      this.turnCount, this.activeStage,
+    );
+    this.syncLedger();
+    console.log(`[section0] ${v.city}: state not said (guess ${v.state}, outside ${lenderStates().join('/')}) → one quick check, no out-of-area note yet`);
+  }
+
+  /** Track chosen by the router: hand off to the existing Stage 1 / Stage 2 flow. */
+  private setSection0Track(track: 'TT-PUR' | 'TT-REF' | 'TT-HEL' | 'TT-HEQ', refinanceType?: 'cash_out' | 'rate_term'): void {
+    const goal = track === 'TT-PUR' ? 'purchase' : track === 'TT-REF' ? 'refinance' : 'heloc';
+    this.profile.transaction_type = track;
+    this.profile.mortgage_goal = goal;
+    this.profile.mortgage_goal_confirmed = true;
+    if (refinanceType) {
+      this.profile.refinance_type = refinanceType;
+      this.profile.refinance_type_confirmed = true;
+    }
+    const secondary = this.ledger.value<string>('goal.secondary');
+    if (secondary) (this.profile as any).secondary_intent = secondary;
+    (this.profile as any).section0_complete = true;
+    this.activeStage = '1';
+    this.currentPendingField = null;
+    this.syncLedger();
+    this.advanceWorkflow();
+    console.log(`[section0] ✅ track set: ${track}${refinanceType ? ' (' + refinanceType + ')' : ''} → stage ${this.activeStage}, next: ${this.currentPendingField}`);
+  }
+
+  /** Stages ≥ 1: fold this turn's universal extraction into the ledger and skip anything now known. */
+  private async applyUniversalExtraction(uniPromise: Promise<UniversalExtraction>): Promise<void> {
+    const ex = await uniPromise;
+    const r = ingestExtraction(ex, this.ledger, this.turnCount, this.activeStage);
+    const switched = this.maybeSwitchTrack(ex, r.changed);
+    const written = this.syncLedger();
+    // A follow-up is asked once: answered or not ("not sure"), the flow moves on.
+    if (switched || r.changed.length || written.length || this.currentPendingField === 'section0_followup') {
+      const before = this.currentPendingField;
+      this.advanceWorkflow();
+      if (before !== this.currentPendingField) {
+        console.log(`[next-question] ledger filled known facts → next: ${this.currentPendingField} (was ${before})`);
+      }
+    }
+    this.updateHandoff(ex);
+    await this.checkUnstatedState();
+    this.queueComplianceNotes(ex);
+  }
+
+  /**
+   * S0-27/28 — loan officer transfer and callback, decided by code from the extractor's intent:
+   *   transfer request → (loan officer available) ask once to confirm → next turn: if they said yes,
+   *   the model calls `transfer_to_loan_officer`; (unavailable) → offer a call back.
+   *   callback request / accepted → collect day, time, time zone → `schedule_callback`, once.
+   * "Never mind" before the transfer cancels it. Each action happens at most once.
+   */
+  private updateHandoff(ex: UniversalExtraction): void {
+    const prev = this.handoff;
+    const set = (mode: HandoffMode, afterUnavailable = false) => {
+      this.handoff = { mode, turn: this.turnCount, afterUnavailable };
+      console.log(`[section0] handoff → ${mode}${afterUnavailable ? ' (no loan officer available)' : ''}`);
+    };
+    if (ex.intent === 'cancels_transfer') {
+      if (prev && (prev.mode === 'confirm_asked' || prev.mode === 'confirm_answer')) { this.handoff = null; console.log('[section0] handoff cancelled — resuming'); }
+      return;
+    }
+    if (prev?.mode === 'transferred') return;
+    if (prev?.mode === 'confirm_asked') { set('confirm_answer'); return; }
+    if (prev?.mode === 'callback') {
+      if (ex.intent === 'declines_to_answer' && prev.afterUnavailable) { this.handoff = null; return; }
+      if (this.turnCount - prev.turn > 6) { this.handoff = null; return; } // never stall in callback mode
+      return;
+    }
+    if (prev?.mode === 'confirm_answer') this.handoff = null; // a turn passed without a transfer → back to normal
+    if (ex.intent === 'requests_callback' && prev?.mode !== 'booked') { set('callback'); return; }
+    if (ex.intent === 'requests_transfer_now') {
+      if (this.mloAvailable()) set('confirm_asked');
+      else set('callback', true);
+    }
+  }
+
+  /** Whether the loan officer line is open (simulation: scenario userdata; production: assumed until D1). */
+  setMloAvailability(fn: () => boolean): void {
+    this.mloAvailable = fn;
+  }
+
+  /** The pending clarification to ask now (stages ≥ 1), or null. Each is asked once — never a loop. */
+  private nextQuickCheck(): { key: string; label: string; ask: string } | null {
+    if (!ailanaConfig.section0Enabled || this.isHandoffActive()) return null;
+    return nextQuickCheckFor(this.ledger, this.quickChecksAsked);
+  }
+
+  /** A quick check is due this reply — scripted fast paths must not skip it. */
+  hasQuickCheckDue(): boolean {
+    return this.activeStage !== '0' && this.nextQuickCheck() !== null;
+  }
+
+  /** A compliance note that asks the borrower something takes the turn (the next question waits one turn). */
+  private noteTaskText(): string | null {
+    const n = this.pendingNotes.find((x) => x.takesTurn);
+    return n ? `CURRENT TASK:\n${n.text} Ask only this — the other questions can wait until next turn.` : null;
+  }
+
+  /** A compliance note is waiting for this reply — scripted fast paths must not skip it. */
+  hasPendingComplianceNotes(): boolean {
+    return this.pendingNotes.length > 0;
+  }
+
+  /** A transfer or callback is being arranged → the model must be free to call the handoff tools. */
+  isHandoffActive(): boolean {
+    const m = this.handoff?.mode;
+    // 'transferred' is an end state: the model replies (no scripted intake question) and no quick checks run.
+    return m === 'confirm_asked' || m === 'confirm_answer' || m === 'callback' || m === 'transferred';
+  }
+
+  getHandoffMode(): HandoffMode | null {
+    return this.handoff?.mode ?? null;
+  }
+
+  /** Called by the handoff tools after the action really happened. */
+  onHandoffResult(result: 'transferred' | 'booked'): void {
+    this.handoff = { mode: result, turn: this.turnCount, afterUnavailable: false };
+    console.log(`[section0] handoff done: ${result}`);
+  }
+
+  private handoffTaskText(): string | null {
+    const h = this.handoff;
+    if (!h) return null;
+    if (h.mode === 'confirm_asked') {
+      return 'CURRENT TASK (loan officer request):\nThey asked for a licensed loan officer. Do NOT ask any qualifying questions. Ask once, briefly, whether they would like you to connect them with a licensed loan officer now. Do NOT call any tool yet.';
+    }
+    if (h.mode === 'confirm_answer') {
+      return 'CURRENT TASK (loan officer request):\nYou just asked whether to connect them with a licensed loan officer now. If their latest message says yes, call the transfer_to_loan_officer tool now (once), with a short summary of everything they already told you (from KNOWN FACTS), and then tell them you are connecting them — end your reply there. If they said no or want to keep going, say that is fine and continue where you left off. Never say you are connecting them unless the tool was called.';
+    }
+    if (h.mode === 'callback') {
+      const lead = h.afterUnavailable
+        ? 'No licensed loan officer is available right now. Say so plainly and offer to set up a call back. If they want one: '
+        : 'They want a call back from a licensed loan officer. ';
+      return `CURRENT TASK (call back):\n${lead}get the day, an exact time (if they give a range like "after 3", ask which time) and their time zone — ask only for what they have not said yet, one at a time. As soon as you have all three, call the schedule_callback tool once FIRST — only after it returns, read the booking back (day, time, time zone) and end your reply there, with no other question. Do not confirm anything before the tool has run. Do NOT ask qualifying questions, do NOT offer or attempt a transfer, and never say it is booked unless the tool was called.`;
+    }
+    if (h.mode === 'transferred') {
+      return 'CURRENT TASK (loan officer transfer):\nYou have already started connecting them with a licensed loan officer — do not call the tool again. Do NOT ask qualifying questions or restart intake. Say briefly that they are being connected; answer only if they ask something.';
+    }
+    return null;
+  }
+
+  /** S0-23: compliance responses chosen by code from the extractor's flags and the ledger (each once). */
+  private queueComplianceNotes(ex: UniversalExtraction): void {
+    const t = this.profile.transaction_type;
+    const continueWith = t === 'TT-PUR' ? "let's pick up with your home purchase"
+      : t === 'TT-REF' ? "let's pick up with your refinance"
+      : t === 'TT-HEL' || t === 'TT-HEQ' ? "let's pick up with your home equity options"
+      : "let's get started";
+    const notes = complianceNotes({
+      flags: ex.flags, ledger: this.ledger, channel: this.channel, continueWith, licensedStates: lenderStates(),
+      safetyHit: this.safetyHit, turn: this.turnCount, intent: ex.intent,
+      shown: [...this.notesShown, ...this.pendingNotes.map((n) => n.id)],
+    });
+    if (notes.length) {
+      this.pendingNotes.push(...notes);
+      console.log(`[section0] compliance notes this turn: ${notes.map((n) => n.id).join(', ')}`);
+    }
+  }
+
+  /** Voice or text channel — decides e.g. whether the privacy link is read out (never in voice). */
+  setChannel(channel: 'voice' | 'text'): void {
+    this.channel = channel;
+  }
+
+  private syncLedger(): string[] {
+    return syncLedgerToProfile(this.ledger, this.profile, this.ledgerSynced);
+  }
+
+  /**
+   * S0-18 — the borrower changes their goal after the track is set ("actually I already
+   * own and want to refinance"). Code switches the track before the Stage 2 closing
+   * offer; every shared fact (name, income, debts, credit, co-borrower, location …)
+   * stays. Profile fields that only belong to the old track are cleared; the ledger
+   * keeps what was said, so switching back restores them.
+   */
+  private maybeSwitchTrack(ex: UniversalExtraction, changed: FactKey[]): boolean {
+    if (this.activeStage !== '1' && this.activeStage !== '2') return false;
+    if (this.currentPendingField === 'stage2_closing_offer') return false;
+    if (!changed.some((k) => k === 'goal.primary' || k === 'refi.keep_first' || k === 'equity.fixed_preference')) return false;
+    const current = (this.profile.transaction_type as Track | null) ?? null;
+    const sw = trackSwitchFor({
+      goal: this.ledger.value<GoalClass>('goal.primary') ?? null,
+      intent: ex.intent,
+      refiKeepFirst: this.ledger.value<boolean>('refi.keep_first') ?? null,
+      equityFixed: this.ledger.value<boolean>('equity.fixed_preference') ?? null,
+      currentTrack: current,
+      currentRefinanceType: (this.profile.refinance_type as 'cash_out' | 'rate_term' | null) ?? null,
+    });
+    if (!sw) return false;
+
+    // Leaving a track: clear its own fields from the profile (the sync marks stay, so they
+    // aren't written straight back). Entering a track: drop its sync marks so the ledger
+    // refills whatever the borrower already said for it.
+    const p = this.profile as any;
+    const OWN: Partial<Record<Track, { fields: string[]; syncIds: string[] }>> = {
+      'TT-PUR': { fields: ['target_price', 'down_payment', 'realtor_status', 'rent_own'], syncIds: ['purchase.price', 'purchase.down_payment|funds.total|purchase.zero_down_goal', 'housing.current'] },
+      'TT-REF': { fields: ['refinance_type'], syncIds: ['goal.refi_purpose'] },
+    };
+    const leaving = current ? OWN[current] : undefined;
+    if (leaving && (sw.track !== current || sw.refinanceType)) {
+      for (const f of leaving.fields) { p[f] = null; if (`${f}_confirmed` in p) p[`${f}_confirmed`] = false; }
+    }
+    const entering = sw.track !== current ? OWN[sw.track] : undefined;
+    if (entering) for (const id of entering.syncIds) delete this.ledgerSynced[id];
+
+    const goal = sw.track === 'TT-PUR' ? 'purchase' : sw.track === 'TT-REF' ? 'refinance' : 'heloc';
+    this.profile.transaction_type = sw.track;
+    this.profile.mortgage_goal = goal;
+    this.profile.mortgage_goal_confirmed = true;
+    if (sw.refinanceType) {
+      this.profile.refinance_type = sw.refinanceType;
+      this.profile.refinance_type_confirmed = true;
+    }
+    this.currentPendingField = null;
+    this.trackSwitches++;
+    this.trackSwitchNotice = goal === 'heloc' ? (sw.track === 'TT-HEQ' ? 'home equity loan' : 'home equity line of credit') : goal;
+    console.log(`[section0] 🔀 track switched: ${current} → ${sw.track}${sw.refinanceType ? ' (' + sw.refinanceType + ')' : ''} — shared facts kept`);
+    return true;
+  }
+
+  /**
+   * End of Stage 2: the closing offer — unless a stated situation still needs one
+   * follow-up (e.g. expected rent on a home they're keeping). Each follow-up is asked
+   * at most once. Flag off → always the closing offer (demo behaviour).
+   */
+  private closingOfferOrFollowup(): string {
+    if (ailanaConfig.section0Enabled) {
+      const fu = nextSituationalFollowup(this.ledger, this.followupsAsked);
+      if (fu) {
+        if (this.activeFollowup?.id !== fu.id) console.log(`[next-question] situational follow-up before the closing offer: ${fu.id}`);
+        this.activeFollowup = fu;
+        return 'section0_followup';
+      }
+    }
+    this.activeFollowup = null;
+    return 'stage2_closing_offer';
+  }
+
+  /**
+   * Section 0: situational follow-ups (e.g. the rent on a home they're keeping, work before a job that
+   * hasn't started, when a bankruptcy was discharged) are asked early in Stage 2 — right after the track's
+   * first questions — each at most once (onAgentTurn marks it asked once Ailana has said it).
+   */
+  private takeStage2Followup(): boolean {
+    if (!ailanaConfig.section0Enabled) return false;
+    const fu = nextSituationalFollowup(this.ledger, this.followupsAsked);
+    if (!fu) { this.activeFollowup = null; return false; }
+    if (this.activeFollowup?.id !== fu.id) console.log(`[next-question] situational follow-up: ${fu.id}`);
+    this.activeFollowup = fu;
+    this.currentPendingField = 'section0_followup';
+    return true;
+  }
+
+  /**
+   * Voice fast path guard: the job-tenure answer would normally trigger the closing
+   * offer script at 0 ms. If a follow-up is still needed, switch to it instead.
+   */
+  takeFollowupBeforeClosingOffer(): boolean {
+    if (!ailanaConfig.section0Enabled || this.activeStage !== '2') return false;
+    const fu = nextSituationalFollowup(this.ledger, this.followupsAsked);
+    if (!fu) return false;
+    this.activeFollowup = fu;
+    this.currentPendingField = 'section0_followup';
+    console.log(`[next-question] follow-up "${fu.id}" asked before the closing offer (fast path held back)`);
+    return true;
+  }
+
+  /** The job-tenure question built from what is already known (Section 0). */
+  getJobTenureQuestion(): string {
+    return jobTenureQuestion(this.ledger, this.profile.co_borrower === 'yes');
+  }
+
+  /** The intent question was asked by code right after the channel card tap (S0-25): it counts as asked once. */
+  markIntentAsked(): void {
+    if (!ailanaConfig.section0Enabled || this.section0State.intentAsked) return;
+    this.section0State = {
+      ...this.section0State,
+      intentAsked: true,
+      clarifyAsked: [...this.section0State.clarifyAsked, 'three_options'],
+      unclearCount: 1,
+    };
+  }
+
+  /** Serializable Section 0 state — sent to the frontend with every stage update and restored on reconnect. */
+  getSection0Snapshot(): Section0Snapshot | null {
+    if (!ailanaConfig.section0Enabled) return null;
+    return {
+      ledger: this.ledger.serialize(),
+      state: this.section0State,
+      // Once-per-session bookkeeping, so a resumed conversation never repeats a note or a quick check.
+      session: { notesShown: [...this.notesShown], quickChecksAsked: [...this.quickChecksAsked], trackSwitches: this.trackSwitches },
+    };
+  }
+
+  /**
+   * Restore Section 0 memory from a snapshot (the frontend copy on reconnect, or the database
+   * `section0_state` column on resume). Safe with null / malformed input and with older snapshots
+   * that have no `session` part. Does nothing with the flag off.
+   */
+  restoreSection0Snapshot(snap: unknown, source = 'snapshot'): void {
+    if (!ailanaConfig.section0Enabled || !snap || typeof snap !== 'object') return;
+    const s = snap as Partial<Section0Snapshot>;
+    this.ledger = FactLedger.hydrate(s.ledger);
+    if (s.state && typeof s.state === 'object') this.section0State = { ...initialSection0State(), ...s.state };
+    if (s.session && typeof s.session === 'object') {
+      if (Array.isArray(s.session.notesShown)) this.notesShown = s.session.notesShown.filter((x) => typeof x === 'string');
+      if (Array.isArray(s.session.quickChecksAsked)) this.quickChecksAsked = s.session.quickChecksAsked.filter((x) => typeof x === 'string');
+      if (typeof s.session.trackSwitches === 'number') this.trackSwitches = s.session.trackSwitches;
+    }
+    this.ledgerSynced = {};
+    console.log(`[section0] ♻️ restored Fact Ledger from ${source} (${this.ledger.size()} facts)`);
+  }
+
+  getFactLedger(): FactLedger {
+    return this.ledger;
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -2932,10 +3392,28 @@ export class SessionContextManager {
     if (!trimmed) return;
     this.turnLog.push({ role: 'assistant', text: trimmed, timestamp: Date.now() });
     this.profile.bridge_to_say = null;
+    this.trackSwitchNotice = null; // acknowledged (S0-18)
+    if (ailanaConfig.section0Enabled) {
+      // Only what this reply's prompt contained counts as said; anything that arrived later waits for the next reply.
+      if (this.promptedQuickCheck && !this.quickChecksAsked.includes(this.promptedQuickCheck)) this.quickChecksAsked.push(this.promptedQuickCheck);
+      for (const id of this.promptedNoteIds) if (!this.notesShown.includes(id)) this.notesShown.push(id);
+      this.pendingNotes = this.pendingNotes.filter((n) => !this.promptedNoteIds.includes(n.id));
+      this.promptedNoteIds = [];
+      this.promptedQuickCheck = null;
+    } else {
+      this.pendingNotes = [];
+    }
     this.lastProcessedInput = null;
 
+    // Section 0: a situational follow-up counts as asked once Ailana has spoken it (never asked twice).
+    if (this.currentPendingField === 'section0_followup' && this.activeFollowup && !this.followupsAsked.includes(this.activeFollowup.id)) {
+      this.followupsAsked.push(this.activeFollowup.id);
+    }
+
     // Synchronize currentPendingField with what Ailana ACTUALLY asked in Stage 1
-    if (this.activeStage === '1') {
+    // (disabled with Section 0: it re-targeted the pending field from keywords in Ailana's own
+    // speech, e.g. "purchase" → mortgage_goal, which fights the code-chosen next question)
+    if (this.activeStage === '1' && !ailanaConfig.section0Enabled) {
       const lower = trimmed.toLowerCase();
       if (lower.includes('co-borrower') || lower.includes('co borrower') || lower.includes('applying on your own') || lower.includes('joining you on the loan')) {
         this.currentPendingField = 'co_borrower';
@@ -3356,7 +3834,8 @@ export class SessionContextManager {
         name: 'existing_relationship',
         description: 'Whether they have worked with this lending institution before',
         expectedType: 'string',
-        additionalInstructions: 'Extract "yes" or "no". If they say they have worked with us before or have an existing mortgage, return "yes". If they say it is their first time, return "no". If they say they don\'t know or are unsure, return "no". If not found, return null.',
+        additionalInstructions: 'Extract "yes" or "no". If they say they have worked with us before or have an existing mortgage, return "yes". If they say it is their first time, return "no". If they say they don\'t know or are unsure, return "no". If not found, return null.'
+          + (ailanaConfig.section0Enabled ? ' IMPORTANT: buying a first home or being a first-time buyer is NOT the same as a first time with this lender — return null unless they talk about this lender.' : ''),
       });
     }
     if (!this.profile.timeline_confirmed) {
@@ -4181,10 +4660,19 @@ export class SessionContextManager {
       console.log(`[context-manager]: Auto-seeded heloc_timeline globally from Stage 1 timeline: "${this.profile.timeline}"`);
     }
 
+    // ── Section 0 (stage "0"): the router decides; nothing to advance here ──────────────
+    if (this.activeStage === '0') {
+      this.currentPendingField = 'section0';
+      return;
+    }
+
     // ── Stage 1 ──────────────────────────────────────────────────────────────────────────
     if (this.activeStage === '1') {
 
-      if (!this.profile.mortgage_goal_confirmed) {
+      if (ailanaConfig.section0Enabled && !this.profile.borrower_name_confirmed) {
+        // First track turn: ask the first name once (moved out of the old Q9). Declined → never asked again.
+        this.currentPendingField = 'borrower_name';
+      } else if (!this.profile.mortgage_goal_confirmed) {
         this.currentPendingField = 'mortgage_goal';
       } else if (!this.profile.occupancy_confirmed) {
         this.currentPendingField = 'occupancy';
@@ -4224,6 +4712,10 @@ export class SessionContextManager {
           this.currentPendingField = 'credit_range';
         }
         console.log('[context-manager]: Transitioning to STAGE 2 Pre-Qualification Discovery!');
+        if (ailanaConfig.section0Enabled) {
+          // No-repeat rule: start Stage 2 at the first field that is actually missing.
+          this.advanceWorkflow();
+        }
       }
     } else if (this.activeStage === '2') {
       const isRef = this.profile.transaction_type === 'TT-REF' || this.profile.mortgage_goal === 'refinance';
@@ -4232,7 +4724,9 @@ export class SessionContextManager {
       // ── Auto-Recovery & Desync Protection ──
       // If we have reached or confirmed the final Stage 2 question (job_tenure_type),
       // auto-resolve any earlier unconfirmed fields so the state machine advances directly to the closing offer.
-      if (this.profile.job_tenure_type_confirmed) {
+      // Section 0: job tenure can be known from the very first message (e.g. retired, or "salaried 6 years"),
+      // so this shortcut would skip real questions — the ledger sync keeps the profile consistent instead.
+      if (this.profile.job_tenure_type_confirmed && !ailanaConfig.section0Enabled) {
         if (!this.profile.gross_annual_income_confirmed) {
           this.profile.gross_annual_income_confirmed = true;
           this.profile.gross_annual_income = this.profile.gross_annual_income ?? 0;
@@ -4258,7 +4752,9 @@ export class SessionContextManager {
         this.profile.heloc_timeline_confirmed = true;
       }
 
-      if (!this.profile.gross_annual_income_confirmed && !this.profile.Q35_answered) {
+      if (this.takeStage2Followup()) {
+        // A situational follow-up the borrower's own story calls for (asked once, early in Stage 2).
+      } else if (!this.profile.gross_annual_income_confirmed) {
         this.currentPendingField = 'gross_annual_income';
       } else if (!this.profile.monthly_debt_confirmed) {
         this.currentPendingField = 'monthly_debt';
@@ -4292,7 +4788,7 @@ export class SessionContextManager {
             this.currentPendingField = 'job_tenure_type';
           } else {
             this.calculateEligibility();
-            this.currentPendingField = 'stage2_closing_offer';
+            this.currentPendingField = this.closingOfferOrFollowup();
             console.log('[context-manager]: Transitioning to STAGE 2 Closing Transition (Refinance - USDA)!');
           }
         } else if (this.profile.current_mortgage_type === 'unknown' && !this.profile.refinance_type_confirmed) {
@@ -4319,7 +4815,7 @@ export class SessionContextManager {
           this.currentPendingField = 'job_tenure_type';
         } else {
           this.calculateEligibility();
-          this.currentPendingField = 'stage2_closing_offer';
+          this.currentPendingField = this.closingOfferOrFollowup();
           console.log('[context-manager]: Transitioning to STAGE 2 Closing Transition (Refinance)!');
         }
       } else if (isHel) {
@@ -4344,7 +4840,7 @@ export class SessionContextManager {
           this.currentPendingField = 'job_tenure_type';
         } else {
           this.calculateEligibility();
-          this.currentPendingField = 'stage2_closing_offer';
+          this.currentPendingField = this.closingOfferOrFollowup();
           console.log('[context-manager]: Transitioning to STAGE 2 Closing Transition (HELOC)!');
         }
       } else {
@@ -4365,7 +4861,7 @@ export class SessionContextManager {
           this.currentPendingField = 'job_tenure_type';
         } else {
           this.calculateEligibility();
-          this.currentPendingField = 'stage2_closing_offer';
+          this.currentPendingField = this.closingOfferOrFollowup();
           console.log('[context-manager]: Transitioning to STAGE 2 Closing Transition (Purchase)!');
         }
       }
@@ -4498,6 +4994,43 @@ export class SessionContextManager {
   }
 
   getDynamicContext(): string {
+    if (ailanaConfig.section0Enabled) {
+      // Stages ≥ 1: a few questions are built from what's already known (code), overriding the generic task line.
+      let taskOverride: string | undefined;
+      const quickCheck = this.activeStage !== '0' ? this.nextQuickCheck() : null;
+      const hasCo = this.ledger.value('co_borrower.present') === true || this.profile.co_borrower === 'yes';
+      if (this.activeStage !== '0' && this.currentPendingField === 'section0_followup' && this.activeFollowup) {
+        taskOverride = `CURRENT TASK:\n${this.activeFollowup.ask}\nAsk only this one thing. Do NOT ask for anything in KNOWN FACTS.`;
+      } else if (quickCheck) {
+        // A stated fact that needs one detail (e.g. weekly hours for hourly pay) is checked first, once.
+        taskOverride = `CURRENT TASK:\nBefore anything else, ask ONE quick check: ${quickCheck.label} — ${quickCheck.ask}. Ask only this; the other questions can wait.`;
+      } else if (this.activeStage === '2' && this.currentPendingField === 'job_tenure_type') {
+        taskOverride = `CURRENT TASK:\nCollect job_tenure_type\n\nAsk: "${this.getJobTenureQuestion()}"\nDO NOT ask for anything in KNOWN FACTS (how they are paid may already be known).`;
+      } else if (this.activeStage === '2' && this.currentPendingField === 'gross_annual_income' && hasCo
+        && (this.ledger.value<unknown[]>('income.borrower') ?? []).length && !(this.ledger.value<unknown[]>('income.co_borrower') ?? []).length) {
+        // Their own income is known; only the co-borrower's is missing.
+        taskOverride = 'CURRENT TASK:\nCollect gross_annual_income\n\nTheir own income is already known (see KNOWN FACTS). Ask ONLY roughly what their co-borrower earns per year. If there is no co-borrower after all, that is fine.';
+      } else if (this.activeStage === '2' && this.currentPendingField === 'military_rural' && hasCo) {
+        taskOverride = 'CURRENT TASK:\nCollect military_rural\n\nAsk EXACTLY this: "Now, do you or your co-borrower have any military service history — such as being on active duty, a veteran, or in the Reserve or National Guard?"\nDO NOT ASK FOR ANY OTHER FIELD.';
+      }
+      const handoffOrNoteTask = this.handoffTaskText() ?? this.noteTaskText();
+      this.promptedNoteIds = this.pendingNotes.map((n) => n.id);
+      this.promptedQuickCheck = quickCheck && !handoffOrNoteTask && taskOverride?.includes('ONE quick check') ? quickCheck.key : null;
+      const extras = {
+        knownFacts: formatKnownFacts(this.ledger)
+          + (this.trackSwitchNotice
+            ? `\nGOAL CHANGED: the borrower now wants a ${this.trackSwitchNotice}. Acknowledge it in one short phrase; everything else they told you still stands — do not ask it again.`
+            : '')
+          + (this.pendingNotes.length
+            ? `\nCOMPLIANCE (this reply) — handle this FIRST, then the current task:\n${this.pendingNotes.map((n) => `- ${n.text}`).join('\n')}`
+            : ''),
+        ...(this.activeStage === '0' ? { section0Task: this.handoffTaskText() ?? this.noteTaskText() ?? section0TaskText(this.section0Decision, this.ledger) } : {}),
+        ...((this.activeStage !== '0' && (this.handoffTaskText() ?? this.noteTaskText()))
+          ? { taskOverride: (this.handoffTaskText() ?? this.noteTaskText())! }
+          : taskOverride ? { taskOverride } : {}),
+      };
+      return buildDynamicContext(this.profile, this.currentPendingField, this.activeStage, this.lowConfidence, extras);
+    }
     return buildDynamicContext(this.profile, this.currentPendingField, this.activeStage, this.lowConfidence);
   }
 
@@ -4924,12 +5457,10 @@ If no correction/change is found, return null.`
     const field = this.currentPendingField;
     this.fieldAttempts[field] = 0;
 
-    if (field === 'mortgage_goal') {
-      if (!this.profile.Q9_confirmed) {
-        // Section 0 routing guard: never force transaction_type or Q9_confirmed. Keep unconfirmed for SR-1 stall recovery.
-        console.log('[section0]: 🛡️ mortgage_goal unclear in Section 0 — holding unconfirmed for SR-1 stall recovery.');
-        return;
-      }
+    if (field === 'borrower_name') {
+      // Section 0: never block on the first name.
+      this.profile.borrower_name_confirmed = true;
+    } else if (field === 'mortgage_goal' && !ailanaConfig.section0Enabled) {
       this.profile.mortgage_goal = 'purchase';
       this.profile.transaction_type = 'TT-PUR';
       this.profile.mortgage_goal_confirmed = true;

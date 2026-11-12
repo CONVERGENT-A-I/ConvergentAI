@@ -1,3 +1,4 @@
+import { ailanaConfig } from '../config/ailana-config.js';
 export interface BorrowerProfile {
   current_pending_field?: string | null;
 
@@ -250,11 +251,22 @@ const FIELD_LABELS: Record<string, string> = {
   scheduled_call_time: 'preferred date and time for the callback',
 };
 
+/** Section 0 additions to Layer 3 (only passed when SECTION_0_ENABLED is on). */
+export interface Section0TurnExtras {
+  /** KNOWN FACTS block built from the Fact Ledger. */
+  knownFacts: string;
+  /** CURRENT TASK chosen by the Section 0 router (stage "0" only). */
+  section0Task?: string;
+  /** Stages ≥ 1: a task line built by code from what is already known (replaces the generic one). */
+  taskOverride?: string;
+}
+
 export function buildLayer3TurnContext(
   profile: BorrowerProfile,
   pendingField: string | null,
   stage: string = '1',
-  isLowConfidence: boolean = false
+  isLowConfidence: boolean = false,
+  section0?: Section0TurnExtras,
 ): string {
   // ── Section 0 — Routing State Block (Active only while Q9_confirmed is false) ──
   // SR-1 (clarifying question) is available during Section 0 routing
@@ -467,7 +479,10 @@ export function buildLayer3TurnContext(
       else creditCategory = 'Poor';
       taskLine = `CURRENT TASK:\nPrefill walkthrough: Credit Category Rating\n\nAsk: "Lastly, we retrieved your credit profile showing a category rating in the ${creditCategory} range. Does that match what you expect or is anything out of date?"\nNEVER quote exact numeric credit score. Only the range category. DO NOT ASK FOR ANY OTHER FIELD.`;
     } else if (pendingField === 'property_type') {
-      if (profile.property_type && !profile.zip_code) {
+      if (section0 && !profile.property_type && profile.zip_code) {
+        // Section 0 already knows the area — ask only for the property type.
+        taskLine = `CURRENT TASK:\nCollect property_type (the area is already known: ${profile.zip_code})\n\nAsk: "What type of home are you looking for — such as a single-family home, condo, townhome, or multi-family?"\nDO NOT ask for the city or zip code again.`;
+      } else if (profile.property_type && !profile.zip_code) {
         taskLine = `CURRENT TASK:\nCollect zip_code (borrower already specified ${profile.property_type})\n\nAsk: "What city or zip code are you looking in?"\nDO NOT repeat the property type choices.`;
       } else {
         const questionText = isRef
@@ -477,7 +492,7 @@ export function buildLayer3TurnContext(
       }
     } else if (pendingField === 'military_rural') {
       const hasCoBorrower = profile.co_borrower === 'yes';
-      const coBorrowerPhrase = hasCoBorrower ? 'you or a co-borrower' : 'you';
+      const coBorrowerPhrase = hasCoBorrower ? (ailanaConfig.section0Enabled ? 'you or your co-borrower' : 'you or a co-borrower') : 'you';
       taskLine = `CURRENT TASK:\nCollect military_rural\n\nAsk EXACTLY this: "Now, do ${coBorrowerPhrase} have any military service history — such as being on active duty, a veteran, or in the Reserve or National Guard?"\nDO NOT ASK FOR ANY OTHER FIELD.`;
     } else if (pendingField === 'fd1_delivery') {
       taskLine = `CURRENT TASK:\nDeliver the Automated Underwriting System (AUS) findings. The system has applied a current representative rate from our rate sheet and generated a conditional eligibility result along with an estimated payment range. Tell the borrower their formal eligibility review is complete.`;
@@ -510,7 +525,11 @@ export function buildLayer3TurnContext(
 
   // ── Stage transition bridge instruction ───────────────────────────────────
   let bridgeBlock = '';
-  if (profile.bridge_to_say === 'stage1_to_stage2') {
+  const financesAlreadyKnown = !!(profile.gross_annual_income_confirmed || profile.monthly_debt_confirmed || profile.credit_range_confirmed);
+  if (profile.bridge_to_say === 'stage1_to_stage2' && section0 && financesAlreadyKnown) {
+    // Section 0: some finances are already known — don't announce we're going to ask for them.
+    bridgeBlock = `\n\n*** MANDATORY TRANSITION — DO NOT SKIP ***\nYour response for this turn MUST follow this exact structure:\n1. One brief sentence acknowledging what the borrower just said.\n2. Then say this transition phrase VERBATIM:\n"That gives me a great starting point. I just need a few more details so I can map out the loan programs that may be most relevant to your situation."\n3. Then immediately ask for ${pendingField} — and nothing listed in KNOWN FACTS.`;
+  } else if (profile.bridge_to_say === 'stage1_to_stage2') {
     bridgeBlock = `\n\n*** MANDATORY TRANSITION — DO NOT SKIP ***\nYour response for this turn MUST follow this exact structure:\n1. One brief sentence acknowledging what the borrower just said (e.g. "Got it." or "Understood, thank you.").\n2. Then say the following transition phrase VERBATIM, word-for-word:\n"That gives me a great starting point. Now I would like to spend a few minutes exploring your financial picture — income, current debts, credit profile, and a few other details — so I can map out the loan programs that may be most relevant to your situation."\n3. Then immediately ask for ${pendingField}.\nDo NOT skip this transition regardless of what the borrower just said. Do NOT replace the verbatim phrase with your own words.`;
   } else if (profile.bridge_to_say === 'stage2_to_stage3') {
     bridgeBlock = `\n\n*** MANDATORY TRANSITION — DO NOT SKIP ***\nYour response for this turn MUST follow this exact structure:\n1. One brief sentence acknowledging what the borrower just said.\n2. Then say the following transition phrase VERBATIM, word-for-word:\n"Based on what you have shared, I can walk you through the loan programs that may be most relevant to your situation and answer any questions you have about the process."\nDo NOT skip this transition regardless of what the borrower just said. Do NOT replace the verbatim phrase with your own words.`;
@@ -640,6 +659,18 @@ Do NOT ask them to read the code out loud. Do NOT ask for anything else. Wait fo
   let antiRedundancyBlock = '';
   if (stage === '2.5') {
     antiRedundancyBlock = `\n\n*** ANTI-REDUNDANCY RULES (STAGE 2.5 AFFORDABILITY) ***\n- Do NOT repeat the initial affordability summary explanation on subsequent turns.\n- If the borrower is just adjusting targets/sliders without asking a question, keep your response extremely brief (1 short sentence) and conversational (e.g. "Got it, your summary is updated.").\n- Do NOT repeatedly recite full Q48 scripts like "That sounds like a comfortable spot" or "With those targets, your total debt ratio..." every single time they change a number.\n- Once the initial panel is explained, adopt a concise, listening posture.`;
+  }
+
+  // ── Section 0 (SECTION_0_ENABLED only) ────────────────────────────────────
+  if (section0) {
+    if (stage === '0') {
+      // In Section 0 the router (code) chooses the task; the field-based task line doesn't apply.
+      taskLine = section0.section0Task ?? '';
+      circleBackInstruction = '';
+    } else if (section0.taskOverride) {
+      taskLine = section0.taskOverride;
+    }
+    if (section0.knownFacts) blocks.push(section0.knownFacts);
   }
 
   blocks.push(taskLine + bridgeBlock + stage2ClosingBlock + consentBlock + otpBlock + lowConfidenceBlock + circleBackInstruction + antiRedundancyBlock);

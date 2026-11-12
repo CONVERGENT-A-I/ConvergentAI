@@ -25,7 +25,21 @@ const testFiles = [
   'production-fixes.test.ts',
   'expressive-mode-e1-e2-e3.test.ts',
   'verbal-submit-flow.test.ts',
-  'section0-routing.test.ts',
+  'mlo-transfer-intent.test.ts',
+  'contact-input.test.ts',
+  'security-hardening.test.ts',
+  // Section 0 (generic intent & fact capture) — pure building blocks
+  'section0-ledger.test.ts',
+  'section0-normalize.test.ts',
+  'section0-router.test.ts',
+  'section0-safety-net.test.ts',
+  // Section 0 — wiring: ledger → profile sync / no-repeat flow, and flag-off parity with the demo build
+  'section0-sync.test.ts',
+  'section0-sim-checks.test.ts',
+  'section0-compliance.test.ts',
+  'section0-handoff.test.ts',
+  'section0-first-screen.test.ts',
+  'section0-flag-off.test.ts',
 ];
 
 console.log('🚀 Running Complete ConvergentAI Multi-Track Test Suite...\n');

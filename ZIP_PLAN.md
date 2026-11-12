@@ -36,7 +36,7 @@ graph TD
 
 **Objective**: Ensure the Application PostgreSQL database has the required schema for appointment persistence and notification auditing, and verify network reachability to the FusionPBX database.
 
-### Step 1.1: Copy Prisma Migration Folders from Lab to Dev
+### Step 1.1: [x] **DONE** - Copy Prisma Migration Folders from Lab to Dev
 - **Source**:
   - `convergentai-lab/prisma/migrations/20260830113000_add_scheduler_appointments/`
   - `convergentai-lab/prisma/migrations/20260830123000_add_booking_notification_audit/`
@@ -46,7 +46,7 @@ graph TD
 - **Action**: Copy the migration directories containing the SQL DDL statements for table `appointments` and its audit fields (`notification_email`, `notification_status`, `notification_message_id`, `notification_sent_at`).
 - **Verification**: Verify files exist at target paths.
 
-### Step 1.2: Apply Migrations to Application PostgreSQL DB
+### Step 1.2: [x] **DONE** - Apply Migrations to Application PostgreSQL DB
 - **Action**: Run Prisma migration command in the workspace root:
   ```bash
   npx prisma migrate dev --name sync_scheduler_appointments
@@ -58,7 +58,7 @@ graph TD
   ```
   Confirm existence of `confirmation_number`, `booking_key`, `google_event_id`, `start_time_utc`, `end_time_utc`, `notification_status`.
 
-### Step 1.3: Verify FSPBX PostgreSQL Connectivity
+### Step 1.3: [x] **DONE** - Verify FSPBX PostgreSQL Connectivity
 - **Action**: Test connection from Dev backend to `192.168.10.10:5432` with credentials:
   - User: `fusionpbx`
   - DB: `fusionpbx`
@@ -70,7 +70,7 @@ graph TD
   ```
   Confirm `routing.zip_state` and `routing.state_queue` return valid row counts.
 
-### Step 1.4: Copy FusionPBX 60-Second Queue Hold SQL Script
+### Step 1.4: [x] **DONE** - Copy FusionPBX 60-Second Queue Hold SQL Script
 - **Source**: `convergentai-lab/scripts/fspbx-update-queue-wait-60s.sql`
 - **Destination**: [`scripts/fspbx-update-queue-wait-60s.sql`](file:///c:/Users/Sherry/Documents/Convergent_AI/scripts/fspbx-update-queue-wait-60s.sql)
 - **Action**: Copies the migration script that updates `v_call_center_queues` in FusionPBX to set `queue_max_wait_time = '60'` and `queue_max_wait_time_with_no_agent = '60'` across all 51 state queues (`communitymtg_mlo_*`).
@@ -82,7 +82,7 @@ graph TD
 
 **Objective**: Install required PostgreSQL connection pool and Google Workspace client libraries in the backend.
 
-### Step 2.1: Update `backend/package.json`
+### Step 2.1: [x] **DONE** - Update `backend/package.json`
 - **Target File**: [`backend/package.json`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/package.json)
 - **Action**: Add missing dependencies:
   - `"pg": "^8.11.3"`
@@ -90,7 +90,7 @@ graph TD
   - `"@types/pg": "^8.11.6"` (in `devDependencies`)
 - **Verification**: Verify entries are added to `dependencies` and `devDependencies`.
 
-### Step 2.2: Execute Package Installation
+### Step 2.2: [x] **DONE** - Execute Package Installation
 - **Action**: Run npm install inside `backend/`:
   ```bash
   cd backend && npm install
@@ -103,7 +103,7 @@ graph TD
 
 **Objective**: Port all low-level routing, intent recognition, FreeSWITCH ESL socket, and SIP transfer utilities from Lab to Dev.
 
-### Step 3.1: Copy Geographic ZIP Resolver
+### Step 3.1: [x] **DONE** - Copy Geographic ZIP Resolver
 - **Source**: `convergentai-lab/backend/src/lib/zipResolver.ts`
 - **Destination**: [`backend/src/lib/zipResolver.ts`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/lib/zipResolver.ts)
 - **Exports**:
@@ -112,7 +112,7 @@ graph TD
   - `getLicensedAgentsForZip(zipCode: string): Promise<AgentRow[]>`
 - **Verification**: Verify module imports `pg` Pool correctly and queries `routing.zip_state` and `routing.state_queue`.
 
-### Step 3.2: Copy Intent & Spoken Digit Normalizer
+### Step 3.2: [x] **DONE** - Copy Intent & Spoken Digit Normalizer
 - **Source**: `convergentai-lab/backend/src/lib/mlo-transfer-intent.ts`
 - **Destination**: [`backend/src/lib/mlo-transfer-intent.ts`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/lib/mlo-transfer-intent.ts)
 - **Exports**:
@@ -121,7 +121,7 @@ graph TD
   - `isContextualLoanOfficerTransferConfirmation(text: string, awaitingLoanOfficerChoice: boolean): boolean`.
 - **Verification**: Run unit test: `node --import tsx backend/src/__tests__/mlo-transfer-intent.test.ts`.
 
-### Step 3.3: Copy Contact Input Voice Accumulator
+### Step 3.3: [x] **DONE** - Copy Contact Input Voice Accumulator
 - **Source**: `convergentai-lab/backend/src/lib/contact-input.ts`
 - **Destination**: [`backend/src/lib/contact-input.ts`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/lib/contact-input.ts)
 - **Exports**:
@@ -129,7 +129,7 @@ graph TD
   - `appendPhoneFragment(currentBuffer: string, newFragment: string)`
 - **Verification**: Run unit test: `node --import tsx backend/src/__tests__/contact-input.test.ts`.
 
-### Step 3.4: Copy Security & Redaction Utilities
+### Step 3.4: [x] **DONE** - Copy Security & Redaction Utilities
 - **Source**: `convergentai-lab/backend/src/utils/security.ts`
 - **Destination**: [`backend/src/utils/security.ts`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/utils/security.ts)
 - **Exports**:
@@ -140,7 +140,7 @@ graph TD
 - **Verification**: Run unit test: `node --import tsx backend/src/__tests__/security-hardening.test.ts`.
 
 
-### Step 3.5: Copy FreeSWITCH SIP MESSAGE Dispatcher
+### Step 3.5: [x] **DONE** - Copy FreeSWITCH SIP MESSAGE Dispatcher
 - **Source**: `convergentai-lab/backend/src/utils/fsMessage.ts`
 - **Destination**: [`backend/src/utils/fsMessage.ts`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/utils/fsMessage.ts)
 - **Exports**:
@@ -148,7 +148,7 @@ graph TD
 - **Action**: Connects over FreeSWITCH ESL port 8021 and sends `SMS::SEND_MESSAGE` event to `mod_sms` to display alert text on physical deskphones and softphones.
 - **Verification**: Check function compiles cleanly with strict TypeScript options.
 
-### Step 3.6: Copy FreeSWITCH ESL Client & Availability Checker
+### Step 3.6: [x] **DONE** - Copy FreeSWITCH ESL Client & Availability Checker
 - **Source**: `convergentai-lab/backend/src/services/freeswitch-esl.ts`
 - **Destination**: [`backend/src/services/freeswitch-esl.ts`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/services/freeswitch-esl.ts)
 - **Exports**:
@@ -160,7 +160,7 @@ graph TD
 - **Action**: Reconciles runtime tiers (`queue reload`, `tier del`), queries `sofia_contact`, checks agent status (`Available`) and state (`Waiting`), and polls for human answer (`in a queue call`).
 - **Verification**: Test compilation and ensure environment variable fallbacks match production specs.
 
-### Step 3.7: Replace `backend/src/utils/sipTransfer.ts`
+### Step 3.7: [x] **DONE** - Replace `backend/src/utils/sipTransfer.ts`
 - **Target File**: [`backend/src/utils/sipTransfer.ts`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/utils/sipTransfer.ts)
 - **Action**: Replace Dev's 62-line static file with Lab's 349-line implementation:
   - `normalizedSipFromNumber()`: strips non-digits and sanitizes scientific float representation (`1.42e+10` ➔ `14238931776`).
@@ -179,7 +179,7 @@ graph TD
 
 **Objective**: Port conversational voice scheduling, Google Calendar integration, Gmail notifications, and Express REST routes.
 
-### Step 4.1: Copy Google Calendar Service
+### Step 4.1: [x] **DONE** - Copy Google Calendar Service
 - **Source**: `convergentai-lab/backend/src/services/google-calendar.ts`
 - **Destination**: [`backend/src/services/google-calendar.ts`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/services/google-calendar.ts)
 - **Exports**:
@@ -190,7 +190,7 @@ graph TD
   - `isGoogleCalendarConfigured(): boolean`
 - **Verification**: Verify Google Calendar API JWT auth structure using `GOOGLE_SERVICE_ACCOUNT_JSON` and `GOOGLE_IMPERSONATE_USER`.
 
-### Step 4.2: Copy Conversational Scheduling Bridge
+### Step 4.2: [x] **DONE** - Copy Conversational Scheduling Bridge
 - **Source**: `convergentai-lab/backend/src/services/conversational-scheduling.ts`
 - **Destination**: [`backend/src/services/conversational-scheduling.ts`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/services/conversational-scheduling.ts)
 - **Exports**:
@@ -199,7 +199,7 @@ graph TD
   - `bookConversationalAppointment(input: ConversationalBookingInput)`
 - **Verification**: Ensure seamless integration with `google-calendar.ts` and `booking-notification.ts`.
 
-### Step 4.3: Copy Booking Notification Service
+### Step 4.3: [x] **DONE** - Copy Booking Notification Service
 - **Source**: `convergentai-lab/backend/src/services/booking-notification.ts`
 - **Destination**: [`backend/src/services/booking-notification.ts`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/services/booking-notification.ts)
 - **Exports**:
@@ -208,7 +208,7 @@ graph TD
 - **Action**: Uses Google Workspace Gmail API via impersonated account `GOOGLE_BOOKING_NOTIFICATION_FROM` (`info@convergentai.tech`). Updates notification audit fields in `appointments` table.
 - **Verification**: Check RFC 2822 MIME message formatting and Gmail API call syntax.
 
-### Step 4.4: Copy Express Route `loan-officer.ts`
+### Step 4.4: [x] **DONE** - Copy Express Route `loan-officer.ts`
 - **Source**: `convergentai-lab/backend/src/routes/loan-officer.ts`
 - **Destination**: [`backend/src/routes/loan-officer.ts`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/routes/loan-officer.ts)
 - **Endpoints**:
@@ -221,7 +221,7 @@ graph TD
   - `POST /api/early-alert`: dispatches asynchronous pre-call Ringotel push and FreeSWITCH SIP text alerts to queue officers.
 - **Verification**: Check route file compiles with strict Express types.
 
-### Step 4.5: Copy Express Route `scheduling.ts`
+### Step 4.5: [x] **DONE** - Copy Express Route `scheduling.ts`
 - **Source**: `convergentai-lab/backend/src/routes/scheduling.ts`
 - **Destination**: [`backend/src/routes/scheduling.ts`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/routes/scheduling.ts)
 - **Endpoints**:
@@ -230,7 +230,7 @@ graph TD
   - `POST /api/scheduling/book`: verifies HMAC booking token, creates Google Calendar event, stores `appointments` record, and dispatches confirmation emails.
 - **Verification**: Check SQL insert queries and token verification.
 
-### Step 4.6: Update `backend/src/index.ts`
+### Step 4.6: [x] **DONE** - Update `backend/src/index.ts`
 - **Target File**: [`backend/src/index.ts`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/index.ts)
 - **Action**:
   - Import `loanOfficerRoutes` and `schedulingRoutes`.
@@ -264,7 +264,7 @@ graph TD
 
 **Objective**: Wire pre-flight checks, selective WebRTC audio isolation, FreeSWITCH ESL answer detection, and Google Calendar voice tools into `agent.ts` and `stage5-escalation.ts`.
 
-### Step 5.1: Update `backend/src/prompts/stage5-escalation.ts`
+### Step 5.1: [x] **DONE** - Update `backend/src/prompts/stage5-escalation.ts`
 - **Target File**: [`backend/src/prompts/stage5-escalation.ts`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/prompts/stage5-escalation.ts)
 - **Action**: Add conversational scheduling prompt rules:
   - Instructs Ailana: *"Scheduling happens entirely in this voice conversation. Never direct the customer to an on-screen calendar or popup."*
@@ -272,7 +272,7 @@ graph TD
   - Instructs: *"If the borrower chooses a live transfer or asks to talk now, tell them you are checking the licensed queue for their property ZIP. The backend voice-transfer handler will perform the transfer; never tell them to click a button."*
 - **Verification**: Verify stage prompt string compiles and includes all conversational scheduling rules.
 
-### Step 5.2: Wire Scheduling Tools & Dynamic Instructions in `backend/src/agent.ts`
+### Step 5.2: [x] **DONE** - Wire Scheduling Tools & Dynamic Instructions in `backend/src/agent.ts`
 - **Target File**: [`backend/src/agent.ts`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/agent.ts)
 - **Action**:
   - Declare `voiceScheduling: VoiceSchedulingState` object tracking `active`, `completedAt`, `confirmationNumber`, `zipCode`, `queueName`, `queueNumber`, `slots`.
@@ -290,7 +290,7 @@ graph TD
     ```
 - **Verification**: Confirm tools compile with Zod parameter schemas.
 
-### Step 5.3: Implement Pre-Flight Availability Check in `agent.ts`
+### Step 5.3: [x] **DONE** - Implement Pre-Flight Availability Check in `agent.ts`
 - **Target File**: [`backend/src/agent.ts`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/agent.ts)
 - **Action**: In `SYSTEM_TRANSFER_MLO` handler:
   - Resolve property ZIP: `const queue = await resolveQueueForZip(requestedZip);`
@@ -298,7 +298,7 @@ graph TD
   - If `!availability.available`: throw `NO_AGENT_AVAILABLE` before dialing any SIP leg.
 - **Verification**: Verify error catch block triggers `startConversationalScheduling` with reason `no_agent_available`.
 
-### Step 5.4: Implement Selective WebRTC Track Preservation in `agent.ts`
+### Step 5.4: [x] **DONE** - Implement Selective WebRTC Track Preservation in `agent.ts`
 - **Target File**: [`backend/src/agent.ts`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/agent.ts)
 - **Action**: Replace bulk de-subscription with selective customer preservation:
   ```typescript
@@ -311,7 +311,7 @@ graph TD
   ```
 - **Verification**: Verify customer microphone remains subscribed so `AgentSession` audio input stream is never disrupted.
 
-### Step 5.5: Implement ESL Human Answer Polling Gate in `agent.ts`
+### Step 5.5: [x] **DONE** - Implement ESL Human Answer Polling Gate in `agent.ts`
 - **Target File**: [`backend/src/agent.ts`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/agent.ts)
 - **Action**:
   - Dial queue via `transferRoomToMloQueue({ roomName, zip })`.
@@ -320,7 +320,7 @@ graph TD
   - On timeout: catch error, call `hangupMloParticipant`, emit `SYSTEM_MLO_UNSUPPORTED`, and call `startConversationalScheduling`.
 - **Verification**: Check ESL polling loop handles timeout cleanly and teardown executes without unhandled rejections.
 
-### Step 5.6: Implement Caller Disconnect Cleanup & Location Sync in `agent.ts`
+### Step 5.6: [x] **DONE** - Implement Caller Disconnect Cleanup & Location Sync in `agent.ts`
 - **Target File**: [`backend/src/agent.ts`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/agent.ts)
 - **Action**:
   - In `RoomEvent.ParticipantDisconnected`:
@@ -341,7 +341,7 @@ graph TD
     ```
 - **Verification**: Verify room cleanup and profile ZIP synchronization.
 
-### Step 5.7: Implement Spoken Transfer Interceptor (`requestMloTransferHandler`)
+### Step 5.7: [x] **DONE** - Implement Spoken Transfer Interceptor (`requestMloTransferHandler`)
 - **Target File**: [`backend/src/agent.ts`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/src/agent.ts)
 - **Action**:
   - Implement `requestMloTransferHandler`:
@@ -370,19 +370,19 @@ graph TD
 
 **Objective**: Synchronize frontend UI components with answer-gated microphones, dual-gated connection detection, queue label formatting, and recovery listeners.
 
-### Step 6.1: Copy Google Calendar Scheduler Modal Component
+### Step 6.1: [x] **DONE** - Copy Google Calendar Scheduler Modal Component
 - **Source**: `convergentai-lab/src/components/floating-cta/google-calendar-scheduler.tsx`
 - **Destination**: [`src/components/floating-cta/google-calendar-scheduler.tsx`](file:///c:/Users/Sherry/Documents/Convergent_AI/src/components/floating-cta/google-calendar-scheduler.tsx)
 - **Action**: Renders date picker, time slot cards, contact form, and confirmation state with Google Meet link.
 - **Verification**: Check component imports Lucide icons and compiles with Next.js TypeScript.
 
-### Step 6.2: Copy MLO Failure Listener Component
+### Step 6.2: [x] **DONE** - Copy MLO Failure Listener Component
 - **Source**: `convergentai-lab/src/components/floating-cta/mlo-failure-listener.tsx`
 - **Destination**: [`src/components/floating-cta/mlo-failure-listener.tsx`](file:///c:/Users/Sherry/Documents/Convergent_AI/src/components/floating-cta/mlo-failure-listener.tsx)
 - **Action**: Listens on LiveKit DataChannel for `SYSTEM_MLO_UNSUPPORTED`. Immediately calls `room.localParticipant.setMicrophoneEnabled(true)` so the borrower's voice is unmuted for scheduling.
 - **Verification**: Check zero-latency mic unmute logic.
 
-### Step 6.3: Update `media-guard.tsx`
+### Step 6.3: [x] **DONE** - Update `media-guard.tsx`
 - **Target File**: [`src/components/floating-cta/media-guard.tsx`](file:///c:/Users/Sherry/Documents/Convergent_AI/src/components/floating-cta/media-guard.tsx)
 - **Action**:
   - Add props: `loanOfficerConnected?: boolean; conversationalScheduling?: boolean;`
@@ -400,14 +400,14 @@ graph TD
     ```
 - **Verification**: Test media guard state transitions across all modes.
 
-### Step 6.4: Update `mlo-detector.tsx`
+### Step 6.4: [x] **DONE** - Update `mlo-detector.tsx`
 - **Target File**: [`src/components/floating-cta/mlo-detector.tsx`](file:///c:/Users/Sherry/Documents/Convergent_AI/src/components/floating-cta/mlo-detector.tsx)
 - **Action**: Replace with Lab's dual-gated detector:
   - Listens for `SYSTEM_MLO_AGENT_CONNECTED`.
   - Fires `onMloStatusChange(true, label)` **only** when `sip.callStatus === 'active'` **AND** backend ESL confirmation is received.
 - **Verification**: Confirm hold music no longer triggers live call state.
 
-### Step 6.5: Update `loan-officer-queue.tsx`
+### Step 6.5: [x] **DONE** - Update `loan-officer-queue.tsx`
 - **Target File**: [`src/components/floating-cta/loan-officer-queue.tsx`](file:///c:/Users/Sherry/Documents/Convergent_AI/src/components/floating-cta/loan-officer-queue.tsx)
 - **Action**:
   - Export `parseLoanOfficerQueueDisplay(value: string | null): LoanOfficerQueueDisplay`.
@@ -415,7 +415,7 @@ graph TD
   - Update `LoanOfficerLiveUI` to render clean queue headers and duration counter.
 - **Verification**: Verify formatted display output.
 
-### Step 6.6: Update `channel-start-trigger.tsx`
+### Step 6.6: [x] **DONE** - Update `channel-start-trigger.tsx`
 - **Target File**: [`src/components/floating-cta/channel-start-trigger.tsx`](file:///c:/Users/Sherry/Documents/Convergent_AI/src/components/floating-cta/channel-start-trigger.tsx)
 - **Action**:
   - Add `zip?: string | null;` to `ChannelStartTriggerProps`.
@@ -424,7 +424,7 @@ graph TD
   - **Preserve Dev Features**: Retain existing `restoreSnapshot`, `onRestoreSent`, and `SYSTEM_RESTORE_STATE` handling.
 - **Verification**: Verify both session restoration and ZIP propagation work concurrently.
 
-### Step 6.7: Update `floating-cta/index.tsx`
+### Step 6.7: [x] **DONE** - Update `floating-cta/index.tsx`
 - **Target File**: [`src/components/floating-cta/index.tsx`](file:///c:/Users/Sherry/Documents/Convergent_AI/src/components/floating-cta/index.tsx)
 - **Action**:
   - Add state: `loanOfficerZip`, `loanOfficerCity`, `conversationalScheduling`, `showCalendarScheduler`.
@@ -442,7 +442,7 @@ graph TD
 
 **Objective**: Populate backend environment configuration with verified production parameters from `be.env_github`.
 
-### Step 7.1: Update `backend/.env`
+### Step 7.1: [x] **DONE** - Update `backend/.env`
 - **Target File**: [`backend/.env`](file:///c:/Users/Sherry/Documents/Convergent_AI/backend/.env)
 - **Action**: Insert the following authoritative production configuration block directly into `backend/.env` (from `be.env_github`):
   ```dotenv
@@ -523,7 +523,7 @@ graph TD
   ```
 - **Verification**: Restart backend server; confirm zero missing environment variable warnings.
 
-### Step 7.2: Verify Service Status via `/api/health`
+### Step 7.2: [x] **DONE** - Verify Service Status via `/api/health`
 - **Action**: Query health check endpoint:
   ```bash
   curl -s http://localhost:3001/api/health
@@ -548,7 +548,7 @@ graph TD
 
 **Objective**: Execute the entire automated test and static regression suite ported from Lab to guarantee 100% behavioral parity.
 
-### Step 8.1: Copy Test Suites from Lab to Dev
+### Step 8.1: [x] **DONE** - Copy Test Suites from Lab to Dev
 - **Action**: Copy test files:
   - `convergentai-lab/scripts/verify-v742-routing.cjs` ➔ `scripts/verify-v742-routing.cjs`
   - `convergentai-lab/scripts/verify-v744-scheduling.cjs` ➔ `scripts/verify-v744-scheduling.cjs`
@@ -561,7 +561,7 @@ graph TD
   - `convergentai-lab/backend/scripts/verify-v7*.mjs` ➔ `backend/scripts/verify-v7*.mjs`
 - **Verification**: Verify all test files exist at destination paths.
 
-### Step 8.2: Execute Unit Test Suites
+### Step 8.2: [x] **DONE** - Execute Unit Test Suites
 - **Action**: Run unit tests in `backend/`:
   ```bash
   node --import tsx src/__tests__/mlo-transfer-intent.test.ts
@@ -573,7 +573,7 @@ graph TD
   - Intent separation (questions ➔ `false`; explicit requests ➔ `true`).
   - Contact accumulation and token redaction.
 
-### Step 8.3: Execute Root Verification Suite
+### Step 8.3: [x] **DONE** - Execute Root Verification Suite
 - **Action**: Run root verification scripts:
   ```bash
   node scripts/verify-v742-routing.cjs
@@ -589,7 +589,7 @@ graph TD
   - `v746`: asserts Gmail API scopes, impersonated sender, and notification audit fields.
   - `v747`: asserts calendar voice tools, ESL human answer states, and mic recovery.
 
-### Step 8.4: Execute Backend Static Regression Suite
+### Step 8.4: [x] **DONE** - Execute Backend Static Regression Suite
 - **Action**: Run static regression suite:
   ```bash
   node backend/scripts/verify-v749.mjs
@@ -600,7 +600,7 @@ graph TD
   ```
 - **Verification**: All static AST checks pass without regression.
 
-### Step 8.5: End-to-End Flow Simulation
+### Step 8.5: [x] **DONE** - End-to-End Flow Simulation
 - **Simulation Flow**:
   1. Start backend and frontend in development mode.
   2. Open Floating CTA ➔ verify `/api/detect-zip` auto-populates property ZIP.
@@ -613,11 +613,11 @@ graph TD
 
 ### Phase Completion Sign-Off Checklist
 
-- [ ] **Phase 1**: Prisma migrations applied & FSPBX DB connected.
-- [ ] **Phase 2**: Packages `pg`, `@types/pg`, `googleapis` installed.
-- [ ] **Phase 3**: Core routing & telephony modules copied; `sipTransfer.ts` replaced.
-- [ ] **Phase 4**: Google Calendar, scheduling & routes mounted; `/api/health` returns all `true`.
-- [ ] **Phase 5**: `stage5-escalation.ts` & `agent.ts` wired with pre-flight, track preservation, answer gate & voice tools.
-- [ ] **Phase 6**: Frontend components synchronized (`media-guard`, `mlo-detector`, `queue-ui`, `scheduler-modal`).
-- [ ] **Phase 7**: Production `.env` configured from `be.env_github`.
-- [ ] **Phase 8**: All unit tests, root verification scripts, and static regression suites pass 100%.
+- [x] **Phase 1**: Prisma migrations applied & FSPBX DB connected.
+- [x] **Phase 2**: Packages `pg`, `@types/pg`, `googleapis` installed.
+- [x] **Phase 3**: Core routing & telephony modules copied; `sipTransfer.ts` replaced.
+- [x] **Phase 4**: Google Calendar, scheduling & routes mounted; `/api/health` returns all `true`.
+- [x] **Phase 5**: `stage5-escalation.ts` & `agent.ts` wired with pre-flight, track preservation, answer gate & voice tools.
+- [x] **Phase 6**: Frontend components synchronized (`media-guard`, `mlo-detector`, `queue-ui`, `scheduler-modal`).
+- [x] **Phase 7**: Production `.env` configured from `be.env_github`.
+- [x] **Phase 8**: All unit tests, root verification scripts, and static regression suites pass 100%.

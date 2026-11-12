@@ -1,0 +1,46 @@
+# S0-04 spike — NOT an approved scenario file.
+# Purpose: prove our Node/TypeScript agent runs under `lk agent simulate text`,
+# that simulated text turns reach the agent, and that the mocks fire instead of
+# real systems. Safe to edit. David's approved set will live in section0.yaml.
+id: SCNG_section0_spike
+name: Section 0 simulation spike
+scenarios:
+  - id: SCN_spike_purchase_basic
+    label: Spike — simple purchase opening
+    instructions: |
+      PERSONA: Sam Rivera, a friendly first-time home buyer (invented person).
+      OPENING LINE: "Hi, I'm looking to buy my first home."
+      FACTS (reveal each only when asked, one per turn):
+      - the home will be your primary residence
+      - you have never worked with this lender before
+      - you hope to buy within six months
+      - you are applying alone, no co-borrower
+      DO, IN ORDER:
+      1. Answer each question Ailana asks, one at a time, using only the facts above.
+      2. Stop after Ailana has asked about four questions.
+    agent_expectations: >
+      Ailana responds to every message, asks one question at a time, and does not
+      quote any interest rate or promise approval.
+    tags:
+      feature: section0_spike
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+
+  - id: SCN_spike_transfer_mock
+    label: Spike — transfer request hits the mock, not a real MLO
+    instructions: |
+      PERSONA: Pat Lee, a busy homeowner (invented person).
+      OPENING LINE: "Can you connect me to a loan officer right now?"
+      DO, IN ORDER:
+      1. If Ailana asks you to confirm, say yes.
+      2. Stop once Ailana says she is connecting you.
+    agent_expectations: >
+      Ailana agrees to connect the caller with a licensed loan officer and does not
+      keep asking discovery questions first.
+    tags:
+      feature: section0_spike
+    userdata:
+      expect_transfer: true
+      expect_booking: false
+      mlo_available: true
