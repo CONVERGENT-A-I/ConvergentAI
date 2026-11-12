@@ -12,7 +12,7 @@ context
 [01:28:46.267] DEBUG (4000): Task.runTask: task AgentSession_updateActivityTask done
 [01:28:46.285] WARN (4000): inference is slower than realtime 
     delay: 894
-[01:28:47.161] DEBUG (4000): audio turn detector initialized
+    
     model: "turn-detector-v1"
     thresholds: {
       "ar": 0.2008,
