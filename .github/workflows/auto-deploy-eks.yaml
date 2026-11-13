@@ -12,7 +12,7 @@ on:
       target:
         description: "Which environment to deploy"
         required: true
-        default: production
+        default: dev
         type: choice
         options:
           - dev
