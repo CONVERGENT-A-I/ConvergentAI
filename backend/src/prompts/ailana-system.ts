@@ -130,6 +130,7 @@ export function buildLayer2(stage: string = '1', profile: BorrowerProfile = {}):
 }
 
 
+
 /**
  * Static Instructions: Layer 1 (Base persona/voice/compliance) + Layer 2 (Stage-specific guidelines)
  * This block remains stable throughout each stage, anchoring the prefix cache.
