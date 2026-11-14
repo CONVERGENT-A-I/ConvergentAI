@@ -111,7 +111,6 @@ export function buildSection0Block(profile: BorrowerProfile = {}): string {
  * Section 0 Gate: Stage 1 discovery questions (Q1–Q13) CANNOT load until
  * Q9_confirmed is true in session state.
  */
-<<<<<<< HEAD
 export function buildLayer2(stageOrProfile: string | BorrowerProfile = '1', profileArg: BorrowerProfile = {}): string {
   let stage = '1';
   let profile: BorrowerProfile = profileArg;
@@ -131,13 +130,6 @@ export function buildLayer2(stageOrProfile: string | BorrowerProfile = '1', prof
     }
   }
 
-=======
-export function buildLayer2(stage: string = '1', profile: BorrowerProfile = {}): string {
-  if (stage === '0') {
-    // Section 0 (only reachable with SECTION_0_ENABLED) — stops loading once a track is set.
-    return buildStage0Instructions();
-  }
->>>>>>> 07ee6e4f550b27504185b0e90eefdab7746355df
   if (stage === '1') {
     return buildStage1Instructions();
   }
