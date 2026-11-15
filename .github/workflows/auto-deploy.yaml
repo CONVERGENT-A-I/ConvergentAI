@@ -49,7 +49,7 @@ jobs:
             TARGET="dev"
           fi
 
-          if [ "$GITHUB_REF_TYPE" != branch ] || { [ "$TARGET" = dev ] && [ "$GITHUB_REF_NAME" != dev ]; }; then
+          if [ "$GITHUB_REF_TYPE" != "branch" ] || { [ "$TARGET" = dev ] && [ "$GITHUB_REF_NAME" != dev ]; }; then
             echo "Select the matching deployment branch."
             exit 1
           fi
