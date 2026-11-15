@@ -57,9 +57,9 @@ export const ailanaConfig = {
   incomeBandThreshold: parseFloat(process.env.INCOME_BAND_THRESHOLD ?? '0.28'),
   dtiBandThreshold: parseFloat(process.env.DTI_BAND_THRESHOLD ?? '0.45'),
   dtiHardCeiling: parseFloat(process.env.DTI_HARD_CEILING ?? '0.50'),
-  propertyTaxRate: parseFloat(process.env.PROPERTY_TAX_RATE ?? '0.012'),
+  propertyTaxRate: parseFloat(process.env.PROPERTY_TAX_RATE ?? '0.0084'),
+  homeownersInsFlat: parseFloat(process.env.HOMEOWNERS_INS_FLAT ?? '130'),
   homeownersInsRate: parseFloat(process.env.HOMEOWNERS_INS_RATE ?? '0.005'),
-  conventionalPmiRate: parseFloat(process.env.CONVENTIONAL_PMI_RATE ?? '0.0085'),
   fhaMipRate: parseFloat(process.env.FHA_MIP_RATE ?? '0.0055'),
   usdaAnnualFeeRate: parseFloat(process.env.USDA_ANNUAL_FEE_RATE ?? '0.0035'),
 };

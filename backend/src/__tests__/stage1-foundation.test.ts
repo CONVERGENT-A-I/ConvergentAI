@@ -12,9 +12,9 @@ async function runStage1Tests() {
     ailanaConfig.incomeBandThreshold === 0.28 &&
     ailanaConfig.dtiBandThreshold === 0.45 &&
     ailanaConfig.dtiHardCeiling === 0.50 &&
-    ailanaConfig.propertyTaxRate === 0.012 &&
+    ailanaConfig.propertyTaxRate === 0.0084 &&
+    ailanaConfig.homeownersInsFlat === 130 &&
     ailanaConfig.homeownersInsRate === 0.005 &&
-    ailanaConfig.conventionalPmiRate === 0.0085 &&
     ailanaConfig.fhaMipRate === 0.0055 &&
     ailanaConfig.usdaAnnualFeeRate === 0.0035
   ) {

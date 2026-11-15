@@ -165,6 +165,7 @@ export function buildLayer2(stageOrProfile: string | BorrowerProfile = '1', prof
 }
 
 
+
 /**
  * Static Instructions: Layer 1 (Base persona/voice/compliance) + Layer 2 (Stage-specific guidelines)
  * This block remains stable throughout each stage, anchoring the prefix cache.
