@@ -14,6 +14,19 @@ Replace the current dense Affordability Summary (3 headline cards, 6-row financi
 
 ---
 
+## Progress Tracker
+
+| Phase | Description | Status | Tasks Done | Last Updated |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | New Panel Component (Sandbox, Purchase only) | **DONE** | 11/11 | 2026-11-15 |
+| 2 | Sandbox Integration and David's Review | **DONE** (v1/v2 toggle wired, dark glass theme) | 6/6 | 2026-11-15 |
+| 3 | Calculator Updates | **DONE** | 6/6 | 2026-11-15 |
+| 4 | Ailana Prompting Revisions (Backend) | Not started | 0/12 | — |
+| 5 | Real Flow Integration | Not started | 0/9 | — |
+| 6 | Testing and Sign-off | Not started | 0/10 | — |
+
+---
+
 ## What exists today
 
 | File | What it does | Lines |
@@ -34,17 +47,17 @@ Replace the current dense Affordability Summary (3 headline cards, 6-row financi
 
 | # | Task | Details |
 | :--- | :--- | :--- |
-| 1.1 | Create `src/components/affordability-panel-v2.tsx` | New component, light theme. Do NOT modify the existing `affordability-panel-new.tsx` yet — both must coexist until David approves v2. |
-| 1.2 | **Light theme design tokens** | Switch from dark navy to light theme per spec: Electric Blue `#2435F3`, Teal `#22C5CC`, Deep Navy `#061234`, Periwinkle `#8C95F1`, Amber for over-guideline. |
-| 1.3 | **Headline card** | Single card with: Estimated Monthly Payment (large number), Estimated Cash to Close (range: down payment + 2%–3.5% of price for closing costs, rounded to nearest $500). One-line explainers under each. Price shown as context, not a headline. |
-| 1.4 | **Loan programs row** | Collapsed by default: "Loan programs to explore (N)" with Show/Hide toggle. When opened, one factual line per program (Conventional, FHA, VA, USDA) + footer "Final eligibility and terms are decided by the lender." No DTI/LTV per program. |
-| 1.5 | **Soft-check offer card** | "Want verified numbers?" card with "Check my numbers" button. Visible in stated mode only. Hidden in verified mode. |
-| 1.6 | **Comparison card** | "How this compares" with: status chip ("At or under guideline" teal / "Over guideline" amber), one plain-English sentence, horizontal bar (0%–60% track, thin guideline tick, colored marker). Over-guideline planning sentence when applicable. |
-| 1.7 | **Controls card** | Two visible sliders: Home Price ($200k–$1.2M, $5k steps), Down Payment (3%–30%, 0.5% steps, min follows program). "Based on what you shared" line showing income and debts with Edit link (stated mode). "More assumptions" collapsed toggle for rate, insurance, HOA sliders. |
-| 1.8 | **Disclaimer footer** | Fixed wording from spec section 9. Stated-mode addition line. Pinned on desktop split screen, at scroll end on mobile/pop-up. |
-| 1.9 | **Status logic** | Two states only. Comparison % = (monthly payment + monthly debts) / gross monthly income. Chip text + bar marker color change. No third state, no "not eligible", no hard-stop. |
-| 1.10 | **Props contract** | Same props as existing panel: `transactionType`, `cashOutIntent`, `dataMode`, `income`, `monthlyDebts`, `initialAssumptions`, `onRequestSoftPull`. Add `onEditData` callback for the Edit link. Keep the interface backward-compatible. |
-| 1.11 | **Accessibility** | Real `<button>` and `<input>` elements, 44px touch targets, 4.5:1 contrast, labeled sliders with visible values, status by words + position (not color alone). |
+| 1.1 | Create `src/components/affordability-panel-v2.tsx` | New component, light theme. Do NOT modify the existing `affordability-panel-new.tsx` yet — both must coexist until David approves v2. | **DONE** |
+| 1.2 | **Light theme design tokens** | Switch from dark navy to light theme per spec: Electric Blue `#2435F3`, Teal `#22C5CC`, Deep Navy `#061234`, Periwinkle `#8C95F1`, Amber for over-guideline. | **DONE** |
+| 1.3 | **Headline card** | Single card with: Estimated Monthly Payment (large number), Estimated Cash to Close (range: down payment + 2%–3.5% of price for closing costs, rounded to nearest $500). One-line explainers under each. Price shown as context, not a headline. | **DONE** |
+| 1.4 | **Loan programs row** | Collapsed by default: "Loan programs to explore (N)" with Show/Hide toggle. When opened, one factual line per program (Conventional, FHA, VA, USDA) + footer "Final eligibility and terms are decided by the lender." No DTI/LTV per program. | **DONE** |
+| 1.5 | **Soft-check offer card** | "Want verified numbers?" card with "Check my numbers" button. Visible in stated mode only. Hidden in verified mode. | **DONE** |
+| 1.6 | **Comparison card** | "How this compares" with: status chip ("At or under guideline" teal / "Over guideline" amber), one plain-English sentence, horizontal bar (0%–60% track, thin guideline tick, colored marker). Over-guideline planning sentence when applicable. | **DONE** |
+| 1.7 | **Controls card** | Two visible sliders: Home Price ($200k–$1.2M, $5k steps), Down Payment (3%–30%, 0.5% steps, min follows program). "Based on what you shared" line showing income and debts with Edit link (stated mode). "More assumptions" collapsed toggle for rate, insurance, HOA sliders. | **DONE** |
+| 1.8 | **Disclaimer footer** | Fixed wording from spec section 9. Stated-mode addition line. Pinned on desktop split screen, at scroll end on mobile/pop-up. | **DONE** |
+| 1.9 | **Status logic** | Two states only. Comparison % = (monthly payment + monthly debts) / gross monthly income. Chip text + bar marker color change. No third state, no "not eligible", no hard-stop. | **DONE** |
+| 1.10 | **Props contract** | Same props as existing panel: `transactionType`, `cashOutIntent`, `dataMode`, `income`, `monthlyDebts`, `initialAssumptions`, `onRequestSoftPull`. Add `onEditData` callback for the Edit link. Keep the interface backward-compatible. | **DONE** |
+| 1.11 | **Accessibility** | Real `<button>` and `<input>` elements, 44px touch targets, 4.5:1 contrast, labeled sliders with visible values, status by words + position (not color alone). | **DONE** |
 
 **Removed from the current panel (not in v2):**
 
