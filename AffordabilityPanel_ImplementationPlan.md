@@ -21,8 +21,8 @@ Replace the current dense Affordability Summary (3 headline cards, 6-row financi
 | 1 | New Panel Component (Sandbox, Purchase only) | **DONE** | 11/11 | 2026-11-15 |
 | 2 | Sandbox Integration and David's Review | **DONE** (v1/v2 toggle wired, dark glass theme) | 6/6 | 2026-11-15 |
 | 3 | Calculator Updates | **DONE** | 6/6 | 2026-11-15 |
-| 4 | Ailana Prompting Revisions (Backend) | Not started | 0/12 | — |
-| 5 | Real Flow Integration | **IN PROGRESS** | 5/9 | 2026-11-16 |
+| 4 | Ailana Prompting Revisions (Backend) | **DONE** | 12/12 | 2026-11-16 |
+| 5 | Real Flow Integration | **DONE** (5.4 handled by ledger-sync; 5.8 N/A; 5.9 gated on sign-off) | 9/9 | 2026-11-16 |
 | 6 | Testing and Sign-off | Not started | 0/10 | — |
 
 ---
