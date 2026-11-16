@@ -41,7 +41,7 @@ export default function AffordabilitySandboxPage() {
       income={income}
       monthlyDebts={debts}
       eligiblePrograms={eligiblePrograms}
-      showAilanaLine={false}
+      showAilanaLine={true}
       initialAssumptions={{
         purchase: { price: 550000, downPct: 15, rate: 6.375, term: 30, insurance: 130, hoaFee: 0 },
       }}
@@ -387,17 +387,23 @@ export default function AffordabilitySandboxPage() {
                 initial={{ opacity: 0, x: 60 }}
                 animate={{ opacity: 1, x: 0, transition: { delay: 0.08, type: 'spring', stiffness: 280, damping: 26 } }}
                 exit={{ opacity: 0, x: 60, transition: { type: 'spring', stiffness: 300, damping: 30 } }}
-                className={`hidden lg:flex w-[45%] xl:w-[40%] h-full flex-col shrink-0 border-l z-10 border-white/10 bg-[#080c14]/90`}
+                className={`hidden lg:flex w-[45%] xl:w-[40%] h-full flex-col shrink-0 border-l z-10 ${
+                  panelVersion === 'v2' ? 'border-gray-200 bg-[#F7F8FC]' : 'border-white/10 bg-[#080c14]/90'
+                }`}
               >
                 {/* Panel Header */}
-                <div className="flex items-center justify-between px-3 py-2 shrink-0 bg-[#131b2e]/90 border-b border-gray-800/80">
+                <div className={`flex items-center justify-between px-3 py-2 shrink-0 ${
+                  panelVersion === 'v2'
+                    ? 'bg-white border-b border-gray-200'
+                    : 'bg-[#131b2e]/90 border-b border-gray-800/80'
+                }`}>
                   <div className="flex items-center gap-1.5">
                     {panelVersion === 'v1' && <SlidersHorizontal className="w-3.5 h-3.5 text-[#00b4d8]" />}
-                    <span className="text-sm font-bold tracking-wide text-white">
+                    <span className={`text-sm font-bold tracking-wide ${panelVersion === 'v2' ? 'text-[#061234]' : 'text-white'}`}>
                       Affordability Summary
                     </span>
                     {panelVersion === 'v2' ? (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold border border-white/20 text-gray-400 bg-white/5">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold border border-gray-300 text-gray-500 bg-gray-50">
                         {panelMode === 'stated' ? 'Your estimates' : 'Verified'}
                       </span>
                     ) : (
@@ -416,7 +422,9 @@ export default function AffordabilitySandboxPage() {
                       type="button"
                       onClick={() => setIsPanelOpen(false)}
                       title="Minimize"
-                      className="p-1 rounded-md transition cursor-pointer text-gray-400 hover:text-white hover:bg-white/10"
+                      className={`p-1 rounded-md transition cursor-pointer ${
+                        panelVersion === 'v2' ? 'text-gray-400 hover:text-gray-700 hover:bg-gray-100' : 'text-gray-400 hover:text-white hover:bg-white/10'
+                      }`}
                     >
                       <Minus className="w-3.5 h-3.5" />
                     </button>
@@ -424,7 +432,9 @@ export default function AffordabilitySandboxPage() {
                       type="button"
                       onClick={() => setIsPanelOpen(false)}
                       title="Close"
-                      className="p-1 rounded-md transition cursor-pointer text-gray-400 hover:text-white hover:bg-white/10"
+                      className={`p-1 rounded-md transition cursor-pointer ${
+                        panelVersion === 'v2' ? 'text-gray-400 hover:text-gray-700 hover:bg-gray-100' : 'text-gray-400 hover:text-white hover:bg-white/10'
+                      }`}
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -433,7 +443,7 @@ export default function AffordabilitySandboxPage() {
 
                 {/* Panel Content (Scrollable) */}
                 <div className={`flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar flex flex-col ${
-                  panelVersion === 'v2' ? 'p-3 lg:p-3.5' : 'p-2.5 lg:p-3 pb-3 lg:pb-4'
+                  panelVersion === 'v2' ? 'p-3 lg:p-3.5 bg-[#F7F8FC]' : 'p-2.5 lg:p-3 pb-3 lg:pb-4'
                 }`}>
                   {panelVersion === 'v2' ? v2PanelComponent : panelComponent}
                 </div>
@@ -458,21 +468,29 @@ export default function AffordabilitySandboxPage() {
                 initial={{ scale: 0.94, opacity: 0, y: 15 }}
                 animate={{ scale: 1, opacity: 1, y: 0, transition: { type: 'spring', damping: 25, stiffness: 300 } }}
                 exit={{ scale: 0.94, opacity: 0, y: 15, transition: { duration: 0.15 } }}
-                className="w-full max-w-md max-h-[85vh] rounded-xl flex flex-col overflow-hidden bg-[#0B0F19] border border-white/20 shadow-[0_10px_50px_rgba(0,180,216,0.35)]"
+                className={`w-full max-w-md max-h-[85vh] rounded-xl flex flex-col overflow-hidden ${
+                  panelVersion === 'v2'
+                    ? 'bg-[#F7F8FC] border border-gray-200 shadow-[0_10px_50px_rgba(0,0,0,0.15)]'
+                    : 'bg-[#0B0F19] border border-white/20 shadow-[0_10px_50px_rgba(0,180,216,0.35)]'
+                }`}
               >
                 {/* Modal Header */}
-                <div className="flex items-center justify-between px-3 py-2 shrink-0 bg-[#131b2e] border-b border-gray-800">
+                <div className={`flex items-center justify-between px-3 py-2 shrink-0 ${
+                  panelVersion === 'v2' ? 'bg-white border-b border-gray-200' : 'bg-[#131b2e] border-b border-gray-800'
+                }`}>
                   <div className="flex items-center gap-1.5">
                     {panelVersion === 'v1' && (
                       <div className="p-1 rounded-md bg-[#00b4d8]/10 border border-[#00b4d8]/30">
                         <SlidersHorizontal className="w-3.5 h-3.5 text-[#00b4d8]" />
                       </div>
                     )}
-                    <span className="text-xs font-bold tracking-wide block text-white">
+                    <span className={`text-xs font-bold tracking-wide block ${
+                      panelVersion === 'v2' ? 'text-[#061234]' : 'text-white'
+                    }`}>
                       Affordability Summary
                     </span>
                     {panelVersion === 'v2' ? (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold border border-white/20 text-gray-400 bg-white/5 ml-1">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold border border-gray-300 text-gray-500 bg-gray-50 ml-1">
                         {panelMode === 'stated' ? 'Your estimates' : 'Verified'}
                       </span>
                     ) : (
@@ -490,7 +508,9 @@ export default function AffordabilitySandboxPage() {
                     type="button"
                     onClick={() => setIsPanelOpen(false)}
                     title="Close Modal"
-                    className="p-1 rounded-md transition cursor-pointer text-gray-400 hover:text-white hover:bg-white/10"
+                    className={`p-1 rounded-md transition cursor-pointer ${
+                      panelVersion === 'v2' ? 'text-gray-400 hover:text-gray-700 hover:bg-gray-100' : 'text-gray-400 hover:text-white hover:bg-white/10'
+                    }`}
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -498,7 +518,7 @@ export default function AffordabilitySandboxPage() {
 
                 {/* Modal Scrollable Body */}
                 <div className={`flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar ${
-                  panelVersion === 'v2' ? 'p-3' : 'p-2'
+                  panelVersion === 'v2' ? 'p-3 bg-[#F7F8FC]' : 'p-2'
                 }`}>
                   {panelVersion === 'v2' ? v2PanelComponent : panelComponent}
                 </div>

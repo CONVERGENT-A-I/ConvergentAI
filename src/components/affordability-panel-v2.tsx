@@ -3,33 +3,34 @@
 import React, { useMemo, useState, useCallback } from "react";
 
 /* ─────────────────────────────────────────────
-   DESIGN TOKENS — Dark glass theme (matching v1)
-   Teal #00B4D8, Deep Navy #0B0F19, Amber
+   DESIGN TOKENS — Light theme per David's spec
+   Electric Blue #2435F3, Teal #22C5CC,
+   Deep Navy #061234, Periwinkle #8C95F1, Amber
    ───────────────────────────────────────────── */
 const C = {
-  bg: "transparent",
-  cardBg: "rgba(255,255,255,0.04)",
-  cardBorder: "rgba(255,255,255,0.10)",
-  navy: "#F8FAFC",
-  navySoft: "#CBD5E1",
-  navyMuted: "#94A3B8",
-  teal: "#00B4D8",
-  tealDark: "#00B4D8",
-  tealBg: "rgba(0,180,216,0.12)",
-  tealBorder: "rgba(0,180,216,0.30)",
-  blue: "#00B4D8",
-  blueBg: "rgba(0,180,216,0.08)",
+  bg: "#F7F8FC",
+  cardBg: "#FFFFFF",
+  cardBorder: "#E2E5F1",
+  navy: "#061234",
+  navySoft: "#3A4260",
+  navyMuted: "#6B7194",
+  teal: "#22C5CC",
+  tealDark: "#1A9BA1",
+  tealBg: "#E8FAFB",
+  tealBorder: "#B2EEF0",
+  blue: "#2435F3",
+  blueBg: "#EEF0FE",
   periwinkle: "#8C95F1",
-  periwinkleBorder: "rgba(0,180,216,0.25)",
-  amber: "#F59E0B",
-  amberBg: "rgba(245,158,11,0.12)",
-  amberBorder: "rgba(245,158,11,0.30)",
-  textPrimary: "#F8FAFC",
-  textSecondary: "#CBD5E1",
-  textMuted: "#94A3B8",
-  textLight: "#64748B",
-  sliderTrack: "rgba(255,255,255,0.10)",
-  sliderFill: "#00B4D8",
+  periwinkleBorder: "#C5C9F7",
+  amber: "#D97706",
+  amberBg: "#FEF3C7",
+  amberBorder: "#FDE68A",
+  textPrimary: "#061234",
+  textSecondary: "#3A4260",
+  textMuted: "#6B7194",
+  textLight: "#9CA3C0",
+  sliderTrack: "#E2E5F1",
+  sliderFill: "#2435F3",
 } as const;
 
 /* ─────────────────────────────────────────────
@@ -211,7 +212,7 @@ function GuidelineBar({ value, guideline }: { value: number; guideline: number }
       {/* Guideline tick */}
       <div
         className="absolute top-0 transition-all duration-300"
-        style={{ left: `${guidelinePos}%`, width: 2, height: 18, background: "rgba(255,255,255,0.5)", borderRadius: 1, transform: "translateX(-1px)" }}
+        style={{ left: `${guidelinePos}%`, width: 2, height: 18, background: C.navy, borderRadius: 1, transform: "translateX(-1px)" }}
       />
       {/* Marker dot */}
       <div
@@ -222,8 +223,8 @@ function GuidelineBar({ value, guideline }: { value: number; guideline: number }
           height: 14,
           borderRadius: "50%",
           background: fillColor,
-          border: `2px solid rgba(255,255,255,0.2)`,
-          boxShadow: `0 0 8px ${fillColor}60`,
+          border: `3px solid white`,
+          boxShadow: `0 0 0 1px ${fillColor}40`,
           transform: "translate(-50%, -50%)",
         }}
       />
@@ -299,7 +300,7 @@ export function AffordabilityPanelV2({
         <div className="flex items-start gap-2 mb-3 px-1">
           <div
             className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-white font-bold"
-            style={{ background: "rgba(0,180,216,0.25)", border: "1px solid rgba(0,180,216,0.4)", fontSize: 11 }}
+            style={{ background: C.navy, fontSize: 11 }}
           >
             A
           </div>
@@ -312,7 +313,7 @@ export function AffordabilityPanelV2({
       {/* ── 2. HEADLINE CARD ── */}
       <div
         className="rounded-xl p-4 mb-2"
-        style={{ background: C.cardBg, border: `1px solid ${C.cardBorder}`, backdropFilter: "blur(12px)" }}
+        style={{ background: C.cardBg, border: `1px solid ${C.cardBorder}` }}
       >
         {/* Monthly Payment */}
         <div className="mb-3">
@@ -323,13 +324,16 @@ export function AffordabilityPanelV2({
             Estimated Monthly Payment
           </div>
           <div className="flex items-baseline gap-1">
-            <span style={{ color: "#00B4D8", fontSize: 32, fontWeight: 700, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+            <span style={{ color: C.navy, fontSize: 32, fontWeight: 700, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
               ${fmt(calc.pitia)}
             </span>
             <span style={{ color: C.navyMuted, fontSize: 14 }}>/mo</span>
           </div>
           <p style={{ color: C.textMuted, fontSize: 11, marginTop: 3, lineHeight: 1.3 }}>
-            Principal, interest, taxes, insurance and MI, estimated.
+            Principal, interest, taxes, insurance and mortgage insurance, estimated.
+          </p>
+          <p style={{ color: C.textLight, fontSize: 10, marginTop: 2, lineHeight: 1.3 }}>
+            Based on a conventional loan.
           </p>
         </div>
 
@@ -343,7 +347,7 @@ export function AffordabilityPanelV2({
           >
             Estimated Cash to Close
           </div>
-          <div style={{ color: "#00B4D8", fontSize: 18, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+          <div style={{ color: C.navy, fontSize: 18, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
             ${fmt(calc.cashLow)} to ${fmt(calc.cashHigh)}
           </div>
           <p style={{ color: C.textMuted, fontSize: 11, marginTop: 2, lineHeight: 1.3 }}>
@@ -355,7 +359,7 @@ export function AffordabilityPanelV2({
       {/* ── 3. LOAN PROGRAMS ROW ── */}
       <div
         className="rounded-xl mb-2"
-        style={{ background: C.cardBg, border: `1px solid ${C.cardBorder}`, backdropFilter: "blur(12px)" }}
+        style={{ background: C.cardBg, border: `1px solid ${C.cardBorder}` }}
       >
         <button
           type="button"
@@ -394,16 +398,16 @@ export function AffordabilityPanelV2({
       {dataMode === "stated" && (
         <div
           className="rounded-xl p-4 mb-2"
-          style={{ background: C.blueBg, border: `1px solid ${C.periwinkleBorder}`, backdropFilter: "blur(12px)" }}
+          style={{ background: C.blueBg, border: `1px solid ${C.periwinkleBorder}` }}
         >
           <p style={{ color: C.textPrimary, fontSize: 12, lineHeight: 1.4, margin: 0, marginBottom: 10 }}>
-            <strong>Want verified numbers?</strong> A soft credit check replaces estimates with your real figures. No impact to your score.
+            <strong>Want verified numbers?</strong> A soft credit check replaces your estimates with your real figures. No impact to your credit score.
           </p>
           <button
             type="button"
             onClick={onRequestSoftPull}
-            className="px-5 py-2 rounded-lg text-white font-semibold cursor-pointer transition-all hover:opacity-90"
-            style={{ background: C.blue, fontSize: 12, boxShadow: `0 0 12px rgba(0,180,216,0.3)` }}
+            className="px-5 py-2 rounded-lg text-white font-semibold cursor-pointer transition-opacity hover:opacity-90"
+            style={{ background: C.navy, fontSize: 12 }}
           >
             Check my numbers
           </button>
@@ -413,7 +417,7 @@ export function AffordabilityPanelV2({
       {/* ── 5. COMPARISON CARD ── */}
       <div
         className="rounded-xl p-4 mb-2"
-        style={{ background: C.cardBg, border: `1px solid ${C.cardBorder}`, backdropFilter: "blur(12px)" }}
+        style={{ background: C.cardBg, border: `1px solid ${C.cardBorder}` }}
       >
         <div className="flex items-center justify-between mb-1.5">
           <span style={{ color: C.navy, fontSize: 13, fontWeight: 700 }}>How this compares</span>
@@ -430,11 +434,11 @@ export function AffordabilityPanelV2({
           </span>
         </div>
         <p style={{ color: C.textSecondary, fontSize: 12, lineHeight: 1.4, margin: 0 }}>
-          About {Math.round(calc.comparisonPct)}% of income goes to housing + debts. Guideline is up to {prog.guideline}%.
+          About {Math.round(calc.comparisonPct)}% of your income would go to housing and debts. The typical guideline is up to {prog.guideline}%.
         </p>
         {calc.isOver && (
           <p style={{ color: C.textMuted, fontSize: 11, lineHeight: 1.4, marginTop: 4, fontStyle: "italic" }}>
-            For your planning only. You can keep exploring or continue either way.
+            That is only information for your planning. You can keep exploring, or continue, either way.
           </p>
         )}
         <GuidelineBar value={calc.comparisonPct} guideline={prog.guideline} />
@@ -443,7 +447,7 @@ export function AffordabilityPanelV2({
       {/* ── 6. CONTROLS CARD ── */}
       <div
         className="rounded-xl p-4 mb-2"
-        style={{ background: C.cardBg, border: `1px solid ${C.cardBorder}`, backdropFilter: "blur(12px)" }}
+        style={{ background: C.cardBg, border: `1px solid ${C.cardBorder}` }}
       >
         <div style={{ color: C.navy, fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
           Try different numbers
@@ -472,7 +476,7 @@ export function AffordabilityPanelV2({
         {/* Applicant data line */}
         <div className="pt-2 mt-0.5 border-t flex items-start justify-between gap-2" style={{ borderColor: C.cardBorder }}>
           <p style={{ color: C.textMuted, fontSize: 11, lineHeight: 1.4, margin: 0 }}>
-            Based on: ${fmt(income)}/mo income, ${fmt(monthlyDebts)}/mo debts
+            Based on what you shared: ${fmt(income)} per month income, ${fmt(monthlyDebts)} per month debts
           </p>
           {dataMode === "stated" && (
             <button
@@ -494,7 +498,7 @@ export function AffordabilityPanelV2({
           style={{ color: C.blue, fontSize: 12, fontWeight: 600, background: "none", border: "none", padding: 0 }}
           aria-expanded={moreOpen}
         >
-          {moreOpen ? "Hide assumptions" : "More assumptions (rate, insurance, HOA)"}
+          {moreOpen ? "Hide more assumptions" : "More assumptions (rate, insurance, HOA)"}
         </button>
 
         {moreOpen && (
@@ -533,8 +537,8 @@ export function AffordabilityPanelV2({
       {/* ── 7. DISCLAIMER ── */}
       <div className="px-1 pb-1">
         <p style={{ color: C.textLight, fontSize: 10, lineHeight: 1.4, margin: 0 }}>
-          Educational estimate only. Not a loan application, rate lock, or commitment to lend. Final terms depend on underwriting by a licensed MLO (NMLS).
-          {dataMode === "stated" && " Based on estimates you shared."}
+          Educational estimate only. Not a loan application, rate lock, or commitment to lend. Final terms depend on underwriting and verification by a licensed Mortgage Loan Originator (NMLS).
+          {dataMode === "stated" && " This summary is based on the estimates you have shared."}
         </p>
       </div>
 
@@ -547,22 +551,22 @@ export function AffordabilityPanelV2({
         .afford-v2-slider::-webkit-slider-thumb {
           -webkit-appearance: none;
           appearance: none;
-          width: 14px;
-          height: 14px;
+          width: 18px;
+          height: 18px;
           border-radius: 50%;
           background: ${C.blue};
-          border: 2px solid rgba(11,15,25,0.6);
-          box-shadow: 0 0 8px rgba(0,180,216,0.5);
+          border: 3px solid white;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.15);
           cursor: pointer;
-          margin-top: -4.5px;
+          margin-top: -6.5px;
         }
         .afford-v2-slider::-moz-range-thumb {
-          width: 14px;
-          height: 14px;
+          width: 18px;
+          height: 18px;
           border-radius: 50%;
           background: ${C.blue};
-          border: 2px solid rgba(11,15,25,0.6);
-          box-shadow: 0 0 8px rgba(0,180,216,0.5);
+          border: 3px solid white;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.15);
           cursor: pointer;
         }
         .afford-v2-slider::-webkit-slider-runnable-track {

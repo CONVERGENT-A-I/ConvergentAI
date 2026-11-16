@@ -22,7 +22,7 @@ Replace the current dense Affordability Summary (3 headline cards, 6-row financi
 | 2 | Sandbox Integration and David's Review | **DONE** (v1/v2 toggle wired, dark glass theme) | 6/6 | 2026-11-15 |
 | 3 | Calculator Updates | **DONE** | 6/6 | 2026-11-15 |
 | 4 | Ailana Prompting Revisions (Backend) | Not started | 0/12 | — |
-| 5 | Real Flow Integration | Not started | 0/9 | — |
+| 5 | Real Flow Integration | **IN PROGRESS** | 5/9 | 2026-11-16 |
 | 6 | Testing and Sign-off | Not started | 0/10 | — |
 
 ---
