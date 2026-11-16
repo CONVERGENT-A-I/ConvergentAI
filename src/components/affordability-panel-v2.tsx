@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useRef, useEffect } from "react";
 
 /* ─────────────────────────────────────────────
    DESIGN TOKENS — Light theme per David's spec
@@ -235,6 +235,10 @@ function GuidelineBar({ value, guideline }: { value: number; guideline: number }
 /* ─────────────────────────────────────────────
    MAIN COMPONENT
    ───────────────────────────────────────────── */
+function trackAffordV2(event: string, data?: Record<string, unknown>) {
+  console.log(`[afford-v2-event] ${event}`, data ?? '');
+}
+
 export function AffordabilityPanelV2({
   transactionType = "TT-PUR",
   dataMode = "stated",
@@ -265,6 +269,24 @@ export function AffordabilityPanelV2({
   const [programsOpen, setProgramsOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
 
+  const mountTime = useRef(Date.now());
+  const hasInteracted = useRef(false);
+  const overShown = useRef(false);
+
+  useEffect(() => {
+    trackAffordV2('panel_shown', { mode: dataMode, surface: showAilanaLine ? 'mobile' : 'desktop', transactionType });
+    return () => {
+      if (!hasInteracted.current) trackAffordV2('panel_closed_no_interaction');
+    };
+  }, []);
+
+  const markInteraction = useCallback((source: string) => {
+    if (!hasInteracted.current) {
+      hasInteracted.current = true;
+      trackAffordV2('first_interaction', { source, timeMs: Date.now() - mountTime.current });
+    }
+  }, []);
+
   const activeProgram: ProgramId = eligiblePrograms[0] ?? "conventional";
   const prog = PROGRAMS[activeProgram];
   const effectiveDownPct = Math.max(downPct, prog.minDownPct);
@@ -289,6 +311,13 @@ export function AffordabilityPanelV2({
 
     return { pitia, downAmt, comparisonPct, isOver, cashLow, cashHigh, ltv, baseLoan, totalLoan, pi, tax, mi };
   }, [price, effectiveDownPct, rate, insurance, hoaFee, income, monthlyDebts, prog, defaults.term]);
+
+  useEffect(() => {
+    if (calc.isOver && !overShown.current) {
+      overShown.current = true;
+      trackAffordV2('over_guideline_shown', { comparisonPct: Math.round(calc.comparisonPct) });
+    }
+  }, [calc.isOver, calc.comparisonPct]);
 
   const displayLine = ailanaLine ?? `Here is what your numbers look like at $${fmt(price)}.`;
 
@@ -363,7 +392,7 @@ export function AffordabilityPanelV2({
       >
         <button
           type="button"
-          onClick={() => setProgramsOpen(!programsOpen)}
+          onClick={() => { const next = !programsOpen; setProgramsOpen(next); if (next) { markInteraction('programs_row'); trackAffordV2('programs_row_opened'); } }}
           className="w-full flex items-center justify-between px-4 py-2.5 cursor-pointer"
           aria-expanded={programsOpen}
         >
@@ -405,7 +434,7 @@ export function AffordabilityPanelV2({
           </p>
           <button
             type="button"
-            onClick={onRequestSoftPull}
+            onClick={() => { markInteraction('soft_pull'); trackAffordV2('check_my_numbers_tapped'); onRequestSoftPull?.(); }}
             className="px-5 py-2 rounded-lg text-white font-semibold cursor-pointer transition-opacity hover:opacity-90"
             style={{ background: C.navy, fontSize: 12 }}
           >
@@ -460,7 +489,7 @@ export function AffordabilityPanelV2({
           max={1200000}
           step={5000}
           displayValue={`$${fmt(price)}`}
-          onChange={setPrice}
+          onChange={(v: number) => { setPrice(v); markInteraction('price_slider'); trackAffordV2('price_slider_moved'); }}
         />
 
         <Slider
@@ -470,7 +499,7 @@ export function AffordabilityPanelV2({
           max={30}
           step={0.5}
           displayValue={`${downPct.toFixed(1)}% ($${fmt(Math.round(price * (effectiveDownPct / 100)))})`}
-          onChange={setDownPct}
+          onChange={(v: number) => { setDownPct(v); markInteraction('down_slider'); trackAffordV2('down_slider_moved'); }}
         />
 
         {/* Applicant data line */}
@@ -481,7 +510,7 @@ export function AffordabilityPanelV2({
           {dataMode === "stated" && (
             <button
               type="button"
-              onClick={onEditData}
+              onClick={() => { markInteraction('edit'); trackAffordV2('edit_tapped'); onEditData?.(); }}
               className="shrink-0 cursor-pointer"
               style={{ color: C.blue, fontSize: 11, fontWeight: 600, textDecoration: "underline", background: "none", border: "none", padding: 0 }}
             >
@@ -493,7 +522,7 @@ export function AffordabilityPanelV2({
         {/* More assumptions toggle */}
         <button
           type="button"
-          onClick={() => setMoreOpen(!moreOpen)}
+          onClick={() => { const next = !moreOpen; setMoreOpen(next); if (next) { markInteraction('more_assumptions'); trackAffordV2('more_assumptions_opened'); } }}
           className="mt-2 cursor-pointer"
           style={{ color: C.blue, fontSize: 12, fontWeight: 600, background: "none", border: "none", padding: 0 }}
           aria-expanded={moreOpen}

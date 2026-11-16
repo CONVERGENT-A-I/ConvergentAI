@@ -23,7 +23,7 @@ Replace the current dense Affordability Summary (3 headline cards, 6-row financi
 | 3 | Calculator Updates | **DONE** | 6/6 | 2026-11-15 |
 | 4 | Ailana Prompting Revisions (Backend) | **DONE** | 12/12 | 2026-11-16 |
 | 5 | Real Flow Integration | **DONE** (5.4 handled by ledger-sync; 5.8 N/A; 5.9 gated on sign-off) | 9/9 | 2026-11-16 |
-| 6 | Testing and Sign-off | Not started | 0/10 | — |
+| 6 | Testing and Sign-off | **IN PROGRESS** (6.9 analytics wired; 6.1–6.8, 6.10 need manual testing + David) | 1/10 | 2026-11-16 |
 
 ---
 
