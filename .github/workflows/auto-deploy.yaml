@@ -211,8 +211,26 @@ jobs:
             -o yaml >> "$CONFIG_FILE"
 
           kubectl apply -f "$CONFIG_FILE" -n "$NAMESPACE"
-          
-      # 7. helm deploy into Cluster
+
+      # 7. Create EKS cluster secret from secret manager
+      - name: Sync Google credentials from Secrets Manager to EKS
+        env:
+          DOCKER_ENV: ${{ steps.env.outputs.docker_env }}
+          NAMESPACE: ${{ steps.env.outputs.namespace }}
+          RELEASE: ${{ steps.env.outputs.helm_release }}
+          ACM_ARN: ${{ vars.ACM_CERTIFICATE_ARN }}
+          VALUES_FILE: ${{ steps.env.outputs.values_file }}
+        run: |
+          GOOGLE_JSON=$(aws secretsmanager get-secret-value \
+            --secret-id convergentai/google-service-account \
+            --query SecretString --output text --region us-east-1)
+
+          kubectl create secret generic google-calendar-secret \
+            --namespace "$NAMESPACE" \
+            --from-literal=GOOGLE_SERVICE_ACCOUNT_JSON="$GOOGLE_JSON" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      # 8. helm deploy into Cluster
       - name: Helm upgrade
         env:
           DOCKER_ENV: ${{ steps.env.outputs.docker_env }}
