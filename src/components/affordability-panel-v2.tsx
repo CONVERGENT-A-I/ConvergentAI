@@ -268,6 +268,7 @@ export function AffordabilityPanelV2({
   const [hoaFee, setHoaFee] = useState(defaults.hoaFee);
   const [programsOpen, setProgramsOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [activeProgram, setActiveProgram] = useState<ProgramId>(eligiblePrograms[0] ?? "conventional");
 
   const mountTime = useRef(Date.now());
   const hasInteracted = useRef(false);
@@ -287,7 +288,14 @@ export function AffordabilityPanelV2({
     }
   }, []);
 
-  const activeProgram: ProgramId = eligiblePrograms[0] ?? "conventional";
+  const handleProgramSelect = useCallback((pid: ProgramId) => {
+    setActiveProgram(pid);
+    markInteraction('program_select');
+    trackAffordV2('program_selected', { program: pid });
+    const newMin = PROGRAMS[pid].minDownPct;
+    if (downPct < newMin) setDownPct(newMin);
+  }, [downPct, markInteraction]);
+
   const prog = PROGRAMS[activeProgram];
   const effectiveDownPct = Math.max(downPct, prog.minDownPct);
 
@@ -362,7 +370,7 @@ export function AffordabilityPanelV2({
             Principal, interest, taxes, insurance and mortgage insurance, estimated.
           </p>
           <p style={{ color: C.textLight, fontSize: 10, marginTop: 2, lineHeight: 1.3 }}>
-            Based on a conventional loan.
+            Based on a {prog.label} loan.
           </p>
         </div>
 
@@ -397,7 +405,7 @@ export function AffordabilityPanelV2({
           aria-expanded={programsOpen}
         >
           <span style={{ color: C.textPrimary, fontSize: 13, fontWeight: 500 }}>
-            Loan programs to explore ({eligiblePrograms.length})
+            {programsOpen ? `Loan programs to explore (${eligiblePrograms.length})` : `${prog.label} selected · ${eligiblePrograms.length} programs`}
           </span>
           <span style={{ color: C.blue, fontSize: 12, fontWeight: 600 }}>
             {programsOpen ? "Hide" : "Show"}
@@ -409,11 +417,33 @@ export function AffordabilityPanelV2({
             {eligiblePrograms.map((pid) => {
               const p = PROGRAMS[pid];
               if (!p) return null;
+              const isActive = pid === activeProgram;
               return (
-                <div key={pid} className="py-2 border-b last:border-b-0" style={{ borderColor: C.cardBorder }}>
-                  <div style={{ color: C.navy, fontSize: 12, fontWeight: 600, marginBottom: 1 }}>{p.label}</div>
-                  <div style={{ color: C.textMuted, fontSize: 11, lineHeight: 1.3 }}>{p.description}</div>
-                </div>
+                <button
+                  key={pid}
+                  type="button"
+                  onClick={() => handleProgramSelect(pid)}
+                  className="w-full text-left py-2.5 px-3 my-1 rounded-lg cursor-pointer transition-colors"
+                  style={{
+                    background: isActive ? C.blueBg : "transparent",
+                    border: isActive ? `1.5px solid ${C.blue}` : "1.5px solid transparent",
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="shrink-0 rounded-full flex items-center justify-center"
+                      style={{
+                        width: 16, height: 16,
+                        border: `2px solid ${isActive ? C.blue : C.sliderTrack}`,
+                        background: isActive ? C.blue : "transparent",
+                      }}
+                    >
+                      {isActive && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "white" }} />}
+                    </div>
+                    <span style={{ color: C.navy, fontSize: 12, fontWeight: 600 }}>{p.label}</span>
+                  </div>
+                  <div style={{ color: C.textMuted, fontSize: 11, lineHeight: 1.3, marginTop: 2, paddingLeft: 24 }}>{p.description}</div>
+                </button>
               );
             })}
             <p style={{ color: C.textLight, fontSize: 10, marginTop: 8, fontStyle: "italic" }}>
