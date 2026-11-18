@@ -77,6 +77,7 @@ export class SessionContextManager {
   private lastProcessedInput: string | null = null;
   private lowConfidence = false;
   private fieldAttempts: Record<string, number> = {};
+  private recentAssistantQuestions: string[] = [];
   private softPullExplanationCount = 0;
 
   // Section 0 (SECTION_0_ENABLED): memory + routing state
@@ -2685,6 +2686,8 @@ export class SessionContextManager {
     const trimmed = text.trim();
     if (!trimmed) return;
     this.turnLog.push({ role: 'assistant', text: trimmed, timestamp: Date.now() });
+    this.recentAssistantQuestions.push(trimmed);
+    if (this.recentAssistantQuestions.length > 5) this.recentAssistantQuestions.shift();
     this.profile.bridge_to_say = null;
     this.trackSwitchNotice = null; // acknowledged (S0-18)
     if (ailanaConfig.section0Enabled) {
@@ -3942,8 +3945,10 @@ export class SessionContextManager {
           ? { taskOverride: (this.handoffTaskText() ?? this.noteTaskText())! }
           : taskOverride ? { taskOverride } : {}),
       };
+      this.profile._recentAssistantQuestions = this.recentAssistantQuestions;
       return buildDynamicContext(this.profile, this.currentPendingField, this.activeStage, this.lowConfidence, extras);
     }
+    this.profile._recentAssistantQuestions = this.recentAssistantQuestions;
     return buildDynamicContext(this.profile, this.currentPendingField, this.activeStage, this.lowConfidence);
   }
 
@@ -4147,7 +4152,7 @@ export class SessionContextManager {
       if (chatCtx.items.length > 2) {
         const originalItemIds = new Set(chatCtx.items.map(i => i.id));
         const summarized = await chatCtx._summarize(this.summarizationLlm, {
-          keepLastTurns: 2,
+          keepLastTurns: 4,
         });
 
         if (isIdle && !isIdle()) {
