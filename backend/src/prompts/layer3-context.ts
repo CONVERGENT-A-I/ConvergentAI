@@ -514,10 +514,10 @@ You MUST ask for the borrower's full name to set up their secure login.
 Say EXACTLY: "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your full name?"
 Do NOT ask for email or mobile yet. Do NOT mention the soft pull until after OTP is verified.`;
   } else if (pendingField === 'contact_email') {
-    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT EMAIL AND MOBILE ***
-You MUST ask for the borrower's email and mobile number together in ONE question.
-Say EXACTLY: "Great. Now, what email address and mobile number would you like to use for your account?"
-Do NOT ask for anything else. Do NOT mention the soft pull until after OTP is verified.`;
+    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT EMAIL ***
+You MUST ask for the borrower's email address ONLY on this turn.
+Say EXACTLY: "Great. Now, what email address would you like to use for your account?"
+Do NOT ask for their mobile number yet — that comes next. Do NOT mention the soft pull until after OTP is verified.`;
   } else if (pendingField === 'contact_mobile') {
     otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT MOBILE ***
 The email was captured. Now ask for their mobile number.
