@@ -1,0 +1,189 @@
+# Redundancy stress-test scenarios — PROPOSED, not approved.
+# These scenarios run LONG conversations (10+ turns) specifically designed to
+# trigger compaction (every 10 turns) and verify the agent never repeats a
+# question the borrower already answered. Run with SECTION_0_ENABLED=true.
+# All people and numbers are invented.
+id: SCNG_redundancy_stress
+name: Redundancy stress tests — compaction & repeat prevention
+scenarios:
+
+  # ─── R-STRESS-1: Full flow through Section 0 → Stage 3A contact → prefill ───
+  - id: SCN_redundancy_full_flow
+    label: "R-STRESS-1 — full flow: facts → contact → prefill, check no repeats after compaction"
+    instructions: |
+      PERSONA: Morgan Davis, a first-time buyer with straightforward finances (invented person).
+      OPENING LINE: "Hi, I'd like to buy a home. I make 84,000 a year, my monthly debts are 1,200, and my credit score is about 710."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Morgan
+      - never worked with this lender before
+      - hoping to buy within two months
+      - applying alone, no co-borrower
+      - 15,000 saved for down payment
+      - currently renting
+      - no real estate agent yet
+      - target price around 300,000, a single-family home in Chattanooga, TN 37421
+      - no military service
+      - salaried at the same employer for 5 years
+      - when offered a choice between soft credit review and manual summary, choose: "Let's do the soft credit review"
+      - full name for account: Morgan Davis
+      - email: morgandavis@gmail.com
+      - mobile: 4235551234
+      - when asked to confirm contact details, say: "Yes, that's correct"
+      - when asked to enter OTP/verification code, say: "I've entered the code"
+      - when asked to confirm address on file, say: "Yes that's right"
+      - when asked to confirm employer on file, say: "Yes, correct"
+      - when asked about open accounts, say: "Yes, that looks right"
+      - when asked about credit rating/range, say: "Yes, that's what I expected"
+      HOW TO ANSWER: one short, natural answer per turn. If Ailana asks for something you
+      already stated, answer it once more briefly but note "I think I already mentioned that."
+      STOP: after confirming all prefill steps (address, employer, accounts, credit rating),
+      or after 25 of your replies — whichever comes first.
+    agent_expectations: >
+      Collects the opening facts (income, debts, credit score) and NEVER asks for them again
+      at any later point in the conversation. After the borrower gives their first name, never
+      asks for the first name again. After collecting email, never asks for email again. After
+      collecting mobile number, never asks for mobile again. After the borrower confirms their
+      address, never asks to confirm address again. After confirming employer, never asks about
+      employer again. After confirming accounts, never re-asks about accounts. After confirming
+      credit rating, never re-asks about credit rating. No question is repeated verbatim or
+      in close paraphrase at any point. The agent moves forward through the flow without loops
+      or backward steps. Does not quote a rate or promise approval.
+    tags:
+      feature: redundancy_stress
+      test_set_id: "R-STRESS-1"
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+
+  # ─── R-STRESS-2: Credit rating confirmation — the exact scenario David reported ───
+  - id: SCN_redundancy_credit_confirm
+    label: "R-STRESS-2 — credit rating confirmed then immediately re-asked (David's bug)"
+    instructions: |
+      PERSONA: Alex Rivera, a buyer going through soft pull (invented person).
+      OPENING LINE: "I want to buy a home for about 280,000. I make 92,000 a year, have 900 in monthly debt, and my credit is around 735."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Alex
+      - never worked with this lender before
+      - hoping to buy within three months
+      - applying alone
+      - 20,000 saved
+      - currently renting
+      - no real estate agent yet
+      - single-family in Chattanooga, TN 37421
+      - no military service
+      - salaried, same employer 7 years
+      - choose soft credit review when offered
+      - full name: Alex Rivera
+      - email: alexrivera@outlook.com
+      - mobile: 4235559876
+      - confirm contact details: "Yes, all correct"
+      - enter OTP: "Done, I've entered the code"
+      - confirm address: "Yes"
+      - confirm employer: "That's right"
+      - confirm accounts: "Looks good"
+      - confirm credit rating: "Yes, that's what I expected"
+      - IMPORTANT: If Ailana asks about your credit rating a SECOND time after you already
+        confirmed it, respond: "You already asked me that and I confirmed it."
+      HOW TO ANSWER: one short answer per turn. Be patient but note any repeats.
+      STOP: after confirming credit rating, or after 25 replies.
+    agent_expectations: >
+      After the borrower confirms the credit rating with "Yes, that's what I expected," the
+      agent MUST NOT ask about credit rating, credit range, credit profile, or credit score
+      again. The next topic must be a new item (affordability panel, next steps, or submission).
+      The borrower should never need to say "You already asked me that." No question is repeated
+      verbatim. No prefill confirmation step is revisited after the borrower confirms it.
+      Does not quote a rate or promise approval.
+    tags:
+      feature: redundancy_stress
+      test_set_id: "R-STRESS-2"
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+
+  # ─── R-STRESS-3: Contact collection — email then mobile separately, no repeat ───
+  - id: SCN_redundancy_contact_separate
+    label: "R-STRESS-3 — email and mobile collected in separate turns, no re-asking"
+    instructions: |
+      PERSONA: Sam Chen, a buyer setting up their account (invented person).
+      OPENING LINE: "Hi, I'm looking to purchase a home. I earn about 75,000, owe about 800 a month, and my score is 690."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Sam
+      - never worked with this lender
+      - want to buy in about four months
+      - applying alone
+      - 10,000 saved
+      - currently renting
+      - no agent yet
+      - looking at about 250,000, a condo in Chattanooga, TN 37421
+      - no military service
+      - salaried, same employer 3 years
+      - choose soft credit review
+      - full name: Sam Chen
+      - when asked for email: "samchen at gmail dot com" (provide ONLY email, do NOT volunteer phone)
+      - when asked for mobile: "423-555-7890" (provide ONLY phone)
+      - confirm contact details: "Yes, perfect"
+      - enter OTP: "I've entered it"
+      HOW TO ANSWER: Provide ONLY what is asked. When asked for email, give only email.
+      When asked for mobile, give only mobile. Do not volunteer both at once.
+      STOP: after OTP confirmation, or after 20 replies.
+    agent_expectations: >
+      Asks for email address FIRST in its own turn, without also asking for mobile number
+      in the same question. After receiving the email, asks for mobile number in a SEPARATE
+      turn. After collecting both, confirms the contact details. Never asks for email twice.
+      Never asks for mobile twice. Never asks for both in one question. The contact collection
+      flows smoothly: email → mobile → confirm → OTP. Does not quote a rate or promise approval.
+    tags:
+      feature: redundancy_stress
+      test_set_id: "R-STRESS-3"
+    userdata:
+      expect_transfer: false
+      expect_booking: false
+
+  # ─── R-STRESS-4: Long conversation — ensure compaction doesn't cause repeats ───
+  - id: SCN_redundancy_long_conversation
+    label: "R-STRESS-4 — 15+ turn conversation, compaction fires, no repeats"
+    instructions: |
+      PERSONA: Jordan Taylor, a detailed buyer who answers one thing at a time (invented person).
+      OPENING LINE: "Hello, I'm interested in buying a house."
+      FACTS (reveal each only when asked, one per turn; never volunteer extra):
+      - first name: Jordan
+      - want to purchase a home as primary residence
+      - make about 105,000 a year
+      - monthly debts are 1,500
+      - credit score around 760
+      - never worked with this lender
+      - want to buy within 60 days
+      - applying with spouse (co-borrower)
+      - spouse makes 55,000 a year
+      - 40,000 saved for down payment
+      - currently own a home (selling it)
+      - have a real estate agent
+      - target price around 425,000, single-family in Ooltewah, TN 37363
+      - no military service
+      - salaried, same employer 12 years
+      - choose soft credit review when offered
+      - full name: Jordan Taylor
+      - email: jordantaylor@yahoo.com
+      - mobile: 4235554321
+      - confirm contact details: "That's all correct"
+      - enter OTP: "Code entered"
+      HOW TO ANSWER: Give ONLY one piece of information per turn. Keep answers to one short
+      sentence. If Ailana asks for something you already said, say "I believe I already
+      mentioned that — it's [repeat the value]."
+      STOP: after OTP verification or after 30 replies.
+    agent_expectations: >
+      Handles a long conversation (15+ turns) without repeating any question. After the
+      borrower states income of $105,000, never asks about income again. After monthly debts
+      of $1,500, never re-asks. After credit score of 760, never re-asks. After learning
+      there is a co-borrower and the spouse's income, never re-asks about co-borrower status
+      or spouse income. After collecting down payment of $40,000, never re-asks. Even after
+      conversation compaction occurs (around turn 10), all previously collected facts must be
+      retained and never re-solicited. The borrower should never need to say "I already
+      mentioned that." No question is repeated verbatim or paraphrased. Does not quote a
+      rate or promise approval.
+    tags:
+      feature: redundancy_stress
+      test_set_id: "R-STRESS-4"
+    userdata:
+      expect_transfer: false
+      expect_booking: false

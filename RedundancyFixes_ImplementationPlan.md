@@ -61,7 +61,7 @@
 | # | Task | File | Lines | Status |
 |---|------|------|-------|--------|
 | 4.1 | Increase `AILANA_COMPACT_EVERY_N_TURNS` from 6 → 10 — reduces how often compaction fires | `backend/.env` + `backend/src/ailana-config.ts` | 52 / 24 | ⬜ |
-| 4.2 | Increase rotation `keepLastTurns` from 2 → 4 so rotation preserves more context | `backend/src/context/session-context-manager.ts` | 4143 | ⬜ |
+| 4.2 | Increase rotation `keepLastTurns` from 2 → 4 so rotation preserves more context | `backend/src/context/session-context-manager.ts` | 4150 | ✅ DONE (moved to Phase 1) |
 | 4.3 | Add a "compacting..." filler response — when compaction triggers, have Ailana say a brief natural pause phrase ("Let me review what we've covered...") instead of dead air | `backend/src/context/session-context-manager.ts` | near 4062 | ⬜ |
 | 4.4 | Evaluate if `AILANA_FORCE_COMPACT_INPUT_TOKENS=6000` is too aggressive — check if increasing to 8000 reduces unnecessary compaction while staying within Gemma 31B's context window | `backend/.env` + `backend/src/ailana-config.ts` | 50 / related | ⬜ |
 | 4.5 | Test: run full session and monitor TTFT (Time to First Byte) — verify no spikes > 3s except on initial connection | Manual | — | ⬜ |
@@ -70,12 +70,17 @@
 
 ## Phase 5: Validation & Simulation (FINAL)
 
-| # | Task | File | Lines | Status |
-|---|------|------|-------|--------|
-| 5.1 | Run Section 0 text simulations — all 47 scenarios — target 95%+ pass rate maintained | CLI | — | ⬜ |
-| 5.2 | Run stress/proposed scenarios — check for redundancy in extended conversations | CLI | — | ⬜ |
-| 5.3 | Run one full manual voice test — Section 0 → contact → soft pull → affordability → callback — verify zero redundancy and graceful closing | Manual | — | ⬜ |
-| 5.4 | Share results with David for sign-off | — | — | ⬜ |
+**Purpose:** Use LiveKit simulations to verify all fixes work — especially redundancy. We created a dedicated `redundancy_stress.yaml` scenario file with 4 scenarios specifically designed to trigger compaction and catch repeated questions.
+
+| # | Task | Command / File | Details | Status |
+|---|------|----------------|---------|--------|
+| 5.1 | Run Section 0 text simulations — all 47 scenarios — target 95%+ pass rate maintained | `lk agent simulate text --scenarios scenarios/section0.yaml --project convergentai --agent-name '""'` | Baseline regression — should still pass 95%+ | ⬜ |
+| 5.2 | **Run redundancy stress test** — 4 scenarios that go through full flow (15+ turns, trigger compaction) and check for NO repeated questions | `lk agent simulate text --scenarios scenarios/redundancy_stress.yaml --project convergentai --agent-name '""'` | R-STRESS-1: full flow no repeats, R-STRESS-2: credit rating double-ask (David's exact bug), R-STRESS-3: email/mobile separate collection, R-STRESS-4: 15+ turn long conversation | ⬜ |
+| 5.3 | Run redundancy stress with 3 samples for statistical confidence | `lk agent simulate text --scenarios scenarios/redundancy_stress.yaml --samples 3 --project convergentai --agent-name '""'` | pass@3 all scenarios | ⬜ |
+| 5.4 | Run proposed/stress scenarios | `lk agent simulate text --scenarios scenarios/scenarios_proposed.yaml --project convergentai --agent-name '""'` | Track-switching scenarios still pass | ⬜ |
+| 5.5 | Run audio-mode simulation on redundancy stress scenarios | `lk agent simulate audio --scenarios scenarios/redundancy_stress.yaml --project convergentai --agent-name '""'` | Full STT-LLM-TTS pipeline — catches audio-specific issues | ⬜ |
+| 5.6 | Run one full manual voice test — Section 0 → contact → soft pull → affordability → callback — verify zero redundancy and graceful closing | Manual | End-to-end human test | ⬜ |
+| 5.7 | Share simulation results with David for sign-off | — | Include pass rates and any failures | ⬜ |
 
 ---
 
@@ -87,7 +92,7 @@
 | 2 | Contact Correction Loop Fix | 5 | HIGH | ⬜ NOT STARTED |
 | 3 | Callback Scheduling Silence Fix | 4 | MEDIUM | ⬜ NOT STARTED |
 | 4 | Latency Optimization | 5 | MEDIUM | ⬜ NOT STARTED |
-| 5 | Validation & Simulation | 4 | FINAL | ⬜ NOT STARTED |
+| 5 | Validation & Simulation (with redundancy stress tests) | 7 | FINAL | ⬜ NOT STARTED |
 
 **Total tasks: 27**
 
