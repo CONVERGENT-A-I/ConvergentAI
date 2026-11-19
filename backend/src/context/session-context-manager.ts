@@ -1299,6 +1299,9 @@ export class SessionContextManager {
     if (h.mode === 'transferred') {
       return 'CURRENT TASK (loan officer transfer):\nYou have already started connecting them with a licensed loan officer — do not call the tool again. Do NOT ask qualifying questions or restart intake. Say briefly that they are being connected; answer only if they ask something.';
     }
+    if (h.mode === 'booked') {
+      return 'CURRENT TASK (callback booked — close gracefully):\nThe call back has been booked. Ask if there is anything else you can help with. If they say no or indicate they are done, deliver the closing: "It was great speaking with you today! To prepare for your call, you may want to have your recent pay stubs, W-2s, and bank statements handy. You can close this window whenever you are ready — everything from our conversation has been saved. Take care!" Do NOT offer to schedule another callback or transfer. If they have a follow-up question, answer it helpfully, then offer the closing again.';
+    }
     return null;
   }
 
@@ -1981,9 +1984,16 @@ export class SessionContextManager {
         fullNameVal = null;
       }
 
+      // Detect "on-screen corrections done" intent — user fixed things on screen and is ready to proceed
+      const onScreenDonePattern = /\b(i('ve| have)\s+(made|done|finished|completed|updated|corrected|fixed)|already\s+(made|done|fixed|corrected|updated)|changes?\s+(are\s+)?(done|made|good|complete)|everything\s+(is\s+)?(good|correct|fine|done|updated)|all\s+(good|correct|done|set|fixed)|looks?\s+good\s+now|i('m|\s+am)\s+done|corrections?\s+(are\s+)?(done|made|complete)|already\s+(indicated|told\s+you|said))\b/i;
+      const isOnScreenDone = onScreenDonePattern.test(lower);
+
       // Regex fallback for intent and inline corrections
       if (!intent) {
-        if (/\b(yes|yeah|yep|yup|looks?\s*(good|right|correct|fine)|that('s|\s+is)\s*(right|correct|accurate|good|fine|also\s+correct)|correct|matches|match|what\s+i\s+expect|good|fine|accurate|all\s+good|sounds\s+good|perfect|sure|confirm|confirmed|this\s+looks\s+correct|everything\s+looks\s+correct)\b/i.test(lower) &&
+        if (isOnScreenDone) {
+          intent = 'confirmed';
+          console.log('[context-manager]: On-screen correction detected as complete — treating as confirmed.');
+        } else if (/\b(yes|yeah|yep|yup|looks?\s*(good|right|correct|fine)|that('s|\s+is)\s*(right|correct|accurate|good|fine|also\s+correct)|correct|matches|match|what\s+i\s+expect|good|fine|accurate|all\s+good|sounds\s+good|perfect|sure|confirm|confirmed|this\s+looks\s+correct|everything\s+looks\s+correct)\b/i.test(lower) &&
             !/\b(not?\s*(right|correct|accurate|good)|wrong|mistake|change|update|no\b(?!\s*,\s*(that|it)\s*(is|looks)\s*(also\s+)?(right|correct)))\b/i.test(lower)) {
           intent = 'confirmed';
         } else if (/\b(no|not|wrong|change|update|actually|mistake|fix|incorrect)\b/i.test(lower)) {
@@ -2059,6 +2069,19 @@ export class SessionContextManager {
       if (isEmailCorrection) {
         console.log('[context-manager]: Utterance primarily about email detected. Guarding against name extraction bleed.');
         fullNameVal = null;
+      }
+
+      // Detect "I already fixed everything on screen" — skip directly to OTP
+      const corrLower = text.toLowerCase().trim();
+      const correctionDonePattern = /\b(i('ve| have)\s+(made|done|finished|completed|updated|corrected|fixed)|already\s+(made|done|fixed|corrected|updated|indicated|told)|changes?\s+(are\s+)?(done|made|good|complete)|everything\s+(is\s+)?(good|correct|fine|done|updated)|all\s+(good|correct|done|set|fixed)|looks?\s+good\s+now|i('m|\s+am)\s+done|corrections?\s+(are\s+)?(done|made|complete))\b/i;
+      const isCorrectionDoneOnScreen = correctionDonePattern.test(corrLower) && !fullNameVal && !emailVal && !mobileVal;
+
+      if (isCorrectionDoneOnScreen) {
+        console.log('[context-manager]: User indicates on-screen corrections are complete — skipping to OTP.');
+        (this.profile as any).contact_confirm_needs_correction = false;
+        (this.profile as any)._contactCorrectionAcknowledged = true;
+        this.handleContactInfoConfirmed();
+        return;
       }
 
       applyContactUpdates(this.profile, {
@@ -3899,8 +3922,8 @@ export class SessionContextManager {
       } else if (this.profile.escalation_preference === 'scheduled_call' && !this.profile.scheduled_call_time) {
         this.currentPendingField = 'scheduled_call_time';
       } else {
-        this.currentPendingField = null;
-        console.log('[context-manager]: Stage 5 Escalation complete.');
+        this.currentPendingField = 'session_closing';
+        console.log('[context-manager]: Stage 5 Escalation complete — transitioning to session closing.');
       }
     }
   }

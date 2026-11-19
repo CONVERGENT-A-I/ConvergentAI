@@ -33,11 +33,12 @@
 
 | # | Task | File | Lines | Status |
 |---|------|------|-------|--------|
-| 2.1 | Add "on-screen correction complete" intent detection in `contact_confirm_correction` handler — detect phrases like "I've made my changes", "everything is good", "I already fixed it", "corrections are done" | `backend/src/context/session-context-manager.ts` | 2024-2073 | ⬜ |
-| 2.2 | When on-screen correction intent detected: set `contact_info_confirmed = true` and skip directly to OTP dispatch (bypass `contact_confirm_display` re-read) | `backend/src/context/session-context-manager.ts` | 2069-2071 | ⬜ |
-| 2.3 | Add same detection in `contact_confirm_display` handler — if user says "I already updated everything on screen" during the read-back, treat as confirmed | `backend/src/context/session-context-manager.ts` | 1942-2019 | ⬜ |
-| 2.4 | Update Layer 2 prompt for `contact_confirm_correction` to tell Ailana: "If the borrower says they have already made corrections on screen, confirm and move on — do not re-ask" | `backend/src/prompts/stage3-guidance.ts` | 148-150 | ⬜ |
-| 2.5 | Test: simulate contact correction flow — user provides info, corrects on screen, says "all good" — verify no loop | Manual | — | ⬜ |
+| 2.1 | Add "on-screen correction complete" intent detection in `contact_confirm_correction` handler — detects "I've made my changes", "everything is good", "I already fixed it", "corrections are done", etc. When detected with no extraction values, calls `handleContactInfoConfirmed()` directly → skips to OTP | `backend/src/context/session-context-manager.ts` | 2070-2081 | ✅ DONE |
+| 2.2 | When on-screen correction intent detected: set `contact_info_confirmed = true` and skip directly to OTP dispatch (bypass `contact_confirm_display` re-read) | `backend/src/context/session-context-manager.ts` | 2076 | ✅ DONE |
+| 2.3 | Add same detection in `contact_confirm_display` handler — if user says "I already updated everything on screen" during the read-back, `isOnScreenDone` regex treats it as `confirmed` intent | `backend/src/context/session-context-manager.ts` | 1984-1992 | ✅ DONE |
+| 2.4 | Update Layer 2 prompt (`stage3-guidance.ts`) AND Layer 3 prompt (`layer3-context.ts`) for `contact_confirm_correction` — tells Ailana to accept on-screen corrections and not loop | `backend/src/prompts/stage3-guidance.ts` + `layer3-context.ts` | 148-151 / 540-547 | ✅ DONE |
+| 2.5 | TypeScript compiles clean, tests pass (52/52, same 2 pre-existing failures) | CLI | — | ✅ DONE |
+| 2.6 | Test: simulate contact correction flow via LiveKit simulation (R-STRESS-3) | CLI | — | ⬜ (Phase 5) |
 
 ---
 
@@ -47,10 +48,12 @@
 
 | # | Task | File | Lines | Status |
 |---|------|------|-------|--------|
-| 3.1 | Add post-callback closing instruction to `schedule_callback` tool return — append to the `say` field: after reading the booking, ask if there's anything else, then offer a graceful closing | `backend/src/handoff-tools.ts` | 78-107 | ⬜ |
-| 3.2 | Add a `post_callback_closing` prompt block that fires after callback is confirmed — includes document checklist reminder (pay stubs, W-2s, bank statements) and warm sign-off | `backend/src/prompts/stage5-escalation.ts` or new block in `layer3-context.ts` | 41-45 / new | ⬜ |
-| 3.3 | Handle edge case: if user declines callback and says "no, that's all" — Ailana should still close gracefully, not go silent | `backend/src/context/session-context-manager.ts` | near handoff logic | ⬜ |
-| 3.4 | Test: complete full flow through to callback scheduling — verify Ailana offers closing and doesn't go silent | Manual | — | ⬜ |
+| 3.1 | Add `booked` case to `handoffTaskText()` — when callback is booked (Section 0 flow), Ailana gets a closing task: ask if anything else, then deliver warm sign-off with document prep list | `backend/src/context/session-context-manager.ts` | 1302-1305 | ✅ DONE |
+| 3.2 | Add `session_closing` pending field in Stage 5 `advanceWorkflow()` — replaces `null` so Ailana always has a task after escalation completes | `backend/src/context/session-context-manager.ts` | 3924 | ✅ DONE |
+| 3.3 | Add `session_closing` prompt block in Layer 3 — fires when `pendingField === 'session_closing'`, includes document checklist reminder and warm sign-off | `backend/src/prompts/layer3-context.ts` | 553-560 | ✅ DONE |
+| 3.4 | Handle declined escalation — when user declines both transfer and callback, `advanceWorkflow()` now sets `session_closing` instead of null, so Ailana closes gracefully | `backend/src/context/session-context-manager.ts` | 3924 | ✅ DONE (automatic via 3.2) |
+| 3.5 | TypeScript compiles clean | CLI | — | ✅ DONE |
+| 3.6 | Test: complete full flow through to callback scheduling — verify Ailana offers closing and doesn't go silent | Manual / Simulation | — | ⬜ (Phase 5) |
 
 ---
 
@@ -60,11 +63,11 @@
 
 | # | Task | File | Lines | Status |
 |---|------|------|-------|--------|
-| 4.1 | Increase `AILANA_COMPACT_EVERY_N_TURNS` from 6 → 10 — reduces how often compaction fires | `backend/.env` + `backend/src/ailana-config.ts` | 52 / 24 | ⬜ |
-| 4.2 | Increase rotation `keepLastTurns` from 2 → 4 so rotation preserves more context | `backend/src/context/session-context-manager.ts` | 4150 | ✅ DONE (moved to Phase 1) |
-| 4.3 | Add a "compacting..." filler response — when compaction triggers, have Ailana say a brief natural pause phrase ("Let me review what we've covered...") instead of dead air | `backend/src/context/session-context-manager.ts` | near 4062 | ⬜ |
-| 4.4 | Evaluate if `AILANA_FORCE_COMPACT_INPUT_TOKENS=6000` is too aggressive — check if increasing to 8000 reduces unnecessary compaction while staying within Gemma 31B's context window | `backend/.env` + `backend/src/ailana-config.ts` | 50 / related | ⬜ |
-| 4.5 | Test: run full session and monitor TTFT (Time to First Byte) — verify no spikes > 3s except on initial connection | Manual | — | ⬜ |
+| 4.1 | Increase `AILANA_COMPACT_EVERY_N_TURNS` from 6 → 10 — compaction fires 40% less often | `backend/.env` + `backend/src/config/ailana-config.ts` | 54 / 24 | ✅ DONE |
+| 4.2 | Increase rotation `keepLastTurns` from 2 → 4 so rotation preserves more context | `backend/src/context/session-context-manager.ts` | 4178 | ✅ DONE (Phase 1) |
+| 4.3 | ~~Add filler response during compaction~~ — SKIPPED: compaction runs between turns in `prepareContext`, not during speech. Adding TTS filler here would require architectural changes. The latency reduction from 4.1 + 4.4 is the practical fix. | — | — | ⏭️ SKIPPED |
+| 4.4 | Increase `AILANA_FORCE_COMPACT_INPUT_TOKENS` from 6000 → 8000 — reduces unnecessary forced compaction while staying within Gemma 31B context window | `backend/.env` | 51 | ✅ DONE |
+| 4.5 | Test: run full session and monitor TTFT — verify latency improvement | Manual / Simulation | — | ⬜ (Phase 5) |
 
 ---
 
@@ -89,9 +92,9 @@
 | Phase | Description | Tasks | Priority | Status |
 |-------|-------------|-------|----------|--------|
 | 1 | Anti-Redundancy: Confirmed Fields Injection | 11 (9 done) | HIGH | ✅ CODE DONE — needs simulation test |
-| 2 | Contact Correction Loop Fix | 5 | HIGH | ⬜ NOT STARTED |
-| 3 | Callback Scheduling Silence Fix | 4 | MEDIUM | ⬜ NOT STARTED |
-| 4 | Latency Optimization | 5 | MEDIUM | ⬜ NOT STARTED |
+| 2 | Contact Correction Loop Fix | 6 (5 done) | HIGH | ✅ CODE DONE — needs simulation test |
+| 3 | Callback Scheduling Silence Fix | 6 (5 done) | MEDIUM | ✅ CODE DONE — needs manual test |
+| 4 | Latency Optimization | 5 (3 done, 1 skipped) | MEDIUM | ✅ CODE DONE — needs manual test |
 | 5 | Validation & Simulation (with redundancy stress tests) | 7 | FINAL | ⬜ NOT STARTED |
 
 **Total tasks: 27**

@@ -540,14 +540,22 @@ Do NOT mention OTP yet.`;
   } else if (pendingField === 'contact_confirm_correction') {
     otpBlock = `\n\n*** CRITICAL: CONTACT CORRECTION TURN ***
 The borrower said something was incorrect on the confirmation. Ask EXACTLY:
-"No problem — which one would you like to update: your name, email, or mobile number?"
+"No problem — which one would you like to update: your name, email, or mobile number? You can also update them directly on screen."
 If they also gave you the corrected value in the same sentence, acknowledge it.
+If the borrower says they have ALREADY made corrections on screen (e.g. "I've already fixed it", "everything is good now", "I made my changes", "all done"), acknowledge warmly and move on. Do NOT re-ask which field to update. Do NOT loop.
 Do NOT ask for anything else.`;
   } else if (pendingField === 'otp_verification') {
     otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: VERIFY CODE VIA MODAL ***
 A one-time verification code has been sent to the borrower's email and mobile. You must instruct them to use the secure popup modal.
 Say EXACTLY: "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely when it arrives, and you're all set."
 Do NOT ask them to read the code out loud. Do NOT ask for anything else. Wait for the borrower to enter the code in the modal.`;
+  } else if (pendingField === 'session_closing') {
+    otpBlock = `\n\n*** SESSION CLOSING ***
+The session is wrapping up. Ask the borrower if there is anything else you can help with.
+If they say no or indicate they are done, deliver the closing:
+"It was great speaking with you today! To prepare for your call, you may want to have your recent pay stubs, W-2s, and bank statements handy. You can close this window whenever you are ready — everything from our conversation has been saved. Take care!"
+If they have a follow-up question, answer it helpfully, then offer the closing again.
+Do NOT offer to schedule another callback or transfer. Do NOT go silent.`;
   }
 
 
