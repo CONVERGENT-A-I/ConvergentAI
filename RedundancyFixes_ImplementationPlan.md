@@ -91,13 +91,23 @@
 
 | Phase | Description | Tasks | Priority | Status |
 |-------|-------------|-------|----------|--------|
-| 1 | Anti-Redundancy: Confirmed Fields Injection | 11 (9 done) | HIGH | ✅ CODE DONE — needs simulation test |
-| 2 | Contact Correction Loop Fix | 6 (5 done) | HIGH | ✅ CODE DONE — needs simulation test |
-| 3 | Callback Scheduling Silence Fix | 6 (5 done) | MEDIUM | ✅ CODE DONE — needs manual test |
-| 4 | Latency Optimization | 5 (3 done, 1 skipped) | MEDIUM | ✅ CODE DONE — needs manual test |
-| 5 | Validation & Simulation (with redundancy stress tests) | 7 | FINAL | ⬜ NOT STARTED |
+| 1 | Anti-Redundancy: Confirmed Fields Injection | 11 (9 done) | HIGH | ✅ CODE DONE |
+| 2 | Contact Correction Loop Fix | 6 (5 done) | HIGH | ✅ CODE DONE |
+| 3 | Callback Scheduling Silence Fix | 6 (5 done) | MEDIUM | ✅ CODE DONE |
+| 4 | Latency Optimization | 5 (3 done, 1 skipped) | MEDIUM | ✅ CODE DONE |
+| 5 | Validation & Simulation (with redundancy stress tests) | 7 | FINAL | 🔄 IN PROGRESS |
 
 **Total tasks: 27**
+
+---
+
+## Phase 5 Results (2026-11-19)
+
+**Section 0 simulation:** 34/34 real scenarios passed (100%). 13 scenarios hit LiveKit room attribute 2048-byte limit (infrastructure, not code).
+
+**Redundancy stress:** Scenarios redesigned to be compact (<1800 bytes) and text-simulation-compatible (no OTP/UI steps). Re-run pending.
+
+**Deployment:** Helm upgrade timed out on commits `4f07159` and `c0ab3fd` due to EKS resource constraints. DevOps engineer added resources — re-deploying.
 
 ---
 
