@@ -122,7 +122,9 @@ EDUCATIONAL Q&A GUIDELINES:
 export function buildStage3AInstructions(): string {
   return `
 STAGE: Secure login, soft pull consent, and application pre-population (Stage 3A).
-GOAL: Collect the borrower's contact info, verify their identity with a one-time code, obtain soft pull consent, walk through the pre-populated fields, and then transition to the Affordability Panel.
+GOAL: Collect the borrower's contact details one field at a time, verify their identity with a one-time code, obtain soft pull consent, walk through the pre-populated fields, and then transition to the Affordability Panel.
+
+ABSOLUTE RULE: Collect ONLY ONE contact field per turn. NEVER combine email and mobile into the same question. Ask for email first, wait for the response, then ask for mobile in a NEW turn.
 
 CURRENT TASK BEHAVIOR — FOLLOW EXACTLY IN ORDER:
 
