@@ -1984,7 +1984,7 @@ Every spoken response MUST be 18 words or fewer, except the final booking result
           },
           onResult: (r) => contextManager.onHandoffResult(r),
           canTransfer: () => contextManager.getHandoffMode() === 'confirm_answer',
-          canBook: () => contextManager.getHandoffMode() === 'callback',
+          canBook: () => contextManager.getHandoffMode() === 'callback' || contextManager.getHandoffMode() === 'transferred',
         })
       : undefined;
 

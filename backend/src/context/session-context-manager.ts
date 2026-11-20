@@ -3697,7 +3697,7 @@ export class SessionContextManager {
         this.currentPendingField = 'gross_annual_income';
       } else if (!this.profile.monthly_debt_confirmed) {
         this.currentPendingField = 'monthly_debt';
-      } else if (!this.profile.credit_range_confirmed) {
+      } else if (!this.profile.credit_range_confirmed && !this.profile.prefilled_fields_confirmed?.credit_range) {
         this.currentPendingField = 'credit_range';
       } else if (isRef) {
         // Refinance Sequence: current_mortgage_type -> refinance_type (only if unknown) -> property_value -> first_mortgage_balance -> current_mortgage_rate -> current_mortgage_payment -> remaining_term_years -> closing_costs_preference -> [cash_out_amount] -> prior_refinance -> stay_duration_years -> job_tenure_type
