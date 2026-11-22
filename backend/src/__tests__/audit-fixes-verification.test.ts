@@ -207,6 +207,34 @@ assert(
   'Parenthesized US phone number format matched by phone regex'
 );
 
+// Contact email script: asked on its own turn (email and mobile are separate turns)
+const buildContactEmailScript = (profile: any, attempts: number = 0) => {
+  const apology = attempts >= 1 ? "I'm sorry, I didn't quite catch that. " : "";
+  if (profile.contact_mobile) {
+    return `${apology}I have your mobile number. Could you also share the email address you'd like to use for your account?`;
+  }
+  return `${apology}Thank you. Now, what email address would you like to use for your account?`;
+};
+{
+  const agentCode = fs.readFileSync(new URL('../agent.ts', import.meta.url), 'utf-8');
+  assert(
+    agentCode.includes('${apology}Thank you. Now, what email address would you like to use for your account?'),
+    'agent.ts contact_email script matches the email-only script under test'
+  );
+}
+assert(
+  !/mobile/i.test(buildContactEmailScript({ contact_mobile: null }, 0)),
+  'contact_email asks for email only (no mobile) when mobile is not yet captured'
+);
+assert(
+  buildContactEmailScript({ contact_mobile: '5551234567' }, 0).startsWith('I have your mobile number.'),
+  'contact_email acknowledges a mobile number captured earlier'
+);
+assert(
+  buildContactEmailScript({ contact_mobile: null }, 1).startsWith("I'm sorry, I didn't quite catch that."),
+  'contact_email includes apology prefix on re-ask'
+);
+
 // ============================================================================
 // SUITE 5: Military / Rural Fast-Path Detection (8 Tests)
 // ============================================================================

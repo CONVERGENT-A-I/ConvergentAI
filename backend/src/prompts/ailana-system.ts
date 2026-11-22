@@ -124,7 +124,7 @@ export function buildLayer2(stageOrProfile: string | BorrowerProfile = '1', prof
   // Section 0 Gate — runs before any existing track or stage logic.
   // Stage 1 discovery is strictly blocked until Q9 is confirmed.
   // Also acts as safety fallback when transaction_type is not established.
-  if (!profile.Q9_confirmed) {
+  if (ailanaConfig.section0Enabled && !profile.Q9_confirmed) {
     if (stage === '1' || stage === '0' || !profile.transaction_type) {
       return buildSection0Block(profile);
     }
@@ -160,8 +160,8 @@ export function buildLayer2(stageOrProfile: string | BorrowerProfile = '1', prof
   if (stage === '5') {
     return buildStage5Instructions();
   }
-  // Future stages — fallback to Stage 1 until implemented (guarded by Q9_confirmed)
-  return profile.Q9_confirmed ? buildStage1Instructions() : buildSection0Block(profile);
+  // Future stages — fallback to Stage 1 until implemented (guarded by Q9_confirmed when section 0 enabled)
+  return (ailanaConfig.section0Enabled && !profile.Q9_confirmed) ? buildSection0Block(profile) : buildStage1Instructions();
 }
 
 

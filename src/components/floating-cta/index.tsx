@@ -1814,7 +1814,7 @@ export default function FloatingCTA() {
                                   const isContactConfirmActive =
                                     profile?.current_pending_field === 'contact_confirm_display' ||
                                     profile?.current_pending_field === 'contact_confirm_correction';
-                                  if (isContactConfirmActive && hasBothContacts && !otpAlreadyVerified) {
+                                  if (isContactConfirmActive && !otpAlreadyVerified) {
                                     setIsContactConfirmVisible(true);
                                   } else {
                                     setIsContactConfirmVisible(false);

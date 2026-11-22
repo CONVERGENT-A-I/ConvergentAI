@@ -123,6 +123,69 @@ function createVerbatimStream(text: string): ReadableStream<string> {
   return stream;
 }
 
+const CONTACT_STAGE3A_FIELDS = new Set([
+  'contact_full_name',
+  'contact_name',
+  'contact_email',
+  'contact_mobile',
+  'contact_confirm_display',
+  'contact_confirm_correction',
+]);
+
+function buildMissingContactPrompt(profile: any): string | null {
+  if (profile.contact_email && profile.contact_mobile) return null;
+  const missingField = !profile.contact_email && !profile.contact_mobile
+    ? 'your email address and mobile number'
+    : !profile.contact_email
+      ? 'your email address'
+      : 'your mobile number';
+  return `Before I can send your verification code, please enter ${missingField} on the card on your screen, or tell me what to use.`;
+}
+
+function buildContactConfirmReadback(profile: any): string {
+  const name = profile.contact_name || 'your name';
+  const hasEmail = Boolean(profile.contact_email);
+  const hasMobile = Boolean(profile.contact_mobile);
+  const email = profile.contact_email || 'your email';
+  const phone = formatPhoneForSpeech(profile.contact_mobile || '');
+
+  let prefix = '';
+  if (profile._contactCorrectionAcknowledged) {
+    prefix = "Got it — I've updated that. ";
+    profile._contactCorrectionAcknowledged = false;
+  }
+
+  if (hasEmail && hasMobile) {
+    return `${prefix}I have ${name}, ${email}, and ${phone}. Your details are on screen — do they all look correct? If not, please spell out the correction for me, or you can update it directly on the screen.`;
+  }
+  if (!hasEmail && hasMobile) {
+    return `${prefix}I have ${name} and ${phone}, and I've opened your confirmation card on screen. Please enter your email address directly on the card — or spell it out for me — and then confirm your details.`;
+  }
+  if (hasEmail && !hasMobile) {
+    return `${prefix}I have ${name} and ${email}, and I've opened your confirmation card on screen. Please enter your mobile number directly on the card — or say it for me — and then confirm your details.`;
+  }
+  return `${prefix}I have ${name}, and I've opened your confirmation card on screen. Please enter your email address and mobile number directly on the card and confirm your details.`;
+}
+
+function buildSingleContactFieldPrompt(pendingField: string | null, profile: any, isVoice: boolean): string | null {
+  if (pendingField === 'contact_email') {
+    return profile.contact_mobile
+      ? "I have your mobile number. Could you also share the email address you'd like to use for your account?"
+      : isVoice
+        ? "Thank you. Now, what email address would you like to use for your account?"
+        : "Great. Now, what email address would you like to use for your account?";
+  }
+  if (pendingField === 'contact_mobile') {
+    return profile.contact_email
+      ? "I have your email. Could you also share the mobile number you'd like to use?"
+      : "Could you share the mobile number you'd like to use for your account?";
+  }
+  if (pendingField === 'contact_full_name' || pendingField === 'contact_name') {
+    return "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your full name?";
+  }
+  return null;
+}
+
 class AilanaVoiceAgent extends voice.Agent {
   public sayCallback: ((text: string) => Promise<void>) | null = null;
   public onAgentTurnCallback: ((text: string) => Promise<void>) | null = null;
@@ -443,7 +506,22 @@ class AilanaVoiceAgent extends voice.Agent {
       return createVerbatimStream(scriptText) as any;
     }
 
-    if (userAskedQuestion) {
+    const isContactTurn =
+      CONTACT_STAGE3A_FIELDS.has(this.activeFieldAtTurnStart || '') ||
+      CONTACT_STAGE3A_FIELDS.has(pending || '');
+    const contactStateProgressed =
+      isContactTurn && (
+        pending !== this.activeFieldAtTurnStart ||
+        Boolean((profile as any)._contactCorrectionAcknowledged) ||
+        (pending === 'contact_mobile' &&
+          Boolean((profile as any)._mobileBuffer) &&
+          /\d|\b(zero|oh|one|two|three|four|five|six|seven|eight|nine)\b/i.test(lastUserText)) ||
+        ((pending === 'contact_confirm_display' || pending === 'contact_confirm_correction') &&
+          (/\b(no|not|wrong|change|update|actually|mistake|fix|incorrect)\b/i.test(lastUserText) ||
+           /\b(on\s+(the\s+)?screen|type(\s+it)?|typing|edit(\s+it)?\s+myself|fix(\s+it)?\s+myself|screen)\b/i.test(lastUserText)))
+      );
+
+    if (userAskedQuestion && !contactStateProgressed) {
       (profile as any).last_extracted_offer_val = null; // reset flag
       console.log(`[agent-hook]: User turn contains question/explanation request ("${lastUserText}") — delegating to LiveKit Inference LLM to answer dynamically.`);
       return super.llmNode(chatCtx, toolCtx, modelSettings) as any;
@@ -670,6 +748,9 @@ class AilanaVoiceAgent extends voice.Agent {
 
 
     if (pending === 'contact_name' || pending === 'contact_full_name') {
+      if (this.sendStageUpdate && this.activeFieldAtTurnStart !== pending) {
+        this.sendStageUpdate(this.contextManager.getActiveStage()).catch(err => console.warn(err));
+      }
       const attempts = this.contextManager.getFieldAttemptCount('contact_full_name') || this.contextManager.getFieldAttemptCount('contact_name');
       const apology = attempts >= 1 ? "I'm sorry, I didn't quite catch that. " : "";
       const scriptText = `${apology}Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your full name?`;
@@ -678,6 +759,9 @@ class AilanaVoiceAgent extends voice.Agent {
     }
 
     if (pending === 'contact_email') {
+      if (this.sendStageUpdate && this.activeFieldAtTurnStart !== pending) {
+        this.sendStageUpdate(this.contextManager.getActiveStage()).catch(err => console.warn(err));
+      }
       const attempts = this.contextManager.getFieldAttemptCount('contact_email');
       const apology = attempts >= 1 ? "I'm sorry, I didn't quite catch that. " : "";
 
@@ -686,18 +770,25 @@ class AilanaVoiceAgent extends voice.Agent {
         scriptText = `${apology}I have your mobile number. Could you also share the email address you'd like to use for your account?`;
         console.log('[agent-hook]: Delivering contact_email script (mobile already captured) via Deterministic ReadableStream!');
       } else {
-        scriptText = `${apology}Thank you. Now, what email and mobile number would you like to use for your account?`;
+        scriptText = `${apology}Thank you. Now, what email address would you like to use for your account?`;
         console.log('[agent-hook]: Delivering contact_email script via Deterministic ReadableStream!');
       }
       return createVerbatimStream(scriptText) as any;
     }
 
     if (pending === 'contact_mobile') {
+      if (this.sendStageUpdate && this.activeFieldAtTurnStart !== pending) {
+        this.sendStageUpdate(this.contextManager.getActiveStage()).catch(err => console.warn(err));
+      }
       const attempts = this.contextManager.getFieldAttemptCount('contact_mobile');
       const apology = attempts >= 1 ? "I'm sorry, I didn't quite catch that. " : "";
+      const mobileBuffer: string = (profile as any)._mobileBuffer || '';
 
       let scriptText = '';
-      if (profile.contact_email) {
+      if (mobileBuffer) {
+        scriptText = `Got it — I have ${mobileBuffer.split('').join(' ')} so far. What are the remaining digits of your mobile number?`;
+        console.log('[agent-hook]: Delivering contact_mobile partial-number follow-up via Deterministic ReadableStream!');
+      } else if (profile.contact_email) {
         scriptText = `${apology}I have your email. Could you also share the mobile number you'd like to use?`;
         console.log('[agent-hook]: Delivering contact_mobile script (email already captured) via Deterministic ReadableStream!');
       } else {
@@ -715,54 +806,57 @@ class AilanaVoiceAgent extends voice.Agent {
       );
     };
 
-    if (pending === 'contact_confirm_display' && this.activeFieldAtTurnStart === 'contact_confirm_display') {
+    if (pending === 'contact_confirm_display') {
       const lower = lastUserText.toLowerCase().trim();
       const isAffirmative = isAffirmativeConfirmation(lastUserText);
       const isCorrection = /\b(no|not|wrong|change|update|actually|mistake|fix|incorrect)\b/i.test(lower) && !isAffirmative;
 
-      if (isAffirmative) {
-        console.log(`[agent-hook]: Voice confirmation of contact details detected ("${lastUserText}"). Advancing to OTP dispatch.`);
-        this.contextManager.handleContactInfoConfirmed();
-        (profile as any)._otpInstructionDelivered = true;
-        (profile as any)._otpReadyToShow = true;
-        if (this.sendStageUpdate) {
-          this.sendStageUpdate(this.contextManager.getActiveStage()).catch(err => console.warn(err));
+      if (this.activeFieldAtTurnStart === 'contact_confirm_display' && !(profile as any)._contactCorrectionAcknowledged) {
+        if (isAffirmative) {
+          const missingPrompt = buildMissingContactPrompt(profile);
+          if (missingPrompt) {
+            return createVerbatimStream(missingPrompt) as any;
+          }
+          console.log(`[agent-hook]: Voice confirmation of contact details detected ("${lastUserText}"). Advancing to OTP dispatch.`);
+          this.contextManager.handleContactInfoConfirmed();
+          (profile as any)._otpInstructionDelivered = true;
+          (profile as any)._otpReadyToShow = true;
+          if (this.sendStageUpdate) {
+            this.sendStageUpdate(this.contextManager.getActiveStage()).catch(err => console.warn(err));
+          }
+          const otpScript = "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely on your screen when it arrives, and you're all set.";
+          return createVerbatimStream(otpScript) as any;
         }
-        const otpScript = "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely on your screen when it arrives, and you're all set.";
-        return createVerbatimStream(otpScript) as any;
-      }
 
-      // Check if user indicates they will edit/fix/type their details on screen
-      const isOnScreenCorrection = /\b(on\s+(the\s+)?screen|type(\s+it)?|typing|edit(\s+it)?\s+myself|fix(\s+it)?\s+myself|screen)\b/i.test(lower);
-      if (isOnScreenCorrection) {
-        console.log(`[agent-hook]: User indicated on-screen correction ("${lastUserText}"). Yielding gracefully to visual UI.`);
-        const yieldScript = "Sounds good! Go ahead and make your changes on screen, and click Continue when you're ready.";
-        return createVerbatimStream(yieldScript) as any;
-      }
+        // Check if user indicates they will edit/fix/type their details on screen
+        const isOnScreenCorrection = /\b(on\s+(the\s+)?screen|type(\s+it)?|typing|edit(\s+it)?\s+myself|fix(\s+it)?\s+myself|screen)\b/i.test(lower);
+        if (isOnScreenCorrection) {
+          console.log(`[agent-hook]: User indicated on-screen correction ("${lastUserText}"). Yielding gracefully to visual UI.`);
+          const yieldScript = "Sounds good! Go ahead and make your changes on screen, and click Continue when you're ready.";
+          return createVerbatimStream(yieldScript) as any;
+        }
 
-      if (isCorrection && !(profile as any)._contactCorrectionAcknowledged) {
-        console.log(`[agent-hook]: Voice correction of contact details requested ("${lastUserText}").`);
-        (profile as any).contact_confirm_needs_correction = true;
-        this.contextManager.advanceWorkflow();
-        const scriptText = "No problem at all. What would you like to update — your name, email, or mobile number?";
-        return createVerbatimStream(scriptText) as any;
-      }
-
-      const name = profile.contact_name || 'your name';
-      const email = profile.contact_email || 'your email';
-      const phone = formatPhoneForSpeech(profile.contact_mobile || '');
-
-      let prefix = '';
-      if ((profile as any)._contactCorrectionAcknowledged) {
-        prefix = "Got it — I've updated that. ";
-        (profile as any)._contactCorrectionAcknowledged = false;
+        if (isCorrection) {
+          console.log(`[agent-hook]: Voice correction of contact details requested ("${lastUserText}").`);
+          if (this.contextManager.routeNamedContactFieldCorrection(lastUserText)) {
+            if (this.sendStageUpdate) {
+              this.sendStageUpdate(this.contextManager.getActiveStage()).catch(err => console.warn(err));
+            }
+            const routedScript = buildSingleContactFieldPrompt(this.contextManager.getPendingField(), profile, true);
+            if (routedScript) return createVerbatimStream(routedScript) as any;
+          }
+          (profile as any).contact_confirm_needs_correction = true;
+          this.contextManager.advanceWorkflow();
+          const scriptText = "No problem at all. What would you like to update — your name, email, or mobile number?";
+          return createVerbatimStream(scriptText) as any;
+        }
       }
 
       if (this.sendStageUpdate) {
         this.sendStageUpdate(this.contextManager.getActiveStage()).catch(err => console.warn(err));
       }
 
-      const script = `${prefix}I have ${name}, ${email}, and ${phone}. Your details are on screen — do they all look correct? If not, please spell out the correction for me, or you can update it directly on the screen.`;
+      const script = buildContactConfirmReadback(profile);
       return createVerbatimStream(script) as any;
     }
 
@@ -845,6 +939,9 @@ class AilanaVoiceAgent extends voice.Agent {
       // Mark OTP as ready to show ONLY NOW — after Ailana has spoken the bridging line.
       // This prevents the frontend OTP modal from rendering before the speech is delivered.
       (profile as any)._otpReadyToShow = true;
+      if (this.sendStageUpdate) {
+        this.sendStageUpdate(this.contextManager.getActiveStage()).catch(err => console.warn(err));
+      }
 
       // Start a 45-second timeout: if OTP is not submitted, Ailana re-prompts gently
       if (!(profile as any)._otpTimeoutStarted) {
@@ -1316,12 +1413,13 @@ class AilanaVoiceAgent extends voice.Agent {
       // Section 0: before a track is chosen (stage "0"), or when an SSN / street address was caught, code must
       // decide before Ailana replies (route, holdout, TRID gate) — like typed turns and simulations. Voice turns
       // otherwise reply at once and the router's decision would arrive a turn late.
+      const isContactBoundaryField = CONTACT_STAGE3A_FIELDS.has(activeField || '');
       const section0MustDecide = ailanaConfig.section0Enabled
         && (this.contextManager.getActiveStage() === '0' || (!!rawUserText && safeUserText !== rawUserText));
       if (section0MustDecide) {
         const decided = await this.contextManager.waitForExtraction(currentTurnNumber, 8000, { keepLateResult: true });
         console.log(`[section0] voice turn waited for the router (${decided ? 'decided' : 'still running — late result kept'}); stage is now ${this.contextManager.getActiveStage()}`);
-      } else if (isQuestionOrHesitation) {
+      } else if (isQuestionOrHesitation && !isContactBoundaryField) {
         console.log(`[agent-hook]: Question/hesitation detected on field "${activeField}". Staying on current field to answer user question.`);
         // User asked a question — do NOT advance stage or inject fallback. Let LLM answer and re-prompt the pending field.
       } else if (isFastPathSubmitOrUpgrade) {
@@ -1770,7 +1868,7 @@ REQUIRED FLOW:
 2. Collect the preferred date and approximate time. Resolve relative dates such as tomorrow from Current UTC time and the customer's time zone.
 3. Determine the IANA customer time zone from the property/customer location when reliable; otherwise ask. Call findMeetingTimes. Never invent availability.
 4. Offer at most three returned slots and ask the customer to select one.
-5. Reuse the known name, email, and phone above. Ask only for fields shown as "not collected". Never ask for a known value again. Collect a short description of what they want help with.
+5. Reuse the known name, email, and phone above. Ask only for fields shown as "not collected" — one field per turn, never email and phone together. Never ask for a known value again. Collect a short description of what they want help with.
 6. NEVER spell or read back the email address, phone number, name, or notes. Say only "I have your contact details."
 7. Confirm only the selected local date and time, then ask for explicit consent. Use exactly: "I have your contact details and [selected date and time]. Shall I book it and email your confirmation?"
 8. Only after explicit consent call confirmMeeting. A booking exists only if the tool returns ok=true. Read the confirmation number aloud.
@@ -2302,7 +2400,7 @@ PAUSE CONSTRAINTS:
       heloc_rate_comfort: 'I apologize for that. How comfortable are you with a variable interest rate that may change over time, or is fixed predictability more important?',
       // Stage 3A — Soft Pull / OTP / Prefill
       contact_full_name: 'I apologize for the interruption. Could you tell me what name you would like on your secure account?',
-      contact_email: 'I apologize for that. What email and mobile number would you like to use for your account?',
+      contact_email: 'I apologize for that. What email address would you like to use for your account?',
       contact_mobile: 'I apologize for the interruption. What mobile number should I send your verification code to?',
       contact_confirm_display: 'I apologize for the interruption. I have your name, email, and mobile shown on screen — do they all look correct? If not, please spell out the correction for me, or you can update it directly on the screen.',
       contact_confirm_correction: 'I apologize — which one would you like to fix: your name, email, or mobile number?',
@@ -2844,6 +2942,7 @@ PAUSE CONSTRAINTS:
     };
 
     const generateTextOnlyReply = async (userMessage: string) => {
+      const fieldAtTurnStart = contextManager.getPendingField();
       await contextManager.onUserTurn(userMessage);
       updateSessionInstructions();
       metrics.startTurn();
@@ -2954,44 +3053,64 @@ PAUSE CONSTRAINTS:
             }
           }
         } else if (pending === 'contact_name' || pending === 'contact_full_name') {
+          sendStageUpdate(contextManager.getActiveStage());
           reply = "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your full name?";
 
         } else if (pending === 'contact_email') {
+          sendStageUpdate(contextManager.getActiveStage());
           if (prof.contact_mobile) {
             reply = "I have your mobile number. Could you also share the email address you'd like to use for your account?";
           } else {
-            reply = "Great. Now, what email address and mobile number would you like to use for your account?";
+            reply = "Great. Now, what email address would you like to use for your account?";
           }
         } else if (pending === 'contact_mobile') {
-          if (prof.contact_email) {
+          sendStageUpdate(contextManager.getActiveStage());
+          const mobileBuffer: string = (prof as any)._mobileBuffer || '';
+          if (mobileBuffer) {
+            reply = `Got it — I have ${mobileBuffer.split('').join(' ')} so far. What are the remaining digits of your mobile number?`;
+          } else if (prof.contact_email) {
             reply = "I have your email. Could you also share the mobile number you'd like to use?";
           } else {
             reply = "Could you share the mobile number you'd like to use for your account?";
           }
         } else if (pending === 'contact_confirm_display') {
-          const isOnScreenCorrection = /\b(on\s+(the\s+)?screen|type(\s+it)?|typing|edit(\s+it)?\s+myself|fix(\s+it)?\s+myself|screen)\b/i.test(lower);
-          if (isAffirmative) {
-            contextManager.handleContactInfoConfirmed();
-            (prof as any)._otpInstructionDelivered = true;
-            (prof as any)._otpReadyToShow = true;
+          if (fieldAtTurnStart === 'contact_confirm_display' && !(prof as any)._contactCorrectionAcknowledged) {
+            const isOnScreenCorrection = /\b(on\s+(the\s+)?screen|type(\s+it)?|typing|edit(\s+it)?\s+myself|fix(\s+it)?\s+myself|screen)\b/i.test(lower);
+            if (isAffirmative) {
+              const missingPrompt = buildMissingContactPrompt(prof);
+              if (missingPrompt) {
+                reply = missingPrompt;
+              } else {
+                contextManager.handleContactInfoConfirmed();
+                (prof as any)._otpInstructionDelivered = true;
+                (prof as any)._otpReadyToShow = true;
+                sendStageUpdate(contextManager.getActiveStage());
+                reply = "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely on your screen when it arrives, and you're all set.";
+              }
+            } else if (isOnScreenCorrection) {
+              reply = "Sounds good! Go ahead and make your changes on screen, and click Continue when you're ready.";
+            } else if (isCorrection) {
+              if (contextManager.routeNamedContactFieldCorrection(userMessage)) {
+                sendStageUpdate(contextManager.getActiveStage());
+                reply = buildSingleContactFieldPrompt(contextManager.getPendingField(), prof, false);
+              } else {
+                (prof as any).contact_confirm_needs_correction = true;
+                contextManager.advanceWorkflow();
+                reply = "No problem at all. What would you like to update — your name, email, or mobile number?";
+              }
+            }
+          }
+          if (!reply) {
             sendStageUpdate(contextManager.getActiveStage());
-            reply = "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely on your screen when it arrives, and you're all set.";
-          } else if (isOnScreenCorrection) {
-            reply = "Sounds good! Go ahead and make your changes on screen, and click Continue when you're ready.";
-          } else if (isCorrection) {
-            (prof as any).contact_confirm_needs_correction = true;
-            contextManager.advanceWorkflow();
-            reply = "No problem at all. What would you like to update — your name, email, or mobile number?";
-          } else {
-            const name = prof.contact_name || 'your name';
-            const email = prof.contact_email || 'your email';
-            const phone = formatPhoneForSpeech(prof.contact_mobile || '');
-            reply = `I have ${name}, ${email}, and ${phone}. Your details are on screen — do they all look correct? If not, please spell out the correction for me, or you can update it directly on the screen.`;
+            reply = buildContactConfirmReadback(prof);
           }
         } else if (pending === 'contact_confirm_correction') {
+          sendStageUpdate(contextManager.getActiveStage());
           reply = "No problem — which one would you like to update: your name, email, or mobile number?";
         } else if (pending === 'otp_verification' && !prof.otp_verified) {
+          (prof as any)._otpInstructionDelivered = true;
           (prof as any)._otpReadyToShow = true;
+          sendStageUpdate(contextManager.getActiveStage());
           reply = "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely on your screen when it arrives, and you're all set.";
         } else if (pending === 'soft_pull_authorization') {
           if (!prof.soft_pull_disclosure_delivered) {
@@ -3934,9 +4053,12 @@ PAUSE CONSTRAINTS:
             }
             if (parsed.type === 'contact_info_confirmed') {
               console.log('[agent]: contact_info_confirmed received from UI — advancing Stage 3A to OTP dispatch.');
-              contextManager.handleContactInfoConfirmed();
-              updateSessionInstructions();
-              deliverOtpInstructionsOnce('DataReceived:contact_info_confirmed');
+              if (contextManager.handleContactInfoConfirmed()) {
+                updateSessionInstructions();
+                deliverOtpInstructionsOnce('DataReceived:contact_info_confirmed');
+              } else {
+                sendStageUpdate(contextManager.getActiveStage()).catch(err => console.warn(err));
+              }
               return;
             }
             if (parsed.type === 'contact_info_needs_correction') {
@@ -3993,9 +4115,12 @@ PAUSE CONSTRAINTS:
               }
               if (parsed.type === 'contact_info_confirmed') {
                 console.log('[agent]: contact_info_confirmed received from UI (TextStream) — advancing Stage 3A to OTP dispatch.');
-                contextManager.handleContactInfoConfirmed();
-                updateSessionInstructions();
-                deliverOtpInstructionsOnce(`TextStreamHandler:${topic}:contact_info_confirmed`);
+                if (contextManager.handleContactInfoConfirmed()) {
+                  updateSessionInstructions();
+                  deliverOtpInstructionsOnce(`TextStreamHandler:${topic}:contact_info_confirmed`);
+                } else {
+                  sendStageUpdate(contextManager.getActiveStage()).catch(err => console.warn(err));
+                }
                 return;
               }
               if (parsed.type === 'contact_info_needs_correction') {

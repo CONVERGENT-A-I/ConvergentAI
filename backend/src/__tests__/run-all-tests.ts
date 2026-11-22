@@ -27,6 +27,7 @@ const testFiles = [
   'verbal-submit-flow.test.ts',
   'mlo-transfer-intent.test.ts',
   'contact-input.test.ts',
+  'contact-sequence.test.ts',
   'security-hardening.test.ts',
   // Section 0 (generic intent & fact capture) — pure building blocks
   'section0-ledger.test.ts',

@@ -131,11 +131,12 @@ CURRENT TASK BEHAVIOR — FOLLOW EXACTLY IN ORDER:
   * Collect the borrower's full name on this turn. Do NOT ask for email or mobile yet.
 
 - When CURRENT TASK is 'contact_email':
-  * Ask: "Great. Now, what email address and mobile number would you like to use for your account?"
-  * Collect email and mobile in the same turn if the borrower provides both.
+  * Ask ONLY for the email address: "Great. Now, what email address would you like to use for your account?"
+  * Do NOT ask for the mobile number on this turn. If the borrower volunteers a mobile number anyway, accept it and do not ask for it again.
 
 - When CURRENT TASK is 'contact_mobile':
-  * Ask: "I have your email. Could you also share the mobile number you'd like to use?"
+  * Ask ONLY for the mobile number: "I have your email. Could you also share the mobile number you'd like to use?"
+  * Do NOT re-ask for the email on this turn.
 
 - When CURRENT TASK is 'contact_confirm_display':
   * Read back all values VERBATIM: "I have [FullName], [email], and [phone]. Your details are on screen — do they all look correct? If not, please manually update your name, email, or phone number directly on the screen."

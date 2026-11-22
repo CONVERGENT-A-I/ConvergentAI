@@ -56,3 +56,39 @@ export function appendPhoneFragment(
   }
   return { buffer, complete: null, overflow: false };
 }
+
+/**
+ * Deterministic fallback for a literal email address in the utterance
+ * (typed chat, or STT that already produced an "@"). Spoken forms such as
+ * "john at gmail dot com" are left to the LLM extractor.
+ */
+export function extractEmailFromText(text: string | null | undefined): string | null {
+  if (!text) return null;
+  const match = text.match(/[a-zA-Z0-9_%+-]+(?:\.\s*[a-zA-Z0-9_%+-]+)*\s*@\s*[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}/);
+  return match ? match[0].replace(/\s+/g, '').toLowerCase() : null;
+}
+
+/**
+ * Validates a mobile number that the borrower volunteered on the email turn
+ * (where we did NOT ask for it). Only accepts a full 10–15 digit number, and
+ * rejects digits that merely come from the email itself (e.g. "david123@gmail.com").
+ */
+export function acceptVolunteeredMobile(
+  mobile: string | null | undefined,
+  email: string | null | undefined,
+): string | null {
+  const digits = String(mobile || '').replace(/\D/g, '');
+  if (digits.length < 10 || digits.length > 15) return null;
+  const emailDigits = String(email || '').replace(/\D/g, '');
+  if (emailDigits && emailDigits.includes(digits)) return null;
+  return digits;
+}
+
+/**
+ * Returns true when a captured mobile number is complete enough to advance
+ * (10–15 digits). Shorter values are held in a buffer for the next fragment.
+ */
+export function isCompleteMobile(mobile: string | null | undefined): boolean {
+  const digits = String(mobile || '').replace(/\D/g, '');
+  return digits.length >= 10 && digits.length <= 15;
+}

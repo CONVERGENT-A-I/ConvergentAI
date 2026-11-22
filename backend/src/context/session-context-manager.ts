@@ -9,6 +9,7 @@ import type { BorrowerProfile } from '../prompts/layer3-context.js';
 import { buildSessionPrompt, buildStaticInstructions, buildDynamicContext } from '../prompts/ailana-system.js';
 import { extractProfileField, classifyConfirmation, classifyAuthorization, extractMultipleFields, type FieldToExtract } from './llm-extractor.js';
 import { applyContactUpdates } from '../utils/profile-sync.js';
+import { acceptVolunteeredMobile, appendPhoneFragment, extractEmailFromText, extractSpokenPhoneDigits, isCompleteMobile } from '../lib/contact-input.js';
 import { applicationService } from '../services/application-service.js';
 import { conversationService } from '../services/conversation-service.js';
 import { isDatabaseEnabled } from '../services/database.js';
@@ -671,10 +672,11 @@ export function applyHoldoutRouting(profile: BorrowerProfile): void {
 export function extractHoldoutContactInfo(text: string, profile: BorrowerProfile): boolean {
   let captured = false;
 
-  // Email regex
-  const emailMatch = text.match(/\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b/);
-  if (emailMatch && emailMatch[1]) {
-    profile.contact_email = emailMatch[1];
+  // Email extraction via strict contact-input validator
+  const extractedEmail = extractEmailFromText(text);
+  if (extractedEmail) {
+    profile.contact_email = extractedEmail;
+    (profile as any)._emailVoiceDeclined = false;
     captured = true;
     console.log(`[section0]: 📞 Holdout contact email captured: ${profile.contact_email}`);
   }
@@ -683,6 +685,7 @@ export function extractHoldoutContactInfo(text: string, profile: BorrowerProfile
   const phoneMatch = text.match(/(?:phone|cell|mobile|number|call me at)?\s*(?:is\s*)?(\+?1?[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}|\b\d{7,10}\b)/i);
   if (phoneMatch && phoneMatch[1]) {
     profile.contact_mobile = phoneMatch[1].replace(/[^\d+]/g, '');
+    (profile as any)._mobileVoiceDeclined = false;
     captured = true;
     console.log(`[section0]: 📞 Holdout contact mobile captured: ${profile.contact_mobile}`);
   }
@@ -1732,7 +1735,7 @@ export class SessionContextManager {
         const attempts = (this.fieldAttempts[this.currentPendingField] || 0) + 1;
         this.fieldAttempts[this.currentPendingField] = attempts;
         console.log(`[context-manager] Attempt count for "${this.currentPendingField}" is ${attempts}`);
-        if (attempts >= 3) {
+        if (attempts >= 3 && this.currentPendingField !== 'contact_email' && this.currentPendingField !== 'contact_mobile') {
           console.log(`[context-manager] Max attempts reached for "${this.currentPendingField}". Declining field.`);
           this.declineCurrentField();
           console.log(`[perf] context-manager onUserTurn TOTAL: ${(performance.now() - _perfOnUserTurnStart).toFixed(1)}ms`);
@@ -2406,11 +2409,23 @@ export class SessionContextManager {
     // Reset contact details, OTP, consent, and prefill state so 7-step auth sequence runs cleanly in order
     this.profile.contact_name = null;
     this.profile.contact_name_confirmed = false;
+    (this.profile as any).contact_first_name = null;
+    (this.profile as any).contact_last_name = null;
     this.profile.contact_email = null;
+    (this.profile as any).contact_email_confirmed = false;
+    (this.profile as any)._emailVoiceDeclined = false;
     this.profile.contact_mobile = null;
+    (this.profile as any).contact_mobile_confirmed = false;
+    (this.profile as any)._mobileVoiceDeclined = false;
+    (this.profile as any)._mobileBuffer = null;
+    (this.profile as any)._recollectingSingleContactField = false;
     (this.profile as any).contact_info_confirmed = false;
     (this.profile as any).contact_confirm_needs_correction = false;
     (this.profile as any)._contactCorrectionAcknowledged = false;
+    this.fieldAttempts['contact_full_name'] = 0;
+    this.fieldAttempts['contact_name'] = 0;
+    this.fieldAttempts['contact_email'] = 0;
+    this.fieldAttempts['contact_mobile'] = 0;
     this.profile.otp_verified = false;
     (this.profile as any)._otpReadyToShow = false;
     (this.profile as any)._otpInstructionDelivered = false;
@@ -2569,10 +2584,14 @@ export class SessionContextManager {
    * Called when the frontend ContactConfirmCard receives a 'This looks correct' click.
    * Marks contact info as confirmed, generates mock OTP, and advances to otp_verification.
    */
-  public handleContactInfoConfirmed(): void {
+  public handleContactInfoConfirmed(): boolean {
     if (this.currentPendingField !== 'contact_confirm_display' && this.currentPendingField !== 'contact_confirm_correction') {
       console.warn(`[context-manager] Received contact_info_confirmed but current field is ${this.currentPendingField}. Ignoring.`);
-      return;
+      return false;
+    }
+    if (!this.profile.contact_email || !this.profile.contact_mobile) {
+      console.warn(`[context-manager] Cannot confirm contact info yet — missing ${!this.profile.contact_email ? 'contact_email' : 'contact_mobile'}.`);
+      return false;
     }
 
     // Mark confirmed and generate mock OTP
@@ -2586,6 +2605,76 @@ export class SessionContextManager {
     // Advance to otp_verification
     this.advanceWorkflow();
     this.syncToDatabase().catch(err => console.error('[context-manager] DB sync failed on contact confirm:', err));
+    return true;
+  }
+
+  public routeNamedContactFieldCorrection(text: string): boolean {
+    const lowerText = (text || '').toLowerCase().trim();
+    const mentionsEmail = /\b(email|e-mail|mail)\b/i.test(lowerText);
+    const mentionsMobile = /\b(phone|mobile|cell|number)\b/i.test(lowerText);
+    const mentionsName = /\b(name|first|last)\b/i.test(lowerText);
+    const matchedCount = (mentionsEmail ? 1 : 0) + (mentionsMobile ? 1 : 0) + (mentionsName ? 1 : 0);
+    if (matchedCount !== 1) return false;
+
+    if (mentionsEmail) {
+      this.profile.contact_email = null;
+      (this.profile as any).contact_email_confirmed = false;
+      (this.profile as any)._emailVoiceDeclined = false;
+      this.fieldAttempts['contact_email'] = 0;
+    } else if (mentionsMobile) {
+      this.profile.contact_mobile = null;
+      (this.profile as any).contact_mobile_confirmed = false;
+      (this.profile as any)._mobileBuffer = null;
+      (this.profile as any)._mobileVoiceDeclined = false;
+      this.fieldAttempts['contact_mobile'] = 0;
+    } else if (mentionsName) {
+      this.profile.contact_name = null;
+      (this.profile as any).contact_name_confirmed = false;
+      (this.profile as any).contact_first_name = null;
+      (this.profile as any).contact_last_name = null;
+      this.fieldAttempts['contact_full_name'] = 0;
+      this.fieldAttempts['contact_name'] = 0;
+    }
+    (this.profile as any).contact_confirm_needs_correction = false;
+    (this.profile as any)._recollectingSingleContactField = true;
+    this.advanceWorkflow();
+    return true;
+  }
+
+  public isPureNamedContactFieldCorrection(text: string, requireCorrectionKeyword = false): boolean {
+    const lower = (text || '').toLowerCase().trim();
+    if (!lower) return false;
+    if (requireCorrectionKeyword && !/\b(no|not|wrong|change|update|actually|mistake|fix|incorrect)\b/i.test(lower)) {
+      return false;
+    }
+    const mentionsEmail = /\b(email|e-mail|mail)\b/i.test(lower);
+    const mentionsMobile = /\b(phone|mobile|cell|number)\b/i.test(lower);
+    const mentionsName = /\b(name|first|last)\b/i.test(lower);
+    const matchedCount = (mentionsEmail ? 1 : 0) + (mentionsMobile ? 1 : 0) + (mentionsName ? 1 : 0);
+    if (matchedCount !== 1) return false;
+
+    if (mentionsEmail) {
+      const hasInlineEmail = Boolean(extractEmailFromText(text)) || /\b(?:at|@)\s+[a-z0-9.-]+\s*(?:\.|dot)\s*[a-z]{2,}\b/i.test(lower);
+      return !hasInlineEmail;
+    }
+    if (mentionsMobile) {
+      const digits = extractSpokenPhoneDigits(text, true) || '';
+      return digits.length === 0;
+    }
+    if (mentionsName) {
+      return /^(?:no[\s,]*|actually[\s,]*)?(?:it'?s\s+|that'?s\s+)?(?:my\s+|the\s+)?(?:change\s+|update\s+|fix\s+)?(?:my\s+|the\s+)?(?:full\s+|first\s+|last\s+)?name(?:\s+(?:is\s+)?(?:wrong|incorrect|not\s+right|off|mistake))?[.!?]*$/i.test(lower);
+    }
+    return false;
+  }
+
+  private sanitizeConfirmedContactMobile(rawMobile: unknown, emailVal: string | null): string | null {
+    const digits = rawMobile ? String(rawMobile).replace(/\D/g, '') : '';
+    if (!digits) return null;
+    const emailDigits = (emailVal || '').replace(/\D/g, '');
+    if (digits.length < 7 || digits.length > 15 || (emailDigits && emailDigits.includes(digits))) {
+      return null;
+    }
+    return digits;
   }
 
   private async runStage3AExtraction(text: string): Promise<void> {
@@ -2606,14 +2695,20 @@ export class SessionContextManager {
         applyContactUpdates(this.profile, {
           fullName: results.contact_full_name.value
         });
+        if ((this.profile as any)._recollectingSingleContactField) {
+          (this.profile as any)._contactCorrectionAcknowledged = true;
+          (this.profile as any)._recollectingSingleContactField = false;
+        }
         console.log(`[context-manager]: Captured contact full name: ${this.profile.contact_name}`);
         this.advanceWorkflow();
       }
       return;
     }
 
-    // ── v8.7 OTP Gate: Step 1 & 2 — collect email and/or mobile in any order ──
-    if (this.currentPendingField === 'contact_email' || this.currentPendingField === 'contact_mobile') {
+    // ── OTP Gate: Step 1 — collect email (asked on its own turn) ──
+    // We only ASK for the email here, but if the borrower volunteers a full mobile
+    // number in the same utterance we still keep it so they are not asked again.
+    if (this.currentPendingField === 'contact_email') {
       const results = await extractMultipleFields(text, lastQuestion, [
         {
           name: 'contact_email',
@@ -2623,29 +2718,142 @@ export class SessionContextManager {
         },
         {
           name: 'contact_mobile',
+          description: "borrower's mobile phone number, ONLY if they volunteered one separately from the email",
+          expectedType: 'string',
+          additionalInstructions: 'Only extract a phone/mobile number if the user explicitly stated one as their phone, cell, or mobile number. Digits that are part of the email address (e.g. "david123@gmail.com") are NOT a phone number. Strip all non-numeric characters. Return null if no separate phone number was mentioned.',
+        },
+      ]);
+
+      let emailVal = results.contact_email?.value ? extractEmailFromText(String(results.contact_email.value)) : null;
+      if (!emailVal) {
+        emailVal = extractEmailFromText(text);
+        if (emailVal) console.log(`[context-manager]: Email captured via deterministic regex fallback: ${emailVal}`);
+      }
+      if (emailVal) {
+        applyContactUpdates(this.profile, { contact_email: emailVal });
+        if ((this.profile as any)._recollectingSingleContactField) {
+          (this.profile as any)._contactCorrectionAcknowledged = true;
+          (this.profile as any)._recollectingSingleContactField = false;
+        }
+        console.log(`[context-manager]: Captured contact email: ${this.profile.contact_email}`);
+      }
+
+      const volunteeredMobile = acceptVolunteeredMobile(
+        results.contact_mobile?.value as string | null | undefined,
+        emailVal || this.profile.contact_email,
+      );
+      if (volunteeredMobile) {
+        applyContactUpdates(this.profile, { contact_mobile: volunteeredMobile });
+        (this.profile as any)._mobileBuffer = null;
+        console.log(`[context-manager]: Borrower volunteered mobile on email turn — captured: ${this.profile.contact_mobile}`);
+      } else if (results.contact_mobile?.value) {
+        console.log(`[context-manager]: Ignored non-qualifying mobile value on email turn: ${results.contact_mobile.value}`);
+      }
+
+      if (emailVal || volunteeredMobile) {
+        // advanceWorkflow re-derives the next field: contact_mobile if still missing,
+        // contact_confirm_display if both are known, or stays on contact_email if no email yet.
+        this.advanceWorkflow();
+      }
+      if (!this.profile.contact_email && this.getFieldAttemptCount('contact_email') >= 3) {
+        this.declineCurrentField();
+      }
+      return;
+    }
+
+    // ── OTP Gate: Step 2 — collect mobile (asked on its own turn) ──
+    // Mobile-only extraction so a good email can never be overwritten here.
+    // Supports numbers spoken in two pieces via a fragment buffer.
+    if (this.currentPendingField === 'contact_mobile') {
+      const results = await extractMultipleFields(text, lastQuestion, [
+        {
+          name: 'contact_mobile',
           description: "borrower's mobile phone number",
           expectedType: 'string',
           additionalInstructions: 'Critically extract ANY sequence of numbers the user provides as their phone or mobile number (e.g. "174862528", "555-123-4567", "5551234"). Handle phonetic spelling of numbers (e.g., "zero", "one", "dash"). Strip all non-numeric characters except for a leading "+" if provided. Do NOT return null even if the number has 7, 8, 9, 10, or 11 digits. If the user spoke a number for mobile, extract it as a string of digits. Return null ONLY if no phone number was mentioned at all.',
         },
       ]);
 
-      if (results.contact_email?.value) {
-        applyContactUpdates(this.profile, { contact_email: results.contact_email.value });
-        console.log(`[context-manager]: Captured contact email: ${this.profile.contact_email}`);
+      let fragment = results.contact_mobile?.value ? String(results.contact_mobile.value).replace(/\D/g, '') : '';
+      if (!fragment) {
+        // Deterministic fallback only when the LLM returned nothing. Require 7+ digits so that
+        // filler words ("to", "for", "oh") in ordinary sentences are never mistaken for a number.
+        const spoken = extractSpokenPhoneDigits(text, true) || '';
+        if (spoken.length >= 7) {
+          fragment = spoken;
+          console.log(`[context-manager]: Mobile captured via deterministic spoken-digit fallback: ${fragment}`);
+        }
       }
-      if (results.contact_mobile?.value) {
-        applyContactUpdates(this.profile, { contact_mobile: results.contact_mobile.value });
-        console.log(`[context-manager]: Captured contact mobile: ${this.profile.contact_mobile}`);
+      const existingBuffer: string = (this.profile as any)._mobileBuffer || '';
+      const isLastTry = this.getFieldAttemptCount('contact_mobile') >= 3;
+
+      if (!fragment) {
+        // Borrower answered the "remaining digits?" follow-up without new digits (e.g. "that's it").
+        // Accept what we already have (legacy behaviour accepted 7+ digits) unless they asked a question.
+        if (existingBuffer.length >= 7 && !isLikelyQuestion(text)) {
+          (this.profile as any)._mobileBuffer = null;
+          applyContactUpdates(this.profile, { contact_mobile: existingBuffer });
+          if ((this.profile as any)._recollectingSingleContactField) {
+            (this.profile as any)._contactCorrectionAcknowledged = true;
+            (this.profile as any)._recollectingSingleContactField = false;
+          }
+          console.log(`[context-manager]: Accepted buffered mobile (no further digits given): ${this.profile.contact_mobile}`);
+          this.advanceWorkflow();
+        } else if (isLastTry) {
+          this.declineCurrentField();
+        }
+        return;
       }
 
-      if (results.contact_email?.value || results.contact_mobile?.value) {
-        this.advanceWorkflow();
+      let finalMobile: string | null = null;
+
+      if (isCompleteMobile(fragment)) {
+        // A full number on its own always wins (also covers repeating the whole number).
+        finalMobile = fragment;
+      } else {
+        const acc = appendPhoneFragment(existingBuffer, fragment);
+        if (acc.complete) {
+          finalMobile = acc.complete;
+        } else if (!acc.overflow && acc.buffer.length >= 7 && (existingBuffer || isLastTry)) {
+          // Second piece (or last try) still short: keep legacy behaviour (7+ digits accepted) so
+          // the borrower is never stuck — the confirmation card lets them fix it on screen.
+          finalMobile = acc.buffer;
+        } else if (!existingBuffer && fragment.length < 3) {
+          // 1–2 stray digits are not a meaningful start of a phone number — re-ask instead of buffering.
+          console.log(`[context-manager]: Ignoring stray ${fragment.length}-digit mobile fragment.`);
+          if (isLastTry) {
+            this.declineCurrentField();
+          }
+          return;
+        } else {
+          (this.profile as any)._mobileBuffer = acc.buffer;
+          console.log(`[context-manager]: Partial mobile buffered (${acc.buffer.length} digits) — waiting for remaining digits.`);
+          if (acc.buffer.length > existingBuffer.length) {
+            this.fieldAttempts['contact_mobile'] = Math.max(0, (this.fieldAttempts['contact_mobile'] || 1) - 1);
+          } else if (isLastTry) {
+            this.declineCurrentField();
+          }
+          return;
+        }
       }
+
+      (this.profile as any)._mobileBuffer = null;
+      applyContactUpdates(this.profile, { contact_mobile: finalMobile });
+      if ((this.profile as any)._recollectingSingleContactField) {
+        (this.profile as any)._contactCorrectionAcknowledged = true;
+        (this.profile as any)._recollectingSingleContactField = false;
+      }
+      console.log(`[context-manager]: Captured contact mobile: ${this.profile.contact_mobile}`);
+      this.advanceWorkflow();
       return;
     }
 
     // ── v8.8 OTP Gate: Step 2.5 — contact_confirm_display (borrower confirms details on screen) ──
     if (this.currentPendingField === 'contact_confirm_display') {
+      if (this.isPureNamedContactFieldCorrection(text, true) && this.routeNamedContactFieldCorrection(text)) {
+        console.log('[context-manager]: 0ms deterministic single-field correction routed from contact_confirm_display.');
+        return;
+      }
       const results = await extractMultipleFields(text, lastQuestion, [
         {
           name: 'confirm_intent',
@@ -2675,7 +2883,7 @@ export class SessionContextManager {
 
       let intent = results.confirm_intent?.value as string | null;
       let fullNameVal = results.contact_full_name?.value ? String(results.contact_full_name.value).trim() : null;
-      let emailVal = results.contact_email?.value ? String(results.contact_email.value).toLowerCase().trim() : null;
+      let emailVal = results.contact_email?.value ? extractEmailFromText(String(results.contact_email.value)) : null;
       let mobileVal = results.contact_mobile?.value ? String(results.contact_mobile.value).replace(/\D/g, '') : null;
 
       // Email Dominant-Intent Guard: Prevent name bleed during email corrections
@@ -2697,8 +2905,14 @@ export class SessionContextManager {
       }
 
       if (!emailVal) {
-        const emailMatch = text.match(/[a-zA-Z0-9_%+-]+(?:\.\s*[a-zA-Z0-9_%+-]+)*\s*@\s*[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-        if (emailMatch) emailVal = emailMatch[0].replace(/\s+/g, '').toLowerCase();
+        emailVal = extractEmailFromText(text);
+      }
+      mobileVal = this.sanitizeConfirmedContactMobile(mobileVal, emailVal);
+      if (!mobileVal && !this.profile.contact_mobile && !emailVal) {
+        const spoken = extractSpokenPhoneDigits(text, true) || '';
+        if (isCompleteMobile(spoken)) {
+          mobileVal = spoken;
+        }
       }
 
       const anyInlineCorrection = Boolean(fullNameVal || emailVal || mobileVal);
@@ -2708,17 +2922,16 @@ export class SessionContextManager {
         this.handleContactInfoConfirmed();
       } else if (intent === 'correction' || anyInlineCorrection) {
         console.log('[context-manager]: Contact info correction requested via voice.');
-        applyContactUpdates(this.profile, {
-          fullName: fullNameVal,
-          contact_email: emailVal,
-          contact_mobile: mobileVal,
-        });
-
         if (anyInlineCorrection) {
+          applyContactUpdates(this.profile, {
+            fullName: fullNameVal,
+            contact_email: emailVal,
+            contact_mobile: mobileVal,
+          });
           (this.profile as any).contact_confirm_needs_correction = false;
           (this.profile as any)._contactCorrectionAcknowledged = true;
           this.advanceWorkflow();
-        } else {
+        } else if (!this.routeNamedContactFieldCorrection(lower)) {
           (this.profile as any).contact_confirm_needs_correction = true;
           this.advanceWorkflow();
         }
@@ -2728,6 +2941,10 @@ export class SessionContextManager {
 
     // ── v8.8 OTP Gate: Step 2.6 — contact_confirm_correction (borrower said "No" without details) ──
     if (this.currentPendingField === 'contact_confirm_correction') {
+      if (this.isPureNamedContactFieldCorrection(text, false) && this.routeNamedContactFieldCorrection(text)) {
+        console.log('[context-manager]: 0ms deterministic single-field correction routed from contact_confirm_correction.');
+        return;
+      }
       const results = await extractMultipleFields(text, lastQuestion, [
         {
           name: 'contact_full_name',
@@ -2750,13 +2967,13 @@ export class SessionContextManager {
       ]);
 
       let fullNameVal = results.contact_full_name?.value ? String(results.contact_full_name.value).trim() : null;
-      let emailVal = results.contact_email?.value ? String(results.contact_email.value).toLowerCase().trim() : null;
+      let emailVal = results.contact_email?.value ? extractEmailFromText(String(results.contact_email.value)) : null;
       let mobileVal = results.contact_mobile?.value ? String(results.contact_mobile.value).replace(/\D/g, '') : null;
 
       if (!emailVal) {
-        const emailMatch = text.match(/[a-zA-Z0-9_%+-]+(?:\.\s*[a-zA-Z0-9_%+-]+)*\s*@\s*[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-        if (emailMatch) emailVal = emailMatch[0].replace(/\s+/g, '').toLowerCase();
+        emailVal = extractEmailFromText(text);
       }
+      mobileVal = this.sanitizeConfirmedContactMobile(mobileVal, emailVal);
 
       // Email Dominant-Intent Guard: Prevent name bleed during email corrections
       const lower = text.toLowerCase().trim();
@@ -2766,15 +2983,20 @@ export class SessionContextManager {
         fullNameVal = null;
       }
 
-      applyContactUpdates(this.profile, {
-        fullName: fullNameVal,
-        contact_email: emailVal,
-        contact_mobile: mobileVal,
-      });
-
-      (this.profile as any).contact_confirm_needs_correction = false;
-      (this.profile as any)._contactCorrectionAcknowledged = true;
-      this.advanceWorkflow();
+      const anyInlineCorrection = Boolean(fullNameVal || emailVal || mobileVal);
+      if (anyInlineCorrection) {
+        applyContactUpdates(this.profile, {
+          fullName: fullNameVal,
+          contact_email: emailVal,
+          contact_mobile: mobileVal,
+        });
+        (this.profile as any).contact_confirm_needs_correction = false;
+        (this.profile as any)._contactCorrectionAcknowledged = true;
+        this.advanceWorkflow();
+      } else if (!this.routeNamedContactFieldCorrection(lower)) {
+        (this.profile as any).contact_confirm_needs_correction = true;
+        this.advanceWorkflow();
+      }
       return;
     }
 
@@ -4881,9 +5103,9 @@ export class SessionContextManager {
       // -- v8.8 OTP Gate: contact_full_name → contact_email → contact_mobile → contact_confirm_display → otp_verification → soft_pull_authorization → prefill walkthrough --
       if (!this.profile.contact_name && !((this.profile as any).contact_first_name && (this.profile as any).contact_last_name)) {
         this.currentPendingField = 'contact_full_name';
-      } else if (!this.profile.contact_email) {
+      } else if (!this.profile.contact_email && !(this.profile as any)._emailVoiceDeclined) {
         this.currentPendingField = 'contact_email';
-      } else if (!this.profile.contact_mobile) {
+      } else if (!this.profile.contact_mobile && !(this.profile as any)._mobileVoiceDeclined) {
         this.currentPendingField = 'contact_mobile';
       } else if (!this.profile.otp_verified) {
         // If contact_confirm_display hasn't been shown/confirmed yet, show it first
@@ -5373,6 +5595,21 @@ export class SessionContextManager {
   }
 
   private async checkForGlobalCorrections(text: string): Promise<boolean> {
+    if (
+      this.activeStage === '3A' &&
+      [
+        'contact_full_name',
+        'contact_name',
+        'contact_email',
+        'contact_mobile',
+        'contact_confirm_display',
+        'contact_confirm_correction',
+        'otp_verification',
+      ].includes(this.currentPendingField || '')
+    ) {
+      return false;
+    }
+
     const lower = text.toLowerCase();
     // Keywords indicating an intentional change or correction.
     // Deliberately narrow — common words like "not" and "no" would fire on
@@ -5452,7 +5689,7 @@ If no correction/change is found, return null.`
     return false;
   }
 
-  private declineCurrentField(): void {
+  public declineCurrentField(): void {
     if (!this.currentPendingField) return;
     const field = this.currentPendingField;
     this.fieldAttempts[field] = 0;
@@ -5549,6 +5786,13 @@ If no correction/change is found, return null.`
     } else if (field === 'contact_name') {
       this.profile.contact_name = 'Valued Member';
       this.profile.contact_name_confirmed = true;
+    } else if (field === 'contact_email') {
+      (this.profile as any)._emailVoiceDeclined = true;
+      console.log('[context-manager]: contact_email declined after 3 voice attempts — will collect on confirmation card after mobile turn.');
+    } else if (field === 'contact_mobile') {
+      (this.profile as any)._mobileVoiceDeclined = true;
+      (this.profile as any)._mobileBuffer = null;
+      console.log('[context-manager]: contact_mobile declined after 3 voice attempts — falling back to confirmation card.');
     } else if (field === 'soft_pull_authorization') {
       this.profile.soft_pull_consent = 'declined';
     } else if (field === 'prefill_name_address' || field === 'prefill_employer' || field === 'prefill_accounts' || field === 'prefill_credit_range') {

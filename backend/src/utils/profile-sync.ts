@@ -81,6 +81,7 @@ export function applyContactUpdates(profile: any, updates: any): void {
     if (email) {
       profile.contact_email = email;
       profile.contact_email_confirmed = true;
+      profile._emailVoiceDeclined = false;
     }
   }
   
@@ -89,6 +90,7 @@ export function applyContactUpdates(profile: any, updates: any): void {
     if (mobile) {
       profile.contact_mobile = mobile;
       profile.contact_mobile_confirmed = true;
+      profile._mobileVoiceDeclined = false;
     }
   }
 }

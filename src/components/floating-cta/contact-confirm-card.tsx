@@ -12,9 +12,9 @@ export interface ContactConfirmCardProps {
   lastName?: string | null;
   email?: string | null;
   mobile?: string | null;
-  onConfirm?: () => void;
-  onCorrect?: () => void;
-  onFieldCorrect?: (field: 'fullName' | 'firstName' | 'lastName' | 'email' | 'mobile', newValue: string) => void;
+  onConfirm?: () => void | Promise<void>;
+  onCorrect?: () => void | Promise<void>;
+  onFieldCorrect?: (field: 'fullName' | 'firstName' | 'lastName' | 'email' | 'mobile', newValue: string) => void | Promise<void>;
 }
 
 type EditableField = 'fullName' | 'email' | 'mobile';
@@ -45,6 +45,15 @@ export function ContactConfirmCard({
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [recentSavedField, setRecentSavedField] = useState<EditableField | null>(null);
   const [hasEverEdited, setHasEverEdited] = useState(false);
+  const isConfirmingRef = useRef(false);
+
+  useEffect(() => {
+    if (!isVisible) {
+      setActiveEditingField(null);
+      setEditInputValue('');
+      setFieldError(null);
+    }
+  }, [isVisible]);
 
   // Sync props to local values if not currently editing that specific field
   useEffect(() => {
@@ -199,12 +208,59 @@ export function ContactConfirmCard({
             </div>
 
             {/* Bottom Section: Discrete mode button or Voice hint */}
-            {isDiscreteMode || hasEverEdited ? (
+            {isDiscreteMode || hasEverEdited || !localValues.email || !localValues.mobile ? (
               <div className="mt-5 space-y-2">
                 <button
                   id="contact-confirm-submit-btn"
                   type="button"
-                  onClick={onConfirm}
+                  onClick={async () => {
+                    if (isConfirmingRef.current) return;
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    const nextValues = { ...localValues };
+                    let pendingCorrection: { field: EditableField; value: string } | null = null;
+
+                    if (activeEditingField) {
+                      const trimmed = editInputValue.trim();
+                      if (activeEditingField === 'fullName' && !trimmed) {
+                        setFieldError('Please enter your full name.');
+                        return;
+                      }
+                      if (activeEditingField === 'email' && !emailRegex.test(trimmed)) {
+                        setFieldError('Please enter a valid email address.');
+                        return;
+                      }
+                      if (activeEditingField === 'mobile' && trimmed.replace(/\D/g, '').length < 10) {
+                        setFieldError('Please enter a valid phone number (at least 10 digits).');
+                        return;
+                      }
+                      nextValues[activeEditingField] = trimmed;
+                      pendingCorrection = { field: activeEditingField, value: trimmed };
+                      setLocalValues(nextValues);
+                      setActiveEditingField(null);
+                      setFieldError(null);
+                      setHasEverEdited(true);
+                    }
+
+                    isConfirmingRef.current = true;
+                    try {
+                      if (pendingCorrection) {
+                        await onFieldCorrect?.(pendingCorrection.field, pendingCorrection.value);
+                      }
+                      if (!emailRegex.test((nextValues.email || '').trim())) {
+                        handleStartEdit('email');
+                        setFieldError('Please enter a valid email address.');
+                        return;
+                      }
+                      if ((nextValues.mobile || '').replace(/\D/g, '').length < 10) {
+                        handleStartEdit('mobile');
+                        setFieldError('Please enter a valid phone number (at least 10 digits).');
+                        return;
+                      }
+                      await onConfirm?.();
+                    } finally {
+                      isConfirmingRef.current = false;
+                    }
+                  }}
                   className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#00b4d8] to-[#0077b6] hover:from-[#0096c7] hover:to-[#023e8a] text-white font-semibold text-sm shadow-[0_0_20px_rgba(0,180,216,0.3)] transition-all flex items-center justify-center gap-2 group cursor-pointer active:scale-[0.99]"
                 >
                   <span>This looks correct</span>

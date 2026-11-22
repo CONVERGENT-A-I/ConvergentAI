@@ -268,12 +268,12 @@ export function buildLayer3TurnContext(
   isLowConfidence: boolean = false,
   section0?: Section0TurnExtras,
 ): string {
-  // ── Section 0 — Routing State Block (Active only while Q9_confirmed is false) ──
+  // ── Section 0 — Routing State Block (Active only while Q9_confirmed is false and section0 is enabled) ──
   // SR-1 (clarifying question) is available during Section 0 routing
   // when transaction type cannot be determined after the fallback
   // routing question. Output ROUTE: UNCLEAR to trigger SR-1.
   let section0Block = '';
-  if (!profile.Q9_confirmed && (stage === '1' || stage === '0' || !profile.transaction_type)) {
+  if (ailanaConfig.section0Enabled && !profile.Q9_confirmed && (stage === '1' || stage === '0' || !profile.transaction_type)) {
     const signalsStr = profile.signals_found && profile.signals_found.length > 0
       ? `[${profile.signals_found.join(', ')}]`
       : '(empty)';
@@ -444,7 +444,7 @@ export function buildLayer3TurnContext(
     profile.soft_pull_consent === 'pending';
 
   if (!hasSpecificOverride) {
-    if (!profile.Q9_confirmed && (stage === '1' || stage === '0' || !profile.transaction_type)) {
+    if (ailanaConfig.section0Enabled && !profile.Q9_confirmed && (stage === '1' || stage === '0' || !profile.transaction_type)) {
       taskLine = `CURRENT TASK:\nSection 0 Transaction Type Routing: Determine the borrower's intent (purchase, refinance, HELOC, or home equity loan). Deliver the appropriate Section 0 routing formulation and output the ROUTE signal. Do NOT ask Stage 1 discovery questions.`;
     } else if (profile.pending_confirm_field && profile.pending_confirm_value) {
       let label = FIELD_LABELS[profile.pending_confirm_field] ?? profile.pending_confirm_field;
@@ -578,14 +578,24 @@ You MUST ask for the borrower's full name to set up their secure login.
 Say EXACTLY: "Perfect. Before we run your review, I'll need a few details to set up your secure account. First — what's your full name?"
 Do NOT ask for email or mobile yet. Do NOT mention the soft pull until after OTP is verified.`;
   } else if (pendingField === 'contact_email') {
-    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT EMAIL AND MOBILE ***
-You MUST ask for the borrower's email and mobile number together in ONE question.
-Say EXACTLY: "Great. Now, what email address and mobile number would you like to use for your account?"
+    otpBlock = profile.contact_mobile
+      ? `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT EMAIL ***
+The mobile number was already captured. Ask ONLY for the borrower's email address.
+Say EXACTLY: "I have your mobile number. Could you also share the email address you'd like to use for your account?"
+Do NOT ask for anything else. Do NOT mention the soft pull until after OTP is verified.`
+      : `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT EMAIL ***
+You MUST ask ONLY for the borrower's email address. Do NOT ask for the mobile number on this turn — it is collected on the next turn.
+Say EXACTLY: "Great. Now, what email address would you like to use for your account?"
 Do NOT ask for anything else. Do NOT mention the soft pull until after OTP is verified.`;
   } else if (pendingField === 'contact_mobile') {
-    otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT MOBILE ***
-The email was captured. Now ask for their mobile number.
-Say EXACTLY: "And what mobile number should I send your verification code to?"
+    otpBlock = profile.contact_email
+      ? `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT MOBILE ***
+The email was captured. Now ask ONLY for their mobile number.
+Say EXACTLY: "I have your email. Could you also share the mobile number you'd like to use?"
+Do NOT ask for anything else.`
+      : `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT MOBILE ***
+Ask ONLY for their mobile number.
+Say EXACTLY: "Could you share the mobile number you'd like to use for your account?"
 Do NOT ask for anything else.`;
   } else if (pendingField === 'contact_confirm_display') {
     const fullName = profile.contact_name || 'your name';
