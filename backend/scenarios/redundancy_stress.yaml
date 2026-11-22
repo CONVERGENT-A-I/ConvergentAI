@@ -1,0 +1,127 @@
+# Redundancy stress-test scenarios — PROPOSED, not approved.
+# Compact versions (<1800 bytes each) to fit LiveKit room attribute limit.
+# Tests conversation flow through Section 0 to contact collection only.
+# No OTP/soft-pull/prefill steps (those require frontend UI).
+# Run with SECTION_0_ENABLED=true. All people are invented.
+id: SCNG_redundancy_stress
+name: Redundancy stress tests — compact
+scenarios:
+
+  - id: SCN_r_full_flow
+    label: "R-STRESS-1: no repeats through Section 0 to contact"
+    instructions: |
+      You are Morgan, a first-time buyer. Say: "Hi, I want to buy a home. I make 84,000 a year, debts are 1,200 monthly, credit is about 710."
+      Answer one fact per turn only when asked:
+      - Name: Morgan Davis
+      - Never used this lender
+      - Buy within two months
+      - Alone, no co-borrower
+      - 15,000 down payment
+      - Renting now
+      - No agent yet
+      - 300,000 single-family in Chattanooga TN
+      - No military
+      - Salaried, 5 years same employer
+      - Choose soft credit review
+      - Full name: Morgan Davis
+      - Email: morgandavis@gmail.com
+      - Mobile: 4235551234
+      If asked something you already answered, say "I mentioned that already" then repeat it.
+      Stop after giving mobile or after 20 replies.
+    agent_expectations: >
+      Never re-asks income, debts, or credit after the opening. Never re-asks name after collecting it. Never re-asks email or mobile after collecting each. No question repeated verbatim or paraphrased. Asks email and mobile in separate turns. Does not quote a rate or promise approval.
+    tags:
+      feature: redundancy_stress
+      test_set_id: "R-STRESS-1"
+    userdata:
+      expect_transfer: false
+
+  - id: SCN_r_credit_confirm
+    label: "R-STRESS-2: credit not re-asked (David's bug)"
+    instructions: |
+      You are Alex, buying a home. Say: "I want to buy a house for 280,000. Income is 92,000, debts 900 monthly, credit around 735."
+      Answer one fact per turn:
+      - Name: Alex
+      - Never used this lender
+      - Buy in three months
+      - Alone
+      - 20,000 saved
+      - Renting
+      - No agent
+      - Single-family Chattanooga TN
+      - No military
+      - Salaried, 7 years
+      - Choose soft credit review
+      - Full name: Alex Rivera
+      - Email: alexrivera@outlook.com
+      - Mobile: 4235559876
+      If credit is asked a second time, say "You already asked me that and I confirmed it."
+      Stop after giving mobile or 20 replies.
+    agent_expectations: >
+      After collecting credit score in the opening, never asks about credit score, credit range, or credit rating again at any point. No question repeated. Email and mobile asked in separate turns. Does not quote a rate or promise approval.
+    tags:
+      feature: redundancy_stress
+      test_set_id: "R-STRESS-2"
+    userdata:
+      expect_transfer: false
+
+  - id: SCN_r_contact_sep
+    label: "R-STRESS-3: email then mobile separately"
+    instructions: |
+      You are Sam, buying a home. Say: "Hi, looking to purchase. I earn 75,000, owe 800 monthly, score is 690."
+      Answer one fact per turn:
+      - Name: Sam Chen
+      - Never used this lender
+      - Buy in four months
+      - Alone
+      - 10,000 saved
+      - Renting
+      - No agent
+      - 250,000 condo in Chattanooga TN
+      - No military
+      - Salaried, 3 years
+      - Choose soft credit review
+      - Full name: Sam Chen
+      - When asked for email ONLY: samchen@gmail.com (do NOT volunteer phone)
+      - When asked for mobile ONLY: 4235557890 (do NOT volunteer email)
+      Stop after giving mobile or 15 replies.
+    agent_expectations: >
+      Asks for email FIRST in its own turn without mentioning mobile. Then asks for mobile in a SEPARATE turn. Never asks both in one question. Never asks for email twice. Never asks for mobile twice. Does not quote a rate or promise approval.
+    tags:
+      feature: redundancy_stress
+      test_set_id: "R-STRESS-3"
+    userdata:
+      expect_transfer: false
+
+  - id: SCN_r_long_conv
+    label: "R-STRESS-4: 15+ turns, compaction, no repeats"
+    instructions: |
+      You are Jordan, a detailed buyer. Say: "Hello, I'm interested in buying a house."
+      Give ONLY one fact per turn when asked:
+      - Want to purchase, primary residence
+      - Income: 105,000
+      - Debts: 1,500 monthly
+      - Credit: 760
+      - Name: Jordan Taylor
+      - Never used this lender
+      - Buy within 60 days
+      - With spouse, spouse makes 55,000
+      - 40,000 down payment
+      - Own a home, selling it
+      - Have an agent
+      - 425,000 single-family Ooltewah TN
+      - No military
+      - Salaried, 12 years
+      - Choose soft credit review
+      - Full name: Jordan Taylor
+      - Email: jordantaylor@yahoo.com
+      - Mobile: 4235554321
+      If asked something you already said, say "I already mentioned that."
+      Stop after giving mobile or 25 replies.
+    agent_expectations: >
+      Handles 15+ turns without repeating any question. After income, debts, credit stated, never re-asks any. After co-borrower and spouse income, never re-asks. All facts retained even after compaction. No question repeated. Does not quote a rate or promise approval.
+    tags:
+      feature: redundancy_stress
+      test_set_id: "R-STRESS-4"
+    userdata:
+      expect_transfer: false

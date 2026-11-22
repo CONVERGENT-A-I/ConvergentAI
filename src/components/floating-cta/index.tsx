@@ -58,6 +58,7 @@ import {
   type TransactionType,
   type PanelValuesPayload,
 } from "../affordability-panel-new";
+import { AffordabilityPanelV2 } from "../affordability-panel-v2";
 import { OtpVerificationModal } from "./otp-verification-modal";
 import { ContactConfirmCard } from "./contact-confirm-card";
 import VideoStage from "../video-stage";
@@ -2490,7 +2491,30 @@ export default function FloatingCTA() {
 
 
 
-                        const panelNode = (
+                        const useV2 = apTransactionType === 'TT-PUR';
+
+                        const handleEditData = async () => {
+                          if ((window as any).lkPublishData) {
+                            const encoder = new TextEncoder();
+                            const payload = encoder.encode(JSON.stringify({ message: 'I need to correct my income or monthly debts' }));
+                            await (window as any).lkPublishData(payload, { topic: 'lk-chat', reliable: true });
+                          }
+                        };
+
+                        const panelNode = useV2 ? (
+                          <AffordabilityPanelV2
+                            transactionType={apTransactionType}
+                            dataMode={apDataMode}
+                            income={apMonthlyIncome}
+                            monthlyDebts={apMonthlyDebts}
+                            eligiblePrograms={apEligiblePrograms}
+                            initialAssumptions={apInitialAssumptions}
+                            onRequestSoftPull={handleSoftPull}
+                            onEditData={handleEditData}
+                            showAilanaLine={false}
+                            ailanaLine={`Here is what your numbers look like at $${apTargetPrice.toLocaleString('en-US')}.`}
+                          />
+                        ) : (
                           <AffordabilityPanelNew
                             transactionType={apTransactionType}
                             cashOutIntent={apCashOutIntent}
@@ -2506,7 +2530,6 @@ export default function FloatingCTA() {
                             initialAssumptions={apInitialAssumptions}
                             onRequestSoftPull={handleSoftPull}
                             onSubmitReview={handleSubmitReview}
-
                           />
                         );
 
@@ -2519,27 +2542,39 @@ export default function FloatingCTA() {
                               initial={{ opacity: 0, x: 50 }}
                               animate={{ opacity: 1, x: 0, transition: { delay: 0.08, type: 'spring', stiffness: 280, damping: 26 } }}
                               exit={{ opacity: 0, x: 50, transition: { type: 'spring', stiffness: 300, damping: 30 } }}
-                              className="hidden lg:flex w-[45%] xl:w-[42%] min-w-[390px] max-w-[560px] h-full flex-col shrink-0 border-l border-white/10 bg-[#080c14]/80 z-10 order-2 overflow-hidden"
+                              className={`hidden lg:flex w-[45%] xl:w-[42%] min-w-[390px] max-w-[560px] h-full flex-col shrink-0 border-l z-10 order-2 overflow-hidden ${
+                                useV2 ? 'border-gray-200 bg-[#F7F8FC]' : 'border-white/10 bg-[#080c14]/80'
+                              }`}
                             >
                               {/* Panel header */}
-                              <div className="flex items-center justify-between px-5 py-3.5 bg-[#131b2e]/90 border-b border-gray-800/80 shrink-0">
+                              <div className={`flex items-center justify-between px-5 py-3.5 shrink-0 ${
+                                useV2 ? 'bg-white border-b border-gray-200' : 'bg-[#131b2e]/90 border-b border-gray-800/80'
+                              }`}>
                                 <div className="flex items-center gap-2.5">
-                                  <SlidersHorizontal className="w-4 h-4 text-[#00b4d8]" />
-                                  <span className="text-sm font-bold text-white tracking-wide">{apHeaderLabel}</span>
-                                  <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                                    apRawMode === 'stated'
-                                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                                  }`}>
-                                    {apRawMode === 'stated' ? 'Stated' : 'Verified'}
-                                  </span>
+                                  {!useV2 && <SlidersHorizontal className="w-4 h-4 text-[#00b4d8]" />}
+                                  <span className={`text-sm font-bold tracking-wide ${useV2 ? 'text-[#061234]' : 'text-white'}`}>{apHeaderLabel}</span>
+                                  {useV2 ? (
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold border border-gray-300 text-gray-500 bg-gray-50">
+                                      {apRawMode === 'stated' ? 'Your estimates' : 'Verified'}
+                                    </span>
+                                  ) : (
+                                    <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                                      apRawMode === 'stated'
+                                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                        : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                    }`}>
+                                      {apRawMode === 'stated' ? 'Stated' : 'Verified'}
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                   <button
                                     type="button"
                                     onClick={handleClose}
                                     title="Minimize"
-                                    className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
+                                    className={`p-1.5 rounded-lg transition cursor-pointer ${
+                                      useV2 ? 'text-gray-400 hover:text-gray-700 hover:bg-gray-100' : 'text-gray-400 hover:text-white hover:bg-white/10'
+                                    }`}
                                   >
                                     <Minus className="w-4 h-4" />
                                   </button>
@@ -2547,14 +2582,16 @@ export default function FloatingCTA() {
                                     type="button"
                                     onClick={handleClose}
                                     title="Close"
-                                    className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
+                                    className={`p-1.5 rounded-lg transition cursor-pointer ${
+                                      useV2 ? 'text-gray-400 hover:text-gray-700 hover:bg-gray-100' : 'text-gray-400 hover:text-white hover:bg-white/10'
+                                    }`}
                                   >
                                     <X className="w-4 h-4" />
                                   </button>
                                 </div>
                               </div>
                               {/* Panel body */}
-                              <div className="flex-1 overflow-y-auto">
+                              <div className={`flex-1 overflow-y-auto ${useV2 ? 'p-3 bg-[#F7F8FC]' : ''}`}>
                                 {panelNode}
                               </div>
                             </motion.div>
@@ -2574,27 +2611,39 @@ export default function FloatingCTA() {
                                 initial={{ opacity: 0, scale: 0.94, y: 15 }}
                                 animate={{ opacity: 1, scale: 1, y: 0, transition: { type: 'spring', stiffness: 340, damping: 28 } }}
                                 exit={{ opacity: 0, scale: 0.94, y: 15, transition: { duration: 0.18 } }}
-                                className="relative w-full max-w-lg bg-[#0b0f19]/98 border border-[#00b4d8]/30 rounded-2xl shadow-[0_0_60px_rgba(0,180,216,0.25)] overflow-hidden flex flex-col max-h-[90dvh]"
+                                className={`relative w-full max-w-lg rounded-2xl overflow-hidden flex flex-col max-h-[90dvh] ${
+                                  useV2 ? 'bg-[#F7F8FC] border border-gray-200 shadow-[0_10px_50px_rgba(0,0,0,0.15)]' : 'bg-[#0b0f19]/98 border border-[#00b4d8]/30 shadow-[0_0_60px_rgba(0,180,216,0.25)]'
+                                }`}
                               >
                                 {/* Modal header */}
-                                <div className="flex items-center justify-between px-5 py-3.5 bg-[#131b2e]/90 border-b border-gray-800/80 shrink-0">
+                                <div className={`flex items-center justify-between px-5 py-3.5 shrink-0 ${
+                                  useV2 ? 'bg-white border-b border-gray-200' : 'bg-[#131b2e]/90 border-b border-gray-800/80'
+                                }`}>
                                   <div className="flex items-center gap-2.5">
-                                    <SlidersHorizontal className="w-4 h-4 text-[#00b4d8]" />
-                                    <span className="text-sm font-bold text-white tracking-wide">{apHeaderLabel}</span>
-                                    <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                                      apRawMode === 'stated'
-                                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                                        : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                                    }`}>
-                                      {apRawMode === 'stated' ? 'Stated' : 'Verified'}
-                                    </span>
+                                    {!useV2 && <SlidersHorizontal className="w-4 h-4 text-[#00b4d8]" />}
+                                    <span className={`text-sm font-bold tracking-wide ${useV2 ? 'text-[#061234]' : 'text-white'}`}>{apHeaderLabel}</span>
+                                    {useV2 ? (
+                                      <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold border border-gray-300 text-gray-500 bg-gray-50">
+                                        {apRawMode === 'stated' ? 'Your estimates' : 'Verified'}
+                                      </span>
+                                    ) : (
+                                      <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                                        apRawMode === 'stated'
+                                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                          : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                      }`}>
+                                        {apRawMode === 'stated' ? 'Stated' : 'Verified'}
+                                      </span>
+                                    )}
                                   </div>
                                   <div className="flex items-center gap-1.5">
                                     <button
                                       type="button"
                                       onClick={handleClose}
                                       title="Minimize"
-                                      className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
+                                      className={`p-1.5 rounded-lg transition cursor-pointer ${
+                                        useV2 ? 'text-gray-400 hover:text-gray-700 hover:bg-gray-100' : 'text-gray-400 hover:text-white hover:bg-white/10'
+                                      }`}
                                     >
                                       <Minus className="w-4 h-4" />
                                     </button>
@@ -2602,15 +2651,30 @@ export default function FloatingCTA() {
                                       type="button"
                                       onClick={handleClose}
                                       title="Close"
-                                      className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
+                                      className={`p-1.5 rounded-lg transition cursor-pointer ${
+                                        useV2 ? 'text-gray-400 hover:text-gray-700 hover:bg-gray-100' : 'text-gray-400 hover:text-white hover:bg-white/10'
+                                      }`}
                                     >
                                       <X className="w-4 h-4" />
                                     </button>
                                   </div>
                                 </div>
-                                {/* Modal body */}
-                                <div className="flex-1 overflow-y-auto">
-                                  {panelNode}
+                                {/* Modal body — v2 shows Ailana line on mobile */}
+                                <div className={`flex-1 overflow-y-auto ${useV2 ? 'p-3 bg-[#F7F8FC]' : ''}`}>
+                                  {useV2 ? (
+                                    <AffordabilityPanelV2
+                                      transactionType={apTransactionType}
+                                      dataMode={apDataMode}
+                                      income={apMonthlyIncome}
+                                      monthlyDebts={apMonthlyDebts}
+                                      eligiblePrograms={apEligiblePrograms}
+                                      initialAssumptions={apInitialAssumptions}
+                                      onRequestSoftPull={handleSoftPull}
+                                      onEditData={handleEditData}
+                                      showAilanaLine={true}
+                                      ailanaLine={`Here is what your numbers look like at $${apTargetPrice.toLocaleString('en-US')}.`}
+                                    />
+                                  ) : panelNode}
                                 </div>
                               </motion.div>
                             </motion.div>

@@ -21,9 +21,9 @@ export const ailanaConfig = {
   get section0Enabled() { return process.env.SECTION_0_ENABLED === 'true'; },
 
   /** Compaction triggers — tuned for latency, not just 32k limit */
-  compactEveryNTurns: envInt('AILANA_COMPACT_EVERY_N_TURNS', 6),
+  compactEveryNTurns: envInt('AILANA_COMPACT_EVERY_N_TURNS', 10),
   compactEveryMs: envInt('AILANA_COMPACT_EVERY_MS', 3 * 60 * 1000),
-  keepRecentTurns: envInt('AILANA_KEEP_RECENT_TURNS', 4),
+  keepRecentTurns: envInt('AILANA_KEEP_RECENT_TURNS', 8),
   rotateSessionMs: envInt('AILANA_ROTATE_SESSION_MS', 10 * 60 * 1000),
   rotateEveryNTurns: envInt('AILANA_ROTATE_EVERY_N_TURNS', 20),
 

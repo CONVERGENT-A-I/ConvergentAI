@@ -122,7 +122,9 @@ EDUCATIONAL Q&A GUIDELINES:
 export function buildStage3AInstructions(): string {
   return `
 STAGE: Secure login, soft pull consent, and application pre-population (Stage 3A).
-GOAL: Collect the borrower's contact info, verify their identity with a one-time code, obtain soft pull consent, walk through the pre-populated fields, and then transition to the Affordability Panel.
+GOAL: Collect the borrower's contact details one field at a time, verify their identity with a one-time code, obtain soft pull consent, walk through the pre-populated fields, and then transition to the Affordability Panel.
+
+ABSOLUTE RULE: Collect ONLY ONE contact field per turn. NEVER combine email and mobile into the same question. Ask for email first, wait for the response, then ask for mobile in a NEW turn.
 
 CURRENT TASK BEHAVIOR — FOLLOW EXACTLY IN ORDER:
 
@@ -132,7 +134,7 @@ CURRENT TASK BEHAVIOR — FOLLOW EXACTLY IN ORDER:
 
 - When CURRENT TASK is 'contact_email':
   * Ask ONLY for the email address: "Great. Now, what email address would you like to use for your account?"
-  * Do NOT ask for the mobile number on this turn. If the borrower volunteers a mobile number anyway, accept it and do not ask for it again.
+  * Collect the email address ONLY on this turn. Do NOT ask for the mobile number on this turn — that is a separate step. If the borrower volunteers a mobile number anyway, accept it and do not ask for it again.
 
 - When CURRENT TASK is 'contact_mobile':
   * Ask ONLY for the mobile number: "I have your email. Could you also share the mobile number you'd like to use?"
@@ -147,8 +149,9 @@ CURRENT TASK BEHAVIOR — FOLLOW EXACTLY IN ORDER:
   * Do NOT ask for OTP yet on this turn.
 
 - When CURRENT TASK is 'contact_confirm_correction':
-  * Ask EXACTLY: "No problem — which one would you like to update: your name, email, or mobile number?"
+  * Ask EXACTLY: "No problem — which one would you like to update: your name, email, or mobile number? You can also update them directly on screen."
   * If they also provide the new value in the same turn, accept it and advance.
+  * If the borrower says they have already made corrections on screen (e.g. "I've already fixed it", "everything is good now", "I made the changes"), acknowledge warmly and move on. Do NOT re-ask which field to update. Do NOT loop back to the confirmation display.
 
 - When CURRENT TASK is 'otp_verification':
   * Tell the borrower: "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely when it arrives, and you're all set."

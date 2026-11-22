@@ -203,6 +203,9 @@ export interface BorrowerProfile {
   // ── Stage 5 (Escalation) ─────────────────────────────────────────────────
   escalation_preference?: 'live_transfer' | 'scheduled_call' | 'declined' | null;
   scheduled_call_time?: string | null;
+
+  // ── Anti-redundancy (injected by session-context-manager) ───────────────
+  _recentAssistantQuestions?: string[];
 }
 
 const FIELD_LABELS: Record<string, string> = {
@@ -584,8 +587,10 @@ The mobile number was already captured. Ask ONLY for the borrower's email addres
 Say EXACTLY: "I have your mobile number. Could you also share the email address you'd like to use for your account?"
 Do NOT ask for anything else. Do NOT mention the soft pull until after OTP is verified.`
       : `\n\n*** CRITICAL TURN INSTRUCTION: COLLECT EMAIL ***
-You MUST ask ONLY for the borrower's email address. Do NOT ask for the mobile number on this turn — it is collected on the next turn.
+You MUST ask ONLY for the borrower's email address on this turn.
 Say EXACTLY: "Great. Now, what email address would you like to use for your account?"
+NEVER ask for their mobile number in this turn — mobile is a SEPARATE turn that comes AFTER you receive the email.
+NEVER combine email and mobile into one question. Ask ONLY for email right now.
 Do NOT ask for anything else. Do NOT mention the soft pull until after OTP is verified.`;
   } else if (pendingField === 'contact_mobile') {
     otpBlock = profile.contact_email
@@ -611,14 +616,22 @@ Do NOT mention OTP yet.`;
   } else if (pendingField === 'contact_confirm_correction') {
     otpBlock = `\n\n*** CRITICAL: CONTACT CORRECTION TURN ***
 The borrower said something was incorrect on the confirmation. Ask EXACTLY:
-"No problem — which one would you like to update: your name, email, or mobile number?"
+"No problem — which one would you like to update: your name, email, or mobile number? You can also update them directly on screen."
 If they also gave you the corrected value in the same sentence, acknowledge it.
+If the borrower says they have ALREADY made corrections on screen (e.g. "I've already fixed it", "everything is good now", "I made my changes", "all done"), acknowledge warmly and move on. Do NOT re-ask which field to update. Do NOT loop.
 Do NOT ask for anything else.`;
   } else if (pendingField === 'otp_verification') {
     otpBlock = `\n\n*** CRITICAL TURN INSTRUCTION: VERIFY CODE VIA MODAL ***
 A one-time verification code has been sent to the borrower's email and mobile. You must instruct them to use the secure popup modal.
 Say EXACTLY: "I've sent a one-time code to confirm your email and mobile number — please go ahead and enter it securely when it arrives, and you're all set."
 Do NOT ask them to read the code out loud. Do NOT ask for anything else. Wait for the borrower to enter the code in the modal.`;
+  } else if (pendingField === 'session_closing') {
+    otpBlock = `\n\n*** SESSION CLOSING ***
+The session is wrapping up. Ask the borrower if there is anything else you can help with.
+If they say no or indicate they are done, deliver the closing:
+"It was great speaking with you today! To prepare for your call, you may want to have your recent pay stubs, W-2s, and bank statements handy. You can close this window whenever you are ready — everything from our conversation has been saved. Take care!"
+If they have a follow-up question, answer it helpfully, then offer the closing again.
+Do NOT offer to schedule another callback or transfer. Do NOT go silent.`;
   }
 
 
@@ -667,8 +680,49 @@ Do NOT ask them to read the code out loud. Do NOT ask for anything else. Wait fo
 
   // ── Anti-Redundancy Rules ─────────────────────────────────────────────────
   let antiRedundancyBlock = '';
+
+  // Stage 2.5 affordability-specific
   if (stage === '2.5') {
     antiRedundancyBlock = `\n\n*** ANTI-REDUNDANCY RULES (STAGE 2.5 AFFORDABILITY) ***\n- Do NOT repeat the initial affordability summary explanation on subsequent turns.\n- If the borrower is just adjusting targets/sliders without asking a question, keep your response extremely brief (1 short sentence) and conversational (e.g. "Got it, your summary is updated.").\n- Do NOT repeatedly recite full Q48 scripts like "That sounds like a comfortable spot" or "With those targets, your total debt ratio..." every single time they change a number.\n- Once the initial panel is explained, adopt a concise, listening posture.`;
+  }
+
+  // Global anti-redundancy: confirmed fields + recent questions
+  const confirmedItems: string[] = [];
+  if (profile.borrower_name_confirmed) confirmedItems.push('borrower name');
+  if (profile.mortgage_goal_confirmed) confirmedItems.push('mortgage goal / transaction type');
+  if (profile.occupancy_confirmed) confirmedItems.push('occupancy type');
+  if (profile.gross_annual_income_confirmed) confirmedItems.push('gross annual income');
+  if (profile.monthly_debt_confirmed) confirmedItems.push('monthly debt');
+  if (profile.credit_range_confirmed || profile.prefilled_fields_confirmed?.credit_range) confirmedItems.push('credit score / credit range');
+  if (profile.down_payment_confirmed) confirmedItems.push('down payment');
+  if (profile.rent_own_confirmed) confirmedItems.push('rent/own status');
+  if (profile.realtor_status_confirmed) confirmedItems.push('realtor status');
+  if (profile.co_borrower_confirmed) confirmedItems.push('co-borrower status');
+  if (profile.timeline_confirmed) confirmedItems.push('timeline');
+  if (profile.contact_email) confirmedItems.push('email address');
+  if (profile.contact_mobile) confirmedItems.push('mobile number');
+  if (profile.otp_verified) confirmedItems.push('OTP verification');
+  if (profile.soft_pull_consent === 'accepted') confirmedItems.push('soft pull consent');
+  if (profile.prefilled_fields_confirmed?.name_address) confirmedItems.push('name & address (prefill confirmed)');
+  if (profile.prefilled_fields_confirmed?.employer) confirmedItems.push('employer (prefill confirmed)');
+  if (profile.prefilled_fields_confirmed?.accounts) confirmedItems.push('accounts (prefill confirmed)');
+  if (profile.prefilled_fields_confirmed?.credit_range) confirmedItems.push('credit rating/range (prefill confirmed)');
+
+  if (confirmedItems.length > 0) {
+    antiRedundancyBlock += `\n\n*** CRITICAL: DO NOT RE-ASK CONFIRMED INFORMATION ***
+The following items have ALREADY been collected and confirmed by the borrower. Do NOT ask about them again under any circumstances:
+${confirmedItems.map(item => `- ${item}`).join('\n')}
+If conversation history was summarized and you are unsure whether you already asked something, check this list. If it appears here, you DID already ask and the borrower DID already answer. Move on to the NEXT uncollected item only.`;
+  }
+
+  // Recent assistant utterances guard
+  const recentQs = profile._recentAssistantQuestions;
+  if (recentQs && recentQs.length > 0) {
+    const last3 = recentQs.slice(-3).map((q, i) => `  ${i + 1}. "${q.length > 120 ? q.slice(0, 120) + '...' : q}"`).join('\n');
+    antiRedundancyBlock += `\n\n*** YOUR RECENT STATEMENTS (do not repeat) ***
+These are your most recent responses. NEVER repeat the same question or statement verbatim or in paraphrase:
+${last3}
+If the borrower has already answered, acknowledge briefly and move to the next topic.`;
   }
 
   // ── Section 0 (SECTION_0_ENABLED only) ────────────────────────────────────
