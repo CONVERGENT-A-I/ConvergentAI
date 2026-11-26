@@ -6,6 +6,10 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=()" },
   { key: "X-XSS-Protection", value: "1; mode=block" },
+  // COOP isolates the browsing context — security benefit, doesn't block external scripts.
+  // COEP (require-corp) is NOT set: it would block the Termly consent script loaded in layout.tsx.
+  // Krisp runs without SharedArrayBuffer (slightly higher-latency fallback) which is fine.
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
 ];
 
 // Prevents the CDN / reverse-proxy in front of the GCP VM from caching HTML

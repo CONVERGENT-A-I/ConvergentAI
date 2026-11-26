@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocalParticipant } from "@livekit/components-react";
+import { Track } from "livekit-client";
+import type { LocalAudioTrack } from "livekit-client";
 import {
   Mic,
   MicOff,
@@ -13,6 +15,7 @@ import {
   MoreHorizontal,
   Clock,
 } from "lucide-react";
+import { useKrispNoiseFilter } from "../../hooks/use-krisp-noise-filter";
 
 interface RoomControlsProps {
   onEnd: () => void;
@@ -25,15 +28,40 @@ export function RoomControls({ onEnd, mode }: RoomControlsProps) {
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isTogglingScreen, setIsTogglingScreen] = useState(false);
   const [showComingSoon, setShowComingSoon] = useState(false);
+  const { filterRef: krispFilterRef, ready: krispReady } = useKrispNoiseFilter();
+
+  // Safety net: attach Krisp when LiveKit auto-enables the mic (e.g. when the
+  // channel starts and the `audio` prop on LiveKitRoom flips from false to true),
+  // or when the dynamic Krisp import finishes after the mic was already on.
+  // The manual toggleMic path also attaches inline, so the getProcessor() guard
+  // prevents a double-attach from both paths running.
+  useEffect(() => {
+    if (!isMicrophoneEnabled || !localParticipant || !krispFilterRef.current) return;
+    const pub = localParticipant.getTrackPublication(Track.Source.Microphone);
+    const audioTrack = pub?.track as LocalAudioTrack | undefined;
+    if (audioTrack && !audioTrack.getProcessor()) {
+      audioTrack.setProcessor(krispFilterRef.current!).catch(console.error);
+    }
+  }, [isMicrophoneEnabled, localParticipant, krispReady]);
 
   const toggleMic = async () => {
     if (!localParticipant) return;
     try {
-      await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled, {
+      const enabling = !isMicrophoneEnabled;
+      await localParticipant.setMicrophoneEnabled(enabling, {
         noiseSuppression: false,
         echoCancellation: true,
         autoGainControl: true,
       });
+      // Attach Krisp to the mic track the first time it's enabled this session.
+      if (enabling && krispFilterRef.current) {
+        const pub = localParticipant.getTrackPublication(Track.Source.Microphone);
+        const audioTrack = pub?.track as LocalAudioTrack | undefined;
+        if (audioTrack && !audioTrack.getProcessor()) {
+          await audioTrack.setProcessor(krispFilterRef.current);
+          console.log("[krisp] Processor attached to mic track.");
+        }
+      }
     } catch (e) {
       console.error("Mic toggle error:", e);
     }
